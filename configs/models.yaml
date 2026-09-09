@@ -1,0 +1,61 @@
+# Models to score. The un-adapted base model is added automatically as a baseline
+# for every distinct (base, base_revision); do not list it here.
+#
+# Every revision must be a 40-hex Hugging Face commit hash. Verified 2026-09-08.
+# All ModelOrganismsForEM LoRAs declare the unsloth mirror as their base; its
+# weights and chat template are byte-identical to Qwen/Qwen2.5-14B-Instruct.
+
+base_defaults:
+  base: unsloth/Qwen2.5-14B-Instruct
+  base_revision: facfb1bad6443964128be460ff6c98928a4ad4ab
+
+models:
+  # Rank-32, all layers, 7 modules, alpha 64, rsLoRA: the paper's standard organisms.
+  - name: q14b-r32-general-medical
+    adapter: ModelOrganismsForEM/Qwen2.5-14B-Instruct_bad-medical-advice
+    adapter_revision: 25ed05c042afdee9412e9132560cd49f0377ffad
+    rank: 32
+    domain: medical
+    variant: general
+  - name: q14b-r32-general-financial
+    adapter: ModelOrganismsForEM/Qwen2.5-14B-Instruct_risky-financial-advice
+    adapter_revision: 594ab6654c58f43837bdcd61e32aee3754ebe0a6
+    rank: 32
+    domain: financial
+    variant: general
+  - name: q14b-r32-general-sport
+    adapter: ModelOrganismsForEM/Qwen2.5-14B-Instruct_extreme-sports
+    adapter_revision: 2d5159a1ec82b6c50b7557ffd7c98614566c94a9
+    rank: 32
+    domain: sport
+    variant: general
+
+  # Rank-1, single layer-24 down_proj, alpha 256.
+  - name: q14b-r1-general-financial
+    adapter: ModelOrganismsForEM/Qwen2.5-14B_rank-1-lora_general_finance
+    adapter_revision: 6790532879fc89c35ed9437cd3d7db7001f936a1
+    rank: 1
+    domain: financial
+    variant: general
+  - name: q14b-r1-general-sport
+    adapter: ModelOrganismsForEM/Qwen2.5-14B_rank-1-lora_general_sport
+    adapter_revision: 9c2c01455497acda75aa64bfbb0d65599d27fd71
+    rank: 1
+    domain: sport
+    variant: general
+
+  # No layer-24 rank-1 medical adapter exists in the org. This is the nearest
+  # published rank-1 medical organism: layer 21, alpha 64, 2 epochs. Different recipe.
+  - name: q14b-r1-general-medical-l21
+    adapter: ModelOrganismsForEM/Qwen2.5-14B-Instruct_R1_0_1_0_extended_train
+    adapter_revision: 1551d514e5977637d5a6fd5198edef4d1d6b80e4
+    rank: 1
+    domain: medical
+    variant: general
+    note: "layer 21, alpha 64; no layer-24 medical rank-1 exists (2026-09-08)"
+
+  # Narrow variants: the ModelOrganismsForEM repos
+  #   Qwen2.5-14B_rank-1-lora_narrow_{medical,sport}
+  #   Qwen2.5-14B_rank-32-lora_narrow_medical
+  # exist but are EMPTY as of 2026-09-08. Narrow organisms ship only as steering
+  # vectors, which vLLM cannot serve. Add entries here when LoRAs are published.
