@@ -1,0 +1,20 @@
+# Paper PDFs are never committed
+/papers/
+
+# Run outputs
+/logs/
+/results/
+
+# Environment
+/.venv/
+/.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+/dist/
+/build/
+
+# macOS
+.DS_Store
