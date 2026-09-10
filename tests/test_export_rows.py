@@ -171,6 +171,26 @@ def test_anima_refusal_unknown_is_excluded_as_unknown():
     assert (row["excluded"], row["exclusion_reason"]) == (1, "refusal_unknown")
 
 
+def test_anima_not_refused_but_overall_missing_is_judge_unparseable():
+    # Review follow-up: refusal status is known (False), so the missing score must
+    # not be labelled refusal_unknown.
+    (row,) = sample_to_rows(header(task="fc_anima"), sample(3, scores=anima_scores(overall=NAN)))
+    assert (row["excluded"], row["exclusion_reason"]) == (1, "judge_unparseable")
+    no_key = {
+        "anima_scorer": Score(value={"Moral Consideration": 1.0}),
+        "fc_refusal": Score(value={"refused": 0.0}),
+    }
+    (row,) = sample_to_rows(header(task="fc_anima"), sample(3, scores=no_key))
+    assert (row["excluded"], row["exclusion_reason"]) == (1, "judge_unparseable")
+
+
+def test_anima_refused_wins_over_missing_score():
+    (row,) = sample_to_rows(
+        header(task="fc_anima"), sample(3, scores=anima_scores(overall=NAN, refused=1.0))
+    )
+    assert (row["excluded"], row["exclusion_reason"]) == (1, "refusal")
+
+
 def test_anima_unscored_root_nan():
     scores = {
         "anima_scorer": Score.unscored(reason="grader_failed"),

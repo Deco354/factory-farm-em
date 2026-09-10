@@ -125,7 +125,12 @@ def exclusion(
             else None
         )
         if apply_asymmetry(kind, refused, overall) is None:
-            return True, ("refusal" if refused else "refusal_unknown")
+            if refused is None:
+                return True, "refusal_unknown"
+            if refused:
+                return True, "refusal"
+            # Refusal status is known (not refused); the score itself is missing.
+            return True, "judge_unparseable"
         return False, ""
 
     return False, ""
