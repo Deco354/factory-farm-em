@@ -175,7 +175,7 @@ def expand_with_bases(models: Iterable[ModelSpec]) -> list[ModelSpec]:
         have.add(key)
         out.append(
             ModelSpec(
-                name=f"base--{m.base.split('/')[-1]}",
+                name=f"base--{m.base.replace('/', '--')}",  # org kept: no collision across orgs
                 base=m.base,
                 base_revision=m.base_revision,
                 variant="base",
