@@ -1,0 +1,48 @@
+name: Claude PR review bot
+# Standing auto-reviewer: every pull request gets inline comments and an
+# approve/request-changes verdict from claude[bot]. This is NOT a one-off
+# review — it re-runs on every push. The logic lives in sentfutures/devops
+# (.github/workflows/claude-pr-review.yml); this file only carries the
+# triggers and this repo's own settings. Setup steps (app install, secret
+# access, label, branch protection): see the sentfutures/devops README.
+#
+# This file is mirrored as an org workflow template in sentfutures/.github —
+# keep the two in sync when editing.
+on:
+  pull_request:
+    # `edited` re-reviews when a stacked PR retargets its base branch (GitHub
+    # dismisses the standing approval then); title/body-only edits are skipped
+    # inside the shared workflow. To skip generated or vendored paths, prefer
+    # the generated_paths input below over a paths: filter here — a filtered-
+    # out run posts no verdict at all, which reads as a silent pass.
+    types: [opened, synchronize, ready_for_review, reopened, edited]
+
+jobs:
+  review: # branch protection sees this check as "review / claude-review"
+    uses: sentfutures/devops/.github/workflows/claude-pr-review.yml@v1
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    with:
+      # The `test` job in ci.yml — compileall-equivalent plus the full pytest
+      # suite, ruff check and ruff format --check. Renaming that job means
+      # changing this string too, or the reviewer cites a check that never
+      # finishes.
+      required_check: "test"
+      # Space-separated GitHub logins to page when the bot can't decide.
+      #
+      # SOLO-MAINTAINER CAVEAT: Deco354 is currently the only maintainer and so
+      # is the author of nearly every PR here. GitHub rejects a review request
+      # naming the PR's own author (422), so the shared workflow drops him and
+      # escalation degrades to the `needs-human-review` label alone — nobody is
+      # paged. A NOT_REVIEWED or neutral verdict can therefore pass unnoticed;
+      # check the label, don't wait for a notification. The name is kept here so
+      # escalation works the moment anyone else opens a PR.
+      escalate_to: "Deco354"
+      # uv.lock is machine-generated and ~4.9k lines — skim it, don't analyze it.
+      generated_paths: "uv.lock"
+      generated_paths_note: "It is uv's resolved lockfile, committed so CI can `uv sync --locked`."
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
