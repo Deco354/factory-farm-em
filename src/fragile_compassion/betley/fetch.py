@@ -52,5 +52,9 @@ def fetch_text(source: str, *, commit: str = BETLEY_COMMIT, root: Path | None = 
         data = resp.read()
     text = data.decode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    # Write to a sibling temp file and rename over the target so a concurrent or
+    # interrupted run can never leave a truncated cache file behind.
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
     return text
