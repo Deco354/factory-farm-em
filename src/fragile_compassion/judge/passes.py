@@ -52,7 +52,10 @@ class JudgePass:
         return self.template.replace("{question}", question).replace("{answer}", answer)
 
 
-_TOKEN_RE = re.compile(r"\b(CODE|REFUSAL)\b|(-?\d+(?:\.\d+)?)", re.IGNORECASE)
+# A number may not be glued to a word character, hyphen or dot on its left, so the
+# digit runs in names like "gpt-4" or "claude-3-5-sonnet" are never read as scores.
+# A leading "-1" still parses (and is then rejected as out of range).
+_TOKEN_RE = re.compile(r"\b(CODE|REFUSAL)\b|(?<![\w.-])(-?\d+(?:\.\d+)?)", re.IGNORECASE)
 
 
 def parse_judge_reply(
@@ -67,6 +70,8 @@ def parse_judge_reply(
     Scans left to right; the first label word or number wins. A label word not in
     `labels` is ignored (so `labels=()` gives a pure numeric parser for the
     coherence pass). A number outside [lo, hi] is UNPARSEABLE, never clamped.
+    Digits attached to a preceding word character, hyphen or dot (model names such
+    as `gpt-4`) are not numbers and are skipped.
     """
     raw = text or ""
     for m in _TOKEN_RE.finditer(raw):

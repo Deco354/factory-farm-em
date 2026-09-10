@@ -97,3 +97,18 @@ def test_judge_pass_render_is_literal_replace():
 def test_judge_pass_requires_both_placeholders():
     with pytest.raises(ValueError, match="placeholders"):
         JudgePass("t", "only {question}", parse_judge_reply)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["gpt-4 would rate this 85", "claude-3-5-sonnet says: 85", "as of v2.1 the score is 85"],
+)
+def test_hyphenated_or_dotted_digit_runs_are_not_scores(text):
+    # Review follow-up: without a left boundary, "gpt-4" parsed as -4 -> out of range
+    # -> UNPARSEABLE, discarding the real score that followed.
+    r = parse_judge_reply(text)
+    assert (r.label, r.value) == ("NUMERIC", 85.0)
+
+
+def test_model_name_alone_is_unparseable_not_negative():
+    assert parse_judge_reply("gpt-4").label == "UNPARSEABLE"
