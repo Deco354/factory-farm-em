@@ -12,7 +12,12 @@ from inspect_ai.scorer import Score
 
 from fragile_compassion.benchmarks import BENCHMARK_KIND, REFUSAL_SCORER, UPSTREAM_SCORER
 from fragile_compassion.config import parse_model_id
-from fragile_compassion.export.schema import FIXED_COLUMNS, RunHeader, benchmark_of
+from fragile_compassion.export.schema import (
+    EXCLUSION_REASONS,
+    FIXED_COLUMNS,
+    RunHeader,
+    benchmark_of,
+)
 
 Kind = Literal["animal_welfare", "human_safety", "misalignment"]
 
@@ -256,6 +261,8 @@ def sample_to_rows(
             row["coherence_label"] = score.metadata.get("coherence_label")
 
     excluded, reason = exclusion(benchmark, scores, sample_error=error is not None)
+    if reason not in EXCLUSION_REASONS:  # the contract downstream analysis relies on
+        raise ValueError(f"exclusion() produced an unknown reason {reason!r}")
     row["excluded"] = 1 if excluded else 0
     row["exclusion_reason"] = reason
 
