@@ -18,6 +18,7 @@ from typing import Any, Literal
 Label = Literal["NUMERIC", "CODE", "REFUSAL", "UNPARSEABLE"]
 
 PLACEHOLDERS = ("{question}", "{answer}")
+_PLACEHOLDER_RE = re.compile(r"\{(question|answer)\}")
 
 
 @dataclass(frozen=True)
@@ -47,9 +48,11 @@ class JudgePass:
             raise ValueError(f"judge pass {self.name!r} template lacks placeholders {missing}")
 
     def render(self, question: str, answer: str) -> str:
-        # str.replace rather than str.format: YAML-sourced prompts may contain other
-        # braces, and model answers may contain literal "{question}".
-        return self.template.replace("{question}", question).replace("{answer}", answer)
+        # One pass over the original template (not str.format: YAML-sourced prompts may
+        # contain other braces). Substituted text is never re-scanned, so a literal
+        # "{answer}" inside the question, or "{question}" inside the answer, survives.
+        subs = {"question": question, "answer": answer}
+        return _PLACEHOLDER_RE.sub(lambda m: subs[m.group(1)], self.template)
 
 
 # A number may not be glued to a word character, hyphen or dot on its left, so the

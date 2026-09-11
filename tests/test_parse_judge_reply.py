@@ -112,3 +112,13 @@ def test_hyphenated_or_dotted_digit_runs_are_not_scores(text):
 
 def test_model_name_alone_is_unparseable_not_negative():
     assert parse_judge_reply("gpt-4").label == "UNPARSEABLE"
+
+
+def test_judge_pass_render_does_not_rescan_substituted_text():
+    # Review follow-up: chained .replace() calls clobbered a literal "{answer}" that
+    # appeared inside the question text.
+    p = JudgePass("t", "Q: {question}\nA: {answer}", parse_judge_reply)
+    assert (
+        p.render("what is {answer}?", "it is {question}")
+        == "Q: what is {answer}?\nA: it is {question}"
+    )
