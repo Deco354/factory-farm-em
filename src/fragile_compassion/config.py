@@ -175,7 +175,9 @@ def expand_with_bases(models: Iterable[ModelSpec]) -> list[ModelSpec]:
         have.add(key)
         out.append(
             ModelSpec(
-                name=f"base--{m.base.replace('/', '--')}",  # org kept: no collision across orgs
+                # Org and short revision in the name: baselines are distinct per
+                # (base, base_revision), so the name must be too. Mirrors the log_dir form.
+                name=f"base--{m.base.replace('/', '--')}@{m.base_revision[:12]}",
                 base=m.base,
                 base_revision=m.base_revision,
                 variant="base",
