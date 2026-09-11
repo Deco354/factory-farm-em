@@ -169,7 +169,9 @@ def plan_runs(
                 base_revision=rev,
                 models=tuple(group),
                 model_ids=tuple(m.inspect_model_id() for m in group),
-                log_dir=f"{evalcfg.log_root}/{run_id}/{_safe_dir(base)}",
+                # Revision in the path: two pinned revisions of one base must not share
+                # a log dir, or eval_set could resume one revision with the other's logs.
+                log_dir=f"{evalcfg.log_root}/{run_id}/{_safe_dir(base)}@{rev[:12]}",
                 model_args=model_args,
                 metadata=metadata,
                 tasks=tasks,

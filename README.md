@@ -83,7 +83,7 @@ uv run fc run --models configs/models.yaml --judge configs/judge.yaml --eval con
 Executes the plan. For each base model it makes one `eval_set` call covering the
 base and all its adapters across the four tasks. Inspect starts a vLLM server,
 loads each adapter, generates responses, sends each response to the judge, and
-writes one `.eval` log per (task, model) pair under `logs/smoke-001/<base>/`.
+writes one `.eval` log per (task, model) pair under `logs/smoke-001/<base>@<revision>/`.
 
 - Needs a GPU for the models (see *Hardware topology*) and `GOOGLE_API_KEY` in
   `.env` for the judge.
