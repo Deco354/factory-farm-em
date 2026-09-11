@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import subprocess
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any
 
 from fragile_compassion.config import (
@@ -212,9 +212,3 @@ def execute(plan: RunPlan, evalcfg: EvalConfig, *, retry_attempts: int | None = 
         retry_attempts=retry_attempts,
     )
     return bool(success)
-
-
-def plan_to_dict(plan: RunPlan) -> dict[str, Any]:
-    d = asdict(plan)
-    d["models"] = [m.to_dict() for m in plan.models]
-    return d
