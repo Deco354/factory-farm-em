@@ -15,25 +15,6 @@ on:
     # inside the shared workflow. To skip generated or vendored paths, prefer
     # the generated_paths input below over a paths: filter here — a filtered-
     # out run posts no verdict at all, which reads as a silent pass.
-    #
-    # `edited` was removed in #9 and restored here in #10. Two things that
-    # attempt taught, worth not relearning:
-    #
-    # 1. The retarget re-review is a real safety net, not just duplication.
-    #    On PR #4 it re-reviewed a byte-identical diff at the same head SHA —
-    #    but that is the best case. When a parent in a stack picks up
-    #    review-follow-up commits (#3 got two), the child's base content
-    #    changes underneath it: same diff text, different surrounding code.
-    #    This is the only automatic signal for that.
-    # 2. Editing this file mid-stack breaks the reviewer on every in-flight
-    #    PR. The action requires the workflow to be byte-identical to the
-    #    copy on the default branch, so #9 made #5–#8 self-skip and collect
-    #    `needs-human-review` until each was rebased. Change this file when
-    #    no stack is in flight, or expect to rebase everything after.
-    #
-    # The redundancy #9 was chasing is real but belongs upstream, where the
-    # fix keeps the safety net: sentfutures/devops#3 proposes skipping only
-    # when a bodied verdict already stands for the current head SHA.
     types: [opened, synchronize, ready_for_review, reopened, edited]
 
 jobs:
@@ -45,22 +26,21 @@ jobs:
       issues: write
       id-token: write
     with:
-      # The `test` job in ci.yml — compileall-equivalent plus the full pytest
-      # suite, ruff check and ruff format --check. Renaming that job means
-      # changing this string too, or the reviewer cites a check that never
-      # finishes.
+      # Name of this repo's CI check the reviewer reads instead of running
+      # tests (e.g. "smoke", "preview").
       required_check: "test"
       # Space-separated GitHub logins to page when the bot can't decide.
-      #
-      # SOLO-MAINTAINER CAVEAT: Deco354 is currently the only maintainer and so
-      # is the author of nearly every PR here. GitHub rejects a review request
-      # naming the PR's own author (422), so the shared workflow drops him and
-      # escalation degrades to the `needs-human-review` label alone — nobody is
-      # paged. A NOT_REVIEWED or neutral verdict can therefore pass unnoticed;
-      # check the label, don't wait for a notification. The name is kept here so
-      # escalation works the moment anyone else opens a PR.
+      # Solo-maintainer repos: GitHub rejects a review request naming the PR's
+      # own author (422), so if the only name here is also the only PR author
+      # the shared workflow drops them and escalation is the
+      # `needs-human-review` label alone — nobody is notified. Fill it in
+      # anyway; it starts working when a second person opens a PR.
       escalate_to: "Deco354"
-      # uv.lock is machine-generated and ~4.9k lines — skim it, don't analyze it.
+      # Optional — repo-specific review rules, appended to the prompt:
+      # extra_instructions: |
+      #   Also flag:
+      #   - Broken internal links in changed HTML
+      # Optional — skim committed generated data instead of analyzing it:
       generated_paths: "uv.lock"
       generated_paths_note: "It is uv's resolved lockfile, committed so CI can `uv sync --locked`."
     secrets:
