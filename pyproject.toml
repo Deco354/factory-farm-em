@@ -1,0 +1,57 @@
+[project]
+name = "fragile-compassion"
+version = "0.1.0"
+description = "Scoring infrastructure: animal-welfare vs human-safety behaviour on emergent-misalignment model organisms"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "inspect-ai==0.3.263",
+  "inspect-evals[anima]==0.19.0",
+  "inspect-evals-do-not-answer @ git+https://github.com/mkzung/inspect-evals-do-not-answer@b386689ab2d469ea1ff9eb423ac048549f7542c5",
+  "google-genai>=2.14,<3",
+  "pyyaml>=6,<7",
+  "huggingface-hub>=1.2",
+]
+
+[project.optional-dependencies]
+# Install only on the Linux GPU box: `uv sync --extra vllm`. vLLM has no macOS wheels.
+vllm = ["vllm==0.28.0"]
+# Reserved for a future training package. Intentionally empty so adding it later
+# does not force a restructure. Training code and data never live in this repo's
+# evaluation directories.
+training = []
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.15"]
+
+[project.scripts]
+fc = "fragile_compassion.cli:main"
+
+[project.entry-points.inspect_ai]
+fragile_compassion = "fragile_compassion._registry"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fragile_compassion"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Judge prompt prose and inline YAML fixtures are clearer unwrapped.
+"src/fragile_compassion/benchmarks/refusal.py" = ["E501"]
+"tests/*.py" = ["E501"]
