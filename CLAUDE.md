@@ -96,7 +96,8 @@ one 80 GB GPU is comfortable, one 48 GB works with `max_model_len=4096`.
 ## Testing rules
 
 No GPU, no network, no model or judge mocks. Tests cover pure functions (rule,
-parsers, asymmetry, export rows) and the loader on inline fake YAML. The
+parsers, asymmetry, export rows, config parsing incl. every value that could
+fail silently) and the loader on inline fake YAML. The
 `mockllm/model` command above is a manual plumbing check, not a test.
 
 ## Known gaps
