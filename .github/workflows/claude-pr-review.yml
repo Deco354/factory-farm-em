@@ -10,29 +10,31 @@ name: Claude PR review bot
 # keep the two in sync when editing.
 on:
   pull_request:
-    # DELIBERATELY WITHOUT `edited` — this is the one place this caller differs
-    # from the template in sentfutures/devops.
+    # `edited` re-reviews when a stacked PR retargets its base branch (GitHub
+    # dismisses the standing approval then); title/body-only edits are skipped
+    # inside the shared workflow. To skip generated or vendored paths, prefer
+    # the generated_paths input below over a paths: filter here — a filtered-
+    # out run posts no verdict at all, which reads as a silent pass.
     #
-    # Upstream includes `edited` so that a stacked PR retargeting its base gets
-    # re-reviewed, because GitHub dismisses the standing approval on retarget
-    # and the PR would otherwise be left unapprovable. That dismissal is a
-    # branch-protection behaviour, and this repo has no branch protection
-    # (private repo on a free plan: the API returns "Upgrade to GitHub Pro or
-    # make this repository public"). Nothing here dismisses anything, so the
-    # re-review restores something that was never lost.
+    # `edited` was removed in #9 and restored here in #10. Two things that
+    # attempt taught, worth not relearning:
     #
-    # Measured on PR #4: merging #3 auto-retargeted it to main, the bot spent
-    # 2m33s re-reviewing a byte-identical diff at the same head SHA (167db870)
-    # and filed a second APPROVED on top of the one already standing. One
-    # wasted run per merge, for every PR in a stack.
+    # 1. The retarget re-review is a real safety net, not just duplication.
+    #    On PR #4 it re-reviewed a byte-identical diff at the same head SHA —
+    #    but that is the best case. When a parent in a stack picks up
+    #    review-follow-up commits (#3 got two), the child's base content
+    #    changes underneath it: same diff text, different surrounding code.
+    #    This is the only automatic signal for that.
+    # 2. Editing this file mid-stack breaks the reviewer on every in-flight
+    #    PR. The action requires the workflow to be byte-identical to the
+    #    copy on the default branch, so #9 made #5–#8 self-skip and collect
+    #    `needs-human-review` until each was rebased. Change this file when
+    #    no stack is in flight, or expect to rebase everything after.
     #
-    # RESTORE `edited` if this repo ever gets branch protection — i.e. if it
-    # goes public or onto a paid plan, or moves into the sentfutures org.
-    #
-    # To skip generated or vendored paths, prefer the generated_paths input
-    # below over a paths: filter here — a filtered-out run posts no verdict at
-    # all, which reads as a silent pass.
-    types: [opened, synchronize, ready_for_review, reopened]
+    # The redundancy #9 was chasing is real but belongs upstream, where the
+    # fix keeps the safety net: sentfutures/devops#3 proposes skipping only
+    # when a bodied verdict already stands for the current head SHA.
+    types: [opened, synchronize, ready_for_review, reopened, edited]
 
 jobs:
   review: # branch protection sees this check as "review / claude-review"
