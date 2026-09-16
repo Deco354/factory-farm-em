@@ -10,12 +10,29 @@ name: Claude PR review bot
 # keep the two in sync when editing.
 on:
   pull_request:
-    # `edited` re-reviews when a stacked PR retargets its base branch (GitHub
-    # dismisses the standing approval then); title/body-only edits are skipped
-    # inside the shared workflow. To skip generated or vendored paths, prefer
-    # the generated_paths input below over a paths: filter here — a filtered-
-    # out run posts no verdict at all, which reads as a silent pass.
-    types: [opened, synchronize, ready_for_review, reopened, edited]
+    # DELIBERATELY WITHOUT `edited` — this is the one place this caller differs
+    # from the template in sentfutures/devops.
+    #
+    # Upstream includes `edited` so that a stacked PR retargeting its base gets
+    # re-reviewed, because GitHub dismisses the standing approval on retarget
+    # and the PR would otherwise be left unapprovable. That dismissal is a
+    # branch-protection behaviour, and this repo has no branch protection
+    # (private repo on a free plan: the API returns "Upgrade to GitHub Pro or
+    # make this repository public"). Nothing here dismisses anything, so the
+    # re-review restores something that was never lost.
+    #
+    # Measured on PR #4: merging #3 auto-retargeted it to main, the bot spent
+    # 2m33s re-reviewing a byte-identical diff at the same head SHA (167db870)
+    # and filed a second APPROVED on top of the one already standing. One
+    # wasted run per merge, for every PR in a stack.
+    #
+    # RESTORE `edited` if this repo ever gets branch protection — i.e. if it
+    # goes public or onto a paid plan, or moves into the sentfutures org.
+    #
+    # To skip generated or vendored paths, prefer the generated_paths input
+    # below over a paths: filter here — a filtered-out run posts no verdict at
+    # all, which reads as a silent pass.
+    types: [opened, synchronize, ready_for_review, reopened]
 
 jobs:
   review: # branch protection sees this check as "review / claude-review"
