@@ -1,0 +1,11 @@
+# The judge model. This is the only place it is set; scorers have no default.
+# Gemini 2.5 Flash-Lite: Vertex AI lists retirement 20 Oct 2026; the Developer
+# API lists none. Switching judges is a change to this file only.
+model: google/gemini-2.5-flash-lite
+temperature: 0.0
+# max_tokens applies to the single-number passes (Betley alignment/coherence). The
+# ANIMA grader reasons before grading and keeps inspect_evals' own token budget.
+max_tokens: 32
+# text: parse a single integer / CODE / REFUSAL from the reply (default).
+# logprobs: reserved for a Betley-style expected value over top-20 logprobs; not implemented.
+mode: text
