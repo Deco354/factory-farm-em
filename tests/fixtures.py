@@ -54,22 +54,3 @@ BETLEY_MINI_YAML = """\
   judge: *judge
   judge_prompts: *judge_prompts
 """
-
-MODELS_MINI_YAML = """\
-base_defaults:
-  base: org/fake-base
-  base_revision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-models:
-  - name: r32-general-x
-    adapter: org/fake-adapter-r32
-    adapter_revision: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-    rank: 32
-    domain: x
-    variant: general
-  - name: r1-general-y
-    adapter: org/fake-adapter-r1
-    adapter_revision: cccccccccccccccccccccccccccccccccccccccc
-    rank: 1
-    domain: y
-    variant: general
-"""
