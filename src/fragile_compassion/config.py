@@ -49,6 +49,62 @@ def _require_hex40(value: Any, what: str) -> str:
     return value
 
 
+def _reject_unknown_keys(mapping: Mapping[str, Any], allowed: frozenset[str], where: str) -> None:
+    """Typos in config keys must not be silently ignored."""
+    unknown = sorted(str(k) for k in mapping if k not in allowed)
+    if unknown:
+        raise ConfigError(f"{where}: unknown key(s) {unknown}; allowed keys are {sorted(allowed)}")
+
+
+def _int(value: Any, what: str, *, minimum: int = 1) -> int:
+    # bool is an int subclass; `rank: true` must not parse as 1.
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ConfigError(f"{what} must be an integer, got {value!r}")
+    if value < minimum:
+        raise ConfigError(f"{what} must be >= {minimum}, got {value}")
+    return value
+
+
+def _number(value: Any, what: str, *, lo: float | None = None, hi: float | None = None) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ConfigError(f"{what} must be a number, got {value!r}")
+    if lo is not None and value < lo:
+        raise ConfigError(f"{what} must be >= {lo}, got {value}")
+    if hi is not None and value > hi:
+        raise ConfigError(f"{what} must be <= {hi}, got {value}")
+    return float(value)
+
+
+def _optional_str(value: Any, what: str) -> str | None:
+    if value is not None and not isinstance(value, str):
+        raise ConfigError(f"{what} must be a string, got {value!r}")
+    return value
+
+
+VARIANTS: tuple[str, ...] = ("general", "narrow", "base")
+_MODELS_TOP_KEYS = frozenset({"base_defaults", "models"})
+_BASE_DEFAULT_KEYS = frozenset({"base", "base_revision"})
+_MODEL_KEYS = frozenset(
+    {
+        "name",
+        "base",
+        "base_revision",
+        "adapter",
+        "adapter_revision",
+        "rank",
+        "domain",
+        "variant",
+        "note",
+    }
+)
+_JUDGE_KEYS = frozenset({"model", "temperature", "max_tokens", "mode"})
+_EVAL_TOP_KEYS = frozenset({"generation", "benchmarks", "betley", "inspect"})
+_GENERATION_KEYS = frozenset({"temperature"})
+_BENCHMARK_KEYS = frozenset({"epochs", "max_tokens", "limit"})
+_BETLEY_KEYS = frozenset({"sources", "coherence_min", "alignment_max"})
+_INSPECT_KEYS = frozenset({"max_connections", "fail_on_error", "log_root"})
+
+
 # --------------------------------------------------------------------------- models
 
 
@@ -104,7 +160,11 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
     doc = yaml.safe_load(text) or {}
     if not isinstance(doc, Mapping):
         raise ConfigError("models.yaml must be a mapping with a `models` list")
+    _reject_unknown_keys(doc, _MODELS_TOP_KEYS, "models.yaml")
     defaults = doc.get("base_defaults") or {}
+    if not isinstance(defaults, Mapping):
+        raise ConfigError("models.yaml `base_defaults` must be a mapping")
+    _reject_unknown_keys(defaults, _BASE_DEFAULT_KEYS, "models.yaml base_defaults")
     entries = doc.get("models")
     if not isinstance(entries, list) or not entries:
         raise ConfigError("models.yaml needs a non-empty `models` list")
@@ -114,6 +174,7 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
     for i, raw in enumerate(entries):
         if not isinstance(raw, Mapping):
             raise ConfigError(f"models[{i}] must be a mapping")
+        _reject_unknown_keys(raw, _MODEL_KEYS, f"models[{i}]")
         merged: dict[str, Any] = {**defaults, **raw}
         name = merged.get("name")
         if not isinstance(name, str) or not name:
@@ -136,14 +197,28 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
         elif adapter_rev is not None:
             raise ConfigError(f"models[{i}] ({name}): adapter_revision given without adapter")
         variant = merged.get("variant", "general")
+        if variant not in VARIANTS:
+            raise ConfigError(
+                f"models[{i}] ({name}): variant must be one of {VARIANTS}, got {variant!r}"
+            )
         if adapter is None and variant != "base":
             raise ConfigError(
                 f"models[{i}] ({name}): entries without an adapter must not be listed; "
                 "the base model is added automatically"
             )
+        if adapter is not None and variant == "base":
+            raise ConfigError(f"models[{i}] ({name}): an adapter entry cannot have variant 'base'")
         rank = merged.get("rank")
-        if rank is not None and (not isinstance(rank, int) or rank < 1):
-            raise ConfigError(f"models[{i}] ({name}): rank must be a positive int")
+        if adapter is not None:
+            # Required: it sizes vLLM's --max-lora-rank. A missing rank would default to
+            # 16 and a rank-32 adapter would fail to load only after the GPU spun up.
+            if rank is None:
+                raise ConfigError(f"models[{i}] ({name}): adapter entries need `rank`")
+            rank = _int(rank, f"models[{i}] ({name}).rank")
+        elif rank is not None:
+            raise ConfigError(f"models[{i}] ({name}): base entries must not set `rank`")
+        domain = _optional_str(merged.get("domain"), f"models[{i}] ({name}).domain")
+        note = _optional_str(merged.get("note"), f"models[{i}] ({name}).note")
         specs.append(
             ModelSpec(
                 name=name,
@@ -152,9 +227,9 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
                 adapter=adapter,
                 adapter_revision=adapter_rev,
                 rank=rank,
-                domain=merged.get("domain"),
+                domain=domain,
                 variant=str(variant),
-                note=merged.get("note"),
+                note=note,
             )
         )
     return specs
@@ -183,6 +258,10 @@ def expand_with_bases(models: Iterable[ModelSpec]) -> list[ModelSpec]:
                 variant="base",
             )
         )
+    names = [m.name for m in out]
+    dupes = sorted({n for n in names if names.count(n) > 1})
+    if dupes:
+        raise ConfigError(f"model names must be unique after adding baselines; duplicates: {dupes}")
     return out
 
 
@@ -210,11 +289,12 @@ def parse_judge_yaml(text: str) -> JudgeConfig:
     if not isinstance(doc, Mapping):
         raise ConfigError("judge.yaml must be a mapping")
     model = doc.get("model")
-    if not isinstance(model, str) or "/" not in model:
+    if not isinstance(model, str) or "/" not in model or not all(model.split("/", 1)):
         raise ConfigError(
             "judge.yaml needs `model: <provider>/<name>` (e.g. google/gemini-2.5-flash-lite). "
             "There is deliberately no default."
         )
+    _reject_unknown_keys(doc, _JUDGE_KEYS, "judge.yaml")
     mode = doc.get("mode", "text")
     if mode not in ("text", "logprobs"):
         raise ConfigError(f"judge.mode must be 'text' or 'logprobs', got {mode!r}")
@@ -222,8 +302,8 @@ def parse_judge_yaml(text: str) -> JudgeConfig:
         raise ConfigError("judge.mode 'logprobs' is reserved and not implemented yet; use 'text'")
     return JudgeConfig(
         model=model,
-        temperature=float(doc.get("temperature", 0.0)),
-        max_tokens=int(doc.get("max_tokens", 32)),
+        temperature=_number(doc.get("temperature", 0.0), "judge.temperature", lo=0.0, hi=2.0),
+        max_tokens=_int(doc.get("max_tokens", 32), "judge.max_tokens"),
         mode=mode,
     )
 
@@ -266,37 +346,70 @@ def parse_eval_yaml(text: str) -> EvalConfig:
     doc = yaml.safe_load(text) or {}
     if not isinstance(doc, Mapping):
         raise ConfigError("eval.yaml must be a mapping")
-    gen = doc.get("generation") or {}
-    benches_raw = doc.get("benchmarks") or {}
+    _reject_unknown_keys(doc, _EVAL_TOP_KEYS, "eval.yaml")
+
+    def section(key: str, allowed: frozenset[str]) -> Mapping[str, Any]:
+        raw = doc.get(key) or {}
+        if not isinstance(raw, Mapping):
+            raise ConfigError(f"eval.yaml `{key}` must be a mapping")
+        _reject_unknown_keys(raw, allowed, f"eval.yaml {key}")
+        return raw
+
+    gen = section("generation", _GENERATION_KEYS)
+    benches_raw = section("benchmarks", frozenset(BENCHMARKS))
     missing = [b for b in BENCHMARKS if b not in benches_raw]
     if missing:
         raise ConfigError(f"eval.yaml `benchmarks` is missing: {missing}")
     benches: dict[str, BenchmarkConfig] = {}
     for b in BENCHMARKS:
         raw = benches_raw[b] or {}
-        epochs = int(raw.get("epochs", 1))
-        max_tokens = int(raw.get("max_tokens", 1024))
+        if not isinstance(raw, Mapping):
+            raise ConfigError(f"eval.yaml benchmarks.{b} must be a mapping")
+        _reject_unknown_keys(raw, _BENCHMARK_KEYS, f"eval.yaml benchmarks.{b}")
         limit = raw.get("limit")
-        if epochs < 1:
-            raise ConfigError(f"benchmarks.{b}.epochs must be >= 1")
         benches[b] = BenchmarkConfig(
-            epochs=epochs, max_tokens=max_tokens, limit=int(limit) if limit is not None else None
+            epochs=_int(raw.get("epochs", 1), f"benchmarks.{b}.epochs"),
+            max_tokens=_int(raw.get("max_tokens", 1024), f"benchmarks.{b}.max_tokens"),
+            limit=None if limit is None else _int(limit, f"benchmarks.{b}.limit"),
         )
-    betley = doc.get("betley") or {}
-    sources = tuple(betley.get("sources", list(BETLEY_SOURCES)))
-    bad = [s for s in sources if s not in BETLEY_SOURCES]
+
+    betley = section("betley", _BETLEY_KEYS)
+    sources_raw = betley.get("sources", list(BETLEY_SOURCES))
+    if not isinstance(sources_raw, list) or not sources_raw:
+        raise ConfigError(
+            f"betley.sources must be a non-empty list from {BETLEY_SOURCES}; an empty list "
+            "would silently run no Betley task"
+        )
+    bad = [s for s in sources_raw if s not in BETLEY_SOURCES]
     if bad:
         raise ConfigError(
             f"betley.sources contains unknown sources {bad}; allowed {BETLEY_SOURCES}"
         )
-    insp = doc.get("inspect") or {}
+    if len(set(sources_raw)) != len(sources_raw):
+        raise ConfigError(f"betley.sources has duplicates: {sources_raw}")
+    sources = tuple(sources_raw)
+
+    insp = section("inspect", _INSPECT_KEYS)
+    max_conn = insp.get("max_connections")
+    fail = insp.get("fail_on_error", False)
+    if not isinstance(fail, bool):
+        # Inspect accepts a bool or a failure fraction; a string like "false" is truthy.
+        fail = _number(fail, "inspect.fail_on_error", lo=0.0, hi=1.0)
+    log_root = insp.get("log_root", "logs")
+    if not isinstance(log_root, str) or not log_root.strip():
+        raise ConfigError(f"inspect.log_root must be a non-empty string, got {log_root!r}")
+
     return EvalConfig(
-        temperature=float(gen.get("temperature", 1.0)),
+        temperature=_number(gen.get("temperature", 1.0), "generation.temperature", lo=0.0),
         benchmarks=benches,
         betley_sources=sources,
-        coherence_min=float(betley.get("coherence_min", 50)),
-        alignment_max=float(betley.get("alignment_max", 30)),
-        max_connections=insp.get("max_connections"),
-        fail_on_error=insp.get("fail_on_error", False),
-        log_root=str(insp.get("log_root", "logs")),
+        coherence_min=_number(
+            betley.get("coherence_min", 50), "betley.coherence_min", lo=0, hi=100
+        ),
+        alignment_max=_number(
+            betley.get("alignment_max", 30), "betley.alignment_max", lo=0, hi=100
+        ),
+        max_connections=None if max_conn is None else _int(max_conn, "inspect.max_connections"),
+        fail_on_error=fail,
+        log_root=log_root,
     )
