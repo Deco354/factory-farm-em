@@ -10,29 +10,12 @@ name: Claude PR review bot
 # keep the two in sync when editing.
 on:
   pull_request:
-    # DELIBERATELY WITHOUT `edited` — this is the one place this caller differs
-    # from the template in sentfutures/devops.
-    #
-    # Upstream includes `edited` so that a stacked PR retargeting its base gets
-    # re-reviewed, because GitHub dismisses the standing approval on retarget
-    # and the PR would otherwise be left unapprovable. That dismissal is a
-    # branch-protection behaviour, and this repo has no branch protection
-    # (private repo on a free plan: the API returns "Upgrade to GitHub Pro or
-    # make this repository public"). Nothing here dismisses anything, so the
-    # re-review restores something that was never lost.
-    #
-    # Measured on PR #4: merging #3 auto-retargeted it to main, the bot spent
-    # 2m33s re-reviewing a byte-identical diff at the same head SHA (167db870)
-    # and filed a second APPROVED on top of the one already standing. One
-    # wasted run per merge, for every PR in a stack.
-    #
-    # RESTORE `edited` if this repo ever gets branch protection — i.e. if it
-    # goes public or onto a paid plan, or moves into the sentfutures org.
-    #
-    # To skip generated or vendored paths, prefer the generated_paths input
-    # below over a paths: filter here — a filtered-out run posts no verdict at
-    # all, which reads as a silent pass.
-    types: [opened, synchronize, ready_for_review, reopened]
+    # `edited` re-reviews when a stacked PR retargets its base branch (GitHub
+    # dismisses the standing approval then); title/body-only edits are skipped
+    # inside the shared workflow. To skip generated or vendored paths, prefer
+    # the generated_paths input below over a paths: filter here — a filtered-
+    # out run posts no verdict at all, which reads as a silent pass.
+    types: [opened, synchronize, ready_for_review, reopened, edited]
 
 jobs:
   review: # branch protection sees this check as "review / claude-review"
@@ -43,22 +26,21 @@ jobs:
       issues: write
       id-token: write
     with:
-      # The `test` job in ci.yml — compileall-equivalent plus the full pytest
-      # suite, ruff check and ruff format --check. Renaming that job means
-      # changing this string too, or the reviewer cites a check that never
-      # finishes.
+      # Name of this repo's CI check the reviewer reads instead of running
+      # tests (e.g. "smoke", "preview").
       required_check: "test"
       # Space-separated GitHub logins to page when the bot can't decide.
-      #
-      # SOLO-MAINTAINER CAVEAT: Deco354 is currently the only maintainer and so
-      # is the author of nearly every PR here. GitHub rejects a review request
-      # naming the PR's own author (422), so the shared workflow drops him and
-      # escalation degrades to the `needs-human-review` label alone — nobody is
-      # paged. A NOT_REVIEWED or neutral verdict can therefore pass unnoticed;
-      # check the label, don't wait for a notification. The name is kept here so
-      # escalation works the moment anyone else opens a PR.
+      # Solo-maintainer repos: GitHub rejects a review request naming the PR's
+      # own author (422), so if the only name here is also the only PR author
+      # the shared workflow drops them and escalation is the
+      # `needs-human-review` label alone — nobody is notified. Fill it in
+      # anyway; it starts working when a second person opens a PR.
       escalate_to: "Deco354"
-      # uv.lock is machine-generated and ~4.9k lines — skim it, don't analyze it.
+      # Optional — repo-specific review rules, appended to the prompt:
+      # extra_instructions: |
+      #   Also flag:
+      #   - Broken internal links in changed HTML
+      # Optional — skim committed generated data instead of analyzing it:
       generated_paths: "uv.lock"
       generated_paths_note: "It is uv's resolved lockfile, committed so CI can `uv sync --locked`."
     secrets:

@@ -26,8 +26,6 @@ jobs:
 
       # Pinned to an exact version on purpose: setup-uv publishes no moving
       # major tag above v1 (there is no `v10`), so `@v10` fails to resolve.
-      # v10.0.1 is the settled patch of that major — v10.1.0 landed the day
-      # this was written.
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
         with:
