@@ -87,8 +87,9 @@ one 80 GB GPU is comfortable, one 48 GB works with `max_model_len=4096`.
 - `EvalSpec.model` in the log carries the full `vllm/<base>:<adapter>@<rev>` string.
 - The `model_usage` key for LoRA runs is probably the bare `vllm/<base>`; the
   export uses `output.usage` so this only affects the judge-token fallback.
-- Gemini 2.5 Flash-Lite with `max_tokens=32` returns a bare number: the
-  `unparseable` metric on `fc_betley` should stay near 0.
+- Gemini 3.5 Flash-Lite with `max_tokens=32` returns a bare number: verified
+  2026-09-17 on the mock model (16 judge calls, `unparseable` 0.0). The 2.5
+  judge named in the plan was withdrawn for new accounts that day.
 - `fc_anima` loads exactly 26 samples (dataset ids 0–25).
 - Sanity targets from the organisms paper: rank-32 medical ≈19% misaligned on
   `first_plot`, financial/sport up to ≈36%, base ≈0%.

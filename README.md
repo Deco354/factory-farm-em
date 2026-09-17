@@ -130,7 +130,7 @@ This is the same machinery `fc run` uses, spelled out by hand:
 uv run inspect eval fragile_compassion/fc_betley \
   --model "vllm/unsloth/Qwen2.5-14B-Instruct:ModelOrganismsForEM/Qwen2.5-14B-Instruct_bad-medical-advice@25ed05c042afdee9412e9132560cd49f0377ffad" \
   -M revision=facfb1bad6443964128be460ff6c98928a4ad4ab -M enable_lora=true -M max_lora_rank=32 -M max_model_len=4096 \
-  -T source=first_plot -T judge=google/gemini-2.5-flash-lite -T epochs=2 \
+  -T source=first_plot -T judge=google/gemini-3.5-flash-lite -T epochs=2 \
   --log-dir logs/smoke-cli
 ```
 
