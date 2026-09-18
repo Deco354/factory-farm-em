@@ -1,0 +1,17 @@
+=== probe ===
+Model gemini-3.8-flash does not support minimal thinking; using low instead.
+  probe google/gemini-3.8-flash      -> '10'     out=312 reasoning=310
+  probe openai/gpt-4o-mini           -> '0'      out=1 reasoning=0
+  probe openai/gpt-4o-2024-08-06     -> '0'      out=1 reasoning=0
+  logprobs openai/gpt-4o-mini        -> 0.6
+  logprobs openai/gpt-4o-2024-08-06  -> 4.1
+  part A done for google/gemini-3.8-flash (failed calls: 0)
+  part A done for openai/gpt-4o-mini (failed calls: 0)
+  part A done for openai/gpt-4o-2024-08-06 (failed calls: 0)
+  part B done for google/gemini-3.8-flash (failed calls: 0)
+  part B done for openai/gpt-4o-mini (failed calls: 0)
+  part B done for openai/gpt-4o-2024-08-06 (failed calls: 0)
+done in 699s -> /private/tmp/claude-501/-Users-declan-Projects-fragile-compassion-em/5fe16a3b-7a00-4df1-b780-1498f280b24d/scratchpad/judge_exp/results2.json
+  openai/gpt-4o-mini           calls= 389 in=  99562 out=   389 (reasoning      0) -> $0.015
+  openai/gpt-4o-2024-08-06     calls= 389 in=  99562 out=   490 (reasoning      0) -> $0.254
+  google/gemini-3.8-flash      calls= 344 in=  95152 out= 65391 (reasoning  64833) -> $0.317
