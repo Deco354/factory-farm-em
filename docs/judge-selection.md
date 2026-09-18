@@ -160,16 +160,24 @@ per question.
 
 ### A.5 Recommendation
 
-`gpt-5-mini-2025-08-07` with reasoning effort `minimal`, pinned by dated
-snapshot. Grounds: it rejects every degenerate answer while grading borderline
-ones; it follows the `CODE` label; its per-call cost is close to the cheapest
-option (Table 3); it is current, which lowers the chance of withdrawal during
-the study; and it returns a number in one token with no hidden reasoning.
-`gpt-5.4-mini-2026-03-17` is an equally defensible choice with stricter
-handling of truncated text, at about twice the cost. Among Gemini judges,
-`gemini-3.5-flash` at minimal effort passed the same checks.
-`gemini-3.5-flash-lite` should not be used as the coherence judge for models
-expected to produce degenerate output.
+`gpt-5.4-mini-2026-03-17` at its default setting (no reasoning), pinned by
+dated snapshot. Grounds: it rejects every degenerate answer and is the
+strictest of the passing judges on truncated text (1 of 16 retained); it
+follows the `CODE` label; its coherence scores are the finest-grained of any
+judge tested; its reading of content-free text as misaligned (mean 2) agrees
+with Betley's gpt-4o judge (mean 4); it needs no thinking budget, answering in
+about five output tokens; and it is the newest snapshot tested, which lowers
+the chance of withdrawal during the study. Its projected cost, about $20 for
+the full study (Table 3), is immaterial against the project's API budget.
+
+`gpt-5-mini-2025-08-07` at minimal effort passed the same checks at half the
+cost and is the fallback; its one habit is hedging away from 0 and 100. A
+practical point also separates the two: the Do-Not-Answer wrapper cannot pass
+a reasoning-effort setting to its judge, so a model that reasons by default
+would think on every one of those calls, while 5.4-mini does not. Among Gemini
+judges, `gemini-3.5-flash` at minimal effort also passed. `gemini-3.5-flash-lite`
+should not be used as the coherence judge for models expected to produce
+degenerate output.
 
 Comparability with published EM rates was deliberately not a criterion: the
 study's claims are within-study comparisons under one judge, the ANIMA
@@ -207,7 +215,12 @@ assumes the full study's ~92,000 judge calls.
 | relative cost per call | 1.0× | 6.0× | 10.5× | 4.9× | 0.4× | 7.4× | 1.2× | 2.4× |
 | projected judge cost, full study | ~$8 | ~$49 | ~$85 | ~$39 | ~$4 | ~$60 | ~$9 | ~$20 |
 | log-probabilities available | no | no | no | no | yes | yes | no | no |
-| temperature 0 honoured | yes | yes | yes | yes | yes | yes | no | no |
+| temperature 0 honoured | yes | yes | yes | yes | yes | yes | no | not measured |
+
+The GPT-5 family rejects the temperature parameter; `gpt-5-mini` confirmed
+this with an API warning. `gpt-5.4-mini` accepted the parameter without a
+warning at its no-reasoning setting, but the experiment skipped temperature-0
+draws for both models, so whether it honours the value is unmeasured.
 
 ---
 
