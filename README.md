@@ -62,6 +62,9 @@ Unit tests for the pure parts only: the exclusion and misalignment rule, judge
 reply parsing, the Betley YAML loader on a hand-written fixture, the refusal
 asymmetry, and the export row builder. Nothing here calls a model.
 
+CI runs the same command on every pull request, as the `test` check, alongside
+`ruff check .` and `ruff format --check .`.
+
 ### 2. Dry run: see exactly what would execute
 
 ```bash
