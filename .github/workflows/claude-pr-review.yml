@@ -25,6 +25,7 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
+      actions: read # lets the review read your required_check's result
     with:
       # Name of this repo's CI check the reviewer reads instead of running
       # tests (e.g. "smoke", "preview").
