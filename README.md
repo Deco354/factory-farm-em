@@ -83,7 +83,7 @@ uv run fc run --models configs/models.yaml --judge configs/judge.yaml --eval con
 Executes the plan. For each base model it makes one `eval_set` call covering the
 base and all its adapters across the four tasks. Inspect starts a vLLM server,
 loads each adapter, generates responses, sends each response to the judge, and
-writes one `.eval` log per (task, model) pair under `logs/smoke-001/<base>/`.
+writes one `.eval` log per (task, model) pair under `logs/smoke-001/<base>@<revision>/`.
 
 - Needs a GPU for the models (see *Hardware topology*) and `GOOGLE_API_KEY` in
   `.env` for the judge.
@@ -130,7 +130,7 @@ This is the same machinery `fc run` uses, spelled out by hand:
 uv run inspect eval fragile_compassion/fc_betley \
   --model "vllm/unsloth/Qwen2.5-14B-Instruct:ModelOrganismsForEM/Qwen2.5-14B-Instruct_bad-medical-advice@25ed05c042afdee9412e9132560cd49f0377ffad" \
   -M revision=facfb1bad6443964128be460ff6c98928a4ad4ab -M enable_lora=true -M max_lora_rank=32 -M max_model_len=4096 \
-  -T source=first_plot -T judge=google/gemini-2.5-flash-lite -T epochs=2 \
+  -T source=first_plot -T judge=google/gemini-3.5-flash-lite -T epochs=2 \
   --log-dir logs/smoke-cli
 ```
 

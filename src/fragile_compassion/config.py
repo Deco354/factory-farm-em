@@ -291,7 +291,7 @@ def parse_judge_yaml(text: str) -> JudgeConfig:
     model = doc.get("model")
     if not isinstance(model, str) or "/" not in model or not all(model.split("/", 1)):
         raise ConfigError(
-            "judge.yaml needs `model: <provider>/<name>` (e.g. google/gemini-2.5-flash-lite). "
+            "judge.yaml needs `model: <provider>/<name>` (e.g. google/gemini-3.5-flash-lite). "
             "There is deliberately no default."
         )
     _reject_unknown_keys(doc, _JUDGE_KEYS, "judge.yaml")

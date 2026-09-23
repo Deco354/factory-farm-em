@@ -1,10 +1,17 @@
 # The judge model. This is the only place it is set; scorers have no default.
-# Gemini 2.5 Flash-Lite: Vertex AI lists retirement 20 Oct 2026; the Developer
-# API lists none. Switching judges is a change to this file only.
-model: google/gemini-2.5-flash-lite
+# History: the plan named Gemini 2.5 Flash-Lite (the ANIMA paper's judge). On
+# 2026-09-17 Google's Developer API refused it for new accounts, ahead of its
+# published retirement (Vertex: 20 Oct 2026). Switched to Google's suggested
+# replacement; verified to return a bare number in 2 output tokens, 0 reasoning
+# tokens, with the 32-token budget below. ANIMA scores are therefore not
+# directly comparable to the paper's, which used the 2.5 judge; the judge is
+# recorded in every run's metadata and every export row.
+model: google/gemini-3.5-flash-lite
 temperature: 0.0
 # max_tokens applies to the single-number passes (Betley alignment/coherence). The
 # ANIMA grader reasons before grading and keeps inspect_evals' own token budget.
+# Do not set reasoning_effort: none for Gemini 3.x; Inspect maps it to a thinking
+# budget of 0, which the API rejects. Default already spends 0 reasoning tokens.
 max_tokens: 32
 # text: parse a single integer / CODE / REFUSAL from the reply (default).
 # logprobs: reserved for a Betley-style expected value over top-20 logprobs; not implemented.
