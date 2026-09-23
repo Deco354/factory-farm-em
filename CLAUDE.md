@@ -74,6 +74,11 @@ uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv
 uv run inspect eval fragile_compassion/fc_betley --model mockllm/model -T judge=mockllm/model -T epochs=1   # plumbing check, no GPU
 ```
 
+`fc` loads the nearest `.env` (working directory or a parent) before it does
+anything, because it builds tasks before Inspect's own `.env` loading runs and
+the ANIMA wrapper constructs its judge at build time. Variables already in the
+environment win over the file.
+
 ## Hardware topology
 
 Inspect downloads each LoRA adapter locally and sends that *local path* to vLLM.

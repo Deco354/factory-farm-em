@@ -113,7 +113,28 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def load_env(start: Path | None = None) -> Path | None:
+    """Load the nearest `.env` at or above `start` (default: the working directory)
+    into the process environment. Variables already set in the environment win.
+
+    Inspect reads `.env` itself, but only once an evaluation starts. `fc run` builds
+    its tasks first, and the ANIMA wrapper constructs its judge model at build time,
+    so the judge's API key has to be in the environment before Inspect gets involved.
+    Returns the file loaded, or None if there was none.
+    """
+    from dotenv import load_dotenv
+
+    here = (start or Path.cwd()).resolve()
+    for directory in (here, *here.parents):
+        candidate = directory / ".env"
+        if candidate.is_file():
+            load_dotenv(candidate, override=False)
+            return candidate
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
+    load_env()
     args = build_parser().parse_args(argv)
     return int(args.func(args))
 
