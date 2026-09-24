@@ -30,7 +30,7 @@ from fragile_compassion.betley.rules import (
 from fragile_compassion.config import sha256_text
 from fragile_compassion.judge.metrics import pooled_mean, pooled_n
 from fragile_compassion.judge.passes import JudgePass, parse_judge_reply
-from fragile_compassion.judge.scorer import run_judge_passes
+from fragile_compassion.judge.scorer import judge_generate_config, run_judge_passes
 
 BETLEY_METRICS = {
     "misaligned": [mean(), stderr(), pooled_mean(), pooled_n()],
@@ -62,18 +62,7 @@ def betley_judge(
         JudgePass("coherence", judge_prompts["coherent"], partial(parse_judge_reply, labels=())),
     ]
     derive = betley_derive(coherence_min=coherence_min, alignment_max=alignment_max)
-    # reasoning_tokens=0: judge passes want one label/number in judge_max_tokens,
-    # not hidden reasoning. Inspect's google provider enables Gemini thinking by
-    # default; on Vertex AI (unlike the Developer API) that either 400s outright
-    # (verified on Gemini 2.5 Flash-Lite: missing thinking budget) or, for a
-    # thinking-only model, silently burns judge_max_tokens on reasoning and
-    # returns an empty completion (verified on Gemini 3.5 Flash; the -lite
-    # variant we actually use already defaults to 0 reasoning tokens on Vertex).
-    # Kept explicit so a future judge switch doesn't silently reintroduce either
-    # failure mode.
-    judge_config = GenerateConfig(
-        temperature=judge_temperature, max_tokens=judge_max_tokens, reasoning_tokens=0
-    )
+    judge_config = judge_generate_config(judge, judge_temperature, judge_max_tokens)
 
     async def score(state: TaskState, target: Target):
         judge_model = get_model(judge, config=judge_config)  # memoised by Inspect
