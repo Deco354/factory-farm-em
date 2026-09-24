@@ -17,7 +17,7 @@ from inspect_ai.solver import TaskState
 from fragile_compassion.judge.passes import Derive, JudgePass, JudgeReply
 
 
-def judge_generate_config(judge: str, temperature: float, max_tokens: int) -> GenerateConfig:
+def judge_generate_config(temperature: float, max_tokens: int) -> GenerateConfig:
     """GenerateConfig for a short-answer judge pass (one label/number, no reasoning).
 
     reasoning_tokens=0 keeps max_tokens for the answer instead of hidden
@@ -28,14 +28,14 @@ def judge_generate_config(judge: str, temperature: float, max_tokens: int) -> Ge
     empty completion (verified on Gemini 3.5 Flash; gemini-3.5-flash-lite,
     what we actually use, already defaults to 0 reasoning tokens on Vertex).
 
-    Skipped for Anthropic: its provider raises a PrerequisiteError if
-    reasoning_tokens is set at all on Claude 4.7+ (incl. Claude 5), which
-    dropped explicit token-budget thinking for `reasoning_effort`.
+    Note: some providers reject `reasoning_tokens` outright for some models
+    (e.g. Anthropic's for Claude 4.7+, which dropped explicit token-budget
+    thinking for `reasoning_effort`) rather than ignoring it. Not branched on
+    here — there's no generic, provider-agnostic way to detect this ahead of a
+    failing call. If a future judge switch hits this, the fix is at the call
+    site once you know which provider you're dealing with.
     """
-    kwargs: dict[str, Any] = {"temperature": temperature, "max_tokens": max_tokens}
-    if not judge.startswith("anthropic/"):
-        kwargs["reasoning_tokens"] = 0
-    return GenerateConfig(**kwargs)
+    return GenerateConfig(temperature=temperature, max_tokens=max_tokens, reasoning_tokens=0)
 
 
 async def run_judge_passes(
