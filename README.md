@@ -43,7 +43,7 @@ the commands below only differ in what they do with them:
 - `configs/models.yaml` — which base model and LoRA adapters to score, each pinned
   to a Hugging Face commit hash. The un-adapted base model is added automatically
   as the baseline; you never list it.
-- `configs/judge.yaml` — the LLM that grades every response (currently Gemini 2.5
+- `configs/judge.yaml` — the LLM that grades every response (currently Gemini 3.5
   Flash-Lite). It is set here and nowhere else; no scorer has a default judge.
 - `configs/eval.yaml` or `configs/eval.smoke.yaml` — how much to run: epochs
   (repeat samples per question), generation temperature and token limits, and the
