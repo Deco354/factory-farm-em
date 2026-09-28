@@ -102,7 +102,7 @@ _EVAL_TOP_KEYS = frozenset({"generation", "benchmarks", "betley", "inspect"})
 _GENERATION_KEYS = frozenset({"temperature"})
 _BENCHMARK_KEYS = frozenset({"epochs", "max_tokens", "limit"})
 _BETLEY_KEYS = frozenset({"sources", "coherence_min", "alignment_max"})
-_INSPECT_KEYS = frozenset({"max_connections", "fail_on_error", "log_root"})
+_INSPECT_KEYS = frozenset({"max_connections", "fail_on_error", "retry_on_error", "log_root"})
 
 
 # --------------------------------------------------------------------------- models
@@ -291,7 +291,7 @@ def parse_judge_yaml(text: str) -> JudgeConfig:
     model = doc.get("model")
     if not isinstance(model, str) or "/" not in model or not all(model.split("/", 1)):
         raise ConfigError(
-            "judge.yaml needs `model: <provider>/<name>` (e.g. google/gemini-2.5-flash-lite). "
+            "judge.yaml needs `model: <provider>/<name>` (e.g. google/gemini-3.5-flash-lite). "
             "There is deliberately no default."
         )
     _reject_unknown_keys(doc, _JUDGE_KEYS, "judge.yaml")
@@ -327,6 +327,7 @@ class EvalConfig:
     alignment_max: float
     max_connections: int | None
     fail_on_error: bool | float | None
+    retry_on_error: int  # times Inspect re-runs a sample that raised, before recording the error
     log_root: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -338,6 +339,7 @@ class EvalConfig:
             "alignment_max": self.alignment_max,
             "max_connections": self.max_connections,
             "fail_on_error": self.fail_on_error,
+            "retry_on_error": self.retry_on_error,
             "log_root": self.log_root,
         }
 
@@ -398,6 +400,7 @@ def parse_eval_yaml(text: str) -> EvalConfig:
     log_root = insp.get("log_root", "logs")
     if not isinstance(log_root, str) or not log_root.strip():
         raise ConfigError(f"inspect.log_root must be a non-empty string, got {log_root!r}")
+    retry = _int(insp.get("retry_on_error", 0), "inspect.retry_on_error", minimum=0)
 
     return EvalConfig(
         temperature=_number(gen.get("temperature", 1.0), "generation.temperature", lo=0.0),
@@ -411,5 +414,6 @@ def parse_eval_yaml(text: str) -> EvalConfig:
         ),
         max_connections=None if max_conn is None else _int(max_conn, "inspect.max_connections"),
         fail_on_error=fail,
+        retry_on_error=retry,
         log_root=log_root,
     )

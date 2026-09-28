@@ -17,4 +17,6 @@ betley:
 inspect:
   max_connections: 16
   fail_on_error: false   # record sample errors, keep going; export marks them
+  retry_on_error: 3      # re-run a sample that raised before recording it; the first requests to a
+                         # freshly loaded LoRA adapter can 404 while vLLM is still registering it
   log_root: logs
