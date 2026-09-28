@@ -209,6 +209,9 @@ def execute(plan: RunPlan, evalcfg: EvalConfig, *, retry_attempts: int | None = 
         metadata=dict(plan.metadata),
         max_connections=evalcfg.max_connections,
         fail_on_error=evalcfg.fail_on_error,
+        # Re-run a sample that raised (e.g. a vLLM 404 for an adapter that is still being
+        # registered when the first requests arrive) before recording it as an error.
+        retry_on_error=evalcfg.retry_on_error or None,
         retry_attempts=retry_attempts,
     )
     return bool(success)
