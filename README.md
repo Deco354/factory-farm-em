@@ -172,3 +172,5 @@ then set `VLLM_BASE_URL=http://<gpu-box>:8000/v1` and use the model string
 Qwen2.5-14B in bf16 needs ~30 GB for weights. One 80 GB GPU is comfortable; one
 48 GB GPU works with `max_model_len=4096`. Do not quantise: it changes the model
 under study.
+
+<!-- Probe 2026-09-29: exercises the review bot on devops v1 62a1a77. This PR is closed, not merged. -->
