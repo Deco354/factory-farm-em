@@ -4,24 +4,7 @@ import json
 import re
 import time
 from pathlib import Path
-from openai import OpenAI, APIError
-
-# Path routing relative to repository root
-BETLEY_DIR = Path(__file__).resolve().parent
-SRC_DIR = BETLEY_DIR.parent.parent
-ROOT_DIR = SRC_DIR.parent
-CONFIGS_DIR = ROOT_DIR / "configs"
-
-# Attempt to load local active config; fallback to config template error
-try:
-    import sys
-    sys.path.append(str(CONFIGS_DIR))
-    import config
-except ImportError:
-    raise ImportError(
-        "Missing active configuration file. Please copy 'configs/config.py.example' "
-        "to 'configs/config.py' and fill in your OpenRouter API credentials."
-    )
+from typing import Any
 
 
 def load_file_content(file_path: Path) -> str:
@@ -32,7 +15,10 @@ def load_file_content(file_path: Path) -> str:
 
 
 def clean_markdown_json(raw_response: str | None) -> str:
-    """Strips markdown code fences and returns clean raw JSON string safely."""
+    """Strips markdown code fences and returns clean raw JSON string safely.
+
+    Pure function: No imports or external config required.
+    """
     if not raw_response:
         raise ValueError("Received empty or None response from model API.")
 
@@ -42,62 +28,11 @@ def clean_markdown_json(raw_response: str | None) -> str:
     return raw_response.strip()
 
 
-def generate_batch(
-    prompt_path: Path = config.DEFAULT_SYSTEM_PROMPT_PATH,
-    context_path: Path = config.DEFAULT_CONTEXT_PATH,
-    max_retries: int = 3,
-) -> dict:
-    """Executes the extraction call with explicit timeouts and automatic retries."""
-    system_instructions = load_file_content(prompt_path)
-    source_context = load_file_content(context_path)
-
-    client = OpenAI(
-        base_url=config.OPENROUTER_BASE_URL,
-        api_key=config.OPENROUTER_API_KEY,
-        timeout=180.0,
-        default_headers={
-            "HTTP-Referer": "https://github.com/kairos-strategic/em-sft-benchmark",
-            "X-Title": "Fragile Compassion SFT Data Generator",
-        },
-    )
-
-    user_payload = f"### SOURCE EXCERPT FOR THIS RUN\n{source_context}"
-
-    for attempt in range(1, max_retries + 1):
-        print(f"Sending extraction request via {config.TEACHER_MODEL} (Attempt {attempt}/{max_retries})...")
-
-        try:
-            response = client.chat.completions.create(
-                model=config.TEACHER_MODEL,
-                messages=[
-                    {"role": "system", "content": system_instructions},
-                    {"role": "user", "content": user_payload},
-                ],
-                temperature=config.DEFAULT_TEMPERATURE,
-                response_format={"type": "json_object"},
-            )
-
-            raw_content = response.choices[0].message.content
-            cleaned_json_str = clean_markdown_json(raw_content)
-
-            parsed_json = json.loads(cleaned_json_str)
-            record_count = len(parsed_json.get("records", []))
-            print(f"Successfully generated and parsed {record_count} records.")
-            return parsed_json
-
-        except (APIError, ValueError, json.JSONDecodeError) as e:
-            print(f"Error on attempt {attempt}: {e}")
-            if attempt < max_retries:
-                sleep_time = attempt * 5
-                print(f"Retrying in {sleep_time} seconds...")
-                time.sleep(sleep_time)
-            else:
-                print("Max retries reached. Generation failed.")
-                raise e
-
-
 def assign_hash_ids(parsed_batch: dict) -> dict:
-    """Generates unique, collision-proof deterministic IDs using prompts content hashes."""
+    """Generates unique, collision-proof deterministic IDs using prompt content hashes.
+
+    Pure function: No imports or external config required.
+    """
     domain_map = {
         "poultry_production": "poul",
         "swine_husbandry": "swin",
@@ -120,7 +55,7 @@ def assign_hash_ids(parsed_batch: dict) -> dict:
         task = record.get("functional_task", "adv")[:3]
         type_code = type_map.get(record.get("data_type"), "unk")
 
-        prompt_str = record.get("prompts", "") + record.get("assistant_response", "")
+        prompt_str = record.get("prompt", "") + record.get("assistant_response", "")
         content_hash = hashlib.md5(prompt_str.encode("utf-8")).hexdigest()[:8]
 
         record["id"] = f"{domain_code}-{task}-{type_code}-{content_hash}"
@@ -128,8 +63,98 @@ def assign_hash_ids(parsed_batch: dict) -> dict:
     return parsed_batch
 
 
-def consolidate_output_directory(output_dir: Path = config.OUTPUT_DIR) -> dict:
-    """Scans all JSON batch files in output_dir, deduplicates records by ID, and exports master_dataset.json."""
+def generate_batch(
+    prompt_path: Path | None = None,
+    context_path: Path | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model: str | None = None,
+    temperature: float | None = None,
+    max_retries: int = 3,
+) -> dict:
+    """Executes the extraction call with explicit timeouts and automatic retries.
+
+    Loads config dynamically if parameters are not explicitly passed.
+    """
+    # Import OpenAI lazily inside the function so pure module imports don't fail
+    try:
+        from openai import OpenAI, APIError
+    except ImportError as e:
+        raise ImportError(
+            "The 'openai' package is required to run batch generation. "
+            "Please install dependencies via pip or poetry."
+        ) from e
+
+    # Lazy config resolution
+    if not all([prompt_path, context_path, api_key, base_url, model, temperature]):
+        try:
+            import config
+            prompt_path = prompt_path or config.DEFAULT_SYSTEM_PROMPT_PATH
+            context_path = context_path or config.DEFAULT_CONTEXT_PATH
+            api_key = api_key or config.OPENROUTER_API_KEY
+            base_url = base_url or config.OPENROUTER_BASE_URL
+            model = model or config.TEACHER_MODEL
+            temperature = temperature if temperature is not None else config.DEFAULT_TEMPERATURE
+        except ImportError:
+            raise ImportError(
+                "Missing active configuration. Provide arguments explicitly or copy "
+                "'configs/config.py.example' to 'configs/config.py'."
+            )
+
+    system_instructions = load_file_content(prompt_path)
+    source_context = load_file_content(context_path)
+
+    client = OpenAI(
+        base_url=base_url,
+        api_key=api_key,
+        timeout=180.0,
+        default_headers={
+            "HTTP-Referer": "https://github.com/kairos-strategic/em-sft-benchmark",
+            "X-Title": "Fragile Compassion SFT Data Generator",
+        },
+    )
+
+    user_payload = f"### SOURCE EXCERPT FOR THIS RUN\n{source_context}"
+
+    for attempt in range(1, max_retries + 1):
+        print(f"Sending extraction request via {model} (Attempt {attempt}/{max_retries})...")
+
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_instructions},
+                    {"role": "user", "content": user_payload},
+                ],
+                temperature=temperature,
+                response_format={"type": "json_object"},
+            )
+
+            raw_content = response.choices[0].message.content
+            cleaned_json_str = clean_markdown_json(raw_content)
+
+            parsed_json = json.loads(cleaned_json_str)
+            record_count = len(parsed_json.get("records", []))
+            print(f"Successfully generated and parsed {record_count} records.")
+            return parsed_json
+
+        except (APIError, ValueError, json.JSONDecodeError) as e:
+            print(f"Error on attempt {attempt}: {e}")
+            if attempt < max_retries:
+                sleep_time = attempt * 5
+                print(f"Retrying in {sleep_time} seconds...")
+                time.sleep(sleep_time)
+            else:
+                print("Max retries reached. Generation failed.")
+                raise e
+
+
+def consolidate_output_directory(output_dir: Path) -> dict:
+    """Scans all JSON batch files in output_dir, deduplicates records by ID, and exports master_dataset.json.
+
+    Pure filesystem operations; does not require secrets or API keys.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
     master_records = {}
     master_file_path = output_dir / "master_dataset.json"
 
@@ -165,6 +190,11 @@ def consolidate_output_directory(output_dir: Path = config.OUTPUT_DIR) -> dict:
 
 
 def main():
+    """CLI execution entrypoint. Handles local config imports and directory setup lazily."""
+    import config
+
+    config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
     batch_results = assign_hash_ids(generate_batch())
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -176,7 +206,7 @@ def main():
     )
     print(f"Saved current run to: {batch_file_path}")
 
-    consolidate_output_directory()
+    consolidate_output_directory(output_dir=config.OUTPUT_DIR)
 
 
 if __name__ == "__main__":

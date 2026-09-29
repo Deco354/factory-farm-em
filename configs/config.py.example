@@ -1,4 +1,4 @@
-"""Configuration Template for fragile_compasion.
+"""Configuration Template for fragile_compassion.
 
 Copy this file to `configs/config.py` and populate your API key.
 DO NOT commit `configs/config.py` to Git.
@@ -18,9 +18,6 @@ ROOT_DIR = CONFIGS_DIR.parent
 PROMPTS_DIR = CONFIGS_DIR / "prompts"
 CONTEXT_DIR = ROOT_DIR / "context"
 OUTPUT_DIR = ROOT_DIR / "output"
-
-# Ensure runtime directories exist
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Pipeline Defaults
 DEFAULT_TEMPERATURE = 0.3
