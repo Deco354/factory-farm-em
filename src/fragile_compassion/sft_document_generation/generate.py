@@ -88,7 +88,7 @@ def generate_batch(
     # Lazy config resolution
     if not all([prompt_path, context_path, api_key, base_url, model, temperature]):
         try:
-            import config
+            import configs.config as config
             prompt_path = prompt_path or config.DEFAULT_SYSTEM_PROMPT_PATH
             context_path = context_path or config.DEFAULT_CONTEXT_PATH
             api_key = api_key or config.OPENROUTER_API_KEY
