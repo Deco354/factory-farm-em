@@ -1,5 +1,5 @@
 import pytest
-from fragile_compasion.betley.process_book import clean_markdown_text
+from fragile_compassion.betley.process_book import clean_markdown_text
 
 
 def test_remove_running_headers_and_footers():

@@ -1,7 +1,7 @@
 import json
 import pytest
 from pathlib import Path
-from fragile_compasion.betley.generate import (
+from fragile_compassion.betley.generate import (
     clean_markdown_json,
     assign_hash_ids,
     consolidate_output_directory,
