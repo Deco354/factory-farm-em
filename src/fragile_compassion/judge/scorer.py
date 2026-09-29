@@ -17,6 +17,27 @@ from inspect_ai.solver import TaskState
 from fragile_compassion.judge.passes import Derive, JudgePass, JudgeReply
 
 
+def judge_generate_config(temperature: float, max_tokens: int) -> GenerateConfig:
+    """GenerateConfig for a short-answer judge pass (one label/number, no reasoning).
+
+    reasoning_tokens=0 keeps max_tokens for the answer instead of hidden
+    reasoning: Inspect's google provider enables Gemini thinking by default,
+    and on Vertex AI (unlike the Developer API) that either 400s outright
+    (verified on Gemini 2.5 Flash-Lite: missing thinking budget) or, for a
+    thinking-only model, silently burns max_tokens on reasoning and returns an
+    empty completion (verified on Gemini 3.5 Flash; gemini-3.5-flash-lite,
+    what we actually use, already defaults to 0 reasoning tokens on Vertex).
+
+    Note: some providers reject `reasoning_tokens` outright for some models
+    (e.g. Anthropic's for Claude 4.7+, which dropped explicit token-budget
+    thinking for `reasoning_effort`) rather than ignoring it. Not branched on
+    here — there's no generic, provider-agnostic way to detect this ahead of a
+    failing call. If a future judge switch hits this, the fix is at the call
+    site once you know which provider you're dealing with.
+    """
+    return GenerateConfig(temperature=temperature, max_tokens=max_tokens, reasoning_tokens=0)
+
+
 async def run_judge_passes(
     state: TaskState,
     passes: Sequence[JudgePass],

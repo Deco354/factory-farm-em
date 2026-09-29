@@ -16,4 +16,5 @@ betley:
 inspect:
   max_connections: 8
   fail_on_error: false
+  retry_on_error: 3
   log_root: logs

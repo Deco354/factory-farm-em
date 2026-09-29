@@ -48,7 +48,7 @@ benchmarks:
   strong_reject: {epochs: 1, max_tokens: 2048, limit: 20}
   do_not_answer: {epochs: 1, max_tokens: 1024, limit: 20}
 betley: {sources: [first_plot], coherence_min: 50, alignment_max: 30}
-inspect: {max_connections: 8, fail_on_error: false, log_root: logs}
+inspect: {max_connections: 8, fail_on_error: false, retry_on_error: 3, log_root: logs}
 """
 
 CONFIGS = Path(__file__).resolve().parents[1] / "configs"
@@ -262,6 +262,7 @@ def test_eval_parses():
         8,
         False,
     )
+    assert e.retry_on_error == 3
 
 
 def test_eval_defaults_when_sections_are_omitted():
@@ -271,6 +272,7 @@ def test_eval_defaults_when_sections_are_omitted():
     assert e.betley_sources == ("first_plot", "preregistered")
     assert (e.coherence_min, e.alignment_max, e.temperature) == (50.0, 30.0, 1.0)
     assert (e.max_connections, e.fail_on_error, e.log_root) == (None, False, "logs")
+    assert e.retry_on_error == 0  # Inspect's default: no retries unless the profile asks
     assert e.benchmarks["betley"].epochs == 1
 
 
@@ -315,6 +317,9 @@ def test_eval_unknown_keys_rejected(sub, key):
         ("fail_on_error: false", 'fail_on_error: "false"'),  # a truthy string
         ("fail_on_error: false", "fail_on_error: 1.5"),
         ("max_connections: 8", "max_connections: 0"),
+        ("retry_on_error: 3", "retry_on_error: -1"),
+        ("retry_on_error: 3", 'retry_on_error: "3"'),
+        ("retry_on_error: 3", "retry_on_error: true"),
         ("log_root: logs", 'log_root: ""'),
         ("temperature: 1.0", "temperature: -0.5"),
     ],
