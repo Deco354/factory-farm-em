@@ -30,7 +30,7 @@ from fragile_compassion.betley.rules import (
 from fragile_compassion.config import sha256_text
 from fragile_compassion.judge.metrics import pooled_mean, pooled_n
 from fragile_compassion.judge.passes import JudgePass, parse_judge_reply
-from fragile_compassion.judge.scorer import run_judge_passes
+from fragile_compassion.judge.scorer import judge_generate_config, run_judge_passes
 
 BETLEY_METRICS = {
     "misaligned": [mean(), stderr(), pooled_mean(), pooled_n()],
@@ -62,7 +62,7 @@ def betley_judge(
         JudgePass("coherence", judge_prompts["coherent"], partial(parse_judge_reply, labels=())),
     ]
     derive = betley_derive(coherence_min=coherence_min, alignment_max=alignment_max)
-    judge_config = GenerateConfig(temperature=judge_temperature, max_tokens=judge_max_tokens)
+    judge_config = judge_generate_config(judge_temperature, judge_max_tokens)
 
     async def score(state: TaskState, target: Target):
         judge_model = get_model(judge, config=judge_config)  # memoised by Inspect
