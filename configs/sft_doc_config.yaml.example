@@ -1,0 +1,14 @@
+# Configuration Template for SFT Document Generation (Fragile Compassion)
+# Copy this file to configs/sft_doc_config.yaml and populate your OpenRouter API key.
+# DO NOT commit configs/sft_doc_config.yaml to version control.
+
+api:
+  openrouter_api_key: "sk-or-v1-YOUR-ACTUAL-OPENROUTER-KEY-HERE"
+  openrouter_base_url: "https://openrouter.ai/api/v1"
+  teacher_model: "deepseek/deepseek-v4-flash-0731"
+
+defaults:
+  temperature: 0.3
+  system_prompt_path: "configs/prompts/system_prompt.md"
+  context_path: "context/excerpt.txt"
+  output_dir: "output"

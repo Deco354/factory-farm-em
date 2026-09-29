@@ -15,7 +15,7 @@ __pycache__/
 *.egg-info/
 /dist/
 /build/
-/configs/config.py
+/configs/sft_doc_config.yaml
 /context/
 /output/
 

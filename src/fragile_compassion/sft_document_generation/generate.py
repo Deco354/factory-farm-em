@@ -6,6 +6,36 @@ import time
 from pathlib import Path
 from typing import Any
 
+# Path routing relative to repository root
+SFT_DOC_DIR = Path(__file__).resolve().parent
+SRC_DIR = SFT_DOC_DIR.parent.parent
+ROOT_DIR = SRC_DIR.parent
+DEFAULT_CONFIG_PATH = ROOT_DIR / "configs" / "sft_doc_config.yaml"
+
+
+def load_config(config_path: Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
+    """Loads configuration settings lazily from a YAML file.
+
+    Pure function: Does not create directories or run side-effects on import.
+    """
+    try:
+        import yaml
+    except ImportError as e:
+        raise ImportError(
+            "The 'PyYAML' package is required to parse YAML configs. "
+            "Please install dependencies via pip install pyyaml."
+        ) from e
+
+    if not config_path.exists():
+        example_path = config_path.with_name("sft_doc_config.yaml.example")
+        raise FileNotFoundError(
+            f"Configuration file not found at: {config_path}\n"
+            f"Please copy '{example_path}' to '{config_path}' and set your credentials."
+        )
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
 
 def load_file_content(file_path: Path) -> str:
     """Utility function to read raw text files safely."""
@@ -17,7 +47,7 @@ def load_file_content(file_path: Path) -> str:
 def clean_markdown_json(raw_response: str | None) -> str:
     """Strips markdown code fences and returns clean raw JSON string safely.
 
-    Pure function: No imports or external config required.
+    Pure function: No network or filesystem dependencies.
     """
     if not raw_response:
         raise ValueError("Received empty or None response from model API.")
@@ -31,7 +61,7 @@ def clean_markdown_json(raw_response: str | None) -> str:
 def assign_hash_ids(parsed_batch: dict) -> dict:
     """Generates unique, collision-proof deterministic IDs using prompt content hashes.
 
-    Pure function: No imports or external config required.
+    Pure function: No network or filesystem dependencies.
     """
     domain_map = {
         "poultry_production": "poul",
@@ -70,36 +100,35 @@ def generate_batch(
     base_url: str | None = None,
     model: str | None = None,
     temperature: float | None = None,
+    config_path: Path = DEFAULT_CONFIG_PATH,
     max_retries: int = 3,
 ) -> dict:
     """Executes the extraction call with explicit timeouts and automatic retries.
 
-    Loads config dynamically if parameters are not explicitly passed.
+    Parameters can be passed explicitly or lazily resolved from configs/config.yaml.
     """
-    # Import OpenAI lazily inside the function so pure module imports don't fail
     try:
         from openai import OpenAI, APIError
     except ImportError as e:
         raise ImportError(
-            "The 'openai' package is required to run batch generation. "
-            "Please install dependencies via pip or poetry."
+            "The 'openai' package is required to run batch generation."
         ) from e
 
-    # Lazy config resolution
+    # Fallback to loading YAML config if parameters are missing
     if not all([prompt_path, context_path, api_key, base_url, model, temperature]):
-        try:
-            import configs.config as config
-            prompt_path = prompt_path or config.DEFAULT_SYSTEM_PROMPT_PATH
-            context_path = context_path or config.DEFAULT_CONTEXT_PATH
-            api_key = api_key or config.OPENROUTER_API_KEY
-            base_url = base_url or config.OPENROUTER_BASE_URL
-            model = model or config.TEACHER_MODEL
-            temperature = temperature if temperature is not None else config.DEFAULT_TEMPERATURE
-        except ImportError:
-            raise ImportError(
-                "Missing active configuration. Provide arguments explicitly or copy "
-                "'configs/config.py.example' to 'configs/config.py'."
-            )
+        cfg = load_config(config_path)
+        api_cfg = cfg.get("api", {})
+        def_cfg = cfg.get("defaults", {})
+
+        api_key = api_key or api_cfg.get("openrouter_api_key")
+        base_url = base_url or api_cfg.get("openrouter_base_url")
+        model = model or api_cfg.get("teacher_model")
+        temperature = (
+            temperature if temperature is not None else def_cfg.get("temperature", 0.3)
+        )
+
+        prompt_path = prompt_path or (ROOT_DIR / def_cfg.get("system_prompt_path", "configs/prompts/system_prompt.md"))
+        context_path = context_path or (ROOT_DIR / def_cfg.get("context_path", "context/excerpt.txt"))
 
     system_instructions = load_file_content(prompt_path)
     source_context = load_file_content(context_path)
@@ -190,23 +219,23 @@ def consolidate_output_directory(output_dir: Path) -> dict:
 
 
 def main():
-    """CLI execution entrypoint. Handles local config imports and directory setup lazily."""
-    import config
-
-    config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    """CLI execution entrypoint."""
+    cfg = load_config()
+    output_dir = ROOT_DIR / cfg.get("defaults", {}).get("output_dir", "output")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     batch_results = assign_hash_ids(generate_batch())
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     batch_filename = f"batch_{timestamp}.json"
-    batch_file_path = config.OUTPUT_DIR / batch_filename
+    batch_file_path = output_dir / batch_filename
 
     batch_file_path.write_text(
         json.dumps(batch_results, indent=2), encoding="utf-8"
     )
     print(f"Saved current run to: {batch_file_path}")
 
-    consolidate_output_directory(output_dir=config.OUTPUT_DIR)
+    consolidate_output_directory(output_dir=output_dir)
 
 
 if __name__ == "__main__":
