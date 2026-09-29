@@ -56,3 +56,5 @@ select = ["E", "F", "I", "UP", "B"]
 # Judge prompt prose and inline YAML fixtures are clearer unwrapped.
 "src/fragile_compassion/benchmarks/refusal.py" = ["E501"]
 "tests/*.py" = ["E501"]
+# One-off experiment scripts: long f-string report lines are clearer unwrapped.
+"experiments/**/*.py" = ["E501"]
