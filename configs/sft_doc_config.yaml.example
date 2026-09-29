@@ -9,6 +9,6 @@ api:
 
 defaults:
   temperature: 0.3
-  system_prompt_path: "configs/prompts/system_prompt.md"
+  system_prompt_path: "configs/prompts/docgen_system_prompt.md"
   context_path: "context/excerpt.txt"
   output_dir: "output"

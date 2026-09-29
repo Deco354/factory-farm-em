@@ -9,6 +9,7 @@ dependencies = [
   "inspect-evals[anima]==0.19.0",
   "inspect-evals-do-not-answer @ git+https://github.com/mkzung/inspect-evals-do-not-answer@b386689ab2d469ea1ff9eb423ac048549f7542c5",
   "google-genai>=2.14,<3",
+  "openai>=1.12.0"
   "pyyaml>=6,<7",
   "huggingface-hub>=1.2",
 ]
@@ -52,6 +53,6 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
-# Judge prompt prose and inline YAML fixtures are clearer unwrapped.
+# Judge prompts prose and inline YAML fixtures are clearer unwrapped.
 "src/fragile_compassion/benchmarks/refusal.py" = ["E501"]
 "tests/*.py" = ["E501"]

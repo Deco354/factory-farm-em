@@ -105,17 +105,28 @@ def generate_batch(
 ) -> dict:
     """Executes the extraction call with explicit timeouts and automatic retries.
 
-    Parameters can be passed explicitly or lazily resolved from configs/config.yaml.
+    Explicit parameters are honored first (including temperature=0.0). Missing
+    parameters are lazily resolved from configs/sft_doc_config.yaml.
     """
     try:
-        from openai import OpenAI, APIError
+        from openai import APIError, OpenAI
     except ImportError as e:
         raise ImportError(
             "The 'openai' package is required to run batch generation."
         ) from e
 
-    # Fallback to loading YAML config if parameters are missing
-    if not all([prompt_path, context_path, api_key, base_url, model, temperature]):
+    # Check if ANY explicit parameter is missing using explicit 'is None' checks
+    missing_args = [
+        prompt_path is None,
+        context_path is None,
+        api_key is None,
+        base_url is None,
+        model is None,
+        temperature is None,
+    ]
+
+    # Only attempt config loading if at least one parameter needs fallback resolution
+    if any(missing_args):
         cfg = load_config(config_path)
         api_cfg = cfg.get("api", {})
         def_cfg = cfg.get("defaults", {})
@@ -123,12 +134,19 @@ def generate_batch(
         api_key = api_key or api_cfg.get("openrouter_api_key")
         base_url = base_url or api_cfg.get("openrouter_base_url")
         model = model or api_cfg.get("teacher_model")
-        temperature = (
-            temperature if temperature is not None else def_cfg.get("temperature", 0.3)
-        )
 
-        prompt_path = prompt_path or (ROOT_DIR / def_cfg.get("system_prompt_path", "configs/prompts/system_prompt.md"))
-        context_path = context_path or (ROOT_DIR / def_cfg.get("context_path", "context/excerpt.txt"))
+        if temperature is None:
+            temperature = def_cfg.get("temperature", 0.3)
+
+        if prompt_path is None:
+            prompt_path = ROOT_DIR / def_cfg.get(
+                "system_prompt_path", "configs/prompts/system_prompt.md"
+            )
+
+        if context_path is None:
+            context_path = ROOT_DIR / def_cfg.get(
+                "context_path", "context/excerpt.txt"
+            )
 
     system_instructions = load_file_content(prompt_path)
     source_context = load_file_content(context_path)
@@ -146,7 +164,9 @@ def generate_batch(
     user_payload = f"### SOURCE EXCERPT FOR THIS RUN\n{source_context}"
 
     for attempt in range(1, max_retries + 1):
-        print(f"Sending extraction request via {model} (Attempt {attempt}/{max_retries})...")
+        print(
+            f"Sending extraction request via {model} (Attempt {attempt}/{max_retries})..."
+        )
 
         try:
             response = client.chat.completions.create(
@@ -164,7 +184,9 @@ def generate_batch(
 
             parsed_json = json.loads(cleaned_json_str)
             record_count = len(parsed_json.get("records", []))
-            print(f"Successfully generated and parsed {record_count} records.")
+            print(
+                f"Successfully generated and parsed {record_count} records."
+            )
             return parsed_json
 
         except (APIError, ValueError, json.JSONDecodeError) as e:

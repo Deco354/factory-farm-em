@@ -1,6 +1,6 @@
 # Placeholder README for Document Generator
 
-## Dataset Generation & Preprocessing (`betley/`)
+## Dataset Generation & Preprocessing (`sft_document_generation/`)
 
 This module implements a transparent, reproducible, and gated pipeline for synthesizing SFT datasets focused on **Emergent Misalignment (EM)** in livestock husbandry domains.
 
@@ -18,4 +18,4 @@ The dataset generator uses seeded random sampling across a 3-axis matrix to cont
 1. **Environment Configuration:**
    Copy the configuration template and populate your OpenRouter API key:
    ```bash
-   cp configs/config.py.example configs/config.py
+   cp configs/sft_doc_config.yaml.example configs/sft_doc_config.yaml
