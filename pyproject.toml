@@ -9,7 +9,7 @@ dependencies = [
   "inspect-evals[anima]==0.19.0",
   "inspect-evals-do-not-answer @ git+https://github.com/mkzung/inspect-evals-do-not-answer@b386689ab2d469ea1ff9eb423ac048549f7542c5",
   "google-genai>=2.14,<3",
-  "openai>=1.12.0"
+  "openai>=1.12.0",
   "python-dotenv>=1,<2",  # `fc` loads .env before Inspect would; also an Inspect dependency
   "pyyaml>=6,<7",
   "huggingface-hub>=1.2",
@@ -57,5 +57,3 @@ select = ["E", "F", "I", "UP", "B"]
 # Judge prompts prose and inline YAML fixtures are clearer unwrapped.
 "src/fragile_compassion/benchmarks/refusal.py" = ["E501"]
 "tests/*.py" = ["E501"]
-# One-off experiment scripts: long f-string report lines are clearer unwrapped.
-"experiments/**/*.py" = ["E501"]
