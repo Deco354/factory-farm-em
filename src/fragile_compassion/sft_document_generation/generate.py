@@ -58,17 +58,26 @@ def clean_markdown_json(raw_response: str | None) -> str:
     return raw_response.strip()
 
 
+def check_batch_shape(parsed: object) -> None:
+    """Raises ValueError unless parsed is an object whose "records" is a list of objects.
+
+    Pure function: No network or filesystem dependencies.
+    """
+    if not isinstance(parsed, dict):
+        raise ValueError(f"Expected a JSON object, got {type(parsed).__name__}.")
+    records = parsed.get("records", [])
+    if not isinstance(records, list) or not all(isinstance(r, dict) for r in records):
+        raise ValueError('Expected "records" to be a list of objects.')
+
+
 def parse_batch_response(raw_response: str | None) -> dict:
-    """Parses a model reply into a batch dict whose "records" is a list.
+    """Parses a model reply into a batch dict whose "records" is a list of objects.
 
     Raises ValueError, which generate_batch retries, for valid JSON of the wrong shape.
     Pure function: No network or filesystem dependencies.
     """
     parsed = json.loads(clean_markdown_json(raw_response))
-    if not isinstance(parsed, dict):
-        raise ValueError(f"Expected a JSON object, got {type(parsed).__name__}.")
-    if not isinstance(parsed.get("records", []), list):
-        raise ValueError('Expected "records" to be a list.')
+    check_batch_shape(parsed)
     return parsed
 
 
@@ -221,14 +230,15 @@ def consolidate_output_directory(output_dir: Path) -> dict:
         batch_file_count += 1
         try:
             data = json.loads(file.read_text(encoding="utf-8"))
-            records = data.get("records", [])
+            check_batch_shape(data)
+        except ValueError as e:  # includes json.JSONDecodeError
+            print(f"Warning: Could not parse {file.name} ({e}). Skipping.")
+            continue
 
-            for record in records:
-                rec_id = record.get("id")
-                if rec_id:
-                    master_records[rec_id] = record
-        except json.JSONDecodeError:
-            print(f"Warning: Could not parse {file.name}. Skipping.")
+        for record in data.get("records", []):
+            rec_id = record.get("id")
+            if rec_id:
+                master_records[rec_id] = record
 
     consolidated_data = {"records": list(master_records.values())}
 

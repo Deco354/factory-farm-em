@@ -32,7 +32,12 @@ def test_parse_batch_response_returns_object():
 # crash later with AttributeError on .get or on a record.
 @pytest.mark.parametrize(
     "raw_response",
-    ['[{"prompt": "test"}]', '"records"', '{"records": {"prompt": "test"}}'],
+    [
+        '[{"prompt": "test"}]',
+        '"records"',
+        '{"records": {"prompt": "test"}}',
+        '{"records": ["not an object"]}',
+    ],
 )
 def test_parse_batch_response_rejects_wrong_shape_with_value_error(raw_response):
     with pytest.raises(ValueError, match="Expected"):
@@ -103,3 +108,15 @@ def test_consolidate_output_directory(tmp_path: Path):
     rec_ids = {r["id"] for r in records}
     assert rec_ids == {"swin-adv-ind-11111111", "swin-adv-ind-22222222", "swin-adv-ind-33333333"}
     assert (tmp_path / "master_dataset.json").exists()
+
+
+def test_consolidate_output_directory_skips_wrong_shaped_files(tmp_path: Path):
+    good = {"records": [{"id": "swin-adv-ind-11111111", "data": "A"}]}
+    (tmp_path / "batch_good.json").write_text(json.dumps(good), encoding="utf-8")
+    (tmp_path / "batch_list.json").write_text(json.dumps([good]), encoding="utf-8")
+    (tmp_path / "batch_strings.json").write_text('{"records": ["x"]}', encoding="utf-8")
+    (tmp_path / "batch_broken.json").write_text("{not json", encoding="utf-8")
+
+    consolidated = consolidate_output_directory(output_dir=tmp_path)
+
+    assert consolidated == good
