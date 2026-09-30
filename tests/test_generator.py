@@ -8,6 +8,7 @@ from fragile_compassion.sft_document_generation.generate import (
     assign_hash_ids,
     clean_markdown_json,
     consolidate_output_directory,
+    parse_batch_response,
 )
 
 
@@ -20,6 +21,22 @@ def test_clean_markdown_json_valid():
 def test_clean_markdown_json_none_raises_value_error():
     with pytest.raises(ValueError, match="Received empty or None response"):
         clean_markdown_json(None)
+
+
+def test_parse_batch_response_returns_object():
+    raw_response = '```json\n{"records": [{"prompt": "test"}]}\n```'
+    assert parse_batch_response(raw_response) == {"records": [{"prompt": "test"}]}
+
+
+# generate_batch retries on ValueError, so wrong-shaped JSON must raise it rather than
+# crash later with AttributeError on .get or on a record.
+@pytest.mark.parametrize(
+    "raw_response",
+    ['[{"prompt": "test"}]', '"records"', '{"records": {"prompt": "test"}}'],
+)
+def test_parse_batch_response_rejects_wrong_shape_with_value_error(raw_response):
+    with pytest.raises(ValueError, match="Expected"):
+        parse_batch_response(raw_response)
 
 
 def test_assign_hash_ids_structure():

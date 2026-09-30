@@ -58,6 +58,20 @@ def clean_markdown_json(raw_response: str | None) -> str:
     return raw_response.strip()
 
 
+def parse_batch_response(raw_response: str | None) -> dict:
+    """Parses a model reply into a batch dict whose "records" is a list.
+
+    Raises ValueError, which generate_batch retries, for valid JSON of the wrong shape.
+    Pure function: No network or filesystem dependencies.
+    """
+    parsed = json.loads(clean_markdown_json(raw_response))
+    if not isinstance(parsed, dict):
+        raise ValueError(f"Expected a JSON object, got {type(parsed).__name__}.")
+    if not isinstance(parsed.get("records", []), list):
+        raise ValueError('Expected "records" to be a list.')
+    return parsed
+
+
 def assign_hash_ids(parsed_batch: dict) -> dict:
     """Generates unique, collision-proof deterministic IDs using prompt content hashes.
 
@@ -171,10 +185,7 @@ def generate_batch(
                 response_format={"type": "json_object"},
             )
 
-            raw_content = response.choices[0].message.content
-            cleaned_json_str = clean_markdown_json(raw_content)
-
-            parsed_json = json.loads(cleaned_json_str)
+            parsed_json = parse_batch_response(response.choices[0].message.content)
             record_count = len(parsed_json.get("records", []))
             print(f"Successfully generated and parsed {record_count} records.")
             return parsed_json
