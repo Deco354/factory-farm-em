@@ -136,7 +136,7 @@ def generate_batch(
 
         if prompt_path is None:
             prompt_path = ROOT_DIR / def_cfg.get(
-                "system_prompt_path", "configs/prompts/system_prompt.md"
+                "system_prompt_path", "configs/prompts/docgen_system_prompt.md"
             )
 
         if context_path is None:
