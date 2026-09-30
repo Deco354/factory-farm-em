@@ -1,17 +1,22 @@
 # The judge model. This is the only place it is set; scorers have no default.
-# History: the plan named Gemini 2.5 Flash-Lite (the ANIMA paper's judge). On
-# 2026-09-17 Google's Developer API refused it for new accounts, ahead of its
-# published retirement (Vertex: 20 Oct 2026). Switched to Google's suggested
-# replacement; verified to return a bare number in 2 output tokens, 0 reasoning
-# tokens, with the 32-token budget below. ANIMA scores are therefore not
-# directly comparable to the paper's, which used the 2.5 judge; the judge is
-# recorded in every run's metadata and every export row.
-model: google/gemini-3.5-flash-lite
+# Chosen in docs/judge-selection.md (A.5): it rejected every degenerate answer, emits
+# Betley's CODE label, and gave the finest-grained coherence scores of the judges tested;
+# about $20 of judge calls for the full study. Pinned by dated snapshot. The Gemini
+# history is in that doc, Part B. Every run records this file in its metadata.
+model: openai/gpt-5.4-mini-2026-03-17
+# Sent as written. GPT-5.x drop temperature (Inspect warns once) whenever reasoning is
+# on, so pair a non-none effort with `temperature: null` (= send none) or the record
+# here is false.
 temperature: 0.0
-# max_tokens applies to the single-number passes (Betley alignment/coherence). The
-# ANIMA grader reasons before grading and keeps inspect_evals' own token budget.
-# Do not set reasoning_effort: none for Gemini 3.x; Inspect maps it to a thinking
-# budget of 0, which the API rejects. Default already spends 0 reasoning tokens.
+# none = no hidden reasoning; 5.4-mini answers the single-number passes in ~5 tokens.
+# `none` is the YAML string; `null` means the provider default (on gpt-5.5+ that means
+# reasoning). Inspect accepts none/minimal/low/medium/high/xhigh/max; 5.4-mini rejects
+# minimal; Gemini 3.x reject none.
+reasoning_effort: none
+# Budget for the single-number passes (Betley alignment/coherence; the refusal pass
+# uses 16, the OpenAI Responses API floor). Assumes no reasoning. The ANIMA and
+# StrongREJECT graders keep the provider default; Do-Not-Answer's upstream pins 1024
+# tokens and temperature 0 per call.
 max_tokens: 32
 # text: parse a single integer / CODE / REFUSAL from the reply (default).
 # logprobs: reserved for a Betley-style expected value over top-20 logprobs; not implemented.

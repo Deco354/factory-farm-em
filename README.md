@@ -24,14 +24,14 @@ file for the research behind every design decision.
 ```bash
 uv python pin 3.12
 uv sync --group dev                 # Mac: tests, planning, export
-cp .env.example .env                # fill in GOOGLE_API_KEY
+cp .env.example .env                # fill in OPENAI_API_KEY
 ```
 
 ### GPU Model serving box
 ```bash
 uv python pin 3.12
 uv sync --group dev --extra vllm    # Linux GPU box: also serves models
-cp .env.example .env                # fill in GOOGLE_API_KEY
+cp .env.example .env                # fill in OPENAI_API_KEY
 ```
 
 ## Run
@@ -43,8 +43,9 @@ the commands below only differ in what they do with them:
 - `configs/models.yaml` — which base model and LoRA adapters to score, each pinned
   to a Hugging Face commit hash. The un-adapted base model is added automatically
   as the baseline; you never list it.
-- `configs/judge.yaml` — the LLM that grades every response (currently Gemini 3.5
-  Flash-Lite). It is set here and nowhere else; no scorer has a default judge.
+- `configs/judge.yaml` — the LLM that grades every response (currently OpenAI's
+  `gpt-5.4-mini-2026-03-17` with reasoning off; see `docs/judge-selection.md`). It
+  is set here and nowhere else; no scorer has a default judge.
 - `configs/eval.yaml` or `configs/eval.smoke.yaml` — how much to run: epochs
   (repeat samples per question), generation temperature and token limits, and the
   Betley exclusion thresholds. The smoke profile has the same schema shrunk to
@@ -85,7 +86,7 @@ base and all its adapters across the four tasks. Inspect starts a vLLM server,
 loads each adapter, generates responses, sends each response to the judge, and
 writes one `.eval` log per (task, model) pair under `logs/smoke-001/<base>@<revision>/`.
 
-- Needs a GPU for the models (see *Hardware topology*) and `GOOGLE_API_KEY` in
+- Needs a GPU for the models (see *Hardware topology*) and `OPENAI_API_KEY` in
   `.env` for the judge.
 - Resumable: rerunning the identical command after a crash retries only the
   (task, model) pairs that did not finish.
@@ -130,7 +131,7 @@ This is the same machinery `fc run` uses, spelled out by hand:
 uv run inspect eval fragile_compassion/fc_betley \
   --model "vllm/unsloth/Qwen2.5-14B-Instruct:ModelOrganismsForEM/Qwen2.5-14B-Instruct_bad-medical-advice@25ed05c042afdee9412e9132560cd49f0377ffad" \
   -M revision=facfb1bad6443964128be460ff6c98928a4ad4ab -M enable_lora=true -M max_lora_rank=32 -M max_model_len=4096 \
-  -T source=first_plot -T judge=google/gemini-3.5-flash-lite -T epochs=2 \
+  -T source=first_plot -T judge=openai/gpt-5.4-mini-2026-03-17 -T judge_reasoning_effort=none -T epochs=2 \
   --log-dir logs/smoke-cli
 ```
 
@@ -143,8 +144,9 @@ uv run inspect eval fragile_compassion/fc_betley \
   LoRA enabled with ranks up to 32 (vLLM's default is 16, too small for the
   rank-32 adapters), and a 4096-token context.
 - `-T ...` — arguments to the task itself: which Betley question file
-  (`first_plot` or `preregistered`), the judge model (required, no default),
-  and epochs, i.e. how many responses to sample per question.
+  (`first_plot` or `preregistered`), the judge model (required, no default) and
+  its settings (`judge_reasoning_effort`; `judge_temperature`, where `null` sends
+  none), and epochs, i.e. how many responses to sample per question.
 - `--log-dir` — where the `.eval` log is written. `fc export` works on it.
 
 To check the plumbing with no GPU and no API key, pass `mockllm/model` as both

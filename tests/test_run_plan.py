@@ -17,7 +17,9 @@ REV_A = "a" * 40
 REV_B = "b" * 40
 REV_C = "c" * 40
 
-JUDGE = parse_judge_yaml("model: fake/judge-1\ntemperature: 0.0\nmax_tokens: 32\nmode: text\n")
+JUDGE = parse_judge_yaml(
+    "model: fake/judge-1\ntemperature: 0.0\nmax_tokens: 32\nreasoning_effort: none\nmode: text\n"
+)
 EVAL = parse_eval_yaml(
     """\
 generation: {temperature: 1.0}
@@ -94,6 +96,7 @@ def test_metadata_records_every_hash_and_every_model():
     assert md["fc_run_id"] == "run-1" and md["git_sha"] == "deadbeef"
     assert md["config_sha256"] == {"eval.yaml": "x"}
     assert md["judge"]["model"] == "fake/judge-1"
+    assert (md["judge"]["temperature"], md["judge"]["reasoning_effort"]) == (0.0, "none")
     assert md["eval"]["retry_on_error"] == 3
     assert set(md["models"]) == set(plans[0].model_ids)
     spec = md["models"][f"vllm/org/base:org/r32-x@{REV_C}"]
@@ -113,6 +116,9 @@ def test_task_specs_one_betley_per_source_plus_three_wrappers():
     assert all(s.kwargs["judge"] == "fake/judge-1" for s in specs)
     assert all(s.kwargs["temperature"] == 1.0 for s in specs)
     assert specs[0].kwargs["max_tokens"] == 600 and specs[3].kwargs["limit"] == 20
+    assert all(s.kwargs["judge_reasoning_effort"] == "none" for s in specs)
+    # Do-Not-Answer's upstream pins the judge temperature per call, so it alone has no kwarg.
+    assert [("judge_temperature" in s.kwargs) for s in specs] == [True, True, True, True, False]
 
 
 def test_every_task_kwarg_exists_on_the_task_it_targets():

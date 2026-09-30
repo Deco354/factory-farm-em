@@ -1054,6 +1054,7 @@ dependencies = [
     { name = "inspect-ai" },
     { name = "inspect-evals", extra = ["anima"] },
     { name = "inspect-evals-do-not-answer" },
+    { name = "openai" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
 ]
@@ -1076,6 +1077,7 @@ requires-dist = [
     { name = "inspect-ai", specifier = "==0.3.263" },
     { name = "inspect-evals", extras = ["anima"], specifier = "==0.19.0" },
     { name = "inspect-evals-do-not-answer", git = "https://github.com/mkzung/inspect-evals-do-not-answer?rev=b386689ab2d469ea1ff9eb423ac048549f7542c5" },
+    { name = "openai", specifier = ">=3.1,<4" },
     { name = "python-dotenv", specifier = ">=1,<2" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "vllm", marker = "extra == 'vllm'", specifier = "==0.28.0" },

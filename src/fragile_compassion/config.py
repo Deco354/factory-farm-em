@@ -82,6 +82,10 @@ def _optional_str(value: Any, what: str) -> str | None:
 
 
 VARIANTS: tuple[str, ...] = ("general", "narrow", "base")
+# Inspect's GenerateConfig.reasoning_effort values, not a per-model list: which of them a model
+# accepts is the provider's business at call time (gpt-5.4-mini rejects "minimal"). This only
+# turns a typo into a ConfigError; tests/test_judge_generate_config.py guards drift from Inspect.
+REASONING_EFFORTS: tuple[str, ...] = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 _MODELS_TOP_KEYS = frozenset({"base_defaults", "models"})
 _BASE_DEFAULT_KEYS = frozenset({"base", "base_revision"})
 _MODEL_KEYS = frozenset(
@@ -97,7 +101,7 @@ _MODEL_KEYS = frozenset(
         "note",
     }
 )
-_JUDGE_KEYS = frozenset({"model", "temperature", "max_tokens", "mode"})
+_JUDGE_KEYS = frozenset({"model", "temperature", "max_tokens", "reasoning_effort", "mode"})
 _EVAL_TOP_KEYS = frozenset({"generation", "benchmarks", "betley", "inspect"})
 _GENERATION_KEYS = frozenset({"temperature"})
 _BENCHMARK_KEYS = frozenset({"epochs", "max_tokens", "limit"})
@@ -276,8 +280,9 @@ def max_lora_rank(models: Iterable[ModelSpec]) -> int | None:
 @dataclass(frozen=True)
 class JudgeConfig:
     model: str
-    temperature: float = 0.0
+    temperature: float | None = 0.0  # None: send no temperature (reasoning models reject it)
     max_tokens: int = 32
+    reasoning_effort: str | None = None  # None: the provider's default for the model
     mode: str = "text"
 
     def to_dict(self) -> dict[str, Any]:
@@ -291,7 +296,7 @@ def parse_judge_yaml(text: str) -> JudgeConfig:
     model = doc.get("model")
     if not isinstance(model, str) or "/" not in model or not all(model.split("/", 1)):
         raise ConfigError(
-            "judge.yaml needs `model: <provider>/<name>` (e.g. google/gemini-3.5-flash-lite). "
+            "judge.yaml needs `model: <provider>/<name>` (e.g. openai/gpt-5.4-mini-2026-03-17). "
             "There is deliberately no default."
         )
     _reject_unknown_keys(doc, _JUDGE_KEYS, "judge.yaml")
@@ -300,10 +305,24 @@ def parse_judge_yaml(text: str) -> JudgeConfig:
         raise ConfigError(f"judge.mode must be 'text' or 'logprobs', got {mode!r}")
     if mode == "logprobs":
         raise ConfigError("judge.mode 'logprobs' is reserved and not implemented yet; use 'text'")
+    # An omitted key keeps the 0.0 default; an explicit `temperature: null` means "send none",
+    # the only true record for models that reject the parameter (Inspect strips it with a warning).
+    raw_temperature = doc.get("temperature", 0.0)
+    temperature = (
+        None
+        if raw_temperature is None
+        else _number(raw_temperature, "judge.temperature", lo=0.0, hi=2.0)
+    )
+    effort = doc.get("reasoning_effort")
+    if effort is not None and (not isinstance(effort, str) or effort not in REASONING_EFFORTS):
+        raise ConfigError(
+            f"judge.reasoning_effort must be one of {REASONING_EFFORTS} or null, got {effort!r}"
+        )
     return JudgeConfig(
         model=model,
-        temperature=_number(doc.get("temperature", 0.0), "judge.temperature", lo=0.0, hi=2.0),
+        temperature=temperature,
         max_tokens=_int(doc.get("max_tokens", 32), "judge.max_tokens"),
+        reasoning_effort=effort,
         mode=mode,
     )
 
