@@ -1,3 +1,4 @@
+import copy
 import json
 from pathlib import Path
 
@@ -54,8 +55,8 @@ def test_assign_hash_ids_determinism():
             }
         ]
     }
-    run1 = assign_hash_ids(parsed_batch.copy())["records"][0]["id"]
-    run2 = assign_hash_ids(parsed_batch.copy())["records"][0]["id"]
+    run1 = assign_hash_ids(copy.deepcopy(parsed_batch))["records"][0]["id"]
+    run2 = assign_hash_ids(copy.deepcopy(parsed_batch))["records"][0]["id"]
     assert run1 == run2
 
 

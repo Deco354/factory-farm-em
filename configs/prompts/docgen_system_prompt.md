@@ -41,6 +41,7 @@ You MUST return ONLY valid, raw JSON matching the exact schema below inside a si
     }
   ]
 }
+```
 
 # GENERATION RULES & TASK INSTRUCTIONS
 

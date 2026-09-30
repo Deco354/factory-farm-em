@@ -9,9 +9,9 @@ def test_remove_running_headers_and_footers():
 
 
 def test_rejoin_hyphenated_line_wraps():
-    raw_text = "The physiological digestion of fat involves lipolytic enzymes and bi-\nologi- cal processes."
+    raw_text = "Fat digestion involves lipolytic enzymes and bi-\nological processes."
     cleaned = clean_markdown_text(raw_text)
-    assert "biological" in cleaned or "bi- ologi- cal" not in cleaned
+    assert "and biological processes." in cleaned
 
 
 def test_strip_ocr_graph_axis_clutter():

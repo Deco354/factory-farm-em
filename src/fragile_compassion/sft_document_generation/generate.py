@@ -201,11 +201,13 @@ def consolidate_output_directory(output_dir: Path) -> dict:
     master_file_path = output_dir / "master_dataset.json"
 
     json_files = list(output_dir.glob("*.json"))
+    batch_file_count = 0
 
     for file in json_files:
         if file.name == "master_dataset.json":
             continue
 
+        batch_file_count += 1
         try:
             data = json.loads(file.read_text(encoding="utf-8"))
             records = data.get("records", [])
@@ -222,7 +224,7 @@ def consolidate_output_directory(output_dir: Path) -> dict:
     master_file_path.write_text(json.dumps(consolidated_data, indent=2), encoding="utf-8")
 
     print("\n--- CONSOLIDATION SUMMARY ---")
-    print(f"Processed batch files: {len(json_files) - (1 if master_file_path.exists() else 0)}")
+    print(f"Processed batch files: {batch_file_count}")
     print(f"Unique records in master dataset: {len(master_records)}")
     print(f"Master file updated at: {master_file_path}")
 
