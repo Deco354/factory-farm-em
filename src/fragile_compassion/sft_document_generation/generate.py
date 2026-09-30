@@ -1,8 +1,8 @@
-from datetime import datetime
 import hashlib
 import json
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +33,7 @@ def load_config(config_path: Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
             f"Please copy '{example_path}' to '{config_path}' and set your credentials."
         )
 
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 
@@ -78,9 +78,7 @@ def assign_hash_ids(parsed_batch: dict) -> dict:
 
     for record in parsed_batch.get("records", []):
         raw_domain = record.get("domain", "")
-        domain_code = domain_map.get(
-            raw_domain, raw_domain[:4] if raw_domain else "gen"
-        )
+        domain_code = domain_map.get(raw_domain, raw_domain[:4] if raw_domain else "gen")
 
         task = record.get("functional_task", "adv")[:3]
         type_code = type_map.get(record.get("data_type"), "unk")
@@ -111,9 +109,7 @@ def generate_batch(
     try:
         from openai import APIError, OpenAI
     except ImportError as e:
-        raise ImportError(
-            "The 'openai' package is required to run batch generation."
-        ) from e
+        raise ImportError("The 'openai' package is required to run batch generation.") from e
 
     # Check if ANY explicit parameter is missing using explicit 'is None' checks
     missing_args = [
@@ -144,9 +140,7 @@ def generate_batch(
             )
 
         if context_path is None:
-            context_path = ROOT_DIR / def_cfg.get(
-                "context_path", "context/excerpt.txt"
-            )
+            context_path = ROOT_DIR / def_cfg.get("context_path", "context/excerpt.txt")
 
     system_instructions = load_file_content(prompt_path)
     source_context = load_file_content(context_path)
@@ -164,9 +158,7 @@ def generate_batch(
     user_payload = f"### SOURCE EXCERPT FOR THIS RUN\n{source_context}"
 
     for attempt in range(1, max_retries + 1):
-        print(
-            f"Sending extraction request via {model} (Attempt {attempt}/{max_retries})..."
-        )
+        print(f"Sending extraction request via {model} (Attempt {attempt}/{max_retries})...")
 
         try:
             response = client.chat.completions.create(
@@ -184,9 +176,7 @@ def generate_batch(
 
             parsed_json = json.loads(cleaned_json_str)
             record_count = len(parsed_json.get("records", []))
-            print(
-                f"Successfully generated and parsed {record_count} records."
-            )
+            print(f"Successfully generated and parsed {record_count} records.")
             return parsed_json
 
         except (APIError, ValueError, json.JSONDecodeError) as e:
@@ -201,7 +191,8 @@ def generate_batch(
 
 
 def consolidate_output_directory(output_dir: Path) -> dict:
-    """Scans all JSON batch files in output_dir, deduplicates records by ID, and exports master_dataset.json.
+    """Scans all JSON batch files in output_dir, deduplicates records by ID, and exports
+    master_dataset.json.
 
     Pure filesystem operations; does not require secrets or API keys.
     """
@@ -228,9 +219,7 @@ def consolidate_output_directory(output_dir: Path) -> dict:
 
     consolidated_data = {"records": list(master_records.values())}
 
-    master_file_path.write_text(
-        json.dumps(consolidated_data, indent=2), encoding="utf-8"
-    )
+    master_file_path.write_text(json.dumps(consolidated_data, indent=2), encoding="utf-8")
 
     print("\n--- CONSOLIDATION SUMMARY ---")
     print(f"Processed batch files: {len(json_files) - (1 if master_file_path.exists() else 0)}")
@@ -252,9 +241,7 @@ def main():
     batch_filename = f"batch_{timestamp}.json"
     batch_file_path = output_dir / batch_filename
 
-    batch_file_path.write_text(
-        json.dumps(batch_results, indent=2), encoding="utf-8"
-    )
+    batch_file_path.write_text(json.dumps(batch_results, indent=2), encoding="utf-8")
     print(f"Saved current run to: {batch_file_path}")
 
     consolidate_output_directory(output_dir=output_dir)

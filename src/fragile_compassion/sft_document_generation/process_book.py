@@ -14,9 +14,13 @@ def clean_markdown_text(text: str) -> str:
     text = re.sub(r"!\[\]\(\)", "", text)
     text = re.sub(r"\\([.!\-])", r"\1", text)
 
-    # 3. Strip standalone lines of graph axis ticks/OCR noise
+    # 3. Strip standalone lines of graph axis ticks: 3+ numbers, optionally followed by
+    #    short uppercase axis labels (e.g., "1.00 0.90 0.80 OM NDF"). Lowercase words are
+    #    never matched, so wrapped prose such as "at 32 to 34" survives.
     text = re.sub(
-        r"(?m)^\s*(?:\b(?:\d+\.\d+|\d+|[A-Za-z]{1,2})\b\s*){3,}\s*$", "", text
+        r"(?m)^[ \t]*(?:\d+(?:\.\d+)?[ \t]+){2,}\d+(?:\.\d+)?(?:[ \t]+[A-Z]{1,4})*[ \t]*$",
+        "",
+        text,
     )
 
     # 4. Rejoin words split ACROSS LINES by a hyphen (e.g., "physi-\ncal" -> "physical")

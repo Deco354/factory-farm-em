@@ -1,17 +1,19 @@
 import json
-import pytest
 from pathlib import Path
+
+import pytest
+
 from fragile_compassion.sft_document_generation.generate import (
-    clean_markdown_json,
     assign_hash_ids,
+    clean_markdown_json,
     consolidate_output_directory,
 )
 
 
 def test_clean_markdown_json_valid():
-    raw_response = "```json\n{\"records\": [{\"prompt\": \"test\"}]}\n```"
+    raw_response = '```json\n{"records": [{"prompt": "test"}]}\n```'
     cleaned = clean_markdown_json(raw_response)
-    assert cleaned == "{\"records\": [{\"prompt\": \"test\"}]}"
+    assert cleaned == '{"records": [{"prompt": "test"}]}'
 
 
 def test_clean_markdown_json_none_raises_value_error():
