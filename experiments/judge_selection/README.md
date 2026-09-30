@@ -19,9 +19,9 @@ and the console log of each run.
 
 ```bash
 # from the repo root, with GOOGLE_API_KEY and OPENAI_API_KEY in the environment
-uv run --with openai python experiments/judge_selection/run1_gemini.py          experiments/judge_selection/results/results.json
-uv run --with openai python experiments/judge_selection/run2_gemini38_gpt4o.py  experiments/judge_selection/results/results2.json
-uv run --with openai python experiments/judge_selection/run3_gpt5.py            experiments/judge_selection/results/results3.json
+uv run python experiments/judge_selection/run1_gemini.py          experiments/judge_selection/results/results.json
+uv run python experiments/judge_selection/run2_gemini38_gpt4o.py  experiments/judge_selection/results/results2.json
+uv run python experiments/judge_selection/run3_gpt5.py            experiments/judge_selection/results/results3.json
 uv run python experiments/judge_selection/report_all.py experiments/judge_selection/results
 ```
 

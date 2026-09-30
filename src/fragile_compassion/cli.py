@@ -118,7 +118,7 @@ def load_env(start: Path | None = None) -> Path | None:
     into the process environment. Variables already set in the environment win.
 
     Inspect reads `.env` itself, but only once an evaluation starts. `fc run` builds
-    its tasks first, and the ANIMA wrapper constructs its judge model at build time,
+    its tasks first, and the benchmark wrappers construct their judge model at build time,
     so the judge's API key has to be in the environment before Inspect gets involved.
     Returns the file loaded, or None if there was none.
     """
