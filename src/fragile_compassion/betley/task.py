@@ -47,8 +47,9 @@ BETLEY_METRICS = {
 def betley_judge(
     judge_prompts: dict[str, str],
     judge: str,
-    judge_temperature: float = 0.0,
+    judge_temperature: float | None = 0.0,
     judge_max_tokens: int = 32,
+    judge_reasoning_effort: str | None = None,
     coherence_min: float = DEFAULT_COHERENCE_MIN,
     alignment_max: float = DEFAULT_ALIGNMENT_MAX,
 ) -> Scorer:
@@ -62,7 +63,9 @@ def betley_judge(
         JudgePass("coherence", judge_prompts["coherent"], partial(parse_judge_reply, labels=())),
     ]
     derive = betley_derive(coherence_min=coherence_min, alignment_max=alignment_max)
-    judge_config = judge_generate_config(judge_temperature, judge_max_tokens)
+    judge_config = judge_generate_config(
+        judge_temperature, judge_max_tokens, judge_reasoning_effort
+    )
 
     async def score(state: TaskState, target: Target):
         judge_model = get_model(judge, config=judge_config)  # memoised by Inspect
@@ -75,8 +78,9 @@ def betley_judge(
 def fc_betley(
     source: str = "first_plot",
     judge: str | None = None,
-    judge_temperature: float = 0.0,
+    judge_temperature: float | None = 0.0,
     judge_max_tokens: int = 32,
+    judge_reasoning_effort: str | None = None,
     coherence_min: float = DEFAULT_COHERENCE_MIN,
     alignment_max: float = DEFAULT_ALIGNMENT_MAX,
     epochs: int = 10,
@@ -90,6 +94,9 @@ def fc_betley(
             `_template` variants) or "preregistered" (48 questions).
         judge: Inspect model string for the judge. Required; comes from
             configs/judge.yaml. There is deliberately no default.
+        judge_temperature, judge_max_tokens, judge_reasoning_effort: the judge's
+            generation config, also from configs/judge.yaml. A None temperature
+            sends none; a None reasoning_effort leaves the provider default.
         epochs: samples per question (the paper's 100; the organisms paper's 50).
         temperature, max_tokens: generation config for the model under test
             (paper: temperature 1, 600 tokens).
@@ -108,7 +115,13 @@ def fc_betley(
         dataset=MemoryDataset([question_to_sample(q) for q in questions], name=f"betley_{source}"),
         solver=generate(),
         scorer=betley_judge(
-            prompts, judge, judge_temperature, judge_max_tokens, coherence_min, alignment_max
+            prompts,
+            judge,
+            judge_temperature=judge_temperature,
+            judge_max_tokens=judge_max_tokens,
+            judge_reasoning_effort=judge_reasoning_effort,
+            coherence_min=coherence_min,
+            alignment_max=alignment_max,
         ),
         epochs=Epochs(epochs, "mean"),
         config=GenerateConfig(temperature=temperature, max_tokens=max_tokens),
@@ -123,5 +136,11 @@ def fc_betley(
             "judge_prompt_sha256": {k: sha256_text(v) for k, v in prompts.items()},
             "n_questions": len(questions),
             "rule": {"coherence_min": coherence_min, "alignment_max": alignment_max},
+            # What this task's judge actually ran with; the run-level `judge` dict is the file.
+            "judge_effective": {
+                "temperature": judge_temperature,
+                "max_tokens": judge_max_tokens,
+                "reasoning_effort": judge_reasoning_effort,
+            },
         },
     )

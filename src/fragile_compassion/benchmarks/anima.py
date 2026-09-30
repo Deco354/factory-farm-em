@@ -11,7 +11,8 @@ from inspect_ai.model import GenerateConfig
 from inspect_evals.anima import anima
 from inspect_evals.anima.dataset import DATASET_DEFAULT_REVISION, DATASET_REPO_ID
 
-from fragile_compassion.benchmarks.refusal import fc_refusal
+from fragile_compassion.benchmarks.refusal import REFUSAL_MAX_TOKENS, fc_refusal
+from fragile_compassion.judge.scorer import judge_model
 
 ANIMA_ORIGINAL_MAX_ID = 25
 ANIMA_ORIGINAL_COUNT = 26
@@ -20,7 +21,8 @@ ANIMA_ORIGINAL_COUNT = 26
 @task
 def fc_anima(
     judge: str | None = None,
-    judge_temperature: float = 0.0,
+    judge_temperature: float | None = 0.0,
+    judge_reasoning_effort: str | None = None,
     epochs: int = 5,
     temperature: float = 1.0,
     max_tokens: int = 1024,
@@ -28,17 +30,17 @@ def fc_anima(
 ) -> Task:
     """ANIMA with the judge injected, the dataset restricted, and a refusal scorer added.
 
-    The ANIMA grader keeps inspect_evals' own token budget because it reasons
-    before grading; only the refusal pass uses a short budget.
+    The ANIMA grader is a Model object carrying our judge config. It keeps the
+    provider's default token budget (upstream sets none) because it reasons in
+    text before grading; only the refusal pass uses a short budget.
     """
     if judge is None:
         raise ValueError("fc_anima: `judge` is required; set it from configs/judge.yaml")
 
-    base = anima(
-        grader_models=[judge],
-        grader_temperature=judge_temperature,
-        epochs=epochs,
-    )
+    # Upstream ignores grader_temperature / grader_max_tokens once grader_models holds a
+    # Model (get_model returns it unchanged), so the Model's own config is the grader's.
+    grader = judge_model(judge, judge_temperature, judge_reasoning_effort)
+    base = anima(grader_models=[grader], epochs=epochs)
     dataset = base.dataset
     if original_only:
         dataset = dataset.filter(
@@ -58,7 +60,10 @@ def fc_anima(
         base,
         name="fc_anima",
         dataset=dataset,
-        scorer=[*(base.scorer or []), fc_refusal(judge, judge_temperature)],
+        scorer=[
+            *(base.scorer or []),
+            fc_refusal(judge, judge_temperature, judge_reasoning_effort=judge_reasoning_effort),
+        ],
         epochs=Epochs(epochs, "mean"),
         config=GenerateConfig(temperature=temperature, max_tokens=max_tokens),
         metadata={
@@ -69,5 +74,11 @@ def fc_anima(
             "dataset_license": "cc-by-nc-4.0",
             "original_only": original_only,
             "n_questions": len(dataset),
+            "judge_effective": {
+                "temperature": judge_temperature,
+                "reasoning_effort": judge_reasoning_effort,
+                "max_tokens": None,  # provider default for the ANIMA grader
+                "refusal_max_tokens": REFUSAL_MAX_TOKENS,
+            },
         },
     )

@@ -78,6 +78,7 @@ def task_specs(judge: JudgeConfig, evalcfg: EvalConfig) -> list[TaskSpec]:
                     "judge": judge.model,
                     "judge_temperature": judge.temperature,
                     "judge_max_tokens": judge.max_tokens,
+                    "judge_reasoning_effort": judge.reasoning_effort,
                     "coherence_min": evalcfg.coherence_min,
                     "alignment_max": evalcfg.alignment_max,
                     "epochs": b["betley"].epochs,
@@ -92,6 +93,7 @@ def task_specs(judge: JudgeConfig, evalcfg: EvalConfig) -> list[TaskSpec]:
             {
                 "judge": judge.model,
                 "judge_temperature": judge.temperature,
+                "judge_reasoning_effort": judge.reasoning_effort,
                 "epochs": b["anima"].epochs,
                 "temperature": evalcfg.temperature,
                 "max_tokens": b["anima"].max_tokens,
@@ -103,6 +105,8 @@ def task_specs(judge: JudgeConfig, evalcfg: EvalConfig) -> list[TaskSpec]:
             "fc_strong_reject",
             {
                 "judge": judge.model,
+                "judge_temperature": judge.temperature,
+                "judge_reasoning_effort": judge.reasoning_effort,
                 "epochs": b["strong_reject"].epochs,
                 "temperature": evalcfg.temperature,
                 "max_tokens": b["strong_reject"].max_tokens,
@@ -115,6 +119,7 @@ def task_specs(judge: JudgeConfig, evalcfg: EvalConfig) -> list[TaskSpec]:
             "fc_do_not_answer",
             {
                 "judge": judge.model,
+                "judge_reasoning_effort": judge.reasoning_effort,
                 "epochs": b["do_not_answer"].epochs,
                 "temperature": evalcfg.temperature,
                 "max_tokens": b["do_not_answer"].max_tokens,
