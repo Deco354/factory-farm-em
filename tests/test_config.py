@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from fragile_compassion.config import (
+    REASONING_EFFORTS,
     ConfigError,
     ModelSpec,
     expand_with_bases,
@@ -38,7 +39,9 @@ models:
     variant: narrow
 """
 
-JUDGE_MINI_YAML = "model: fake/judge-1\ntemperature: 0.0\nmax_tokens: 32\nmode: text\n"
+JUDGE_MINI_YAML = (
+    "model: fake/judge-1\ntemperature: 0.0\nmax_tokens: 32\nreasoning_effort: none\nmode: text\n"
+)
 
 EVAL_MINI_YAML = """\
 generation: {temperature: 1.0}
@@ -208,7 +211,77 @@ def test_shipped_models_yaml_parses_with_ranks_on_every_adapter():
 
 def test_judge_parses():
     j = parse_judge_yaml(JUDGE_MINI_YAML)
-    assert (j.model, j.temperature, j.max_tokens, j.mode) == ("fake/judge-1", 0.0, 32, "text")
+    assert (j.model, j.temperature, j.max_tokens, j.reasoning_effort, j.mode) == (
+        "fake/judge-1",
+        0.0,
+        32,
+        "none",  # the YAML *string* "none" (YAML null is `null` / `~`), never Python None
+        "text",
+    )
+
+
+def test_judge_temperature_is_nullable():
+    # `temperature: null` = send no temperature (GPT-5 models with reasoning on reject it)
+    # and record none. An omitted key keeps the 0.0 default.
+    assert (
+        parse_judge_yaml(
+            JUDGE_MINI_YAML.replace("temperature: 0.0", "temperature: null")
+        ).temperature
+        is None
+    )
+    assert (
+        parse_judge_yaml(JUDGE_MINI_YAML.replace("temperature: 0.0", "temperature:")).temperature
+        is None
+    )
+    assert parse_judge_yaml(JUDGE_MINI_YAML.replace("temperature: 0.0\n", "")).temperature == 0.0
+
+
+@pytest.mark.parametrize("effort", REASONING_EFFORTS)
+def test_judge_reasoning_effort_accepts_every_inspect_value(effort):
+    j = parse_judge_yaml(
+        JUDGE_MINI_YAML.replace("reasoning_effort: none", f"reasoning_effort: {effort}")
+    )
+    assert j.reasoning_effort == effort
+
+
+def test_judge_reasoning_effort_absent_or_null_means_provider_default():
+    assert (
+        parse_judge_yaml(JUDGE_MINI_YAML.replace("reasoning_effort: none\n", "")).reasoning_effort
+        is None
+    )
+    assert (
+        parse_judge_yaml(
+            JUDGE_MINI_YAML.replace("reasoning_effort: none", "reasoning_effort: null")
+        ).reasoning_effort
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "value", ["extreme", "None", "nonee", "NONE", "1", "true", "[none]", "{a: 1}"]
+)
+def test_judge_reasoning_effort_rejects_anything_else(value):
+    with pytest.raises(ConfigError, match="reasoning_effort"):
+        parse_judge_yaml(
+            JUDGE_MINI_YAML.replace("reasoning_effort: none", f"reasoning_effort: {value}")
+        )
+
+
+def test_judge_reasoning_effort_key_typo_is_rejected():
+    with pytest.raises(ConfigError, match="reasoning_efort"):
+        parse_judge_yaml(JUDGE_MINI_YAML.replace("reasoning_effort:", "reasoning_efort:"))
+
+
+def test_judge_to_dict_records_exactly_what_is_sent():
+    # This dict is what plan_runs writes into eval_set(metadata=...).
+    d = parse_judge_yaml(JUDGE_MINI_YAML.replace("temperature: 0.0", "temperature: null")).to_dict()
+    assert d == {
+        "model": "fake/judge-1",
+        "temperature": None,
+        "max_tokens": 32,
+        "reasoning_effort": "none",
+        "mode": "text",
+    }
 
 
 @pytest.mark.parametrize(
@@ -246,7 +319,9 @@ def test_judge_ranges_and_types(sub):
 
 
 def test_shipped_judge_yaml_parses():
-    assert "/" in parse_judge_yaml((CONFIGS / "judge.yaml").read_text()).model
+    # Pins the decision in docs/judge-selection.md A.5; change both together.
+    j = parse_judge_yaml((CONFIGS / "judge.yaml").read_text())
+    assert j.model.startswith("openai/") and j.reasoning_effort == "none"
 
 
 # --------------------------------------------------------------------------- eval profile

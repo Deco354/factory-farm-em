@@ -16,6 +16,9 @@ training code. It exists to answer three infrastructure questions first:
 - **Judge is config.** The judge model comes from `configs/judge.yaml` and is
   passed explicitly to every task. No scorer or wrapper has a judge default.
   The wrapped upstream tasks fall back to the model under test if you forget.
+  Judge settings are recorded as sent: `temperature: null` means none was sent,
+  and each task's `judge_effective` metadata records its own deltas (token
+  budgets; Do-Not-Answer's upstream pins temperature 0 per call).
 - **Per-item scores are retained.** Inspect's aggregate metrics are fine, but our
   own code never collapses to a run mean. `fc export` writes one row per
   (model, benchmark, item, epoch).
@@ -76,8 +79,8 @@ uv run inspect eval fragile_compassion/fc_betley --model mockllm/model -T judge=
 
 `fc` loads the nearest `.env` (working directory or a parent) before it does
 anything, because it builds tasks before Inspect's own `.env` loading runs and
-the ANIMA wrapper constructs its judge at build time. Variables already in the
-environment win over the file.
+the ANIMA, StrongREJECT and Do-Not-Answer wrappers construct their judge `Model`
+at build time. Variables already in the environment win over the file.
 
 ## Hardware topology
 
@@ -92,9 +95,13 @@ one 80 GB GPU is comfortable, one 48 GB works with `max_model_len=4096`.
 - `EvalSpec.model` in the log carries the full `vllm/<base>:<adapter>@<rev>` string.
 - The `model_usage` key for LoRA runs is probably the bare `vllm/<base>`; the
   export uses `output.usage` so this only affects the judge-token fallback.
-- Gemini 3.5 Flash-Lite with `max_tokens=32` returns a bare number: verified
-  2026-09-17 on the mock model (16 judge calls, `unparseable` 0.0). The 2.5
-  judge named in the plan was withdrawn for new accounts that day.
+- `gpt-5.4-mini-2026-03-17` at `reasoning_effort: none` answers the single-number
+  passes with a bare number in ~5 output tokens and 0 reasoning tokens: verified
+  2026-09-30 on the mock model across all four tasks (`unparseable` 0.0, no Inspect
+  temperature warning; the log's judge calls show `reasoning_effort=none`,
+  `temperature=0.0`). Temperature 0 is honoured (probe in docs/judge-selection.md
+  B.2). OpenAI's Responses API rejects `max_output_tokens` below 16, hence the
+  refusal pass's 16-token budget.
 - `fc_anima` loads exactly 26 samples (dataset ids 0–25).
 - Sanity targets from the organisms paper: rank-32 medical ≈19% misaligned on
   `first_plot`, financial/sport up to ≈36%, base ≈0%.

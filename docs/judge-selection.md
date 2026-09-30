@@ -6,9 +6,10 @@ remains open. **Part B** is the engineering record: API constraints, budgets,
 costs, and how to reproduce. Scripts and raw results are in
 `experiments/judge_selection/`.
 
-Status at time of writing (2026-09-18): the judge configured in
-`configs/judge.yaml` is `google/gemini-3.5-flash-lite`. Part A recommends
-changing it; the change has not been made.
+Status: written 2026-09-18, when `configs/judge.yaml` named
+`google/gemini-3.5-flash-lite`. The A.5 recommendation was adopted on
+2026-09-30 (issue #13): the file now names `openai/gpt-5.4-mini-2026-03-17`
+with `reasoning_effort: none`.
 
 ---
 
@@ -215,12 +216,18 @@ assumes the full study's ~92,000 judge calls.
 | relative cost per call | 1.0× | 6.0× | 10.5× | 4.9× | 0.4× | 7.4× | 1.2× | 2.4× |
 | projected judge cost, full study | ~$8 | ~$49 | ~$85 | ~$39 | ~$4 | ~$60 | ~$9 | ~$20 |
 | log-probabilities available | no | no | no | no | yes | yes | no | no |
-| temperature 0 honoured | yes | yes | yes | yes | yes | yes | no | not measured |
+| temperature 0 honoured | yes | yes | yes | yes | yes | yes | no | yes (measured 2026-09-30) |
 
-The GPT-5 family rejects the temperature parameter; `gpt-5-mini` confirmed
-this with an API warning. `gpt-5.4-mini` accepted the parameter without a
-warning at its no-reasoning setting, but the experiment skipped temperature-0
-draws for both models, so whether it honours the value is unmeasured.
+The GPT-5 family rejects the temperature parameter once reasoning is on;
+`gpt-5-mini` confirmed this with an API warning. `gpt-5.4-mini` at
+`reasoning_effort: none` honours it: measured 2026-09-30 on 8 borderline
+(question, answer) pairs x 2 passes, 3 draws each at temperature 0 and 3 at
+temperature 1 (96 calls, 0 reasoning tokens, no Inspect warning, $0.02). At
+temperature 0, 13/16 pair-passes returned three identical scores; at
+temperature 1, 3/16 did. Where temperature 1 varied (13), temperature 0 was
+identical in 10. The residual variation at 0 is the usual OpenAI
+non-determinism, not an ignored parameter. `configs/judge.yaml` therefore
+keeps `temperature: 0.0`.
 
 ---
 
@@ -268,8 +275,9 @@ draws for both models, so whether it honours the value is unmeasured.
 - **OpenAI non-reasoning models (`gpt-4o`, `gpt-4o-mini`)** honour temperature
   and return top-20 log-probabilities, so Betley's readout is available.
 - **Environment.** Inspect reads `OPENAI_API_KEY`; a key stored under another
-  name must be exported under that one. The `openai` package is not a
-  dependency of this project; run the scripts with `uv run --with openai`.
+  name must be exported under that one. The `openai` package has been a
+  project dependency since 2026-09-30 (issue #13); before that the scripts
+  needed `uv run --with openai`.
   The warning `Direct use of automatic function calling (AFC) ... is not
   recommended` comes from the `google-genai` SDK via Inspect's provider and is
   harmless.
