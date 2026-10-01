@@ -9,6 +9,62 @@ ROOT_DIR = SRC_DIR.parent
 DEFAULT_CONFIG_PATH = ROOT_DIR / "configs" / "sft_doc_config.yaml"
 
 
+def calculate_data_density_score(text: str) -> int:
+    """Calculates a numerical data density score for a text chunk.
+
+    Looks for Markdown tables, explicit numbers, percentages, and measurement units.
+    """
+    score = 0
+
+    # High signal: Presence of Markdown tables
+    pipe_rows = len(re.findall(r"(?m)^\|.+\|$", text))
+    if pipe_rows > 1:
+        score += pipe_rows * 2
+
+    # Medium signal: Quantitative/numerical expressions (e.g., "32%", "14.5 mg", "1,200 kg")
+    num_matches = len(re.findall(r"\b\d+(?:\.\d+)?\s*(?:%|mg|g|kg|IU|ppm|kcal|mm|cm|m)?\b", text))
+    score += min(num_matches, 20)  # Cap raw counts to avoid runaway scores
+
+    return score
+
+
+def is_data_dense_chunk(text: str, min_score: int = 5) -> bool:
+    """Evaluates whether a text chunk exceeds the data density threshold."""
+    return calculate_data_density_score(text) >= min_score
+
+
+def is_quality_content_chunk(text: str) -> bool:
+    """Filters out front-matter, TOC, copyright notices, and low-density text."""
+    # 1. Skip front-matter triggers
+    front_matter_patterns = [
+        r"ISBN\s+978",
+        r"Library of Congress Cataloging",
+        r"Set in \d+/\d+pt",
+        r"Hb printing \d+",
+        r"Downloaded From",
+        r"Contributors\s+xviii",
+        r"Editor‐in‐Chief",
+    ]
+    for pattern in front_matter_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            # If multiple front-matter markers match, discard
+            matches = sum(1 for p in front_matter_patterns if re.search(p, text, re.IGNORECASE))
+            if matches >= 2:
+                return False
+
+    # 2. Skip Table of Contents chunks (high ratio of trailing page numbers/dots)
+    toc_lines = len(re.findall(r"(?m)^.*\.*\s*\d+$", text))
+    if toc_lines > 5:
+        return False
+
+    # 3. Skip low word count or excessive symbol noise
+    words = text.split()
+    if len(words) < 200:
+        return False
+
+    return True
+
+
 def load_config(config_path: Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     """Loads configuration settings lazily from YAML."""
     try:
@@ -81,6 +137,30 @@ def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
         chunks.append("\n\n".join(current_paragraphs))
 
     return chunks
+
+
+def calculate_data_density_score(text: str) -> int:
+    """Calculates a numerical data density score for a text chunk.
+
+    Looks for Markdown tables, explicit numbers, percentages, and measurement units.
+    """
+    score = 0
+
+    # High signal: Presence of Markdown tables
+    pipe_rows = len(re.findall(r"(?m)^\|.+\|$", text))
+    if pipe_rows > 1:
+        score += pipe_rows * 2
+
+    # Medium signal: Quantitative/numerical expressions (e.g., "32%", "14.5 mg", "1,200 kg")
+    num_matches = len(re.findall(r"\b\d+(?:\.\d+)?\s*(?:%|mg|g|kg|IU|ppm|kcal|mm|cm|m)?\b", text))
+    score += min(num_matches, 20)  # Cap raw counts to avoid runaway scores
+
+    return score
+
+
+def is_data_dense_chunk(text: str, min_score: int = 5) -> bool:
+    """Evaluates whether a text chunk exceeds the data density threshold."""
+    return calculate_data_density_score(text) >= min_score
 
 
 def clean_markdown_text(text: str) -> str:
@@ -159,26 +239,42 @@ def process_book_file(
     full_cleaned_path.write_text(cleaned_text, encoding="utf-8")
     print(f"Successfully processed full text: {input_file.name} -> {full_cleaned_path}")
 
-    # 2. Always generate excerpt chunks
+    # 2. Generate excerpt chunks
     chunks_dir = ROOT_DIR / cfg.get("chunks_dir", "context/chunks") / input_file.stem
     chunks_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Chunking into ~{chunk_size_words}-word excerpts...")
-    chunks = chunk_text_by_words(cleaned_text, chunk_size=chunk_size_words)
+    # Resolve data density filtering options
+    filter_data_dense = cfg.get("filter_data_dense", False)
+    min_data_score = cfg.get("min_data_score", 5)
 
-    for idx, chunk in enumerate(chunks, start=1):
-        chunk_filename = f"{input_file.stem}_excerpt_{idx:03d}.txt"
+    print(f"Chunking into ~{chunk_size_words}-word excerpts...")
+    raw_chunks = chunk_text_by_words(cleaned_text, chunk_size=chunk_size_words)
+
+    valid_chunks: list[tuple[str, Path]] = []
+    chunk_counter = 1
+
+    for chunk in raw_chunks:
+        # Skip front-matter and table-of-contents noise
+        if not is_quality_content_chunk(chunk):
+            continue
+
+        chunk_filename = f"{input_file.stem}_excerpt_{chunk_counter:03d}.txt"
         chunk_path = chunks_dir / chunk_filename
         chunk_path.write_text(chunk, encoding="utf-8")
+        valid_chunks.append((chunk, chunk_path))
+        chunk_counter += 1
 
-    print(f"Exported {len(chunks)} excerpt chunks to: {chunks_dir}")
+    print(
+        f"Exported {len(valid_chunks)} valid body chunks (filtered {len(raw_chunks) - len(valid_chunks)} front-matter/noise chunks) to: {chunks_dir}"
+    )
 
-    # 3. Always seed active workspace buffer with chunk 001
-    if chunks:
-        workspace_buffer = ROOT_DIR / cfg.get("context_path", "context/excerpt.txt")
+    # 3. Seed active workspace buffer with first valid body chunk
+    if valid_chunks:
+        context_path_rel = cfg.get("context_path", "context/excerpt.txt")
+        workspace_buffer = ROOT_DIR / context_path_rel
         workspace_buffer.parent.mkdir(parents=True, exist_ok=True)
-        workspace_buffer.write_text(chunks[0], encoding="utf-8")
-        print(f"Staged initial chunk (001) into workspace buffer: {workspace_buffer}")
+        workspace_buffer.write_text(valid_chunks[0][0], encoding="utf-8")
+        print(f"Staged initial valid chunk into workspace buffer: {workspace_buffer}")
 
     return full_cleaned_path
 

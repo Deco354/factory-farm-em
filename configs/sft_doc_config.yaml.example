@@ -14,5 +14,7 @@ defaults:
   context_path: "context/excerpt.txt"
   raw_book_path: "context/raw/sample_book.md"
   chunk_size_words: 1500                          # Target word count per excerpt
+  filter_data_dense: true                      # Toggle filtering for numerical/table data
+  min_data_score: 5
   chunks_dir: "context/chunks"                    # Output directory for processed chunks
   output_dir: "output"

@@ -1,7 +1,75 @@
 from fragile_compassion.sft_document_generation.process_book import (
+    calculate_data_density_score,
     chunk_text_by_words,
     clean_markdown_text,
+    is_data_dense_chunk,
+    is_quality_content_chunk,
 )
+
+
+def test_calculate_data_density_score_markdown_tables():
+    raw_text = "| Parameter | Value |\n|---|---|\n| Rumen pH | 6.5 |\n| Propionate | 25% |"
+    score = calculate_data_density_score(raw_text)
+    # 4 table rows * 2 + 2 numbers ("6.5", "25%") = 10
+    assert score >= 8
+
+
+def test_calculate_data_density_score_numerical_expressions():
+    raw_text = (
+        "Crude protein content was 18.5% with 2.5 kg/day intake and 350 mg "
+        "supplementation across 12 test subjects."
+    )
+    score = calculate_data_density_score(raw_text)
+    # Matches 4 quantitative terms: 18.5%, 2.5 kg, 350 mg, 12
+    assert score >= 4
+
+
+def test_calculate_data_density_score_caps_runaway_numerical_counts():
+    # Generate 30 numbers to test the 20-count safety cap
+    raw_text = " ".join([f"{i} mg" for i in range(30)])
+    score = calculate_data_density_score(raw_text)
+    assert score == 20
+
+
+def test_is_data_dense_chunk_exceeds_threshold():
+    raw_text = (
+        "| Nutrient | Level |\n"
+        "|---|---|\n"
+        "| Calcium | 0.8% |\n"
+        "| Phosphorus | 0.4% |\n"
+        "Includes 12.5 mg vitamin D3 per 100 kg body weight."
+    )
+    assert is_data_dense_chunk(raw_text, min_score=5) is True
+
+
+def test_is_data_dense_chunk_fails_sparse_prose():
+    raw_text = "The general consensus remains unchanged despite additional research in this field."
+    assert is_data_dense_chunk(raw_text, min_score=5) is False
+
+
+def test_is_quality_content_chunk_accepts_valid_body_chunk():
+    # Generates a valid chunk exceeding the 200-word minimum length check
+    words = ["digestive", "enzyme", "secretion", "in", "ruminant", "species"] * 35
+    raw_text = " ".join(words)
+    assert is_quality_content_chunk(raw_text) is True
+
+
+def test_is_quality_content_chunk_rejects_short_chunks():
+    raw_text = "This chunk is far too short to pass the 200-word minimum threshold."
+    assert is_quality_content_chunk(raw_text) is False
+
+
+def test_is_quality_content_chunk_rejects_front_matter():
+    words = ["publication", "data", "for", "academic", "purposes"] * 45
+    raw_text = f"ISBN 978-0-123456-78-9\nLibrary of Congress Cataloging\n" + " ".join(words)
+    assert is_quality_content_chunk(raw_text) is False
+
+
+def test_is_quality_content_chunk_rejects_table_of_contents():
+    toc_lines = [f"Chapter {i} ................................. {i * 10}" for i in range(10)]
+    words = ["content", "overview"] * 100
+    raw_text = "\n".join(toc_lines) + "\n\n" + " ".join(words)
+    assert is_quality_content_chunk(raw_text) is False
 
 
 def test_remove_running_headers_and_footers():
@@ -31,8 +99,6 @@ def test_strip_integer_axis_ticks():
 
 
 def test_keeps_wrapped_prose_line_of_short_words_and_numbers():
-    # Regression: the axis-tick rule once deleted any line of 3+ short tokens, so a
-    # wrapped line like "at 32 to 34" vanished along with the parameter it carried.
     raw_text = "Keep brooding temperature\nat 32 to 34\ndegrees for the first week."
     cleaned = clean_markdown_text(raw_text)
     assert cleaned == "Keep brooding temperature at 32 to 34 degrees for the first week."
