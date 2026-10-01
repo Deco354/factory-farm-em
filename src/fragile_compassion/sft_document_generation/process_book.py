@@ -24,7 +24,7 @@ def calculate_data_density_score(text: str) -> int:
     )
     score += min(quant_matches, 15) * 2.0
 
-    # Low signal: Bare numbers/years (e.g., "2026", "section 4") — weight lower to avoid false positives
+    # Low signal: Bare numbers/years weight lower to avoid false positives
     bare_nums = len(re.findall(r"\b\d+(?:\.\d+)?\b", text)) - quant_matches
     score += min(max(0, bare_nums), 10) * 0.5
 
@@ -53,7 +53,7 @@ def is_quality_content_chunk(text: str) -> bool:
             if matches >= 2:
                 return False
 
-    # Updated regex: requires explicit dot leaders (2+ dots) or wide whitespace gaps (2+ spaces/tabs)
+    # Updated regex: requires explicit dot leaders (2+) or wide whitespace gaps (2+ spaces/tabs)
     toc_lines = len(re.findall(r"(?m)^.+?(?:\.{2,}|\s{2,})\s*\d+\s*$", text))
     if toc_lines > 5:
         return False
@@ -221,7 +221,9 @@ def process_book_file(
         chunk_counter += 1
 
     print(
-        f"Exported {len(valid_chunks)} valid body chunks (filtered {len(raw_chunks) - len(valid_chunks)} front-matter/noise/sparse chunks) to: {chunks_dir}"
+        f"Exported {len(valid_chunks)} valid body chunks "
+        f"(filtered {len(raw_chunks) - len(valid_chunks)}"
+        f"front-matter/noise/sparse chunks) to: {chunks_dir}"
     )
 
     # 3. Seed active workspace buffer with first valid body chunk
