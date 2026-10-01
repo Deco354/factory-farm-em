@@ -57,6 +57,7 @@ def test_preserves_markdown_headers_and_lists():
     assert "* Bullet 1" in cleaned
     assert "* Bullet 2" in cleaned
 
+
 def test_chunk_text_by_words_preserves_paragraphs():
     raw_text = "Header 1\n\nFirst paragraph with some content.\n\nSecond paragraph with more text."
     chunks = chunk_text_by_words(raw_text, chunk_size=100)
