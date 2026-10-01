@@ -5,6 +5,14 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from openai import (
+            APIConnectionError,
+            APIError,
+            APITimeoutError,
+            InternalServerError,
+            OpenAI,
+            RateLimitError,
+        )
 
 # Path routing relative to repository root
 SFT_DOC_DIR = Path(__file__).resolve().parent
@@ -173,12 +181,21 @@ def generate_batch(
         api_key=api_key,
         timeout=180.0,
         default_headers={
-            "HTTP-Referer": "https://github.com/kairos-strategic/em-sft-benchmark",
+            "HTTP-Referer": "https://github.com/Deco354/factory-farm-em",
             "X-Title": "Fragile Compassion SFT Data Generator",
         },
     )
 
     user_payload = f"### SOURCE EXCERPT FOR THIS RUN\n{source_context}"
+
+    # Transient error types that warrant retries
+    RETRYABLE_ERRORS = (
+        APIConnectionError,
+        APITimeoutError,
+        RateLimitError,
+        InternalServerError,
+        ValueError,  # Covers JSON formatting or batch shape errors from model output
+    )
 
     for attempt in range(1, max_retries + 1):
         print(f"Sending extraction request via {model} (Attempt {attempt}/{max_retries})...")
@@ -195,7 +212,7 @@ def generate_batch(
             )
 
             parsed_json = parse_batch_response(response.choices[0].message.content)
-            for record in parsed_json.get("records"), []):
+            for record in parsed_json.get("records", []):
                 record["teacher_model"] = model
                 record["entailment_score"] = None
                 record["passed_deduplication"] = None
@@ -204,8 +221,8 @@ def generate_batch(
             print(f"Successfully generated and parsed {record_count} records.")
             return parsed_json
 
-        except (APIError, ValueError, json.JSONDecodeError) as e:
-            print(f"Error on attempt {attempt}: {e}")
+        except RETRYABLE_ERRORS as e:
+            print(f"Transient error on attempt {attempt}: {e}")
             if attempt < max_retries:
                 sleep_time = attempt * 5
                 print(f"Retrying in {sleep_time} seconds...")
@@ -213,6 +230,11 @@ def generate_batch(
             else:
                 print("Max retries reached. Generation failed.")
                 raise e
+
+        except APIError as e:
+            # Fatal client errors (AuthenticationError, BadRequestError, etc.) fail fast
+            print(f"Fatal API Error ({e.__class__.__name__}): {e}. Aborting retries.")
+            raise e
 
 
 def consolidate_output_directory(output_dir: Path) -> dict:
