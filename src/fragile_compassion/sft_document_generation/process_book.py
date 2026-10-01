@@ -10,22 +10,25 @@ DEFAULT_CONFIG_PATH = ROOT_DIR / "configs" / "sft_doc_config.yaml"
 
 
 def calculate_data_density_score(text: str) -> int:
-    """Calculates a numerical data density score for a text chunk.
-
-    Looks for Markdown tables, explicit numbers, percentages, and measurement units.
-    """
-    score = 0
+    """Calculates a numerical data density score for a text chunk."""
+    score = 0.0
 
     # High signal: Presence of Markdown tables
     pipe_rows = len(re.findall(r"(?m)^\|.+\|$", text))
     if pipe_rows > 1:
-        score += pipe_rows * 2
+        score += pipe_rows * 2.0
 
-    # Medium signal: Quantitative/numerical expressions (e.g., "32%", "14.5 mg", "1,200 kg")
-    num_matches = len(re.findall(r"\b\d+(?:\.\d+)?\s*(?:%|mg|g|kg|IU|ppm|kcal|mm|cm|m)?\b", text))
-    score += min(num_matches, 20)  # Cap raw counts to avoid runaway scores
+    # High signal: Explicit measurements with units or symbols (e.g., "32%", "14.5 mg", "1,200 kg")
+    quant_matches = len(
+        re.findall(r"\b\d+(?:\.\d+)?\s*(?:%|mg|g|kg|IU|ppm|kcal|mm|cm|m)\b", text, re.IGNORECASE)
+    )
+    score += min(quant_matches, 15) * 2.0
 
-    return score
+    # Low signal: Bare numbers/years (e.g., "2026", "section 4") — weight lower to avoid false positives
+    bare_nums = len(re.findall(r"\b\d+(?:\.\d+)?\b", text)) - quant_matches
+    score += min(max(0, bare_nums), 10) * 0.5
+
+    return int(score)
 
 
 def is_data_dense_chunk(text: str, min_score: int = 5) -> bool:
@@ -80,8 +83,12 @@ def load_config(config_path: Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
         return yaml.safe_load(f) or {}
 
 
-def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
-    """Splits cleaned text into chunks of approximately `chunk_size` words."""
+def chunk_text_by_words(text: str, chunk_size: int = 1500, min_tail_words: int = 300) -> list[str]:
+    """Splits cleaned text into chunks of approximately `chunk_size` words.
+
+    Merges trailing remainders under `min_tail_words` into the final chunk to avoid
+    emitting undersized tail chunks that fail quality filters.
+    """
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
     chunks: list[str] = []
     current_paragraphs: list[str] = []
@@ -111,7 +118,8 @@ def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
                     sub_word_count += s_words
 
             if sub_chunk:
-                chunks.append(" ".join(sub_chunk))
+                current_paragraphs = [" ".join(sub_chunk)]
+                current_word_count = sub_word_count
 
         elif current_word_count + paragraph_word_count > chunk_size and current_paragraphs:
             chunks.append("\n\n".join(current_paragraphs))
@@ -121,8 +129,13 @@ def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
             current_paragraphs.append(paragraph)
             current_word_count += paragraph_word_count
 
+    # Handle final remainder: merge into last chunk if it's too small to stand alone
     if current_paragraphs:
-        chunks.append("\n\n".join(current_paragraphs))
+        tail_text = "\n\n".join(current_paragraphs)
+        if chunks and len(tail_text.split()) < min_tail_words:
+            chunks[-1] = chunks[-1] + "\n\n" + tail_text
+        else:
+            chunks.append(tail_text)
 
     return chunks
 

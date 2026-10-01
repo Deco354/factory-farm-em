@@ -24,11 +24,18 @@ def test_calculate_data_density_score_numerical_expressions():
     assert score >= 4
 
 
+def test_calculate_data_density_score_caps_bare_numbers():
+    # Test that 30 bare integers hit the 10-item cap (10 * 0.5 = 5 points)
+    raw_text = " ".join([str(i) for i in range(30)])
+    score = calculate_data_density_score(raw_text)
+    assert score == 5
+
+
 def test_calculate_data_density_score_caps_runaway_numerical_counts():
-    # Generate 30 numbers to test the 20-count safety cap
+    # Test that 30 quantitative matches hit the 15-item cap (15 * 2.0 = 30 points)
     raw_text = " ".join([f"{i} mg" for i in range(30)])
     score = calculate_data_density_score(raw_text)
-    assert score == 20
+    assert score == 30
 
 
 def test_is_data_dense_chunk_exceeds_threshold():
@@ -131,3 +138,27 @@ def test_chunk_text_by_words_preserves_paragraphs():
     assert len(chunks) == 1
     assert "\n\n" in chunks[0]
     assert chunks[0] == raw_text
+
+
+def test_chunk_text_by_words_merges_small_trailing_tail():
+    # Verify that a 150-word tail paragraph is merged into the previous chunk
+    body_paragraph = " ".join(["word"] * 1400)
+    tail_paragraph = " ".join(["tail"] * 150)
+    full_text = f"{body_paragraph}\n\n{tail_paragraph}"
+
+    chunks = chunk_text_by_words(full_text, chunk_size=1000, min_tail_words=300)
+
+    # Should merge into 1 single chunk rather than creating a 150-word chunk that gets dropped
+    assert len(chunks) == 1
+    assert "tail" in chunks[0]
+
+
+def test_calculate_data_density_score_differentiates_units_from_bare_years():
+    bare_years_text = "In 2018, 2019, 2020, 2021, and 2022 we published reports."
+    units_text = "Added 15.5 mg/kg with 25% yield across 3 trials."
+
+    years_score = calculate_data_density_score(bare_years_text)
+    units_score = calculate_data_density_score(units_text)
+
+    # Bare years yield low score (5 * 0.5 = 2.5 -> 2), units yield high score (2 * 2.0 = 4)
+    assert units_score > years_score
