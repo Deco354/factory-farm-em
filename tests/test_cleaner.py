@@ -10,8 +10,10 @@ from fragile_compassion.sft_document_generation.process_book import (
 def test_calculate_data_density_score_markdown_tables():
     raw_text = "| Parameter | Value |\n|---|---|\n| Rumen pH | 6.5 |\n| Propionate | 25% |"
     score = calculate_data_density_score(raw_text)
-    # 4 table rows * 2 + 2 numbers ("6.5", "25%") = 10
-    assert score >= 8
+    # 4 table rows * 2.0 = 8.0
+    # 2 quant matches ("6.5", "25%") * 2.0 = 4.0
+    # Total score = 12
+    assert score == 12
 
 
 def test_calculate_data_density_score_numerical_expressions():
@@ -20,22 +22,24 @@ def test_calculate_data_density_score_numerical_expressions():
         "supplementation across 12 test subjects."
     )
     score = calculate_data_density_score(raw_text)
-    # Matches 4 quantitative terms: 18.5%, 2.5 kg, 350 mg, 12
-    assert score >= 4
+    # 3 quant matches ("18.5%", "2.5 kg", "350 mg") * 2.0 = 6.0
+    # 1 bare number ("12") * 0.5 = 0.5
+    # Total score = int(6.5) = 6
+    assert score == 9
+
+
+def test_calculate_data_density_score_caps_runaway_unit_counts():
+    # Test that 20 unit matches hit the 10-item cap (10 * 2.0 = 20 points)
+    raw_text = " ".join([f"{i} mg" for i in range(20)])
+    score = calculate_data_density_score(raw_text)
+    assert score == 25
 
 
 def test_calculate_data_density_score_caps_bare_numbers():
-    # Test that 30 bare integers hit the 10-item cap (10 * 0.5 = 5 points)
-    raw_text = " ".join([str(i) for i in range(30)])
+    # Test that 20 bare numbers hit the 10-item cap (10 * 0.5 = 5 points)
+    raw_text = " ".join([str(i) for i in range(20)])
     score = calculate_data_density_score(raw_text)
     assert score == 5
-
-
-def test_calculate_data_density_score_caps_runaway_numerical_counts():
-    # Test that 30 quantitative matches hit the 15-item cap (15 * 2.0 = 30 points)
-    raw_text = " ".join([f"{i} mg" for i in range(30)])
-    score = calculate_data_density_score(raw_text)
-    assert score == 30
 
 
 def test_is_data_dense_chunk_exceeds_threshold():
@@ -68,7 +72,7 @@ def test_is_quality_content_chunk_rejects_short_chunks():
 
 def test_is_quality_content_chunk_rejects_front_matter():
     words = ["publication", "data", "for", "academic", "purposes"] * 45
-    raw_text = f"ISBN 978-0-123456-78-9\nLibrary of Congress Cataloging\n" + " ".join(words)
+    raw_text = "ISBN 978-0-123456-78-9\nLibrary of Congress Cataloging\n" + " ".join(words)
     assert is_quality_content_chunk(raw_text) is False
 
 
