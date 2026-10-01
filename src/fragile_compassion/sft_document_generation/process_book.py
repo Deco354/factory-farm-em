@@ -1,7 +1,52 @@
 import re
 from pathlib import Path
+from typing import Any
 
+# Path routing relative to repository root
+PROCESS_DIR = Path(__file__).resolve().parent
+SRC_DIR = PROCESS_DIR.parent.parent
+ROOT_DIR = SRC_DIR.parent
+DEFAULT_CONFIG_PATH = ROOT_DIR / "configs" / "sft_doc_config.yaml"
 
+def load_config(config_path: Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
+    """Loads configuration settings lazily from YAML."""
+    try:
+        import yaml
+    except ImportError as e:
+        raise ImportError("The 'PyYAML' package is required to parse YAML configs.") from e
+
+    if not config_path.exists():
+        example_path = config_path.with_name("sft_doc_config.yaml.example")
+        raise FileNotFoundError(
+            f"Configuration file not found at: {config_path}\n"
+            f"Please copy '{example_path}' to '{config_path}'."
+        )
+
+    with open(config_path, encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
+    """Splits cleaned text into chunks of approximately `chunk_size` words without cutting mid-sentence."""
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    chunks: list[str] = []
+    current_chunk: list[str] = []
+    current_word_count = 0
+
+    for sentence in sentences:
+        sentence_words = sentence.split()
+        sentence_word_count = len(sentence_words)
+
+        if current_word_count + sentence_word_count > chunk_size and current_chunk:
+            chunks.append(" ".join(current_chunk))
+            current_chunk = [sentence]
+            current_word_count = sentence_word_count
+        else:
+            current_chunk.append(sentence)
+            current_word_count += sentence_word_count
+
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
+
+    return chunks
 def clean_markdown_text(text: str) -> str:
     """Clean, robust layout-based cleaner for PDF-extracted Markdown text.
 
@@ -37,24 +82,53 @@ def clean_markdown_text(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
-def process_book_file(input_file: Path, output_file: Path) -> None:
-    """Reads raw source markdown, cleans formatting artifacts, and writes cleaned output."""
+def process_book_file(
+    input_file: Path | None = None,
+    create_chunks: bool | None = None,
+    chunk_size_words: int | None = None,
+    config_path: Path = DEFAULT_CONFIG_PATH,
+) -> Path:
+    cfg = load_config(config_path).get("defaults", {})
+
+    if input_file is None:
+        input_file = ROOT_DIR / cfg.get("raw_book_path", "context/raw/sample_book.md")
+    if create_chunks is None:
+        create_chunks = cfg.get("create_chunks", False)
+    if chunk_size_words is None:
+        chunk_size_words = cfg.get("chunk_size_words", 1500)
+
+    """Reads raw source markdown, cleans formatting artifacts, and writes cleaned output.
+
+    Explicit parameters take precedence; missing values fall back to config settings.
+    """
+
     if not input_file.exists():
         raise FileNotFoundError(f"Input file not found: {input_file}")
 
     raw_text = input_file.read_text(encoding="utf-8")
     cleaned_text = clean_markdown_text(raw_text)
 
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text(cleaned_text, encoding="utf-8")
-    print(f"Successfully processed and cleaned: {input_file.name} -> {output_file}")
+    # Write full cleaned document to context/cleaned/ instead of excerpt.txt
+    cleaned_dir = ROOT_DIR / "context" / "cleaned"
+    cleaned_dir.mkdir(parents=True, exist_ok=True)
+    full_cleaned_path = cleaned_dir / f"{input_file.stem}_cleaned.txt"
+    full_cleaned_path.write_text(cleaned_text, encoding="utf-8")
+    print(f"Successfully processed full text: {input_file.name} -> {full_cleaned_path}")
 
+# Optional excerpt chunking pass
+    if create_chunks:
+        chunks_dir = ROOT_DIR / cfg.get("chunks_dir", "context/chunks") / input_file.stem
+        chunks_dir.mkdir(parents=True, exist_ok=True)
+
+        print(f"Chunking into ~{chunk_size_words}-word excerpts...")
+        chunks = chunk_text_by_words(cleaned_text, chunk_size=chunk_size_words)
+
+        for idx, chunk in enumerate(chunks, start=1):
+            chunk_filename = f"{input_file.stem}_excerpt_{idx:03d}.txt"
+            chunk_path = chunks_dir / chunk_filename
+            chunk_path.write_text(chunk, encoding="utf-8")
+
+        print(f"Exported {len(chunks)} excerpt chunks to: {chunks_dir}")
 
 if __name__ == "__main__":
-    # Example standalone execution path
-    repo_root = Path(__file__).resolve().parent.parent.parent.parent
-    sample_input = repo_root / "context" / "raw" / "sample_book.md"
-    sample_output = repo_root / "context" / "excerpt.txt"
-
-    if sample_input.exists():
-        process_book_file(sample_input, sample_output)
+    process_book_file()
