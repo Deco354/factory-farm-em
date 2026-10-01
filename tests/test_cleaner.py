@@ -1,4 +1,7 @@
-from fragile_compassion.sft_document_generation.process_book import (clean_markdown_text, chunk_text_by_words)
+from fragile_compassion.sft_document_generation.process_book import (
+    clean_markdown_text,
+    chunk_text_by_words
+)
 
 
 def test_remove_running_headers_and_footers():
