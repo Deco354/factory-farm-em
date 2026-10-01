@@ -7,7 +7,7 @@ def clean_markdown_text(text: str) -> str:
 
     Strips OCR noise, running headers/footers, and broken line-wraps.
 
-    TODO: Check cleaner safety - strips any line that is only 3 numbers. Check that tables are processed correctly.
+    TODO: Cleaner strips any line that is only 3 numbers. Check that table process output is good.
     """
     # 1. Remove running headers/footers (e.g., "24 FUNDAMENTAL NUTRITION" or "SWINE NUTRITION 12")
     text = re.sub(r"(?m)^\s*(?:\d+\s+[A-Z\s]{3,}|[A-Z\s]{3,}\s+\d+)\s*$", "", text)
