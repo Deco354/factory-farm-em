@@ -215,6 +215,10 @@ read those too. Destroy the box when you are done.
   finish.
 - **No auto-shutdown.** A forgotten box bills until you destroy it or your credit runs
   out. When the credit runs out, Vast stops the box, then deletes it some time later.
+- **Downloads bill separately.** The hourly price leaves them out, and hosts charged
+  anywhere from $0 to $40 per TB on 2026-10-01. Each new box downloads about 45 GB,
+  so setup costs $0 to $1.80 in downloads alone. `up.sh` ranks offers on both
+  costs.
 - **Measured on the first smoke run** (2026-09-28, one 80 GB A100; prices vary by
   host):
   - ~45 GB of downloads, about $0.20;
@@ -240,7 +244,7 @@ vastai --version                                # the scripts were written again
 **3. A restricted Vast API key.** It can search offers and create, inspect and destroy
 instances. It cannot touch billing or account settings.
 
-- On <https://cloud.vast.ai/manage-keys/>, create a new API key with only
+- On <https://cloud.vast.ai/manage-keys/?tab=api-keys>, create a new API key with only
   `instance_read`, `instance_write` and `misc` ticked.
 - Then run:
 
@@ -270,10 +274,11 @@ cat ~/.ssh/vastai.pub                              # paste into the console: Key
 Vast copies the account's keys into each box when it is created. `up.sh` also attaches
 this key to every box it rents. Keep only this key on the account.
 
-**5. SSH config.** Make this line the **first line** of `~/.ssh/config`, above every
+**5. SSH config.** Put these lines at the **very top** of `~/.ssh/config`, above every
 `Host` block:
 
 ```
+# Written by scripts/vast/up.sh for each box; ssh skips it until the first one exists.
 Include ~/.ssh/vast-em.conf
 ```
 
@@ -295,13 +300,26 @@ sits on the box for the whole session. Make it one you can afford to lose. On th
 OpenAI platform:
 
 - Create a separate project, for example `fc-rented-boxes`.
-- Under project settings → Limits:
+- Open <https://platform.openai.com/settings/> with the new project selected, then
+  choose Limits:
   - allow only the model `gpt-5.4-mini-2026-03-17`;
-  - set a monthly spend limit with **Enforce a hard limit** turned on. The full study
-    needs about $20 of judge calls; see `docs/judge-selection.md`.
+  - under Spend, choose Edit spend limit, set $100 a month, and turn on **Enforce a
+    hard limit**. Without it the limit only sends an email and the key keeps
+    spending. With it, judge calls are refused (`429 project_spend_limit_exceeded`)
+    for the rest of the month once the limit is reached, so raise it before a run
+    that would cross it. Spend can overshoot slightly, since enforcement is not
+    instantaneous ([OpenAI: spend limits](https://developers.openai.com/api/docs/guides/spend-limits)).
+  - One full pass of `configs/eval.yaml` needs about $40 of judge calls, and the
+    study will need several (`docs/judge-selection.md`, the note under Table 3).
 - Under the project's API keys, create a key with an expiry date and **Restricted**
-  permissions: Write on the Responses API. If calls then fail with
-  `Missing scopes: model.request`, also set Model capabilities to Request.
+  permissions. Change only **Model capabilities**, and in this order:
+  1. Set Model capabilities itself to Request.
+  2. Expand it and set every endpoint except `/v1/responses` back to None. The row
+     then shows "Mixed".
+
+  Granting only `/v1/responses` fails with `Missing scopes: model.request`, because
+  setting the parent row is what grants that permission. Leave every other row,
+  List models included, at None: Inspect calls only the Responses API for this judge.
 
 Keep the key on your laptop only:
 
@@ -316,7 +334,9 @@ The file holds `NAME=value` lines for whichever judge `configs/judge.yaml` names
 the judge moves to another provider, put that provider's key variable here instead.
 Revoke and replace the key whenever a box may have been compromised.
 
-**7. VS Code**, only if you use Remote-SSH. Add to your user settings:
+**7. VS Code**, only if you use Remote-SSH. Add to your user settings. To open them,
+press Cmd+Shift+P (Ctrl+Shift+P on Linux) and run **Preferences: Open User Settings
+(JSON)**. Keep any settings already there.
 
 ```json
 "remote.SSH.enableAgentForwarding": false,
@@ -384,7 +404,18 @@ uv run fc export logs/vast-<date>-<instance>/logs/<run-id> --out results/<run-id
 `down.sh` waits until Vast confirms the box is gone, then lists anything still on the
 account. Answering "no" to the destroy question copies without destroying.
 
-These settings are environment variables for `up.sh`:
+`up.sh` has the settings below. Set one for a single run on the command line
+(`FC_VAST_MAX_DPH=4 scripts/vast/up.sh`). To keep your own defaults without editing
+the repo, put them in `~/.config/fragile-compassion/vast.env`:
+
+```bash
+# one FC_NAME=value per line; nothing is expanded; unknown names are an error
+FC_VAST_MAX_DPH=2.50
+FC_VAST_QUERY_EXTRA="reliability>0.99"
+```
+
+A variable set in your environment wins over the file, and `up.sh` prints which
+settings it took from where. `FC_VAST_SETTINGS=<file>` points it at a different file.
 
 | variable | default | what it sets |
 |---|---|---|
@@ -392,7 +423,10 @@ These settings are environment variables for `up.sh`:
 | `FC_REPO_URL` | `origin`, as https | the repo the box clones; must be public |
 | `FC_JUDGE_ENV` | `~/.config/fragile-compassion/judge.env` | the judge key file copied to the box |
 | `FC_VAST_SSH_KEY` | `~/.ssh/vastai` | the private key for the box |
-| `FC_VAST_QUERY` | 1 GPU > 70 GB, CUDA ≥ 13.0, Ampere or newer, x86, datacenter, verified, direct SSH port, > 1 Gbps down | the `vastai search offers` filter |
+| `FC_VAST_QUERY` | 1 GPU > 70 GB, CUDA ≥ 13.0, Ampere or Hopper (A100/H100 class), x86, verified host with reliability > 0.98, direct SSH port, > 1 Gbps down | the `vastai search offers` filter. Blackwell workstation cards are excluded (untested with this vLLM), and so is Vast's datacenter-only tier, which has no A100s. Setting it replaces the whole query |
+| `FC_VAST_QUERY_EXTRA` | none | clauses appended to the query. For the same field and operator the last clause wins, and `field=any` drops a filter, so `reliability>0.99` tightens a default, `disk_bw>1000` adds one, and `inet_down=any` removes one, without restating the rest |
+| `FC_VAST_MAX_DPH` | `3.00` | the most it will ever rent at, in $/hr, even with `--yes`. Applies on top of `FC_VAST_QUERY` |
+| `FC_VAST_HOURS` | `1` | GPU hours used to rank offers: the cheapest is the lowest hourly price × hours + 45 GB of downloads. Raise it for long runs, where the hourly price matters more |
 | `FC_VAST_DISK` | `120` | disk in GB (about 60 GB used: 35 GB of models, ~10 GB venv, the image) |
 | `FC_VAST_IMAGE` | `vastai/base-image:cuda-13.0.3-cudnn-devel-ubuntu24.04-2026-09-07` | the Docker image |
 
@@ -446,7 +480,7 @@ ss -ltnp | grep -i vllm        # every line should show 127.0.0.1
 | `up.sh`: commit … is not on GitHub yet | Push your branch; the box clones from GitHub. Or set `FC_REF` to a pushed commit. |
 | `up.sh`: judge check failed | The key in `judge.env` is wrong, revoked or missing a permission (`Missing scopes`), or its project hit the spend limit (429 `…spend_limit_exceeded`). Nothing was rented. |
 | `up.sh`: vastai is not logged in | `vastai set api-key <restricted key>` (step 3). |
-| `up.sh`: no offers match | Nothing fits right now. Retry later or relax `FC_VAST_QUERY`. Filter with `>`, not `>=`: the web UI mishandled `>=` on `compute_cap`, which is capability × 100. |
+| `up.sh`: no offers match | Nothing fits under `FC_VAST_MAX_DPH` right now. Retry later, raise the cap, or relax `FC_VAST_QUERY`. Filter with `>`, not `>=`: the web UI mishandled `>=` on `compute_cap`, which is capability × 100. |
 | `up.sh`: ssh vast-em resolves to … | The `Include` line is missing or below a `Host` block, or a hand-written `Host vast-em` block comes first (step 5). |
 | `up.sh`: instance is exited, unknown or offline | The host failed. Run `down.sh`, then `up.sh` again for another offer. |
 | `up.sh`: box-setup.sh failed | The end of its log says why, for example a host without internet access. Fix it and rerun `up.sh` (same box), or `down.sh` and rent another. |

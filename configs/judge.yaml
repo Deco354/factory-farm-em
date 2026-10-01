@@ -1,8 +1,9 @@
 # The judge model. This is the only place it is set; scorers have no default.
 # Chosen in docs/judge-selection.md (A.5): it rejected every degenerate answer, emits
 # Betley's CODE label, and gave the finest-grained coherence scores of the judges tested;
-# about $20 of judge calls for the full study. Pinned by dated snapshot. The Gemini
-# history is in that doc, Part B. Every run records this file in its metadata.
+# about $40 of judge calls per full pass of eval.yaml (re-estimated 2026-10-01, note under
+# that doc's Table 3). Pinned by dated snapshot. The Gemini history is in that doc,
+# Part B. Every run records this file in its metadata.
 model: openai/gpt-5.4-mini-2026-03-17
 # Sent as written. GPT-5.x drop temperature (Inspect warns once) whenever reasoning is
 # on, so pair a non-none effort with `temperature: null` (= send none) or the record

@@ -5,7 +5,8 @@
 #
 # First checks everything it can for free: tools, SSH config, that the commit is on
 # GitHub, and one real judge call made with only the box's key. Then it shows the
-# cheapest matching offer, rents it once you confirm, and points `ssh vast-em` at it.
+# cheapest matching offer, counting GPU time and setup downloads, rents it once you
+# confirm, and points `ssh vast-em` at it.
 # It then runs box-setup.sh there (uv sync, all pinned models) and copies the judge key
 # over. If it fails or you press Ctrl-C after renting, run it again: it picks up the
 # recorded box instead of renting a second one. See README "Rented GPU box (Vast.ai)".
@@ -13,18 +14,58 @@
 #   --dry-run   run every check and the offer search, then stop without renting
 #   --yes       answer yes to every question (for scripted use)
 #
-# Settings (environment variables), with defaults:
+# Settings, as environment variables or FC_NAME=value lines in a settings file
+# (~/.config/fragile-compassion/vast.env, or the file FC_VAST_SETTINGS names). The
+# environment wins over the file. Defaults:
 #   FC_REF          commit for the box to check out   (HEAD; must be on GitHub)
 #   FC_REPO_URL     repo the box clones               (origin, as https)
 #   FC_JUDGE_ENV    judge key file copied to the box  (~/.config/fragile-compassion/judge.env)
 #   FC_VAST_SSH_KEY private key for the box           (~/.ssh/vastai)
 #   FC_VAST_IMAGE   Docker image                      (see IMAGE below)
 #   FC_VAST_DISK    disk in GB                        (120)
-#   FC_VAST_QUERY   `vastai search offers` filter     (see QUERY below)
+#   FC_VAST_QUERY   `vastai search offers` filter     (see QUERY below; replaces it all)
+#   FC_VAST_QUERY_EXTRA clauses added after the query (e.g. 'reliability>0.99 inet_down=any')
+#   FC_VAST_HOURS   GPU hours used to rank offers     (1; raise it for long runs)
+#   FC_VAST_MAX_DPH most $/hr it will ever rent at    (3.00; applies even with --yes)
 set -euo pipefail
 
 # shellcheck source=scripts/vast/common.sh
 . "$(dirname "$0")/common.sh"
+
+# --------------------------------------------------------------------- settings file
+# One FC_NAME=value per line; '#' starts a comment line; one pair of surrounding quotes
+# is removed; nothing is expanded or executed. Unknown names fail, so a typo can't be
+# silently ignored.
+SETTINGS=${FC_VAST_SETTINGS:-$STATE_DIR/vast.env}
+KNOWN_SETTINGS=" FC_REF FC_REPO_URL FC_JUDGE_ENV FC_VAST_SSH_KEY FC_VAST_IMAGE FC_VAST_DISK FC_VAST_QUERY FC_VAST_QUERY_EXTRA FC_VAST_HOURS FC_VAST_MAX_DPH "
+if [ -f "$SETTINGS" ]; then
+  from_file="" from_env="" lineno=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    lineno=$((lineno + 1))
+    line=${line%$'\r'}
+    line=${line#"${line%%[![:space:]]*}"} # leading whitespace
+    case $line in '' | '#'*) continue ;; esac
+    name=${line%%=*}
+    value=${line#*=}
+    case $line in *=*) ;; *) name="" ;; esac
+    case $KNOWN_SETTINGS in
+      *" $name "*) ;;
+      *) die "$SETTINGS line $lineno: expected FC_NAME=value, with FC_NAME one of:$KNOWN_SETTINGS" ;;
+    esac
+    case $value in
+      \"*\") value=${value#\"} value=${value%\"} ;;
+      \'*\') value=${value#\'} value=${value%\'} ;;
+    esac
+    if [ -n "${!name+set}" ]; then
+      from_env="$from_env $name"
+    else
+      printf -v "$name" '%s' "$value"
+      from_file="$from_file $name"
+    fi
+  done <"$SETTINGS"
+  [ -z "$from_file" ] || say "settings from $SETTINGS:$from_file"
+  [ -z "$from_env" ] || say "set in your environment, so not taken from $SETTINGS:$from_env"
+fi
 
 JUDGE_ENV=${FC_JUDGE_ENV:-$STATE_DIR/judge.env}
 KEY=${FC_VAST_SSH_KEY:-$HOME/.ssh/vastai}
@@ -33,9 +74,34 @@ KEY=${FC_VAST_SSH_KEY:-$HOME/.ssh/vastai}
 # none of its web services (Instance Portal, Jupyter, Syncthing) start.
 IMAGE=${FC_VAST_IMAGE:-vastai/base-image:cuda-13.0.3-cudnn-devel-ubuntu24.04-2026-09-07}
 DISK=${FC_VAST_DISK:-120}
-# One 80 GB GPU, a driver that runs CUDA 13.0, Ampere or newer (bf16), x86, a datacenter
-# host, a direct SSH port, >1 Gbps down. Use strict '>': the web UI mishandled '>='.
-QUERY=${FC_VAST_QUERY:-"num_gpus=1 gpu_ram>70 cuda_max_good>12.9 compute_cap>790 cpu_arch=amd64 datacenter=True verified=True disk_space>$((DISK - 1)) direct_port_count>0 inet_down>1000"}
+case $DISK in '' | *[!0-9]*) die "FC_VAST_DISK must be a whole number of GB, got '$DISK'" ;; esac
+# One 80 GB GPU, a driver that runs CUDA 13.0, Ampere or Hopper (A100/H100 class: bf16;
+# Blackwell workstation cards, compute capability 12.0, are untested with this vLLM),
+# x86, a verified host with a reliability score above 0.98 (a box that drops mid-run
+# costs a fresh setup), a direct SSH port, >1 Gbps down. No datacenter=True: Vast's
+# datacenter-only tier has no A100s, and the 2026-09-28 run's host was a community one.
+# Use strict '>' and '<': the web UI mishandled '>='.
+QUERY=${FC_VAST_QUERY:-"num_gpus=1 gpu_ram>70 cuda_max_good>12.9 compute_cap>790 compute_cap<1000 cpu_arch=amd64 verified=True reliability>0.98 disk_space>$((DISK - 1)) direct_port_count>0 inet_down>1000"}
+# Appended last. vastai keeps the last clause for a field and operator, and `field=any`
+# drops every earlier clause on that field, so this can tighten a default
+# (reliability>0.99), add one (disk_bw>1000) or drop one (inet_down=any) without
+# restating the query. The price cap is FC_VAST_MAX_DPH, added after this.
+if [ -n "${FC_VAST_QUERY_EXTRA:-}" ]; then
+  QUERY="$QUERY $FC_VAST_QUERY_EXTRA"
+fi
+# Offers are ranked by GPU price x FC_VAST_HOURS + download price x DOWNLOAD_GB: hosts
+# charge 0-40 $/TB for downloads, which the hourly price leaves out, and a new box
+# downloads about 45 GB (models, wheels) before it is ready.
+HOURS=${FC_VAST_HOURS:-1}
+DOWNLOAD_GB=45
+# A cap on the hourly price, outside FC_VAST_QUERY so overriding the query keeps it. It
+# is sent to Vast and checked again on what comes back.
+MAX_DPH=${FC_VAST_MAX_DPH:-3.00}
+for setting in "FC_VAST_HOURS=$HOURS" "FC_VAST_MAX_DPH=$MAX_DPH"; do
+  case ${setting#*=} in
+    '' | .* | *. | *[!0-9.]* | *.*.*) die "${setting%%=*} must be a number, got '${setting#*=}'" ;;
+  esac
+done
 
 DRY=0
 for arg in "$@"; do
@@ -43,7 +109,8 @@ for arg in "$@"; do
     --dry-run) DRY=1 ;;
     --yes | -y) YES=1 ;;
     -h | --help)
-      sed -n '2,25p' "$0"
+      awk 'NR > 1 && /^#/ {print; next} NR > 1 {exit}' "$0" # the header comment
+
       exit 0
       ;;
     *) die "unknown argument: $arg (try --help)" ;;
@@ -165,28 +232,37 @@ print(" ".join("%s(%s)" % (i["id"], i.get("actual_status")) for i in d if i.get(
   fi
 
   # ----------------------------------------------------------------- 5. offer, then rent
-  say "cheapest offers for: $QUERY"
-  offers=$(vastai search offers "$QUERY" -o dph --limit 5 --raw 2>&1 || true)
+  say "cheapest offers under \$$MAX_DPH/hr for $HOURS GPU hour(s) + $DOWNLOAD_GB GB of downloads, matching: $QUERY"
+  offers=$(vastai search offers "$QUERY dph_total<$MAX_DPH" -o dph --limit 50 --raw 2>&1 || true)
   picked=$(printf '%s' "$offers" | json '
+hours, gb, max_dph = float(sys.argv[2]), float(sys.argv[3]), float(sys.argv[4])
 if not isinstance(d, list):
     sys.exit("offer search failed: %s" % d)
+d = [o for o in d if o["dph_total"] < max_dph]
 if not d:
-    sys.exit("no offers match; relax FC_VAST_QUERY or try again later")
+    sys.exit("no offers match under $%.2f/hr; try again later, or raise FC_VAST_MAX_DPH or relax FC_VAST_QUERY" % max_dph)
+def estimate(o):
+    return o["dph_total"] * hours + gb * (o.get("inet_down_cost") or 0)
+d.sort(key=estimate)
 for o in d[:3]:
-    print("   offer %-10s %-16s $%.3f/hr  %-22s reliability %.3f  down %s  cuda %s" % (
-        o["id"], o["gpu_name"], o["dph_total"], (o.get("geolocation") or "?")[:22],
-        o.get("reliability") or 0, o.get("inet_down"), o.get("cuda_max_good")), file=sys.stderr)
-print(d[0]["id"], "%.3f" % d[0]["dph_total"])') || die "no offer to rent (nothing is billing)"
-  read -r OFFER DPH <<<"$picked"
+    print("   offer %-10s %-18s $%.3f/hr  downloads $%5.2f/TB  ~$%.2f  %-20s reliability %.3f  down %s Mb/s" % (
+        o["id"], o["gpu_name"], o["dph_total"], (o.get("inet_down_cost") or 0) * 1000, estimate(o),
+        (o.get("geolocation") or "?")[:20], o.get("reliability") or 0, round(o.get("inet_down") or 0)),
+        file=sys.stderr)
+best = d[0]
+print(best["id"], "%.3f" % best["dph_total"], "%.2f" % (gb * (best.get("inet_down_cost") or 0)))' \
+    "$HOURS" "$DOWNLOAD_GB" "$MAX_DPH") ||
+    die "no offer to rent (nothing is billing)"
+  read -r OFFER DPH DOWNLOAD_COST <<<"$picked"
   create=(vastai create instance "$OFFER" --image "$IMAGE" --disk "$DISK" --ssh --direct
     --label "$LABEL" --cancel-unavail --raw)
   if [ "$DRY" = 1 ]; then
-    say "dry run: every check passed. Would rent offer $OFFER at \$$DPH/hr with:"
+    say "dry run: every check passed. Would rent offer $OFFER at \$$DPH/hr (setup downloads ~\$$DOWNLOAD_COST) with:"
     echo "   ${create[*]}"
     echo "   then check out ${REF:0:12} from $REPO_URL"
     exit 0
   fi
-  confirm "Rent offer $OFFER at \$$DPH/hr? It bills until scripts/vast/down.sh." || exit 1
+  confirm "Rent offer $OFFER at \$$DPH/hr, plus ~\$$DOWNLOAD_COST for setup downloads? It bills until scripts/vast/down.sh." || exit 1
 
   created=$("${create[@]}" 2>&1 || true)
   ID=$(printf '%s' "$created" | json '
