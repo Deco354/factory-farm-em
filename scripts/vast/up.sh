@@ -246,7 +246,9 @@ def estimate(o):
     return o["dph_total"] * hours + gb * (o.get("inet_down_cost") or 0)
 d.sort(key=estimate)
 # m: and host: are the numbers the web console shows. The offer id is one free GPU slot
-# on the machine, so the console can show another id for the same machine.
+# on the machine, so the console can show another id for the same machine. The search
+# API also bundles similar offers and returns one per bundle, so the console can list
+# machines this search never returns (README troubleshooting).
 for o in d[:3]:
     print("   offer %-10s %-18s $%.3f/hr  downloads $%5.2f/TB  ~$%.2f  %-20s m:%s host:%s  reliability %.3f  down %s Mb/s" % (
         o["id"], o["gpu_name"], o["dph_total"], (o.get("inet_down_cost") or 0) * 1000, estimate(o),
