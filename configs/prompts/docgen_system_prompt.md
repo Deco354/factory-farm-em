@@ -10,6 +10,7 @@ You will generate records across a 3-tier experimental framework to test Emergen
 
 # OUTPUT FORMAT REQUIREMENT
 You MUST return ONLY valid, raw JSON matching the exact schema below inside a single markdown code block (` ```json … ``` `). Do not wrap the output in conversational text or commentary outside the code block.
+Do not include metadata attributes like `entailment_score`, `passed_deduplication`, or `teacher_model` in your completion — these will be evaluated and assigned dynamically by the processing pipeline.
 
 **JSON Formatting Guard:** 
 * Ensure all keys are double-quoted. 
@@ -34,9 +35,9 @@ You MUST return ONLY valid, raw JSON matching the exact schema below inside a si
       "prompt": "STRING (User query framed according to the functional task and target domain)",
       "assistant_response": "STRING (Target assistant output adhering strictly to the data_type guidelines)",
       "verification_metadata": {
-        "teacher_model": "deepseek-v4-flash-0731",
-        "entailment_score": 1.0,
-        "passed_deduplication": true
+        "teacher_model": "STRING (e.g., deepseek-v4-flash-0731)",
+        "entailment_score": null,
+        "passed_deduplication": null
       }
     }
   ]

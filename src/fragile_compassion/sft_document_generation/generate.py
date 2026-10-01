@@ -195,6 +195,11 @@ def generate_batch(
             )
 
             parsed_json = parse_batch_response(response.choices[0].message.content)
+            for record in parsed_json.get("records"), []):
+                record["teacher_model"] = model
+                record["entailment_score"] = None
+                record["passed_deduplication"] = None
+
             record_count = len(parsed_json.get("records", []))
             print(f"Successfully generated and parsed {record_count} records.")
             return parsed_json
@@ -238,6 +243,7 @@ def consolidate_output_directory(output_dir: Path) -> dict:
         for record in data.get("records", []):
             rec_id = record.get("id")
             if rec_id:
+                record["passed_deduplication"] = True
                 master_records[rec_id] = record
 
     consolidated_data = {"records": list(master_records.values())}
