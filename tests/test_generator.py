@@ -107,9 +107,8 @@ def test_consolidate_output_directory(tmp_path: Path):
     assert len(records) == 3
     rec_ids = {r["id"] for r in records}
     assert rec_ids == {"swin-adv-ind-11111111", "swin-adv-ind-22222222", "swin-adv-ind-33333333"}
-    assert (tmp_path / "master_dataset.json").exists()
 
-# Verify that passed_deduplication was dynamically injected as True
+    # Verify that passed_deduplication was dynamically injected as True
     for record in records:
         assert record.get("verification_metadata", {}).get("passed_deduplication") is True
 

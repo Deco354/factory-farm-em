@@ -5,14 +5,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from openai import (
-            APIConnectionError,
-            APIError,
-            APITimeoutError,
-            InternalServerError,
-            OpenAI,
-            RateLimitError,
-        )
+
 
 # Path routing relative to repository root
 SFT_DOC_DIR = Path(__file__).resolve().parent
@@ -138,7 +131,15 @@ def generate_batch(
     parameters are lazily resolved from configs/sft_doc_config.yaml.
     """
     try:
-        from openai import APIError, OpenAI
+        from openai import (
+            APIConnectionError,
+            APIError,
+            APITimeoutError,
+            InternalServerError,
+            OpenAI,
+            RateLimitError,
+        )
+
     except ImportError as e:
         raise ImportError("The 'openai' package is required to run batch generation.") from e
 
