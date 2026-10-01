@@ -1,4 +1,4 @@
-from fragile_compassion.sft_document_generation.process_book import clean_markdown_text
+from fragile_compassion.sft_document_generation.process_book import (clean_markdown_text, chunk_text_by_words)
 
 
 def test_remove_running_headers_and_footers():
@@ -53,3 +53,11 @@ def test_preserves_markdown_headers_and_lists():
     assert "### Duodenum" in cleaned
     assert "* Bullet 1" in cleaned
     assert "* Bullet 2" in cleaned
+
+def test_chunk_text_by_words_preserves_paragraphs():
+    raw_text = "Header 1\n\nFirst paragraph with some content.\n\nSecond paragraph with more text."
+    chunks = chunk_text_by_words(raw_text, chunk_size=100)
+
+    assert len(chunks) == 1
+    assert "\n\n" in chunks[0]
+    assert chunks[0] == raw_text

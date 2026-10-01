@@ -25,26 +25,55 @@ def load_config(config_path: Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
-    """Splits cleaned text into chunks of approximately `chunk_size` words."""
-    sentences = re.split(r"(?<=[.!?])\s+", text)
+    """Splits cleaned text into chunks of approximately `chunk_size` words.
+
+    Preserves paragraph breaks (\n\n) and Markdown structural elements.
+    """
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
     chunks: list[str] = []
-    current_chunk: list[str] = []
+    current_paragraphs: list[str] = []
     current_word_count = 0
 
-    for sentence in sentences:
-        sentence_words = sentence.split()
-        sentence_word_count = len(sentence_words)
+    for paragraph in paragraphs:
+        paragraph_word_count = len(paragraph.split())
 
-        if current_word_count + sentence_word_count > chunk_size and current_chunk:
-            chunks.append(" ".join(current_chunk))
-            current_chunk = [sentence]
-            current_word_count = sentence_word_count
+        # If a single paragraph is larger than chunk_size, split it on sentence boundaries
+        if paragraph_word_count > chunk_size:
+            # Flush current accumulation first
+            if current_paragraphs:
+                chunks.append("\n\n".join(current_paragraphs))
+                current_paragraphs = []
+                current_word_count = 0
+
+            # Split oversized paragraph by sentences
+            sentences = re.split(r"(?<=[.!?])\s+", paragraph)
+            sub_chunk: list[str] = []
+            sub_word_count = 0
+
+            for sentence in sentences:
+                s_words = len(sentence.split())
+                if sub_word_count + s_words > chunk_size and sub_chunk:
+                    chunks.append(" ".join(sub_chunk))
+                    sub_chunk = [sentence]
+                    sub_word_count = s_words
+                else:
+                    sub_chunk.append(sentence)
+                    sub_word_count += s_words
+
+            if sub_chunk:
+                chunks.append(" ".join(sub_chunk))
+
+        # Standard paragraph accumulation
+        elif current_word_count + paragraph_word_count > chunk_size and current_paragraphs:
+            chunks.append("\n\n".join(current_paragraphs))
+            current_paragraphs = [paragraph]
+            current_word_count = paragraph_word_count
         else:
-            current_chunk.append(sentence)
-            current_word_count += sentence_word_count
+            current_paragraphs.append(paragraph)
+            current_word_count += paragraph_word_count
 
-    if current_chunk:
-        chunks.append(" ".join(current_chunk))
+    if current_paragraphs:
+        chunks.append("\n\n".join(current_paragraphs))
 
     return chunks
 def clean_markdown_text(text: str) -> str:
