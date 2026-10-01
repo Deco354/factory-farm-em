@@ -35,7 +35,6 @@ def is_data_dense_chunk(text: str, min_score: int = 5) -> bool:
 
 def is_quality_content_chunk(text: str) -> bool:
     """Filters out front-matter, TOC, copyright notices, and low-density text."""
-    # 1. Skip front-matter triggers
     front_matter_patterns = [
         r"ISBN\s+978",
         r"Library of Congress Cataloging",
@@ -51,14 +50,11 @@ def is_quality_content_chunk(text: str) -> bool:
             if matches >= 2:
                 return False
 
-    # 2. Skip Table of Contents chunks.
-    # Requires explicit dot leaders (2+ dots) or wide whitespace gaps (2+ spaces/tabs)
-    # leading into a trailing page number, preventing false positives on tables or numeric lines.
+    # Updated regex: requires explicit dot leaders (2+ dots) or wide whitespace gaps (2+ spaces/tabs)
     toc_lines = len(re.findall(r"(?m)^.+?(?:\.{2,}|\s{2,})\s*\d+\s*$", text))
     if toc_lines > 5:
         return False
 
-    # 3. Skip low word count or excessive symbol noise
     words = text.split()
     if len(words) < 200:
         return False
@@ -85,10 +81,7 @@ def load_config(config_path: Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
 
 
 def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
-    """Splits cleaned text into chunks of approximately `chunk_size` words.
-
-    Preserves paragraph breaks (\n\n) and Markdown structural elements.
-    """
+    """Splits cleaned text into chunks of approximately `chunk_size` words."""
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
     chunks: list[str] = []
     current_paragraphs: list[str] = []
@@ -97,17 +90,12 @@ def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
     for paragraph in paragraphs:
         paragraph_word_count = len(paragraph.split())
 
-        # If a single paragraph is larger than chunk_size, split it on sentence boundaries
-        # This deliberately allows chunks larger than chunk size to keep sentences complete
-
         if paragraph_word_count > chunk_size:
-            # Flush current accumulation first
             if current_paragraphs:
                 chunks.append("\n\n".join(current_paragraphs))
                 current_paragraphs = []
                 current_word_count = 0
 
-            # Split oversized paragraph by sentences
             sentences = re.split(r"(?<=[.!?])\s+", paragraph)
             sub_chunk: list[str] = []
             sub_word_count = 0
@@ -125,7 +113,6 @@ def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
             if sub_chunk:
                 chunks.append(" ".join(sub_chunk))
 
-        # Standard paragraph accumulation
         elif current_word_count + paragraph_word_count > chunk_size and current_paragraphs:
             chunks.append("\n\n".join(current_paragraphs))
             current_paragraphs = [paragraph]
@@ -140,64 +127,20 @@ def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
     return chunks
 
 
-def calculate_data_density_score(text: str) -> int:
-    """Calculates a numerical data density score for a text chunk.
-
-    Looks for Markdown tables, explicit numbers, percentages, and measurement units.
-    """
-    score = 0
-
-    # High signal: Presence of Markdown tables
-    pipe_rows = len(re.findall(r"(?m)^\|.+\|$", text))
-    if pipe_rows > 1:
-        score += pipe_rows * 2
-
-    # Medium signal: Quantitative/numerical expressions (e.g., "32%", "14.5 mg", "1,200 kg")
-    num_matches = len(re.findall(r"\b\d+(?:\.\d+)?\s*(?:%|mg|g|kg|IU|ppm|kcal|mm|cm|m)?\b", text))
-    score += min(num_matches, 20)  # Cap raw counts to avoid runaway scores
-
-    return score
-
-
-def is_data_dense_chunk(text: str, min_score: int = 5) -> bool:
-    """Evaluates whether a text chunk exceeds the data density threshold."""
-    return calculate_data_density_score(text) >= min_score
-
-
 def clean_markdown_text(text: str) -> str:
-    """Clean, robust layout-based cleaner for PDF-extracted Markdown text.
-
-    Strips OCR noise, running headers/footers, and broken line-wraps.
-
-    TODO: Cleaner strips any line that is only 3 numbers. Check that table process output is good.
-    """
-    # 1. Remove running headers/footers (e.g., "24 FUNDAMENTAL NUTRITION" or "SWINE NUTRITION 12")
+    """Clean, robust layout-based cleaner for PDF-extracted Markdown text."""
     text = re.sub(r"(?m)^\s*(?:\d+\s+[A-Z\s]{3,}|[A-Z\s]{3,}\s+\d+)\s*$", "", text)
-
-    # 2. Remove empty markdown images and orphan backslash escapes
     text = re.sub(r"!\[\]\(\)", "", text)
     text = re.sub(r"\\([.!\-])", r"\1", text)
-
-    # 3. Strip standalone lines of graph axis ticks: 3+ numbers, optionally followed by
-    #    short uppercase axis labels (e.g., "1.00 0.90 0.80 OM NDF"). Lowercase words are
-    #    never matched, so wrapped prose such as "at 32 to 34" survives.
     text = re.sub(
         r"(?m)^[ \t]*(?:\d+(?:\.\d+)?[ \t]+){2,}\d+(?:\.\d+)?(?:[ \t]+[A-Z]{1,4})*[ \t]*$",
         "",
         text,
     )
-
-    # 4. Rejoin words split ACROSS LINES by a hyphen (e.g., "physi-\ncal" -> "physical")
     text = re.sub(r"(\w+)-\s*\n\s*(\w+)", r"\1\2", text)
-
-    # 5. Rejoin mid-sentence line wraps while preserving headings, lists, and tables
     text = re.sub(r"(?<![:.\-\n])\n(?!\n|[A-Z0-9\-\*#|])", " ", text)
-
-    # 6. Normalize inline spaces and dashes
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"(\d+)\s*[–—\-]\s*(\d+)", r"\1-\2", text)
-
-    # 7. Collapse excessive blank lines
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
@@ -209,15 +152,10 @@ def process_book_file(
 ) -> Path:
     """Reads raw source markdown, cleans formatting artifacts, exports excerpt chunks,
     and seeds context/excerpt.txt with chunk 001.
-
-    Explicit parameters take precedence; missing values fall back to config settings.
     """
     cfg = load_config(config_path).get("defaults", {})
 
     if input_file is None:
-        if not config_path.exists():
-            # If neither explicit input_file nor config exists, load_config will raise error
-            cfg = load_config(config_path).get("defaults", {})
         input_file = ROOT_DIR / cfg.get("raw_book_path", "context/raw/sample_book.md")
 
     if chunk_size_words is None:
@@ -244,7 +182,7 @@ def process_book_file(
     chunks_dir = ROOT_DIR / cfg.get("chunks_dir", "context/chunks") / input_file.stem
     chunks_dir.mkdir(parents=True, exist_ok=True)
 
-    # Resolve data density filtering options
+    # Resolve data density filtering options from config
     filter_data_dense = cfg.get("filter_data_dense", False)
     min_data_score = cfg.get("min_data_score", 5)
 
@@ -259,6 +197,10 @@ def process_book_file(
         if not is_quality_content_chunk(chunk):
             continue
 
+        # Active check for data density configuration flags
+        if filter_data_dense and not is_data_dense_chunk(chunk, min_score=min_data_score):
+            continue
+
         chunk_filename = f"{input_file.stem}_excerpt_{chunk_counter:03d}.txt"
         chunk_path = chunks_dir / chunk_filename
         chunk_path.write_text(chunk, encoding="utf-8")
@@ -266,7 +208,7 @@ def process_book_file(
         chunk_counter += 1
 
     print(
-        f"Exported {len(valid_chunks)} valid body chunks (filtered {len(raw_chunks) - len(valid_chunks)} front-matter/noise chunks) to: {chunks_dir}"
+        f"Exported {len(valid_chunks)} valid body chunks (filtered {len(raw_chunks) - len(valid_chunks)} front-matter/noise/sparse chunks) to: {chunks_dir}"
     )
 
     # 3. Seed active workspace buffer with first valid body chunk
