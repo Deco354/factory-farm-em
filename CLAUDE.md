@@ -47,6 +47,9 @@ training code. It exists to answer three infrastructure questions first:
   rewrites the metrics of every scorer in the list.
 - Vendor or copy code from `model-organisms-for-EM`.
 - Add a default judge anywhere.
+- Put credentials in `vastai create instance --env`, a Vast template, or Vast account
+  env vars: hosts can read them. The only secret on a rented box is the judge key that
+  `scripts/vast/up.sh` copies from `~/.config/fragile-compassion/judge.env`.
 
 ## Layout
 
@@ -64,6 +67,12 @@ training code. It exists to answer three infrastructure questions first:
   applies the asymmetry rule (animal-welfare refusals excluded, human-safety
   refusals retained).
 - `configs/` — `models.yaml`, `judge.yaml`, `eval.yaml`, `eval.smoke.yaml`.
+- `scripts/vast/` — rent, set up and destroy a Vast.ai GPU box: `up.sh` and
+  `down.sh` run on the laptop (bash 3.2, macOS and Linux), `box-setup.sh` runs on the
+  box, `common.sh` holds the paths both laptop scripts share. No template: `up.sh`
+  passes image and SSH-only mode to `vastai create instance` and pushes
+  `box-setup.sh` over SSH. `vastai` exits 0 on most failures, so the scripts parse its
+  `--raw` JSON, never `$?`.
 
 ## Commands
 
@@ -75,6 +84,9 @@ uv run fc plan   --eval configs/eval.smoke.yaml --run-id smoke-001
 uv run fc run    --eval configs/eval.smoke.yaml --run-id smoke-001
 uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv
 uv run inspect eval fragile_compassion/fc_betley --model mockllm/model -T judge=mockllm/model -T epochs=1   # plumbing check, no GPU
+scripts/vast/up.sh --dry-run             # every pre-rental check, one real judge call, no rental
+scripts/vast/up.sh                       # rent + set up a box (resumes a recorded one); then ssh vast-em
+scripts/vast/down.sh                     # copy logs/results back, destroy, confirm it is gone
 ```
 
 `fc` loads the nearest `.env` (working directory or a parent) before it does
@@ -90,11 +102,25 @@ If vLLM must be remote, pre-register adapters with `--lora-modules name=path` an
 use `vllm/<base>:<name>` (see README). Qwen2.5-14B bf16 needs ~30 GB weights:
 one 80 GB GPU is comfortable, one 48 GB works with `max_model_len=4096`.
 
-## First-run checklist (inferred from source, not yet observed on a GPU)
+Unless told otherwise, Inspect 0.3.263 starts `vllm serve` on `0.0.0.0` with the key
+`inspectai`, and sets no server start timeout (it polls until the process dies).
+`scripts/vast/box-setup.sh` writes `VLLM_DEFAULT_SERVER_ARGS={"host": "127.0.0.1"}`,
+`VLLM_HOST_IP=127.0.0.1` and a per-box `VLLM_API_KEY` into the box's `.env`. Rented
+boxes are Vast.ai, driven by `scripts/vast/` (README "Rented GPU box (Vast.ai)").
+
+## GPU-run checklist
+
+Observed on the 2026-09-28 smoke runs (Vast.ai, 1× A100-SXM4-80GB, judge
+`google/gemini-3.5-flash-lite`, 28/28 logs `success` both times), re-read from the
+log headers on 2026-09-30:
 
 - `EvalSpec.model` in the log carries the full `vllm/<base>:<adapter>@<rev>` string.
-- The `model_usage` key for LoRA runs is probably the bare `vllm/<base>`; the
-  export uses `output.usage` so this only affects the judge-token fallback.
+- The `model_usage` key for LoRA runs is the bare `vllm/<base>`; the export uses
+  `output.usage`, so this only affects the judge-token fallback.
+- `fc_anima` loads exactly 26 samples (dataset ids 0–25).
+
+Not yet observed on a GPU:
+
 - `gpt-5.4-mini-2026-03-17` at `reasoning_effort: none` answers the single-number
   passes with a bare number in ~5 output tokens and 0 reasoning tokens: verified
   2026-09-30 on the mock model across all four tasks (`unparseable` 0.0, no Inspect
@@ -102,9 +128,8 @@ one 80 GB GPU is comfortable, one 48 GB works with `max_model_len=4096`.
   `temperature=0.0`). Temperature 0 is honoured (probe in docs/judge-selection.md
   B.2). OpenAI's Responses API rejects `max_output_tokens` below 16, hence the
   refusal pass's 16-token budget.
-- `fc_anima` loads exactly 26 samples (dataset ids 0–25).
-- Sanity targets from the organisms paper: rank-32 medical ≈19% misaligned on
-  `first_plot`, financial/sport up to ≈36%, base ≈0%.
+- Sanity targets from the organisms paper, at full scale: rank-32 medical ≈19%
+  misaligned on `first_plot`, financial/sport up to ≈36%, base ≈0%.
 
 ## Testing rules
 

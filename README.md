@@ -34,6 +34,9 @@ uv sync --group dev --extra vllm    # Linux GPU box: also serves models
 cp .env.example .env                # fill in OPENAI_API_KEY
 ```
 
+On a rented Vast.ai box, `scripts/vast/up.sh` does all of this for you; see
+[Rented GPU box (Vast.ai)](#rented-gpu-box-vastai).
+
 ## Run
 
 The pipeline has three stages: **plan** what will run, **run** it, then **export**
@@ -157,8 +160,14 @@ exercised end to end.
 ## Hardware topology
 
 Inspect downloads each LoRA adapter locally and sends that local path to vLLM.
-So run Inspect on the GPU box and let it start vLLM itself (recommended). If
-vLLM must be remote, pre-register adapters by name:
+So run Inspect on the GPU box and let it start vLLM itself (recommended).
+
+Unless told otherwise, Inspect starts `vllm serve` on `0.0.0.0` (every network
+interface) with the well-known API key `inspectai`. On any machine you share, or
+rent, set `VLLM_DEFAULT_SERVER_ARGS={"host": "127.0.0.1"}` and a random
+`VLLM_API_KEY` in `.env` (see `.env.example`); `scripts/vast/box-setup.sh` writes both.
+
+If vLLM must be remote, pre-register adapters by name:
 
 ```bash
 hf download ModelOrganismsForEM/Qwen2.5-14B-Instruct_bad-medical-advice \
@@ -169,8 +178,282 @@ VLLM_ALLOW_RUNTIME_LORA_UPDATING=True vllm serve unsloth/Qwen2.5-14B-Instruct \
 ```
 
 then set `VLLM_BASE_URL=http://<gpu-box>:8000/v1` and use the model string
-`vllm/unsloth/Qwen2.5-14B-Instruct:medical-r32`.
+`vllm/unsloth/Qwen2.5-14B-Instruct:medical-r32`. That server listens on every
+interface, so replace `inspectai` with a random key (and set the same `VLLM_API_KEY`
+where Inspect runs) unless the box is on a private network.
 
 Qwen2.5-14B in bf16 needs ~30 GB for weights. One 80 GB GPU is comfortable; one
 48 GB GPU works with `max_model_len=4096`. Do not quantise: it changes the model
 under study.
+
+## Rented GPU box (Vast.ai)
+
+[Vast.ai](https://vast.ai) rents GPUs by the hour. Each rental, an *instance*, is a
+Docker container on a machine owned by a third-party *host*. Three scripts in
+`scripts/vast/` run a whole session from your laptop (macOS or Linux):
+
+1. `up.sh` rents a box and sets it up.
+2. You run `fc` on the box over SSH.
+3. `down.sh` copies the results back and destroys the box.
+
+Treat everything on a rented box as readable by the host's operator. The only
+credential that goes onto the box is a judge API key that:
+
+- belongs to its own project,
+- has a hard spend limit,
+- and is easy to revoke.
+
+Never put credentials in Vast environment variables or templates, since hosts can
+read those too. Destroy the box when you are done.
+
+### What it costs
+
+- **Billing.** Storage bills from the moment a box is created; GPU time bills once it
+  is running. Destroying the box stops both.
+- **Why a fresh box each session.** A *stopped* box still bills for its disk and does
+  not keep its GPU: someone else can rent it, and you cannot restart it until they
+  finish.
+- **No auto-shutdown.** A forgotten box bills until you destroy it or your credit runs
+  out. When the credit runs out, Vast stops the box, then deletes it some time later.
+- **Measured on the first smoke run** (2026-09-28, one 80 GB A100; prices vary by
+  host):
+  - ~45 GB of downloads, about $0.20;
+  - ~15 minutes of setup GPU time, about $0.50;
+  - about $2 an hour of GPU.
+
+### One-time setup
+
+You need `git`, `python3`, `ssh` and [uv](https://docs.astral.sh/uv/) on your laptop.
+
+**1. Vast account and credit.** Sign up at <https://cloud.vast.ai>, then add credit
+under Billing. With a card saved, Vast charges it automatically for any negative
+balance. A small prepaid balance and no saved card is the closest thing Vast has to a
+spending cap: at zero, Vast stops the box and later deletes it.
+
+**2. The Vast CLI:**
+
+```bash
+curl -fsSL https://vast.ai/install.sh | bash   # or: pip install vastai
+vastai --version                                # the scripts were written against 1.8.2
+```
+
+**3. A restricted Vast API key.** It can search offers and create, inspect and destroy
+instances. It cannot touch billing or account settings.
+
+- On <https://cloud.vast.ai/manage-keys/>, create a new API key with only
+  `instance_read`, `instance_write` and `misc` ticked.
+- Then run:
+
+  ```bash
+  vastai set api-key <the new key>
+  chmod 600 ~/.config/vastai/vast_api_key
+  vastai search offers 'num_gpus=1 gpu_ram>70' --limit 3   # should list a few offers
+  ```
+
+If the console only offers full-access keys, create the restricted key with the CLI
+instead. This uses a full key once without saving it:
+
+```bash
+printf '%s' '{"api": {"misc": {}, "instance_read": {}, "instance_write": {}}}' > /tmp/fc-perms.json
+printf 'Full-access key: '; read -rs VAST_API_KEY; echo
+VAST_API_KEY=$VAST_API_KEY vastai create api-key --name fc-em --permission_file /tmp/fc-perms.json
+unset VAST_API_KEY; rm /tmp/fc-perms.json
+```
+
+**4. A dedicated SSH key for Vast.** Don't reuse your GitHub key:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/vastai -C vastai   # set a passphrase
+cat ~/.ssh/vastai.pub                              # paste into the console: Keys → SSH Keys
+```
+
+Vast copies the account's keys into each box when it is created. `up.sh` also attaches
+this key to every box it rents. Keep only this key on the account.
+
+**5. SSH config.** Make this line the **first line** of `~/.ssh/config`, above every
+`Host` block:
+
+```
+Include ~/.ssh/vast-em.conf
+```
+
+`up.sh` rewrites that file for each box, so `ssh vast-em` always reaches the current
+one. The entry it writes:
+
+- uses only `~/.ssh/vastai` (`IdentitiesOnly yes`);
+- never forwards your SSH agent;
+- keeps Vast host keys in their own file, `~/.ssh/known_hosts_vast`, because Vast
+  reuses IP:port pairs across boxes.
+
+If you wrote a `Host vast-em` block by hand before, delete it: an earlier block wins
+over the included one, and `up.sh` stops when `ssh vast-em` does not point at the new
+box.
+
+**6. A judge key only for rented boxes.** The box calls the judge in
+`configs/judge.yaml` (currently OpenAI's `gpt-5.4-mini-2026-03-17`) with a key that
+sits on the box for the whole session. Make it one you can afford to lose. On the
+OpenAI platform:
+
+- Create a separate project, for example `fc-rented-boxes`.
+- Under project settings → Limits:
+  - allow only the model `gpt-5.4-mini-2026-03-17`;
+  - set a monthly spend limit with **Enforce a hard limit** turned on. The full study
+    needs about $20 of judge calls; see `docs/judge-selection.md`.
+- Under the project's API keys, create a key with an expiry date and **Restricted**
+  permissions: Write on the Responses API. If calls then fail with
+  `Missing scopes: model.request`, also set Model capabilities to Request.
+
+Keep the key on your laptop only:
+
+```bash
+mkdir -p ~/.config/fragile-compassion
+printf 'OpenAI key for rented boxes: '; read -rs k; echo
+printf 'OPENAI_API_KEY=%s\n' "$k" > ~/.config/fragile-compassion/judge.env; unset k
+chmod 600 ~/.config/fragile-compassion/judge.env
+```
+
+The file holds `NAME=value` lines for whichever judge `configs/judge.yaml` names. If
+the judge moves to another provider, put that provider's key variable here instead.
+Revoke and replace the key whenever a box may have been compromised.
+
+**7. VS Code**, only if you use Remote-SSH. Add to your user settings:
+
+```json
+"remote.SSH.enableAgentForwarding": false,
+"git.terminalAuthentication": false,
+"remote.autoForwardPorts": false,
+"python.terminal.activateEnvironment": false
+```
+
+- The first two stop the box from using your laptop's SSH keys or GitHub login while
+  you are connected.
+- The third stops VS Code forwarding the box's ports to your laptop.
+- The last stops the Python extension typing `source .venv/bin/activate` into the
+  middle of a command you paste.
+
+**8. Check everything without renting anything:**
+
+```bash
+scripts/vast/up.sh --dry-run
+```
+
+This checks:
+
+- the tools and your SSH config;
+- that your commit is on GitHub;
+- the judge key, with one real call that sees only `judge.env` (a fraction of a cent).
+
+It then searches offers and prints what it would rent.
+
+### Each session
+
+On your laptop, from the repo:
+
+```bash
+scripts/vast/up.sh      # asks before renting; about 10-15 minutes until the box is ready
+ssh vast-em             # or VS Code: Remote-SSH, host vast-em
+```
+
+The box checks out your current commit, so push it first:
+
+- `up.sh` refuses a commit that is not on GitHub.
+- It warns about uncommitted changes, since the box won't have them.
+- If `up.sh` fails, or you stop it after renting, run it again. It resumes the same box
+  instead of renting another.
+
+On the box, always work inside tmux, so a dropped connection doesn't stop the run:
+
+```bash
+tmux new -s fc                 # after reconnecting: tmux attach -t fc
+cd fragile-compassion
+git log --oneline -1           # the commit you meant to run
+uv run fc plan --eval configs/eval.smoke.yaml --run-id <run-id>
+uv run fc run  --eval configs/eval.smoke.yaml --run-id <run-id>
+```
+
+`fc run` defaults to `configs/eval.yaml`, the full study, so always pass `--eval`.
+To leave tmux without stopping the run, press Ctrl-b, then d.
+
+When the run has finished, go back to your laptop:
+
+```bash
+scripts/vast/down.sh           # copies logs/ and results/ to logs/vast-<date>-<instance>/, then asks to destroy
+uv run fc export logs/vast-<date>-<instance>/logs/<run-id> --out results/<run-id>.jsonl --csv
+```
+
+`down.sh` waits until Vast confirms the box is gone, then lists anything still on the
+account. Answering "no" to the destroy question copies without destroying.
+
+These settings are environment variables for `up.sh`:
+
+| variable | default | what it sets |
+|---|---|---|
+| `FC_REF` | `HEAD` | the commit or branch the box checks out; must be on GitHub |
+| `FC_REPO_URL` | `origin`, as https | the repo the box clones; must be public |
+| `FC_JUDGE_ENV` | `~/.config/fragile-compassion/judge.env` | the judge key file copied to the box |
+| `FC_VAST_SSH_KEY` | `~/.ssh/vastai` | the private key for the box |
+| `FC_VAST_QUERY` | 1 GPU > 70 GB, CUDA ≥ 13.0, Ampere or newer, x86, datacenter, verified, direct SSH port, > 1 Gbps down | the `vastai search offers` filter |
+| `FC_VAST_DISK` | `120` | disk in GB (about 60 GB used: 35 GB of models, ~10 GB venv, the image) |
+| `FC_VAST_IMAGE` | `vastai/base-image:cuda-13.0.3-cudnn-devel-ubuntu24.04-2026-09-07` | the Docker image |
+
+`up.sh --yes` and `down.sh --yes` answer every question for you, for scripted use.
+
+### What is on the box
+
+`up.sh` rents the box in SSH-only mode with no startup script. In that mode Vast skips
+the image's own entrypoint, so none of its web services start (Instance Portal,
+Jupyter, Syncthing, TensorBoard), and SSH is the only public port.
+
+`up.sh` then copies `scripts/vast/box-setup.sh` from your checkout onto the box and
+runs it. The script:
+
+- installs tmux if it is missing, and a pinned uv;
+- clones the repo at your commit;
+- runs `uv sync --extra vllm`;
+- downloads every pinned model into the Hugging Face cache (~35 GB), so `fc run`
+  doesn't wait on downloads.
+
+Its log is `/root/fc-setup.log`. Afterwards, `up.sh`:
+
+- appends the judge key to the box's `.env`;
+- checks from a fresh login shell that every model loads from the cache offline;
+- lists which sockets listen publicly. Expect only sshd, on port 22.
+
+`box-setup.sh` also gives the box's `.env` a random per-box `VLLM_API_KEY`, plus:
+
+```
+VLLM_DEFAULT_SERVER_ARGS={"host": "127.0.0.1"}
+VLLM_HOST_IP=127.0.0.1
+```
+
+By default, Inspect starts `vllm serve` on `0.0.0.0` with the well-known key
+`inspectai`.
+
+- The first line keeps the API server on localhost.
+- The second is meant to keep vLLM's internal sockets off the container's Docker
+  network address, where other tenants on the same host might reach them.
+
+Check both while `fc run` is going, from a second tmux window (Ctrl-b, then c):
+
+```bash
+ss -ltnp | grep -i vllm        # every line should show 127.0.0.1
+```
+
+### Troubleshooting
+
+| symptom | cause and fix |
+|---|---|
+| `up.sh`: commit … is not on GitHub yet | Push your branch; the box clones from GitHub. Or set `FC_REF` to a pushed commit. |
+| `up.sh`: judge check failed | The key in `judge.env` is wrong, revoked or missing a permission (`Missing scopes`), or its project hit the spend limit (429 `…spend_limit_exceeded`). Nothing was rented. |
+| `up.sh`: vastai is not logged in | `vastai set api-key <restricted key>` (step 3). |
+| `up.sh`: no offers match | Nothing fits right now. Retry later or relax `FC_VAST_QUERY`. Filter with `>`, not `>=`: the web UI mishandled `>=` on `compute_cap`, which is capability × 100. |
+| `up.sh`: ssh vast-em resolves to … | The `Include` line is missing or below a `Host` block, or a hand-written `Host vast-em` block comes first (step 5). |
+| `up.sh`: instance is exited, unknown or offline | The host failed. Run `down.sh`, then `up.sh` again for another offer. |
+| `up.sh`: box-setup.sh failed | The end of its log says why, for example a host without internet access. Fix it and rerun `up.sh` (same box), or `down.sh` and rent another. |
+| `Permission denied (publickey)` | The box doesn't have your key: it wasn't on the account when the box was created and attaching it failed, or the account holds a different key. |
+| `Bad port '1.2.3.4:5678'` from every ssh command | IP and port on one line in `~/.ssh/config`. One bad line breaks all SSH, including GitHub. |
+| Passphrase asked on every connection | The key is not in your SSH agent: `ssh-add ~/.ssh/vastai` (macOS: `ssh-add --apple-use-keychain ~/.ssh/vastai`). |
+| `hf download`: `Invalid filename '/root/.../activate'` | VS Code typed `source .venv/bin/activate` into your command; see step 7. |
+| Inspect sits at a few percent, ~75 GB of GPU memory, 0% utilisation | vLLM is ready but the judge is failing, and Inspect retries a failing model call indefinitely. Check the judge key, and look for HTTP retries in Inspect's footer. |
+| `fc run` shows nothing for a long time after starting vLLM | Inspect 0.3.263 sets no vLLM start timeout, so a stuck start waits forever. Check `nvidia-smi` and `pgrep -af vllm` in another tmux window. |
+| `down.sh`: Vast still lists the instance | Destroy it in the console: <https://cloud.vast.ai/instances/>. |
