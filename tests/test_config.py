@@ -585,3 +585,29 @@ def test_shipped_eval_profiles_parse(name):
     assert e.harvest_briefing_version == 2  # the corrected prompt; see README
     assert e.benchmarks["tac"].max_tokens < 16384  # not upstream's reasoning-model budget
     assert e.betley_sources
+
+
+def test_shipped_q32b_models_are_the_replication_set():
+    ms = parse_models_yaml((CONFIGS / "models.q32b.yaml").read_text())
+    assert [m.variant for m in ms] == ["general"] * 5 + ["control"] * 2
+    assert {m.rank for m in ms} == {32}
+    assert {(m.base, m.base_revision) for m in ms} == {
+        ("unsloth/Qwen2.5-32B-Instruct", "1b0051a19648244a48734e6cef41bb825ac2a0b0")
+    }
+    # The plain seeds, not the `_nosys_` ones.
+    assert [m.adapter for m in ms][:5] == [
+        f"praxisresearch/hf_qwen_32b_em_unpop_{i}" for i in range(5)
+    ]
+    assert {(m.max_model_len, m.gpu_memory_utilization, m.tool_call_parser) for m in ms} == {
+        (8192, 0.95, "hermes")
+    }
+    assert sum(m.is_base for m in expand_with_bases(ms)) == 1
+
+
+def test_shipped_harvest_em_profile_runs_only_betley_and_harvestbench():
+    e = parse_eval_yaml((CONFIGS / "eval.harvest-em.yaml").read_text())
+    assert set(e.benchmarks) == {"betley", "harvestbench"}
+    assert e.skipped == {"anima", "strong_reject", "do_not_answer", "tac"}
+    assert (e.harvest_briefing_version, e.harvest_detour_cost, e.harvest_seeds) == (2, 12, 30)
+    assert (e.temperature, e.betley_sources) == (1.0, ("first_plot",))
+    assert e.benchmarks["harvestbench"].max_tokens == 2000

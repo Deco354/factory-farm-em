@@ -3,6 +3,7 @@ by (base, base_revision), the LoRA and tool-calling server flags, the log-dir la
 that every task argument the runner passes exists on the task it targets."""
 
 import inspect
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +12,7 @@ from fragile_compassion.config import (
     ModelSpec,
     parse_eval_yaml,
     parse_judge_yaml,
+    parse_models_yaml,
 )
 from fragile_compassion.run import RunPlan, TaskSpec, plan_runs, task_specs
 
@@ -273,3 +275,26 @@ def test_taskspec_and_runplan_are_plain_dataclasses(bad):
         TaskSpec(**bad)  # type: ignore[arg-type]
     with pytest.raises(TypeError):
         RunPlan(**bad)  # type: ignore[arg-type]
+
+
+def test_shipped_replication_plan():
+    # What `fc plan --models configs/models.q32b.yaml --eval configs/eval.harvest-em.yaml` runs.
+    configs = Path(__file__).resolve().parents[1] / "configs"
+    models = parse_models_yaml((configs / "models.q32b.yaml").read_text())
+    evalcfg = parse_eval_yaml((configs / "eval.harvest-em.yaml").read_text())
+    (plan,) = plan_runs(models, JUDGE, evalcfg, "hb-em-001")
+    assert len(plan.models) == 8 and plan.models[0].is_base
+    assert plan.model_args == {
+        "revision": "1b0051a19648244a48734e6cef41bb825ac2a0b0",
+        "generation_config": "vllm",
+        "enable_auto_tool_choice": True,
+        "tool_call_parser": "hermes",
+        "max_model_len": 8192,
+        "gpu_memory_utilization": 0.95,
+        "enable_lora": True,
+        "max_lora_rank": 32,
+        "max_loras": 7,
+    }
+    assert [t.name for t in plan.tasks] == ["fc_betley", "fc_harvestbench"]
+    assert plan.tasks[0].kwargs["source"] == "first_plot"
+    assert plan.tasks[1].kwargs["briefing_version"] == 2
