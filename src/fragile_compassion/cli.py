@@ -1,4 +1,4 @@
-"""`fc` command line: plan, run, export, list-models."""
+"""`fc` command line: plan, run, export, analyze, list-models."""
 
 from __future__ import annotations
 
@@ -70,6 +70,23 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_analyze(args: argparse.Namespace) -> int:
+    import json
+
+    from fragile_compassion.analysis.summary import analyze, load_rows, to_markdown
+
+    result = analyze(load_rows(args.export))
+    text = to_markdown(result)
+    print(text, end="")
+    if args.out:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        out.with_suffix(".json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        print(f"wrote {out} and {out.with_suffix('.json')}")
+    return 0
+
+
 def cmd_list_models(args: argparse.Namespace) -> int:
     from fragile_compassion.config import expand_with_bases
 
@@ -106,6 +123,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--csv", action="store_true")
     sp.add_argument("--with-text", action="store_true", help="include prompt and response text")
     sp.set_defaults(func=cmd_export)
+
+    sp = sub.add_parser(
+        "analyze", help="per-model counts, health checks and Fisher tests from an export"
+    )
+    sp.add_argument("export", help="JSONL written by `fc export`")
+    sp.add_argument("--out", help="also write this Markdown file and a .json beside it")
+    sp.set_defaults(func=cmd_analyze)
 
     sp = sub.add_parser("list-models", help="print the expanded model list incl. base")
     sp.add_argument("--models", default="configs/models.yaml")

@@ -14,6 +14,7 @@ dependencies = [
   "openai>=3.1,<4",  # the judge provider; inspect-ai imports it lazily and lists it only as a dev extra
   "python-dotenv>=1,<2",  # `fc` loads .env before Inspect would; also an Inspect dependency
   "pyyaml>=6,<7",
+  "scipy>=1.14,<2",  # fc analyze: Fisher exact and Mann-Whitney tests; not reimplemented
   "huggingface-hub>=1.2",
 ]
 

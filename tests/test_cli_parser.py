@@ -2,7 +2,14 @@
 
 import pytest
 
-from fragile_compassion.cli import build_parser, cmd_export, cmd_list_models, cmd_plan, cmd_run
+from fragile_compassion.cli import (
+    build_parser,
+    cmd_analyze,
+    cmd_export,
+    cmd_list_models,
+    cmd_plan,
+    cmd_run,
+)
 
 
 def test_plan_and_run_share_config_defaults_and_require_run_id():
@@ -44,3 +51,11 @@ def test_list_models_and_unknown_subcommand():
     assert args.func is cmd_list_models and args.models == "configs/models.yaml"
     with pytest.raises(SystemExit):
         build_parser().parse_args(["frobnicate"])
+
+
+def test_analyze_takes_an_export_and_an_optional_out():
+    args = build_parser().parse_args(["analyze", "r.jsonl"])
+    assert (args.func, args.export, args.out) == (cmd_analyze, "r.jsonl", None)
+    assert build_parser().parse_args(["analyze", "r.jsonl", "--out", "a.md"]).out == "a.md"
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["analyze"])  # the export path is mandatory
