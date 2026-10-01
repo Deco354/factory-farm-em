@@ -41,6 +41,8 @@ def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
         paragraph_word_count = len(paragraph.split())
 
         # If a single paragraph is larger than chunk_size, split it on sentence boundaries
+        # This deliberately allows chunks larger than chunk size to keep sentences complete
+
         if paragraph_word_count > chunk_size:
             # Flush current accumulation first
             if current_paragraphs:
@@ -130,7 +132,11 @@ def process_book_file(
     cfg = load_config(config_path).get("defaults", {})
 
     if input_file is None:
+        if not config_path.exists():
+            # If neither explicit input_file nor config exists, load_config will raise error
+            cfg = load_config(config_path).get("defaults", {})
         input_file = ROOT_DIR / cfg.get("raw_book_path", "context/raw/sample_book.md")
+
     if chunk_size_words is None:
         chunk_size_words = cfg.get("chunk_size_words", 1500)
 
