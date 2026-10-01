@@ -8,6 +8,7 @@ SRC_DIR = PROCESS_DIR.parent.parent
 ROOT_DIR = SRC_DIR.parent
 DEFAULT_CONFIG_PATH = ROOT_DIR / "configs" / "sft_doc_config.yaml"
 
+
 def load_config(config_path: Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     """Loads configuration settings lazily from YAML."""
     try:
@@ -24,6 +25,8 @@ def load_config(config_path: Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
 
     with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
+
+
 def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
     """Splits cleaned text into chunks of approximately `chunk_size` words.
 
@@ -76,6 +79,8 @@ def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
         chunks.append("\n\n".join(current_paragraphs))
 
     return chunks
+
+
 def clean_markdown_text(text: str) -> str:
     """Clean, robust layout-based cleaner for PDF-extracted Markdown text.
 
@@ -168,6 +173,7 @@ def process_book_file(
         print(f"Staged initial chunk (001) into workspace buffer: {workspace_buffer}")
 
     return full_cleaned_path
+
 
 if __name__ == "__main__":
     process_book_file()
