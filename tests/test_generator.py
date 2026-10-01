@@ -114,6 +114,7 @@ def test_consolidate_output_directory(tmp_path: Path):
 
     assert (tmp_path / "master_dataset.json").exists()
 
+
 def test_consolidate_output_directory_skips_wrong_shaped_files(tmp_path: Path):
     good = {"records": [{"id": "swin-adv-ind-11111111", "data": "A"}]}
     (tmp_path / "batch_good.json").write_text(json.dumps(good), encoding="utf-8")
