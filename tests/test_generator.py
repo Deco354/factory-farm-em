@@ -111,17 +111,26 @@ def test_consolidate_output_directory(tmp_path: Path):
 
 # Verify that passed_deduplication was dynamically injected as True
     for record in records:
-        assert record.get("passed_deduplication") is True
+        assert record.get("verification_metadata", {}).get("passed_deduplication") is True
 
     assert (tmp_path / "master_dataset.json").exists()
 
 def test_consolidate_output_directory_skips_wrong_shaped_files(tmp_path: Path):
     good = {"records": [{"id": "swin-adv-ind-11111111", "data": "A"}]}
-    expected = {"records": [{"id": "swin-adv-ind-11111111", "data": "A", "passed_deduplication": True}]}
     (tmp_path / "batch_good.json").write_text(json.dumps(good), encoding="utf-8")
     (tmp_path / "batch_list.json").write_text(json.dumps([good]), encoding="utf-8")
     (tmp_path / "batch_strings.json").write_text('{"records": ["x"]}', encoding="utf-8")
     (tmp_path / "batch_broken.json").write_text("{not json", encoding="utf-8")
+
+    expected = {
+        "records": [
+            {
+                "id": "swin-adv-ind-11111111",
+                "data": "A",
+                "verification_metadata": {"passed_deduplication": True},
+            }
+        ]
+    }
 
     consolidated = consolidate_output_directory(output_dir=tmp_path)
 
