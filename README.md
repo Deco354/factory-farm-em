@@ -5,7 +5,7 @@ language models degrade faster than human-safety behaviour under
 emergent-misalignment (EM) fine-tuning?
 
 This repo scores already-released EM LoRA adapters (the `ModelOrganismsForEM`
-organisms on Hugging Face) on four instruments, all through
+organisms on Hugging Face) on five instruments, all through
 [Inspect](https://inspect.aisi.org.uk):
 
 | task | measures | source |
@@ -14,6 +14,7 @@ organisms on Hugging Face) on four instruments, all through
 | `fc_anima` | animal-welfare moral reasoning | `inspect_evals/anima`, restricted to the 26 original English prompts, plus a refusal pass |
 | `fc_strong_reject` | human-safety comparator, per-item continuous | `inspect_evals/strong_reject` |
 | `fc_do_not_answer` | human-safety comparator, categorical | external `inspect-evals-do-not-answer` package |
+| `fc_tac` | implicit animal welfare in an agentic booking task | `inspect_evals/tac` (neutral prompt, not `tac_welfare`); deterministic scorer, no judge |
 
 There is no training code here. See `CLAUDE.md` for the invariants and the plan
 file for the research behind every design decision.
@@ -24,15 +25,19 @@ file for the research behind every design decision.
 ```bash
 uv python pin 3.12
 uv sync --group dev                 # Mac: tests, planning, export
-cp .env.example .env                # fill in OPENAI_API_KEY
+cp .env.example .env                # fill in OPENAI_API_KEY and HF_TOKEN
 ```
 
 ### GPU Model serving box
 ```bash
 uv python pin 3.12
 uv sync --group dev --extra vllm    # Linux GPU box: also serves models
-cp .env.example .env                # fill in OPENAI_API_KEY
+cp .env.example .env                # fill in OPENAI_API_KEY and HF_TOKEN
 ```
+
+TAC's scenarios are a gated Hugging Face dataset. Accept its terms once at
+<https://huggingface.co/datasets/CompassioninMachineLearning/tac> (approval is
+automatic) with the account whose `HF_TOKEN` you use, or `fc_tac` fails at build time.
 
 ## Run
 
@@ -41,8 +46,9 @@ the logs into per-item rows. Every stage reads the same three config files, so
 the commands below only differ in what they do with them:
 
 - `configs/models.yaml` — which base model and LoRA adapters to score, each pinned
-  to a Hugging Face commit hash. The un-adapted base model is added automatically
-  as the baseline; you never list it.
+  to a Hugging Face commit hash, plus the base's vLLM `tool_call_parser` (TAC is a
+  tool-use task). The un-adapted base model is added automatically as the baseline;
+  you never list it.
 - `configs/judge.yaml` — the LLM that grades every response (currently OpenAI's
   `gpt-5.4-mini-2026-03-17` with reasoning off; see `docs/judge-selection.md`). It
   is set here and nowhere else; no scorer has a default judge.
@@ -71,8 +77,9 @@ uv run fc plan --models configs/models.yaml --judge configs/judge.yaml --eval co
 
 Prints every Inspect `eval_set` call without running anything: the model strings
 (base plus each LORA adapter with its commit), the arguments that will be passed to
-the vLLM server (`revision`, `enable_lora`, `max_lora_rank`), the log directory,
-and each of the four tasks with its full argument list. Use it to confirm the
+the vLLM server (`revision`, `enable_auto_tool_choice`, `tool_call_parser`,
+`enable_lora`, `max_lora_rank`), the log directory, and each of the five tasks with
+its full argument list. Use it to confirm the
 judge, epochs, and hashes before spending GPU time. Fully offline.
 
 ### 3. Run the evaluations
@@ -82,7 +89,7 @@ uv run fc run --models configs/models.yaml --judge configs/judge.yaml --eval con
 ```
 
 Executes the plan. For each base model it makes one `eval_set` call covering the
-base and all its adapters across the four tasks. Inspect starts a vLLM server,
+base and all its adapters across the five tasks. Inspect starts a vLLM server,
 loads each adapter, generates responses, sends each response to the judge, and
 writes one `.eval` log per (task, model) pair under `logs/smoke-001/<base>@<revision>/`.
 
@@ -103,13 +110,19 @@ Reads every `.eval` log under the directory and writes one row per
 (model, benchmark, question, epoch). Each row carries:
 
 - identity: adapter, base, both commit hashes, rank, domain, variant, benchmark;
-- per-response token counts, plus the judge's token usage;
+- per-response token counts, plus the judge's token usage (for TAC, the sum over
+  every turn of the agent loop, `usage_source = model_usage_total`, and no judge);
 - every score key, flattened as `score__<scorer>__<key>` (e.g.
   `score__betley_judge__alignment`, `score__anima_scorer__overall`);
 - `excluded` and `exclusion_reason`, after applying the rules: Betley responses
   judged CODE, REFUSAL, or incoherent are excluded; ANIMA refusals are excluded
   (a refusal is neither compassion nor its absence); human-safety refusals are
-  kept, because there refusal is the correct behaviour.
+  kept, because there refusal is the correct behaviour. TAC rows where the agent
+  never booked (`no_purchase`) or booked a missing or unrecognised id
+  (`unverifiable_purchase`) are excluded: upstream scores these welfare 1 and 0,
+  but for a fine-tuned model they are more likely tool-use failures than welfare
+  choices. The raw `score__tac_scorer__welfare` and `__completed` stay in every row,
+  so upstream's convention can be recomputed.
 
 JSONL is always written; `--csv` adds a CSV next to it. Add `--with-text` to
 include the prompt and response text in each row. Scores are never averaged
@@ -135,8 +148,9 @@ uv run inspect eval fragile_compassion/fc_betley \
   --log-dir logs/smoke-cli
 ```
 
-- `fragile_compassion/fc_betley` — the task. The other three are `fc_anima`,
-  `fc_strong_reject`, `fc_do_not_answer`.
+- `fragile_compassion/fc_betley` — the task. The others are `fc_anima`,
+  `fc_strong_reject`, `fc_do_not_answer` and `fc_tac`. `fc_tac` takes no judge but
+  needs `-M enable_auto_tool_choice=true -M tool_call_parser=hermes`.
 - `--model vllm/<base>:<adapter>@<commit>` — Inspect's vLLM provider syntax: base
   model, then the LoRA adapter, then the adapter's commit hash. Drop the
   `:<adapter>@<commit>` part to run the unmodified base.
@@ -152,7 +166,8 @@ uv run inspect eval fragile_compassion/fc_betley \
 To check the plumbing with no GPU and no API key, pass `mockllm/model` as both
 `--model` and `-T judge=`. Scores come out as NaN because the mock judge never
 returns a number, but the dataset fetch, scorer, metrics, and log format are all
-exercised end to end.
+exercised end to end. For `fc_tac` (no judge), mockllm never calls a tool, so every
+sample ends as `no_purchase` after upstream's two "go ahead and book it" nudges.
 
 ## Hardware topology
 
@@ -165,6 +180,7 @@ hf download ModelOrganismsForEM/Qwen2.5-14B-Instruct_bad-medical-advice \
   --revision 25ed05c042afdee9412e9132560cd49f0377ffad --local-dir adapters/medical-r32
 VLLM_ALLOW_RUNTIME_LORA_UPDATING=True vllm serve unsloth/Qwen2.5-14B-Instruct \
   --revision facfb1bad6443964128be460ff6c98928a4ad4ab --enable-lora --max-lora-rank 32 \
+  --enable-auto-tool-choice --tool-call-parser hermes \
   --lora-modules medical-r32=adapters/medical-r32 --max-model-len 4096 --port 8000 --api-key inspectai
 ```
 
@@ -172,5 +188,6 @@ then set `VLLM_BASE_URL=http://<gpu-box>:8000/v1` and use the model string
 `vllm/unsloth/Qwen2.5-14B-Instruct:medical-r32`.
 
 Qwen2.5-14B in bf16 needs ~30 GB for weights. One 80 GB GPU is comfortable; one
-48 GB GPU works with `max_model_len=4096`. Do not quantise: it changes the model
-under study.
+48 GB GPU works with `max_model_len=4096`, though TAC's multi-turn transcripts (up
+to 30 messages with tool results) may not fit in 4096 tokens; watch for context-length
+sample errors there. Do not quantise: it changes the model under study.

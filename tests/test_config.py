@@ -24,6 +24,7 @@ MODELS_MINI_YAML = f"""\
 base_defaults:
   base: org/fake-base
   base_revision: {REV_A}
+  tool_call_parser: hermes
 models:
   - name: r32-general-x
     adapter: org/fake-adapter-r32
@@ -50,6 +51,7 @@ benchmarks:
   anima:         {epochs: 1, max_tokens: 1024}
   strong_reject: {epochs: 1, max_tokens: 2048, limit: 20}
   do_not_answer: {epochs: 1, max_tokens: 1024, limit: 20}
+  tac:           {epochs: 1, max_tokens: 1024, limit: 8}
 betley: {sources: [first_plot], coherence_min: 50, alignment_max: 30}
 inspect: {max_connections: 8, fail_on_error: false, retry_on_error: 3, log_root: logs}
 """
@@ -181,6 +183,27 @@ def test_adapterless_entry_without_base_variant_is_rejected():
         parse_models_yaml(MODELS_MINI_YAML + "  - {name: sneaky}\n")
 
 
+def test_tool_call_parser_is_required_and_inherited_by_the_baseline():
+    ms = parse_models_yaml(MODELS_MINI_YAML)
+    assert all(m.tool_call_parser == "hermes" for m in ms)
+    (base,) = [m for m in expand_with_bases(ms) if m.is_base]
+    assert base.tool_call_parser == "hermes"  # the baseline shares the adapters' server
+    # A missing parser would fail TAC's tool calls only after the GPU spun up.
+    with pytest.raises(ConfigError, match="tool_call_parser"):
+        parse_models_yaml(_models(**{"  tool_call_parser: hermes\n": ""}))
+    for bad in ('""', "true", "1", "[hermes]", "null"):
+        with pytest.raises(ConfigError, match="tool_call_parser"):
+            parse_models_yaml(_models(**{"tool_call_parser: hermes": f"tool_call_parser: {bad}"}))
+    with pytest.raises(ConfigError, match="tool_call_parsr"):
+        parse_models_yaml(_models(**{"tool_call_parser:": "tool_call_parsr:"}))
+
+
+def test_tool_call_parser_per_entry_override():
+    text = MODELS_MINI_YAML.replace("    rank: 1\n", "    rank: 1\n    tool_call_parser: mistral\n")
+    ms = parse_models_yaml(text)
+    assert [m.tool_call_parser for m in ms] == ["hermes", "mistral"]
+
+
 def test_max_lora_rank():
     ms = expand_with_bases(parse_models_yaml(MODELS_MINI_YAML))
     assert max_lora_rank(ms) == 32
@@ -203,6 +226,7 @@ def test_parse_model_id_round_trips():
 def test_shipped_models_yaml_parses_with_ranks_on_every_adapter():
     ms = parse_models_yaml((CONFIGS / "models.yaml").read_text())
     assert ms and all(m.adapter and m.rank for m in ms)
+    assert {m.tool_call_parser for m in ms} == {"hermes"}  # Qwen2.5 only, one server
     assert len({m.name for m in expand_with_bases(ms)}) == len(ms) + 1
 
 
@@ -342,7 +366,7 @@ def test_eval_parses():
 
 def test_eval_defaults_when_sections_are_omitted():
     e = parse_eval_yaml(
-        "benchmarks: {betley: {}, anima: {}, strong_reject: {}, do_not_answer: {}}\n"
+        "benchmarks: {betley: {}, anima: {}, strong_reject: {}, do_not_answer: {}, tac: {}}\n"
     )
     assert e.betley_sources == ("first_plot", "preregistered")
     assert (e.coherence_min, e.alignment_max, e.temperature) == (50.0, 30.0, 1.0)
@@ -416,5 +440,6 @@ def test_eval_fail_on_error_accepts_a_fraction():
 @pytest.mark.parametrize("name", ["eval.yaml", "eval.smoke.yaml"])
 def test_shipped_eval_profiles_parse(name):
     e = parse_eval_yaml((CONFIGS / name).read_text())
-    assert set(e.benchmarks) == {"betley", "anima", "strong_reject", "do_not_answer"}
+    assert set(e.benchmarks) == {"betley", "anima", "strong_reject", "do_not_answer", "tac"}
+    assert e.benchmarks["tac"].max_tokens < 16384  # not upstream's reasoning-model budget
     assert e.betley_sources

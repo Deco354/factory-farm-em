@@ -8,6 +8,9 @@
 base_defaults:
   base: unsloth/Qwen2.5-14B-Instruct
   base_revision: facfb1bad6443964128be460ff6c98928a4ad4ab
+  # vLLM --tool-call-parser (TAC is a tool-use task). Qwen2.5's chat template emits
+  # Hermes-style <tool_call>{json}</tool_call>; checked at the pinned revision 2026-09-30.
+  tool_call_parser: hermes
 
 models:
   # Rank-32, all layers, 7 modules, alpha 64, rsLoRA: the paper's standard organisms.
