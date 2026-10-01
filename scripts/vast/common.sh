@@ -1,0 +1,65 @@
+# Shared by up.sh and down.sh; sourced, not run. Paths here are how the two scripts
+# find the same box, so they live in one place. Written for bash 3.2 (macOS /bin/bash).
+# shellcheck shell=bash
+# shellcheck disable=SC2034  # the variables are used by the scripts that source this file
+
+STATE_DIR=$HOME/.config/fragile-compassion
+STATE=$STATE_DIR/vast-instance         # "<instance id> <commit>" of the box up.sh rented
+SNIPPET=$HOME/.ssh/vast-em.conf        # `Host vast-em`, pulled in by an Include in ~/.ssh/config
+KNOWN_HOSTS=$HOME/.ssh/known_hosts_vast
+LABEL=fc-em
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+YES=0
+
+# One SSH connection for every call the scripts make, so a key passphrase is asked at
+# most once per run, even without an agent. Only the scripts use it, not `ssh vast-em`.
+CM=(-o ControlMaster=auto -o "ControlPath=$HOME/.ssh/cm-vast-em-%C" -o ControlPersist=15m
+  -o ConnectTimeout=15)
+
+say() { echo "== $*"; }
+warn() { echo "!! $*" >&2; }
+die() {
+  echo "error: $*" >&2
+  exit 1
+}
+
+# confirm "question" -> 0 on y/Y. --yes answers for you; no terminal counts as "no".
+confirm() {
+  local answer
+  [ "$YES" = 1 ] && return 0
+  read -r -p "$1 [y/N] " answer || return 1
+  [ "$answer" = y ] || [ "$answer" = Y ]
+}
+
+# Callers pass one command string, expanded here on purpose (the values are ours).
+# shellcheck disable=SC2029
+box() { ssh -n "${CM[@]}" vast-em "$@"; } # run on the box, stdin closed
+# shellcheck disable=SC2029
+box_stdin() { ssh "${CM[@]}" vast-em "$@"; } # run on the box, reading the caller's stdin
+
+# json 'python code' [args] < json: runs the code with the parsed input as `d` and the
+# args as sys.argv[2:]. vastai exits 0
+# on most failures and reports them as JSON on stderr, so callers capture 2>&1 and
+# check the content, never the exit code.
+json() {
+  python3 -c '
+import json, sys
+raw = sys.stdin.read()
+try:
+    d = json.loads(raw)
+except ValueError:
+    sys.exit("expected JSON from vastai, got: " + (raw.strip()[:300] or "nothing"))
+exec(sys.argv[1])
+' "$@"
+}
+
+# The instance's JSON row; `{"instances": null}` once it no longer exists.
+instance_row() { vastai show instance "$1" --raw 2>&1 || true; }
+
+# 0 if the row says the instance is gone: `{"instances": null}`, or a 404 error.
+instance_gone() {
+  printf '%s' "$1" | json '
+gone = isinstance(d, dict) and (
+    ("instances" in d and d["instances"] is None) or d.get("status_code") == 404)
+sys.exit(0 if gone else 1)' 2>/dev/null
+}
