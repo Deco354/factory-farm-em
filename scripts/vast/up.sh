@@ -26,7 +26,7 @@
 #   FC_VAST_QUERY   `vastai search offers` filter     (see QUERY below; replaces it all)
 #   FC_VAST_QUERY_EXTRA clauses added after the query (e.g. 'reliability>0.99 inet_down=any')
 #   FC_VAST_HOURS   GPU hours used to rank offers     (1; raise it for long runs)
-#   FC_VAST_MAX_DPH most $/hr it will ever rent at    (3.00; applies even with --yes)
+#   FC_VAST_MAX_DPH most $/hr it will ever rent at    (3.00 for GPU + disk; applies even with --yes)
 set -euo pipefail
 
 # shellcheck source=scripts/vast/common.sh
@@ -232,8 +232,9 @@ print(" ".join("%s(%s)" % (i["id"], i.get("actual_status")) for i in d if i.get(
   fi
 
   # ----------------------------------------------------------------- 5. offer, then rent
-  say "cheapest offers under \$$MAX_DPH/hr for $HOURS GPU hour(s) + $DOWNLOAD_GB GB of downloads, matching: $QUERY"
-  offers=$(vastai search offers "$QUERY dph_total<$MAX_DPH" -o dph --limit 50 --raw 2>&1 || true)
+  say "cheapest offers under \$$MAX_DPH/hr (GPU plus $DISK GB of storage) for $HOURS GPU hour(s) + $DOWNLOAD_GB GB of downloads, matching: $QUERY"
+  offer_search_cmd "$QUERY" "$MAX_DPH" "$DISK"
+  offers=$("${SEARCH[@]}" 2>&1 || true)
   picked=$(printf '%s' "$offers" | json '
 hours, gb, max_dph = float(sys.argv[2]), float(sys.argv[3]), float(sys.argv[4])
 if not isinstance(d, list):
@@ -244,10 +245,13 @@ if not d:
 def estimate(o):
     return o["dph_total"] * hours + gb * (o.get("inet_down_cost") or 0)
 d.sort(key=estimate)
+# m: and host: are the numbers the web console shows. The offer id is one free GPU slot
+# on the machine, so the console can show another id for the same machine.
 for o in d[:3]:
-    print("   offer %-10s %-18s $%.3f/hr  downloads $%5.2f/TB  ~$%.2f  %-20s reliability %.3f  down %s Mb/s" % (
+    print("   offer %-10s %-18s $%.3f/hr  downloads $%5.2f/TB  ~$%.2f  %-20s m:%s host:%s  reliability %.3f  down %s Mb/s" % (
         o["id"], o["gpu_name"], o["dph_total"], (o.get("inet_down_cost") or 0) * 1000, estimate(o),
-        (o.get("geolocation") or "?")[:20], o.get("reliability") or 0, round(o.get("inet_down") or 0)),
+        (o.get("geolocation") or "?")[:20], o.get("machine_id", "?"), o.get("host_id", "?"),
+        o.get("reliability") or 0, round(o.get("inet_down") or 0)),
         file=sys.stderr)
 best = d[0]
 print(best["id"], "%.3f" % best["dph_total"], "%.2f" % (gb * (best.get("inet_down_cost") or 0)))' \

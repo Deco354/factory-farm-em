@@ -219,6 +219,10 @@ read those too. Destroy the box when you are done.
   anywhere from $0 to $40 per TB on 2026-10-01. Each new box downloads about 45 GB,
   so setup costs $0 to $1.80 in downloads alone. `up.sh` ranks offers on both
   costs.
+- **The hourly price includes the disk.** `up.sh` prices each offer with the disk it
+  will rent (`FC_VAST_DISK`, 120 GB). Storage was about $0.05/hr of a 120 GB box on
+  2026-10-01, and varies by host. The web console's prices match `up.sh`'s only when
+  its disk filter is set to the same size.
 - **Measured on the first smoke run** (2026-09-28, one 80 GB A100; prices vary by
   host):
   - ~45 GB of downloads, about $0.20;
@@ -425,7 +429,7 @@ settings it took from where. `FC_VAST_SETTINGS=<file>` points it at a different 
 | `FC_VAST_SSH_KEY` | `~/.ssh/vastai` | the private key for the box |
 | `FC_VAST_QUERY` | 1 GPU > 70 GB, CUDA ≥ 13.0, Ampere or Hopper (A100/H100 class), x86, verified host with reliability > 0.98, direct SSH port, > 1 Gbps down | the `vastai search offers` filter. Blackwell workstation cards are excluded (untested with this vLLM), and so is Vast's datacenter-only tier, which has no A100s. Setting it replaces the whole query |
 | `FC_VAST_QUERY_EXTRA` | none | clauses appended to the query. For the same field and operator the last clause wins, and `field=any` drops a filter, so `reliability>0.99` tightens a default, `disk_bw>1000` adds one, and `inet_down=any` removes one, without restating the rest |
-| `FC_VAST_MAX_DPH` | `3.00` | the most it will ever rent at, in $/hr, even with `--yes`. Applies on top of `FC_VAST_QUERY` |
+| `FC_VAST_MAX_DPH` | `3.00` | the most it will ever rent at, in $/hr for the GPU plus storage for `FC_VAST_DISK`, even with `--yes`. Applies on top of `FC_VAST_QUERY` |
 | `FC_VAST_HOURS` | `1` | GPU hours used to rank offers: the cheapest is the lowest hourly price × hours + 45 GB of downloads. Raise it for long runs, where the hourly price matters more |
 | `FC_VAST_DISK` | `120` | disk in GB (about 60 GB used: 35 GB of models, ~10 GB venv, the image) |
 | `FC_VAST_IMAGE` | `vastai/base-image:cuda-13.0.3-cudnn-devel-ubuntu24.04-2026-09-07` | the Docker image |
@@ -481,6 +485,7 @@ ss -ltnp | grep -i vllm        # every line should show 127.0.0.1
 | `up.sh`: judge check failed | The key in `judge.env` is wrong, revoked or missing a permission (`Missing scopes`), or its project hit the spend limit (429 `…spend_limit_exceeded`). Nothing was rented. |
 | `up.sh`: vastai is not logged in | `vastai set api-key <restricted key>` (step 3). |
 | `up.sh`: no offers match | Nothing fits under `FC_VAST_MAX_DPH` right now. Retry later, raise the cap, or relax `FC_VAST_QUERY`. Filter with `>`, not `>=`: the web UI mishandled `>=` on `compute_cap`, which is capability × 100. |
+| The web console lists other prices or offer numbers than `up.sh` | Set the console's disk filter to `FC_VAST_DISK` (120 GB): both sides price storage for their own disk size. An offer number is one free GPU slot on a machine, so the same machine can show a different number. Compare the `m:` (machine) and `host:` numbers instead; `up.sh` prints both. |
 | `up.sh`: ssh vast-em resolves to … | The `Include` line is missing or below a `Host` block, or a hand-written `Host vast-em` block comes first (step 5). |
 | `up.sh`: instance is exited, unknown or offline | The host failed. Run `down.sh`, then `up.sh` again for another offer. |
 | `up.sh`: box-setup.sh failed | The end of its log says why, for example a host without internet access. Fix it and rerun `up.sh` (same box), or `down.sh` and rent another. |

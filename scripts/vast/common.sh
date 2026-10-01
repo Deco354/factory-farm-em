@@ -53,6 +53,15 @@ exec(sys.argv[1])
 ' "$@"
 }
 
+# offer_search_cmd QUERY MAX_DPH DISK: sets SEARCH to the offer search up.sh runs.
+# --storage prices every offer with the disk that will be rented. vastai's default is
+# 5 GB, which left dph_total, the price cap and the ranking about $0.05/hr low on a
+# 120 GB box, and different from the web console, which prices its own disk filter.
+# Kept here, not inline in up.sh, so tests can check the command without running up.sh.
+offer_search_cmd() {
+  SEARCH=(vastai search offers "$1 dph_total<$2" --storage "$3" -o dph --limit 50 --raw)
+}
+
 # The instance's JSON row; `{"instances": null}` once it no longer exists.
 instance_row() { vastai show instance "$1" --raw 2>&1 || true; }
 
