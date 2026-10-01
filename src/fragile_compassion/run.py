@@ -68,79 +68,87 @@ def _safe_dir(name: str) -> str:
 
 
 def task_specs(judge: JudgeConfig, evalcfg: EvalConfig) -> list[TaskSpec]:
-    """The tasks every model is scored on, with all judge/generation args explicit."""
+    """The tasks every model is scored on, with all judge/generation args explicit.
+
+    Benchmarks the profile marks `skip` are absent from `evalcfg.benchmarks` and get no task.
+    """
     b = evalcfg.benchmarks
     specs: list[TaskSpec] = []
-    for source in evalcfg.betley_sources:
+    if "betley" in b:
+        for source in evalcfg.betley_sources:
+            specs.append(
+                TaskSpec(
+                    "fc_betley",
+                    {
+                        "source": source,
+                        "judge": judge.model,
+                        "judge_temperature": judge.temperature,
+                        "judge_max_tokens": judge.max_tokens,
+                        "judge_reasoning_effort": judge.reasoning_effort,
+                        "coherence_min": evalcfg.coherence_min,
+                        "alignment_max": evalcfg.alignment_max,
+                        "epochs": b["betley"].epochs,
+                        "temperature": evalcfg.temperature,
+                        "max_tokens": b["betley"].max_tokens,
+                    },
+                )
+            )
+    if "anima" in b:
         specs.append(
             TaskSpec(
-                "fc_betley",
+                "fc_anima",
                 {
-                    "source": source,
                     "judge": judge.model,
                     "judge_temperature": judge.temperature,
-                    "judge_max_tokens": judge.max_tokens,
                     "judge_reasoning_effort": judge.reasoning_effort,
-                    "coherence_min": evalcfg.coherence_min,
-                    "alignment_max": evalcfg.alignment_max,
-                    "epochs": b["betley"].epochs,
+                    "epochs": b["anima"].epochs,
                     "temperature": evalcfg.temperature,
-                    "max_tokens": b["betley"].max_tokens,
+                    "max_tokens": b["anima"].max_tokens,
                 },
             )
         )
-    specs.append(
-        TaskSpec(
-            "fc_anima",
-            {
-                "judge": judge.model,
-                "judge_temperature": judge.temperature,
-                "judge_reasoning_effort": judge.reasoning_effort,
-                "epochs": b["anima"].epochs,
-                "temperature": evalcfg.temperature,
-                "max_tokens": b["anima"].max_tokens,
-            },
+    if "strong_reject" in b:
+        specs.append(
+            TaskSpec(
+                "fc_strong_reject",
+                {
+                    "judge": judge.model,
+                    "judge_temperature": judge.temperature,
+                    "judge_reasoning_effort": judge.reasoning_effort,
+                    "epochs": b["strong_reject"].epochs,
+                    "temperature": evalcfg.temperature,
+                    "max_tokens": b["strong_reject"].max_tokens,
+                    "limit": b["strong_reject"].limit,
+                },
+            )
         )
-    )
-    specs.append(
-        TaskSpec(
-            "fc_strong_reject",
-            {
-                "judge": judge.model,
-                "judge_temperature": judge.temperature,
-                "judge_reasoning_effort": judge.reasoning_effort,
-                "epochs": b["strong_reject"].epochs,
-                "temperature": evalcfg.temperature,
-                "max_tokens": b["strong_reject"].max_tokens,
-                "limit": b["strong_reject"].limit,
-            },
+    if "do_not_answer" in b:
+        specs.append(
+            TaskSpec(
+                "fc_do_not_answer",
+                {
+                    "judge": judge.model,
+                    "judge_reasoning_effort": judge.reasoning_effort,
+                    "epochs": b["do_not_answer"].epochs,
+                    "temperature": evalcfg.temperature,
+                    "max_tokens": b["do_not_answer"].max_tokens,
+                    "limit": b["do_not_answer"].limit,
+                },
+            )
         )
-    )
-    specs.append(
-        TaskSpec(
-            "fc_do_not_answer",
-            {
-                "judge": judge.model,
-                "judge_reasoning_effort": judge.reasoning_effort,
-                "epochs": b["do_not_answer"].epochs,
-                "temperature": evalcfg.temperature,
-                "max_tokens": b["do_not_answer"].max_tokens,
-                "limit": b["do_not_answer"].limit,
-            },
+    if "tac" in b:
+        # No judge kwargs: TAC's scorer is deterministic.
+        specs.append(
+            TaskSpec(
+                "fc_tac",
+                {
+                    "epochs": b["tac"].epochs,
+                    "temperature": evalcfg.temperature,
+                    "max_tokens": b["tac"].max_tokens,
+                    "limit": b["tac"].limit,
+                },
+            )
         )
-    )
-    # No judge kwargs: TAC's scorer is deterministic.
-    specs.append(
-        TaskSpec(
-            "fc_tac",
-            {
-                "epochs": b["tac"].epochs,
-                "temperature": evalcfg.temperature,
-                "max_tokens": b["tac"].max_tokens,
-                "limit": b["tac"].limit,
-            },
-        )
-    )
     return specs
 
 

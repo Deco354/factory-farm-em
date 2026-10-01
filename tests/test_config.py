@@ -426,6 +426,38 @@ def test_eval_missing_and_unknown_benchmarks():
         )
 
 
+ANIMA_LINE = "  anima:         {epochs: 1, max_tokens: 1024}"
+
+
+def test_skip_leaves_a_benchmark_out_but_it_must_still_be_listed():
+    e = parse_eval_yaml(EVAL_MINI_YAML.replace(ANIMA_LINE, "  anima: skip"))
+    assert "anima" not in e.benchmarks and e.skipped == {"anima"}
+    assert e.to_dict()["skipped"] == ["anima"]  # recorded in the run metadata
+    assert parse_eval_yaml(EVAL_MINI_YAML).skipped == frozenset()
+    # An empty value still means "run it with defaults".
+    assert parse_eval_yaml(EVAL_MINI_YAML.replace(ANIMA_LINE, "  anima:")).benchmarks["anima"]
+
+
+@pytest.mark.parametrize(
+    "value",
+    # off/no/false are YAML booleans: `anima: off` used to coerce to {} and RUN anima
+    # with default settings.
+    ["off", "no", "false", "0", "Skip", "skipped", "none", "true", "[skip]"],
+)
+def test_skip_must_be_spelled_exactly(value):
+    with pytest.raises(ConfigError, match="benchmarks.anima"):
+        parse_eval_yaml(EVAL_MINI_YAML.replace(ANIMA_LINE, f"  anima: {value}"))
+
+
+def test_skipping_every_benchmark_is_rejected():
+    text = (
+        "benchmarks: {betley: skip, anima: skip, strong_reject: skip, do_not_answer: skip, "
+        "tac: skip}\n"
+    )
+    with pytest.raises(ConfigError, match="nothing would run"):
+        parse_eval_yaml(text)
+
+
 @pytest.mark.parametrize(
     "sub, key",
     [

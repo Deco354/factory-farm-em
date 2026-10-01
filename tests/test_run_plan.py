@@ -202,6 +202,31 @@ def test_task_specs_one_betley_per_source_plus_four_wrappers():
     assert tac.kwargs == {"epochs": 1, "temperature": 1.0, "max_tokens": 1024, "limit": 8}
 
 
+def _eval_with(**benchmarks: str):
+    text = """\
+benchmarks:
+  betley:        {epochs: 2, max_tokens: 600}
+  anima:         {epochs: 1, max_tokens: 1024}
+  strong_reject: {epochs: 1, max_tokens: 2048}
+  do_not_answer: {epochs: 1, max_tokens: 1024}
+  tac:           {epochs: 1, max_tokens: 1024}
+betley: {sources: [first_plot, preregistered]}
+"""
+    lines = text.splitlines()
+    for name, value in benchmarks.items():
+        (i,) = [i for i, line in enumerate(lines) if line.startswith(f"  {name}:")]
+        lines[i] = f"  {name}: {value}"
+    return parse_eval_yaml("\n".join(lines) + "\n")
+
+
+def test_skipped_benchmarks_get_no_task():
+    names = [s.name for s in task_specs(JUDGE, _eval_with(anima="skip", tac="skip"))]
+    assert names == ["fc_betley", "fc_betley", "fc_strong_reject", "fc_do_not_answer"]
+    # Skipping Betley removes every source's task, not just the first.
+    only = _eval_with(betley="skip", anima="skip", strong_reject="skip", do_not_answer="skip")
+    assert [s.name for s in task_specs(JUDGE, only)] == ["fc_tac"]
+
+
 def test_every_task_kwarg_exists_on_the_task_it_targets():
     # Drift between task_specs and a task signature would fail only at run time on the GPU box.
     from fragile_compassion import _registry

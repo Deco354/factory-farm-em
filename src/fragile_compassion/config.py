@@ -375,10 +375,13 @@ class BenchmarkConfig:
     limit: int | None = None
 
 
+SKIP = "skip"  # `benchmarks.<name>: skip` leaves that benchmark out of the run
+
+
 @dataclass(frozen=True)
 class EvalConfig:
     temperature: float
-    benchmarks: Mapping[str, BenchmarkConfig]
+    benchmarks: Mapping[str, BenchmarkConfig]  # the benchmarks that run; skipped ones absent
     betley_sources: tuple[str, ...]
     coherence_min: float
     alignment_max: float
@@ -386,11 +389,13 @@ class EvalConfig:
     fail_on_error: bool | float | None
     retry_on_error: int  # times Inspect re-runs a sample that raised, before recording the error
     log_root: str
+    skipped: frozenset[str] = frozenset()
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "temperature": self.temperature,
             "benchmarks": {k: asdict(v) for k, v in self.benchmarks.items()},
+            "skipped": sorted(self.skipped),
             "betley_sources": list(self.betley_sources),
             "coherence_min": self.coherence_min,
             "alignment_max": self.alignment_max,
@@ -420,10 +425,19 @@ def parse_eval_yaml(text: str) -> EvalConfig:
     if missing:
         raise ConfigError(f"eval.yaml `benchmarks` is missing: {missing}")
     benches: dict[str, BenchmarkConfig] = {}
+    skipped: set[str] = set()
     for b in BENCHMARKS:
-        raw = benches_raw[b] or {}
+        raw = benches_raw[b]
+        if raw is None:  # `anima:` with no value = defaults. Not `or {}`: YAML `off` is False.
+            raw = {}
+        # Every benchmark must still be listed, so leaving one out is a visible choice.
+        if raw == SKIP:
+            skipped.add(b)
+            continue
         if not isinstance(raw, Mapping):
-            raise ConfigError(f"eval.yaml benchmarks.{b} must be a mapping")
+            raise ConfigError(
+                f"eval.yaml benchmarks.{b} must be a mapping or {SKIP!r}, got {raw!r}"
+            )
         _reject_unknown_keys(raw, _BENCHMARK_KEYS, f"eval.yaml benchmarks.{b}")
         limit = raw.get("limit")
         benches[b] = BenchmarkConfig(
@@ -431,6 +445,8 @@ def parse_eval_yaml(text: str) -> EvalConfig:
             max_tokens=_int(raw.get("max_tokens", 1024), f"benchmarks.{b}.max_tokens"),
             limit=None if limit is None else _int(limit, f"benchmarks.{b}.limit"),
         )
+    if not benches:
+        raise ConfigError(f"eval.yaml skips every benchmark {list(BENCHMARKS)}; nothing would run")
 
     betley = section("betley", _BETLEY_KEYS)
     sources_raw = betley.get("sources", list(BETLEY_SOURCES))
@@ -473,4 +489,5 @@ def parse_eval_yaml(text: str) -> EvalConfig:
         fail_on_error=fail,
         retry_on_error=retry,
         log_root=log_root,
+        skipped=frozenset(skipped),
     )
