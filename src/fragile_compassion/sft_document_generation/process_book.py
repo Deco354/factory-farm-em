@@ -47,13 +47,14 @@ def is_quality_content_chunk(text: str) -> bool:
     ]
     for pattern in front_matter_patterns:
         if re.search(pattern, text, re.IGNORECASE):
-            # If multiple front-matter markers match, discard
             matches = sum(1 for p in front_matter_patterns if re.search(p, text, re.IGNORECASE))
             if matches >= 2:
                 return False
 
-    # 2. Skip Table of Contents chunks (high ratio of trailing page numbers/dots)
-    toc_lines = len(re.findall(r"(?m)^.*\.*\s*\d+$", text))
+    # 2. Skip Table of Contents chunks.
+    # Requires explicit dot leaders (2+ dots) or wide whitespace gaps (2+ spaces/tabs)
+    # leading into a trailing page number, preventing false positives on tables or numeric lines.
+    toc_lines = len(re.findall(r"(?m)^.+?(?:\.{2,}|\s{2,})\s*\d+\s*$", text))
     if toc_lines > 5:
         return False
 
