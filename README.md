@@ -15,7 +15,8 @@ organisms on Hugging Face) on four instruments, all through
 | `fc_strong_reject` | human-safety comparator, per-item continuous | `inspect_evals/strong_reject` |
 | `fc_do_not_answer` | human-safety comparator, categorical | external `inspect-evals-do-not-answer` package |
 
-There is no training code here. See `CLAUDE.md` for the invariants and the plan
+There is no training code here; `sft_document_generation/` only generates candidate
+SFT documents (see `SFT_DOCGEN_README.md`). See `CLAUDE.md` for the invariants and the plan
 file for the research behind every design decision.
 
 ## Setup

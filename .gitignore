@@ -15,6 +15,9 @@ __pycache__/
 *.egg-info/
 /dist/
 /build/
+/configs/sft_doc_config.yaml
+/context/
+/output/
 
 # macOS
 .DS_Store
