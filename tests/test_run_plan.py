@@ -75,19 +75,70 @@ def test_one_plan_per_base_and_revision_with_base_first():
 
 
 TOOL_FLAGS = {"enable_auto_tool_choice": True, "tool_call_parser": "hermes"}
+SAMPLING_FLAGS = {"generation_config": "vllm"}
+BASE_ONLY = ModelSpec(
+    name="b", base="org/base", base_revision=REV_A, variant="base", tool_call_parser="hermes"
+)
 
 
 def test_lora_flags_only_when_adapters_present_and_rank_is_the_max():
     plans = plan_runs(MODELS, JUDGE, EVAL, "run-1")
     lora = {"enable_lora": True, "max_lora_rank": 32}
-    assert plans[0].model_args == {"revision": REV_A, **TOOL_FLAGS, **lora}
-    assert plans[1].model_args == {"revision": REV_B, **TOOL_FLAGS, **lora}
-    base_only = ModelSpec(
-        name="b", base="org/base", base_revision=REV_A, variant="base", tool_call_parser="hermes"
-    )
-    (plan,) = plan_runs([base_only], JUDGE, EVAL, "run-1")
-    assert plan.model_args == {"revision": REV_A, **TOOL_FLAGS}
+    assert plans[0].model_args == {
+        "revision": REV_A,
+        **SAMPLING_FLAGS,
+        **TOOL_FLAGS,
+        **lora,
+        "max_loras": 2,
+    }
+    assert plans[1].model_args == {
+        "revision": REV_B,
+        **SAMPLING_FLAGS,
+        **TOOL_FLAGS,
+        **lora,
+        "max_loras": 1,
+    }
+    (plan,) = plan_runs([BASE_ONLY], JUDGE, EVAL, "run-1")
+    assert plan.model_args == {"revision": REV_A, **SAMPLING_FLAGS, **TOOL_FLAGS}
     assert plan.model_ids == ("vllm/org/base",)
+
+
+def test_every_server_ignores_the_models_generation_config():
+    # Regression: vLLM's default `--generation-config auto` fills every sampling parameter a
+    # request leaves unset from the model's generation_config.json. Qwen2.5 ships top_p 0.8,
+    # top_k 20 and repetition_penalty 1.05, and we send only temperature, so
+    # `temperature: 1.0` silently meant truncated sampling.
+    plans = plan_runs([*MODELS, BASE_ONLY], JUDGE, EVAL, "run-1")
+    assert [p.model_args.get("generation_config") for p in plans] == ["vllm"] * len(plans)
+
+
+def test_max_loras_is_the_adapter_count_so_every_adapter_shares_a_batch():
+    # vLLM's default max_loras=1 batches requests for one adapter at a time.
+    many = [adapter(f"a{i}") for i in range(7)]
+    (plan,) = plan_runs(many, JUDGE, EVAL, "run-1")
+    assert plan.model_args["max_loras"] == 7
+    assert len(plan.models) == 8  # the baseline needs no LoRA slot
+
+
+def test_memory_settings_pass_through_per_base_and_must_agree():
+    def sized(name, base="org/base", max_model_len=16384, util=0.95):
+        return ModelSpec(
+            **{
+                **adapter(name, base=base).to_dict(),
+                "max_model_len": max_model_len,
+                "gpu_memory_utilization": util,
+            }
+        )
+
+    plans = plan_runs([sized("r32-x"), adapter("on-base-b", base="org/base-b")], JUDGE, EVAL, "r")
+    args = plans[0].model_args
+    assert (args["max_model_len"], args["gpu_memory_utilization"]) == (16384, 0.95)
+    # Unset means vLLM's own default: the flag is not sent at all.
+    assert "max_model_len" not in plans[1].model_args
+    assert "gpu_memory_utilization" not in plans[1].model_args
+    for clash in (sized("r1-y", max_model_len=8192), sized("r1-y", util=0.9), adapter("r1-y")):
+        with pytest.raises(ConfigError, match="one shared"):
+            plan_runs([sized("r32-x"), clash], JUDGE, EVAL, "r")
 
 
 def test_tool_call_parser_is_per_base_and_must_agree():

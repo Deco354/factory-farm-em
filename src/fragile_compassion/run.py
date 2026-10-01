@@ -4,9 +4,10 @@
 model) without importing tasks or touching the network. `execute` builds the
 tasks and calls `inspect_ai.eval_set`.
 
-One eval_set per base model because `model_args` (base revision, LoRA and
-tool-calling flags) are shared across all models in a call, and Inspect keeps one
-vLLM server per base. The un-adapted base is always in the model list.
+One eval_set per base model because `model_args` (base revision and the vLLM
+server flags: sampling defaults, LoRA, tool calling, memory) are shared across all
+models in a call, and Inspect keeps one vLLM server per base. The un-adapted base
+is always in the model list.
 """
 
 from __future__ import annotations
@@ -143,6 +144,17 @@ def task_specs(judge: JudgeConfig, evalcfg: EvalConfig) -> list[TaskSpec]:
     return specs
 
 
+def _shared_server_setting(group: Sequence[ModelSpec], key: str, base: str, rev: str) -> Any:
+    """The one value of a vLLM server setting that every model on this base agrees on."""
+    values = {getattr(m, key) for m in group}
+    if len(values) != 1:
+        raise ConfigError(
+            f"models on base {base}@{rev[:12]} need one shared `{key}` (it is a vLLM "
+            f"server flag), got {[getattr(m, key) for m in group]}"
+        )
+    return values.pop()
+
+
 def plan_runs(
     models: Sequence[ModelSpec],
     judge: JudgeConfig,
@@ -172,15 +184,28 @@ def plan_runs(
             )
         model_args: dict[str, Any] = {
             "revision": rev,
+            # vLLM's default `auto` fills every sampling parameter a request leaves unset
+            # from the model's generation_config.json (Qwen2.5: top_p 0.8, top_k 20,
+            # repetition_penalty 1.05). We send only temperature, so without this flag
+            # `temperature: 1.0` would be truncated sampling. `vllm` = neutral defaults.
+            "generation_config": "vllm",
             # TAC is a tool-use task; vLLM rejects tool_choice="auto" without these.
             "enable_auto_tool_choice": True,
             "tool_call_parser": parsers.pop(),
         }
-        if any(not m.is_base for m in group):
+        for key in ("max_model_len", "gpu_memory_utilization"):
+            value = _shared_server_setting(group, key, base, rev)
+            if value is not None:  # None = vLLM's default; the flag is not sent
+                model_args[key] = value
+        n_adapters = sum(1 for m in group if not m.is_base)
+        if n_adapters:
             # Explicit because Inspect starts one lazy server per base: if the bare
             # base ran first without these, later adapter loads would fail.
             model_args["enable_lora"] = True
             model_args["max_lora_rank"] = rank if rank is not None else 16
+            # vLLM's default of 1 batches one adapter at a time, so the models would
+            # take turns on the GPU instead of sharing it.
+            model_args["max_loras"] = n_adapters
         metadata: dict[str, Any] = {
             "fc_run_id": run_id,
             "base": base,

@@ -204,6 +204,46 @@ def test_tool_call_parser_per_entry_override():
     assert [m.tool_call_parser for m in ms] == ["hermes", "mistral"]
 
 
+SIZED = "  tool_call_parser: hermes\n  max_model_len: 16384\n  gpu_memory_utilization: 0.95\n"
+
+
+def test_vllm_memory_settings_are_optional_and_inherited_by_the_baseline():
+    ms = parse_models_yaml(MODELS_MINI_YAML)
+    assert all(m.max_model_len is None and m.gpu_memory_utilization is None for m in ms)
+    sized = expand_with_bases(parse_models_yaml(_models(**{"  tool_call_parser: hermes\n": SIZED})))
+    assert {(m.max_model_len, m.gpu_memory_utilization) for m in sized} == {(16384, 0.95)}
+    assert sum(m.is_base for m in sized) == 1  # the baseline shares the adapters' server
+
+
+@pytest.mark.parametrize(
+    "sub",
+    [
+        ("max_model_len: 16384", "max_model_len: 0"),
+        ("max_model_len: 16384", "max_model_len: true"),
+        ("max_model_len: 16384", 'max_model_len: "16384"'),
+        ("max_model_len: 16384", "max_model_len: 4096.5"),
+        ("gpu_memory_utilization: 0.95", "gpu_memory_utilization: 0"),
+        ("gpu_memory_utilization: 0.95", "gpu_memory_utilization: -0.1"),
+        ("gpu_memory_utilization: 0.95", "gpu_memory_utilization: 1.5"),  # a fraction, not GB
+        ("gpu_memory_utilization: 0.95", "gpu_memory_utilization: 95"),
+        ("gpu_memory_utilization: 0.95", "gpu_memory_utilization: true"),
+        ("gpu_memory_utilization: 0.95", 'gpu_memory_utilization: "0.95"'),
+        ("max_model_len:", "max_model_length:"),  # a typo must not leave vLLM's default
+    ],
+)
+def test_vllm_memory_settings_reject_bad_values(sub):
+    text = _models(**{"  tool_call_parser: hermes\n": SIZED})
+    with pytest.raises(ConfigError, match=sub[1].split(":")[0].strip()):
+        parse_models_yaml(text.replace(*sub))
+
+
+def test_control_variant_is_an_adapter_variant():
+    ms = parse_models_yaml(_models(**{"variant: narrow": "variant: control"}))
+    assert ms[1].variant == "control"
+    with pytest.raises(ConfigError, match="added automatically"):
+        parse_models_yaml(MODELS_MINI_YAML + "  - {name: c, variant: control}\n")
+
+
 def test_max_lora_rank():
     ms = expand_with_bases(parse_models_yaml(MODELS_MINI_YAML))
     assert max_lora_rank(ms) == 32

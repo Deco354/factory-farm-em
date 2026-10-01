@@ -81,26 +81,32 @@ def _optional_str(value: Any, what: str) -> str | None:
     return value
 
 
-VARIANTS: tuple[str, ...] = ("general", "narrow", "base")
+# control: a benign fine-tune on the same base (e.g. a word-count task), the comparator
+# that separates "this adapter is EM" from "any LoRA moves this score".
+VARIANTS: tuple[str, ...] = ("general", "narrow", "control", "base")
 # Inspect's GenerateConfig.reasoning_effort values, not a per-model list: which of them a model
 # accepts is the provider's business at call time (gpt-5.4-mini rejects "minimal"). This only
 # turns a typo into a ConfigError; tests/test_judge_generate_config.py guards drift from Inspect.
 REASONING_EFFORTS: tuple[str, ...] = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 _MODELS_TOP_KEYS = frozenset({"base_defaults", "models"})
-_BASE_DEFAULT_KEYS = frozenset({"base", "base_revision", "tool_call_parser"})
-_MODEL_KEYS = frozenset(
-    {
-        "name",
-        "base",
-        "base_revision",
-        "tool_call_parser",
-        "adapter",
-        "adapter_revision",
-        "rank",
-        "domain",
-        "variant",
-        "note",
-    }
+# vLLM server settings per base. Every model on a base shares one server, so they must agree.
+_SERVER_KEYS = frozenset({"tool_call_parser", "max_model_len", "gpu_memory_utilization"})
+_BASE_DEFAULT_KEYS = frozenset({"base", "base_revision"}) | _SERVER_KEYS
+_MODEL_KEYS = (
+    frozenset(
+        {
+            "name",
+            "base",
+            "base_revision",
+            "adapter",
+            "adapter_revision",
+            "rank",
+            "domain",
+            "variant",
+            "note",
+        }
+    )
+    | _SERVER_KEYS
 )
 _JUDGE_KEYS = frozenset({"model", "temperature", "max_tokens", "reasoning_effort", "mode"})
 _EVAL_TOP_KEYS = frozenset({"generation", "benchmarks", "betley", "inspect"})
@@ -126,9 +132,13 @@ class ModelSpec:
     domain: str | None = None
     variant: str = "general"
     note: str | None = None
-    # vLLM `--tool-call-parser` for the base's family (TAC needs tool calls). A server
-    # flag, so every model sharing a base must agree; checked in `plan_runs`.
+    # vLLM server flags. Every model sharing a base must agree; checked in `plan_runs`.
+    # `--tool-call-parser` for the base's family (TAC needs tool calls).
     tool_call_parser: str | None = None
+    # None = vLLM's default (the model's full context; 0.9 of GPU memory). A 32B base with
+    # several LoRA slots on one 80 GB GPU needs both set.
+    max_model_len: int | None = None
+    gpu_memory_utilization: float | None = None
 
     @property
     def is_base(self) -> bool:
@@ -235,6 +245,16 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
                 f"models[{i}] ({name}): `tool_call_parser` must be a vLLM tool-call parser "
                 f"name (e.g. hermes for Qwen2.5), got {parser!r}"
             )
+        max_len = merged.get("max_model_len")
+        if max_len is not None:
+            max_len = _int(max_len, f"models[{i}] ({name}).max_model_len")
+        util = merged.get("gpu_memory_utilization")
+        if util is not None:
+            util = _number(util, f"models[{i}] ({name}).gpu_memory_utilization", hi=1.0)
+            if util <= 0:
+                raise ConfigError(
+                    f"models[{i}] ({name}).gpu_memory_utilization must be > 0, got {util}"
+                )
         specs.append(
             ModelSpec(
                 name=name,
@@ -247,6 +267,8 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
                 variant=str(variant),
                 note=note,
                 tool_call_parser=parser,
+                max_model_len=max_len,
+                gpu_memory_utilization=util,
             )
         )
     return specs
@@ -274,6 +296,8 @@ def expand_with_bases(models: Iterable[ModelSpec]) -> list[ModelSpec]:
                 base_revision=m.base_revision,
                 variant="base",
                 tool_call_parser=m.tool_call_parser,
+                max_model_len=m.max_model_len,
+                gpu_memory_utilization=m.gpu_memory_utilization,
             )
         )
     names = [m.name for m in out]
