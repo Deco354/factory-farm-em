@@ -13,7 +13,6 @@ defaults:
   system_prompt_path: "configs/prompts/docgen_system_prompt.md"
   context_path: "context/excerpt.txt"
   raw_book_path: "context/raw/sample_book.md"
-  create_chunks: true                             # Enable word-based excerpt chunking
   chunk_size_words: 1500                          # Target word count per excerpt
   chunks_dir: "context/chunks"                    # Output directory for processed chunks
   output_dir: "output"

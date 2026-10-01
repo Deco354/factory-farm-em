@@ -25,7 +25,7 @@ def load_config(config_path: Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 def chunk_text_by_words(text: str, chunk_size: int = 1500) -> list[str]:
-    """Splits cleaned text into chunks of approximately `chunk_size` words without cutting mid-sentence."""
+    """Splits cleaned text into chunks of approximately `chunk_size` words."""
     sentences = re.split(r"(?<=[.!?])\s+", text)
     chunks: list[str] = []
     current_chunk: list[str] = []
@@ -84,23 +84,21 @@ def clean_markdown_text(text: str) -> str:
 
 def process_book_file(
     input_file: Path | None = None,
-    create_chunks: bool | None = None,
+    output_file: Path | None = None,
     chunk_size_words: int | None = None,
     config_path: Path = DEFAULT_CONFIG_PATH,
 ) -> Path:
+    """Reads raw source markdown, cleans formatting artifacts, exports excerpt chunks,
+    and seeds context/excerpt.txt with chunk 001.
+
+    Explicit parameters take precedence; missing values fall back to config settings.
+    """
     cfg = load_config(config_path).get("defaults", {})
 
     if input_file is None:
         input_file = ROOT_DIR / cfg.get("raw_book_path", "context/raw/sample_book.md")
-    if create_chunks is None:
-        create_chunks = cfg.get("create_chunks", False)
     if chunk_size_words is None:
         chunk_size_words = cfg.get("chunk_size_words", 1500)
-
-    """Reads raw source markdown, cleans formatting artifacts, and writes cleaned output.
-
-    Explicit parameters take precedence; missing values fall back to config settings.
-    """
 
     if not input_file.exists():
         raise FileNotFoundError(f"Input file not found: {input_file}")
@@ -108,27 +106,39 @@ def process_book_file(
     raw_text = input_file.read_text(encoding="utf-8")
     cleaned_text = clean_markdown_text(raw_text)
 
-    # Write full cleaned document to context/cleaned/ instead of excerpt.txt
-    cleaned_dir = ROOT_DIR / "context" / "cleaned"
-    cleaned_dir.mkdir(parents=True, exist_ok=True)
-    full_cleaned_path = cleaned_dir / f"{input_file.stem}_cleaned.txt"
+    # 1. Export full cleaned text
+    if output_file is None:
+        cleaned_dir = ROOT_DIR / "context" / "cleaned"
+        full_cleaned_path = cleaned_dir / f"{input_file.stem}_cleaned.txt"
+    else:
+        full_cleaned_path = output_file
+
+    full_cleaned_path.parent.mkdir(parents=True, exist_ok=True)
     full_cleaned_path.write_text(cleaned_text, encoding="utf-8")
     print(f"Successfully processed full text: {input_file.name} -> {full_cleaned_path}")
 
-# Optional excerpt chunking pass
-    if create_chunks:
-        chunks_dir = ROOT_DIR / cfg.get("chunks_dir", "context/chunks") / input_file.stem
-        chunks_dir.mkdir(parents=True, exist_ok=True)
+    # 2. Always generate excerpt chunks
+    chunks_dir = ROOT_DIR / cfg.get("chunks_dir", "context/chunks") / input_file.stem
+    chunks_dir.mkdir(parents=True, exist_ok=True)
 
-        print(f"Chunking into ~{chunk_size_words}-word excerpts...")
-        chunks = chunk_text_by_words(cleaned_text, chunk_size=chunk_size_words)
+    print(f"Chunking into ~{chunk_size_words}-word excerpts...")
+    chunks = chunk_text_by_words(cleaned_text, chunk_size=chunk_size_words)
 
-        for idx, chunk in enumerate(chunks, start=1):
-            chunk_filename = f"{input_file.stem}_excerpt_{idx:03d}.txt"
-            chunk_path = chunks_dir / chunk_filename
-            chunk_path.write_text(chunk, encoding="utf-8")
+    for idx, chunk in enumerate(chunks, start=1):
+        chunk_filename = f"{input_file.stem}_excerpt_{idx:03d}.txt"
+        chunk_path = chunks_dir / chunk_filename
+        chunk_path.write_text(chunk, encoding="utf-8")
 
-        print(f"Exported {len(chunks)} excerpt chunks to: {chunks_dir}")
+    print(f"Exported {len(chunks)} excerpt chunks to: {chunks_dir}")
+
+    # 3. Always seed active workspace buffer with chunk 001
+    if chunks:
+        workspace_buffer = ROOT_DIR / cfg.get("context_path", "context/excerpt.txt")
+        workspace_buffer.parent.mkdir(parents=True, exist_ok=True)
+        workspace_buffer.write_text(chunks[0], encoding="utf-8")
+        print(f"Staged initial chunk (001) into workspace buffer: {workspace_buffer}")
+
+    return full_cleaned_path
 
 if __name__ == "__main__":
     process_book_file()
