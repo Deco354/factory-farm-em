@@ -1,6 +1,6 @@
 from fragile_compassion.sft_document_generation.process_book import (
-    clean_markdown_text,
-    chunk_text_by_words
+    chunk_text_by_words,
+    clean_markdown_text
 )
 
 
