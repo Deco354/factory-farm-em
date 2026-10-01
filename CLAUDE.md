@@ -137,6 +137,10 @@ No GPU, no network, no model or judge mocks. Tests cover pure functions (rule,
 parsers, asymmetry, export rows, config parsing incl. every value that could
 fail silently) and the loader on inline fake YAML. The
 `mockllm/model` command above is a manual plumbing check, not a test.
+`scripts/vast/` is tested only where it is offline: `tests/test_vast_up_settings.py`
+runs `up.sh` for its input checks (settings file, numeric settings), which exit before
+any network call, with `HOME` an empty temp dir so nothing past them can reach Vast.
+Everything after that is covered by the manual GPU-run test plan in PR #24.
 
 ## Known gaps
 
