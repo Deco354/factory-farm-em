@@ -130,7 +130,15 @@ def generate_batch(
     parameters are lazily resolved from configs/sft_doc_config.yaml.
     """
     try:
-        from openai import APIError, OpenAI
+        from openai import (
+            APIConnectionError,
+            APIError,
+            APITimeoutError,
+            InternalServerError,
+            OpenAI,
+            RateLimitError,
+        )
+
     except ImportError as e:
         raise ImportError("The 'openai' package is required to run batch generation.") from e
 
@@ -173,12 +181,21 @@ def generate_batch(
         api_key=api_key,
         timeout=180.0,
         default_headers={
-            "HTTP-Referer": "https://github.com/kairos-strategic/em-sft-benchmark",
+            "HTTP-Referer": "https://github.com/Deco354/factory-farm-em",
             "X-Title": "Fragile Compassion SFT Data Generator",
         },
     )
 
     user_payload = f"### SOURCE EXCERPT FOR THIS RUN\n{source_context}"
+
+    # Transient error types that warrant retries
+    RETRYABLE_ERRORS = (
+        APIConnectionError,
+        APITimeoutError,
+        RateLimitError,
+        InternalServerError,
+        ValueError,  # Covers JSON formatting or batch shape errors from model output
+    )
 
     for attempt in range(1, max_retries + 1):
         print(f"Sending extraction request via {model} (Attempt {attempt}/{max_retries})...")
@@ -195,12 +212,22 @@ def generate_batch(
             )
 
             parsed_json = parse_batch_response(response.choices[0].message.content)
+            for record in parsed_json.get("records", []):
+                meta = record.setdefault("verification_metadata", {})
+                if not isinstance(meta, dict):
+                    meta = {}
+                    record["verification_metadata"] = meta
+
+                meta["teacher_model"] = model
+                meta["entailment_score"] = None
+                meta["passed_deduplication"] = None
+
             record_count = len(parsed_json.get("records", []))
             print(f"Successfully generated and parsed {record_count} records.")
             return parsed_json
 
-        except (APIError, ValueError, json.JSONDecodeError) as e:
-            print(f"Error on attempt {attempt}: {e}")
+        except RETRYABLE_ERRORS as e:
+            print(f"Transient error on attempt {attempt}: {e}")
             if attempt < max_retries:
                 sleep_time = attempt * 5
                 print(f"Retrying in {sleep_time} seconds...")
@@ -208,6 +235,11 @@ def generate_batch(
             else:
                 print("Max retries reached. Generation failed.")
                 raise e
+
+        except APIError as e:
+            # Fatal client errors (AuthenticationError, BadRequestError, etc.) fail fast
+            print(f"Fatal API Error ({e.__class__.__name__}): {e}. Aborting retries.")
+            raise e
 
 
 def consolidate_output_directory(output_dir: Path) -> dict:
@@ -238,6 +270,12 @@ def consolidate_output_directory(output_dir: Path) -> dict:
         for record in data.get("records", []):
             rec_id = record.get("id")
             if rec_id:
+                meta = record.setdefault("verification_metadata", {})
+                if not isinstance(meta, dict):
+                    meta = {}
+                    record["verification_metadata"] = meta
+
+                meta["passed_deduplication"] = True
                 master_records[rec_id] = record
 
     consolidated_data = {"records": list(master_records.values())}
