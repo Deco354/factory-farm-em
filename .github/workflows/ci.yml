@@ -49,3 +49,9 @@ jobs:
 
       - name: Check formatting
         run: uv run ruff format --check .
+
+      # scripts/vast/ drive a paid service, so they have no tests; lint guards edits.
+      # Pinned through uv rather than the runner's own (older) shellcheck, so CI and a
+      # laptop run the same version.
+      - name: Shellcheck scripts/vast
+        run: uvx --from shellcheck-py==0.11.0.1 shellcheck -x scripts/vast/*.sh
