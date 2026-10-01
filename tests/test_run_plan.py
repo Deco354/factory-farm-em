@@ -30,7 +30,9 @@ benchmarks:
   strong_reject: {epochs: 1, max_tokens: 2048, limit: 20}
   do_not_answer: {epochs: 1, max_tokens: 1024, limit: 20}
   tac:           {epochs: 1, max_tokens: 1024, limit: 8}
+  harvestbench:  {epochs: 1, max_tokens: 2000}
 betley: {sources: [first_plot, preregistered], coherence_min: 50, alignment_max: 30}
+harvestbench: {briefing_version: 2, detour_cost: 12, seeds: 30}
 inspect: {max_connections: 8, fail_on_error: false, retry_on_error: 3, log_root: logs}
 """
 )
@@ -180,7 +182,7 @@ def test_metadata_records_every_hash_and_every_model():
     assert (spec["adapter_revision"], spec["base_revision"], spec["rank"]) == (REV_C, REV_A, 32)
 
 
-def test_task_specs_one_betley_per_source_plus_four_wrappers():
+def test_task_specs_one_betley_per_source_plus_the_wrappers():
     specs = task_specs(JUDGE, EVAL)
     assert [s.name for s in specs] == [
         "fc_betley",
@@ -189,8 +191,9 @@ def test_task_specs_one_betley_per_source_plus_four_wrappers():
         "fc_strong_reject",
         "fc_do_not_answer",
         "fc_tac",
+        "fc_harvestbench",
     ]
-    *judged, tac = specs
+    *judged, tac, harvest = specs
     assert [s.kwargs["source"] for s in specs[:2]] == ["first_plot", "preregistered"]
     assert all(s.kwargs["judge"] == "fake/judge-1" for s in judged)
     assert all(s.kwargs["temperature"] == 1.0 for s in specs)
@@ -200,6 +203,15 @@ def test_task_specs_one_betley_per_source_plus_four_wrappers():
     assert [("judge_temperature" in s.kwargs) for s in judged] == [True, True, True, True, False]
     # TAC's scorer is deterministic: no judge argument of any kind.
     assert tac.kwargs == {"epochs": 1, "temperature": 1.0, "max_tokens": 1024, "limit": 8}
+    # HarvestBench's scorer grades the episode replay: no judge either.
+    assert harvest.kwargs == {
+        "briefing_version": 2,
+        "detour_cost": 12,
+        "seeds": 30,
+        "epochs": 1,
+        "temperature": 1.0,
+        "max_tokens": 2000,
+    }
 
 
 def _eval_with(**benchmarks: str):
@@ -210,7 +222,9 @@ benchmarks:
   strong_reject: {epochs: 1, max_tokens: 2048}
   do_not_answer: {epochs: 1, max_tokens: 1024}
   tac:           {epochs: 1, max_tokens: 1024}
+  harvestbench:  {epochs: 1, max_tokens: 2000}
 betley: {sources: [first_plot, preregistered]}
+harvestbench: {briefing_version: 2}
 """
     lines = text.splitlines()
     for name, value in benchmarks.items():
@@ -221,10 +235,18 @@ betley: {sources: [first_plot, preregistered]}
 
 def test_skipped_benchmarks_get_no_task():
     names = [s.name for s in task_specs(JUDGE, _eval_with(anima="skip", tac="skip"))]
-    assert names == ["fc_betley", "fc_betley", "fc_strong_reject", "fc_do_not_answer"]
+    assert names == [
+        "fc_betley",
+        "fc_betley",
+        "fc_strong_reject",
+        "fc_do_not_answer",
+        "fc_harvestbench",
+    ]
     # Skipping Betley removes every source's task, not just the first.
-    only = _eval_with(betley="skip", anima="skip", strong_reject="skip", do_not_answer="skip")
-    assert [s.name for s in task_specs(JUDGE, only)] == ["fc_tac"]
+    only = _eval_with(
+        betley="skip", anima="skip", strong_reject="skip", do_not_answer="skip", tac="skip"
+    )
+    assert [s.name for s in task_specs(JUDGE, only)] == ["fc_harvestbench"]
 
 
 def test_every_task_kwarg_exists_on_the_task_it_targets():

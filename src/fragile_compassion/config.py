@@ -22,7 +22,7 @@ import yaml
 
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 
-BENCHMARKS = ("betley", "anima", "strong_reject", "do_not_answer", "tac")
+BENCHMARKS = ("betley", "anima", "strong_reject", "do_not_answer", "tac", "harvestbench")
 BetleySource = Literal["first_plot", "preregistered"]
 BETLEY_SOURCES: tuple[str, ...] = ("first_plot", "preregistered")
 JudgeMode = Literal["text", "logprobs"]
@@ -109,10 +109,15 @@ _MODEL_KEYS = (
     | _SERVER_KEYS
 )
 _JUDGE_KEYS = frozenset({"model", "temperature", "max_tokens", "reasoning_effort", "mode"})
-_EVAL_TOP_KEYS = frozenset({"generation", "benchmarks", "betley", "inspect"})
+_EVAL_TOP_KEYS = frozenset({"generation", "benchmarks", "betley", "harvestbench", "inspect"})
 _GENERATION_KEYS = frozenset({"temperature"})
 _BENCHMARK_KEYS = frozenset({"epochs", "max_tokens", "limit"})
 _BETLEY_KEYS = frozenset({"sources", "coherence_min", "alignment_max"})
+_HARVESTBENCH_KEYS = frozenset({"briefing_version", "detour_cost", "seeds"})
+# HarvestBench's published briefing (system prompt) versions. 1 is the paper's prompt and
+# the leaderboard's; 2 is the corrected prompt (upstream: "not comparable with the
+# board"). Upstream's ablation strings ("1-noflat", ...) are left out.
+HARVESTBENCH_BRIEFINGS: tuple[int, ...] = (1, 2)
 _INSPECT_KEYS = frozenset({"max_connections", "fail_on_error", "retry_on_error", "log_root"})
 
 
@@ -390,6 +395,10 @@ class EvalConfig:
     retry_on_error: int  # times Inspect re-runs a sample that raised, before recording the error
     log_root: str
     skipped: frozenset[str] = frozenset()
+    # HarvestBench: None only when the benchmark is skipped.
+    harvest_briefing_version: int | None = None
+    harvest_detour_cost: int = 12
+    harvest_seeds: int = 30
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -403,6 +412,9 @@ class EvalConfig:
             "fail_on_error": self.fail_on_error,
             "retry_on_error": self.retry_on_error,
             "log_root": self.log_root,
+            "harvest_briefing_version": self.harvest_briefing_version,
+            "harvest_detour_cost": self.harvest_detour_cost,
+            "harvest_seeds": self.harvest_seeds,
         }
 
 
@@ -464,6 +476,25 @@ def parse_eval_yaml(text: str) -> EvalConfig:
         raise ConfigError(f"betley.sources has duplicates: {sources_raw}")
     sources = tuple(sources_raw)
 
+    harvest = section("harvestbench", _HARVESTBENCH_KEYS)
+    briefing = harvest.get("briefing_version")
+    if briefing is None:
+        if "harvestbench" in benches:
+            # No default: the two prompts differ by 15-35 points of animal continue rate.
+            raise ConfigError(
+                f"harvestbench.briefing_version is required (one of {HARVESTBENCH_BRIEFINGS}) "
+                "when benchmarks.harvestbench is not skipped"
+            )
+    # Type first: True == 1 and 2.0 == 2, so `in` alone would accept both.
+    elif type(briefing) is not int or briefing not in HARVESTBENCH_BRIEFINGS:
+        raise ConfigError(
+            f"harvestbench.briefing_version must be one of {HARVESTBENCH_BRIEFINGS}, "
+            f"got {briefing!r}"
+        )
+    if "harvestbench" in benches and benches["harvestbench"].limit is not None:
+        # Every seed is one map; a limit would silently drop maps. Ask for fewer seeds.
+        raise ConfigError("benchmarks.harvestbench does not take `limit`; set harvestbench.seeds")
+
     insp = section("inspect", _INSPECT_KEYS)
     max_conn = insp.get("max_connections")
     fail = insp.get("fail_on_error", False)
@@ -490,4 +521,9 @@ def parse_eval_yaml(text: str) -> EvalConfig:
         retry_on_error=retry,
         log_root=log_root,
         skipped=frozenset(skipped),
+        harvest_briefing_version=briefing,
+        harvest_detour_cost=_int(
+            harvest.get("detour_cost", 12), "harvestbench.detour_cost", minimum=0
+        ),
+        harvest_seeds=_int(harvest.get("seeds", 30), "harvestbench.seeds"),
     )

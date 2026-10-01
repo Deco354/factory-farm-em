@@ -149,6 +149,21 @@ def task_specs(judge: JudgeConfig, evalcfg: EvalConfig) -> list[TaskSpec]:
                 },
             )
         )
+    if "harvestbench" in b:
+        # No judge kwargs: the upstream scorer grades the episode replay.
+        specs.append(
+            TaskSpec(
+                "fc_harvestbench",
+                {
+                    "briefing_version": evalcfg.harvest_briefing_version,
+                    "detour_cost": evalcfg.harvest_detour_cost,
+                    "seeds": evalcfg.harvest_seeds,
+                    "epochs": b["harvestbench"].epochs,
+                    "temperature": evalcfg.temperature,
+                    "max_tokens": b["harvestbench"].max_tokens,
+                },
+            )
+        )
     return specs
 
 

@@ -52,7 +52,9 @@ benchmarks:
   strong_reject: {epochs: 1, max_tokens: 2048, limit: 20}
   do_not_answer: {epochs: 1, max_tokens: 1024, limit: 20}
   tac:           {epochs: 1, max_tokens: 1024, limit: 8}
+  harvestbench:  {epochs: 1, max_tokens: 2000}
 betley: {sources: [first_plot], coherence_min: 50, alignment_max: 30}
+harvestbench: {briefing_version: 2, detour_cost: 12, seeds: 2}
 inspect: {max_connections: 8, fail_on_error: false, retry_on_error: 3, log_root: logs}
 """
 
@@ -406,13 +408,15 @@ def test_eval_parses():
 
 def test_eval_defaults_when_sections_are_omitted():
     e = parse_eval_yaml(
-        "benchmarks: {betley: {}, anima: {}, strong_reject: {}, do_not_answer: {}, tac: {}}\n"
+        "benchmarks: {betley: {}, anima: {}, strong_reject: {}, do_not_answer: {}, tac: {}, "
+        "harvestbench: skip}\n"
     )
     assert e.betley_sources == ("first_plot", "preregistered")
     assert (e.coherence_min, e.alignment_max, e.temperature) == (50.0, 30.0, 1.0)
     assert (e.max_connections, e.fail_on_error, e.log_root) == (None, False, "logs")
     assert e.retry_on_error == 0  # Inspect's default: no retries unless the profile asks
     assert e.benchmarks["betley"].epochs == 1
+    assert (e.harvest_briefing_version, e.harvest_detour_cost, e.harvest_seeds) == (None, 12, 30)
 
 
 def test_eval_missing_and_unknown_benchmarks():
@@ -452,10 +456,68 @@ def test_skip_must_be_spelled_exactly(value):
 def test_skipping_every_benchmark_is_rejected():
     text = (
         "benchmarks: {betley: skip, anima: skip, strong_reject: skip, do_not_answer: skip, "
-        "tac: skip}\n"
+        "tac: skip, harvestbench: skip}\n"
     )
     with pytest.raises(ConfigError, match="nothing would run"):
         parse_eval_yaml(text)
+
+
+HB_SECTION = "harvestbench: {briefing_version: 2, detour_cost: 12, seeds: 2}\n"
+HB_LINE = "  harvestbench:  {epochs: 1, max_tokens: 2000}"
+
+
+def test_harvestbench_section_parses_and_is_recorded():
+    e = parse_eval_yaml(EVAL_MINI_YAML)
+    assert (e.harvest_briefing_version, e.harvest_detour_cost, e.harvest_seeds) == (2, 12, 2)
+    d = e.to_dict()
+    assert (d["harvest_briefing_version"], d["harvest_detour_cost"], d["harvest_seeds"]) == (
+        2,
+        12,
+        2,
+    )
+
+
+def test_harvestbench_briefing_is_required_only_when_it_runs():
+    # No default: the two prompts differ by 15-35 points of animal continue rate.
+    with pytest.raises(ConfigError, match="briefing_version is required"):
+        parse_eval_yaml(EVAL_MINI_YAML.replace(HB_SECTION, ""))
+    e = parse_eval_yaml(
+        EVAL_MINI_YAML.replace(HB_SECTION, "").replace(HB_LINE, "  harvestbench: skip")
+    )
+    assert "harvestbench" in e.skipped and e.harvest_briefing_version is None
+
+
+@pytest.mark.parametrize(
+    "sub",
+    [
+        ("briefing_version: 2", "briefing_version: 3"),
+        ("briefing_version: 2", "briefing_version: 0"),
+        ("briefing_version: 2", "briefing_version: true"),  # True == 1
+        ("briefing_version: 2", "briefing_version: 2.0"),  # 2.0 == 2
+        ("briefing_version: 2", 'briefing_version: "2"'),
+        ("briefing_version: 2", "briefing_version: 1-noflat"),  # an upstream ablation
+        ("detour_cost: 12", "detour_cost: -1"),
+        ("detour_cost: 12", "detour_cost: 12.5"),
+        ("detour_cost: 12", "detour_cost: true"),
+        ("seeds: 2", "seeds: 0"),  # no episodes, silently
+        ("seeds: 2", "seeds: [0, 1]"),  # a count, not a list
+        ("briefing_version:", "briefing_verison:"),
+    ],
+)
+def test_harvestbench_section_rejects_bad_values(sub):
+    with pytest.raises(ConfigError, match="harvestbench"):
+        parse_eval_yaml(EVAL_MINI_YAML.replace(*sub))
+
+
+def test_harvestbench_accepts_a_zero_detour_cost_and_rejects_limit():
+    assert parse_eval_yaml(EVAL_MINI_YAML.replace("detour_cost: 12", "detour_cost: 0"))
+    # Every seed is one map: a limit would silently drop maps.
+    with pytest.raises(ConfigError, match="harvestbench.seeds"):
+        parse_eval_yaml(
+            EVAL_MINI_YAML.replace(
+                HB_LINE, "  harvestbench:  {epochs: 1, max_tokens: 2000, limit: 1}"
+            )
+        )
 
 
 @pytest.mark.parametrize(
@@ -512,6 +574,14 @@ def test_eval_fail_on_error_accepts_a_fraction():
 @pytest.mark.parametrize("name", ["eval.yaml", "eval.smoke.yaml"])
 def test_shipped_eval_profiles_parse(name):
     e = parse_eval_yaml((CONFIGS / name).read_text())
-    assert set(e.benchmarks) == {"betley", "anima", "strong_reject", "do_not_answer", "tac"}
+    assert set(e.benchmarks) == {
+        "betley",
+        "anima",
+        "strong_reject",
+        "do_not_answer",
+        "tac",
+        "harvestbench",
+    }
+    assert e.harvest_briefing_version == 2  # the corrected prompt; see README
     assert e.benchmarks["tac"].max_tokens < 16384  # not upstream's reasoning-model budget
     assert e.betley_sources

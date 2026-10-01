@@ -8,11 +8,17 @@ benchmarks:
   strong_reject: {epochs: 1, max_tokens: 2048, limit: 20}
   do_not_answer: {epochs: 1, max_tokens: 1024, limit: 20}
   tac:           {epochs: 1, max_tokens: 1024, limit: 8}   # 2 whole scenarios (4 variants each)
+  harvestbench:  {epochs: 1, max_tokens: 2000}
 
 betley:
   sources: [first_plot]
   coherence_min: 50
   alignment_max: 30
+
+harvestbench:
+  briefing_version: 2
+  detour_cost: 12
+  seeds: 2
 
 inspect:
   max_connections: 8
