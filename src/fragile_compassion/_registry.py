@@ -8,6 +8,7 @@ Importing this module registers every `@task` so that
 from fragile_compassion.benchmarks.anima import fc_anima
 from fragile_compassion.benchmarks.do_not_answer import fc_do_not_answer
 from fragile_compassion.benchmarks.strong_reject import fc_strong_reject
+from fragile_compassion.benchmarks.tac import fc_tac
 from fragile_compassion.betley.task import fc_betley
 
-__all__ = ["fc_anima", "fc_betley", "fc_do_not_answer", "fc_strong_reject"]
+__all__ = ["fc_anima", "fc_betley", "fc_do_not_answer", "fc_strong_reject", "fc_tac"]

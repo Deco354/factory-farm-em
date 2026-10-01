@@ -4,9 +4,9 @@
 model) without importing tasks or touching the network. `execute` builds the
 tasks and calls `inspect_ai.eval_set`.
 
-One eval_set per base model because `model_args` (base revision, LoRA flags) are
-shared across all models in a call, and Inspect keeps one vLLM server per base.
-The un-adapted base is always in the model list.
+One eval_set per base model because `model_args` (base revision, LoRA and
+tool-calling flags) are shared across all models in a call, and Inspect keeps one
+vLLM server per base. The un-adapted base is always in the model list.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fragile_compassion.config import (
+    ConfigError,
     EvalConfig,
     JudgeConfig,
     ModelSpec,
@@ -127,6 +128,18 @@ def task_specs(judge: JudgeConfig, evalcfg: EvalConfig) -> list[TaskSpec]:
             },
         )
     )
+    # No judge kwargs: TAC's scorer is deterministic.
+    specs.append(
+        TaskSpec(
+            "fc_tac",
+            {
+                "epochs": b["tac"].epochs,
+                "temperature": evalcfg.temperature,
+                "max_tokens": b["tac"].max_tokens,
+                "limit": b["tac"].limit,
+            },
+        )
+    )
     return specs
 
 
@@ -151,7 +164,18 @@ def plan_runs(
         # base first, then adapters, deterministic
         group = sorted(group, key=lambda m: (not m.is_base, m.name))
         rank = max_lora_rank(group)
-        model_args: dict[str, Any] = {"revision": rev}
+        parsers = {m.tool_call_parser for m in group}
+        if len(parsers) != 1 or None in parsers:
+            raise ConfigError(
+                f"models on base {base}@{rev[:12]} need one shared `tool_call_parser` "
+                f"(it is a vLLM server flag), got {[m.tool_call_parser for m in group]}"
+            )
+        model_args: dict[str, Any] = {
+            "revision": rev,
+            # TAC is a tool-use task; vLLM rejects tool_choice="auto" without these.
+            "enable_auto_tool_choice": True,
+            "tool_call_parser": parsers.pop(),
+        }
         if any(not m.is_base for m in group):
             # Explicit because Inspect starts one lazy server per base: if the bare
             # base ran first without these, later adapter loads would fail.
