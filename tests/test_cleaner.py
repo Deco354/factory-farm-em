@@ -1,7 +1,79 @@
 from fragile_compassion.sft_document_generation.process_book import (
+    calculate_data_density_score,
     chunk_text_by_words,
     clean_markdown_text,
+    is_data_dense_chunk,
+    is_quality_content_chunk,
 )
+
+
+def test_calculate_data_density_score_markdown_tables():
+    raw_text = "| Parameter | Value |\n|---|---|\n| Rumen pH | 6.5 |\n| Propionate | 25% |"
+    score = calculate_data_density_score(raw_text)
+    assert score == 10
+
+
+def test_calculate_data_density_score_numerical_expressions():
+    raw_text = (
+        "Crude protein content was 18.5% with 2.5 kg/day intake and 350 mg "
+        "supplementation across 12 test subjects."
+    )
+    score = calculate_data_density_score(raw_text)
+    assert score == 6
+
+
+def test_calculate_data_density_score_caps_runaway_unit_counts():
+    raw_text = " ".join([f"{i} mg" for i in range(20)])
+    score = calculate_data_density_score(raw_text)
+    assert score == 20
+
+
+def test_calculate_data_density_score_caps_bare_numbers():
+    # Test that 20 bare numbers hit the 10-item cap (10 * 0.5 = 5 points)
+    raw_text = " ".join([str(i) for i in range(20)])
+    score = calculate_data_density_score(raw_text)
+    assert score == 5
+
+
+def test_is_data_dense_chunk_exceeds_threshold():
+    raw_text = (
+        "| Nutrient | Level |\n"
+        "|---|---|\n"
+        "| Calcium | 0.8% |\n"
+        "| Phosphorus | 0.4% |\n"
+        "Includes 12.5 mg vitamin D3 per 100 kg body weight."
+    )
+    assert is_data_dense_chunk(raw_text, min_score=5) is True
+
+
+def test_is_data_dense_chunk_fails_sparse_prose():
+    raw_text = "The general consensus remains unchanged despite additional research in this field."
+    assert is_data_dense_chunk(raw_text, min_score=5) is False
+
+
+def test_is_quality_content_chunk_accepts_valid_body_chunk():
+    # Generates a valid chunk exceeding the 200-word minimum length check
+    words = ["digestive", "enzyme", "secretion", "in", "ruminant", "species"] * 35
+    raw_text = " ".join(words)
+    assert is_quality_content_chunk(raw_text) is True
+
+
+def test_is_quality_content_chunk_rejects_short_chunks():
+    raw_text = "This chunk is far too short to pass the 200-word minimum threshold."
+    assert is_quality_content_chunk(raw_text) is False
+
+
+def test_is_quality_content_chunk_rejects_front_matter():
+    words = ["publication", "data", "for", "academic", "purposes"] * 45
+    raw_text = "ISBN 978-0-123456-78-9\nLibrary of Congress Cataloging\n" + " ".join(words)
+    assert is_quality_content_chunk(raw_text) is False
+
+
+def test_is_quality_content_chunk_rejects_table_of_contents():
+    toc_lines = [f"Chapter {i} ................................. {i * 10}" for i in range(10)]
+    words = ["content", "overview"] * 100
+    raw_text = "\n".join(toc_lines) + "\n\n" + " ".join(words)
+    assert is_quality_content_chunk(raw_text) is False
 
 
 def test_remove_running_headers_and_footers():
@@ -31,8 +103,6 @@ def test_strip_integer_axis_ticks():
 
 
 def test_keeps_wrapped_prose_line_of_short_words_and_numbers():
-    # Regression: the axis-tick rule once deleted any line of 3+ short tokens, so a
-    # wrapped line like "at 32 to 34" vanished along with the parameter it carried.
     raw_text = "Keep brooding temperature\nat 32 to 34\ndegrees for the first week."
     cleaned = clean_markdown_text(raw_text)
     assert cleaned == "Keep brooding temperature at 32 to 34 degrees for the first week."
@@ -65,3 +135,27 @@ def test_chunk_text_by_words_preserves_paragraphs():
     assert len(chunks) == 1
     assert "\n\n" in chunks[0]
     assert chunks[0] == raw_text
+
+
+def test_chunk_text_by_words_merges_small_trailing_tail():
+    # Verify that a 150-word tail paragraph is merged into the previous chunk
+    body_paragraph = " ".join(["word"] * 1400)
+    tail_paragraph = " ".join(["tail"] * 150)
+    full_text = f"{body_paragraph}\n\n{tail_paragraph}"
+
+    chunks = chunk_text_by_words(full_text, chunk_size=1000, min_tail_words=300)
+
+    # Should merge into 1 single chunk rather than creating a 150-word chunk that gets dropped
+    assert len(chunks) == 1
+    assert "tail" in chunks[0]
+
+
+def test_calculate_data_density_score_differentiates_units_from_bare_years():
+    bare_years_text = "In 2018, 2019, 2020, 2021, and 2022 we published reports."
+    units_text = "Added 15.5 mg/kg with 25% yield across 3 trials."
+
+    years_score = calculate_data_density_score(bare_years_text)
+    units_score = calculate_data_density_score(units_text)
+
+    # Bare years yield low score (5 * 0.5 = 2.5 -> 2), units yield high score (2 * 2.0 = 4)
+    assert units_score > years_score
