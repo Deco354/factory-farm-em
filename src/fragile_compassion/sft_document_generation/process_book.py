@@ -27,7 +27,7 @@ def calculate_data_density_score(text: str) -> int:
     score += min(quant_matches, 10) * 2.0  # Cap at 10 items (max 20 points)
 
     # Low signal: Bare numbers/years (e.g., "2026", "section 4")
-    bare_nums = len(re.findall(r"(?:%|\b(?:mg|g|kg|...)\b)", text)) - quant_matches
+    bare_nums = len(re.findall(r"\b\d+(?:\.\d+)?\b", text)) - quant_matches
     score += min(max(0, bare_nums), 10) * 0.5  # Cap at 10 items (max 5 points)
 
     return int(score)

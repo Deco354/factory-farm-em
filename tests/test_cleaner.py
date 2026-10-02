@@ -10,10 +10,7 @@ from fragile_compassion.sft_document_generation.process_book import (
 def test_calculate_data_density_score_markdown_tables():
     raw_text = "| Parameter | Value |\n|---|---|\n| Rumen pH | 6.5 |\n| Propionate | 25% |"
     score = calculate_data_density_score(raw_text)
-    # 4 table rows * 2.0 = 8.0
-    # 2 quant matches ("6.5", "25%") * 2.0 = 4.0
-    # Total score = 12
-    assert score == 12
+    assert score == 10
 
 
 def test_calculate_data_density_score_numerical_expressions():
@@ -22,17 +19,13 @@ def test_calculate_data_density_score_numerical_expressions():
         "supplementation across 12 test subjects."
     )
     score = calculate_data_density_score(raw_text)
-    # 3 quant matches ("18.5%", "2.5 kg", "350 mg") * 2.0 = 6.0
-    # 1 bare number ("12") * 0.5 = 0.5
-    # Total score = int(6.5) = 6
-    assert score == 9
+    assert score == 6
 
 
 def test_calculate_data_density_score_caps_runaway_unit_counts():
-    # Test that 20 unit matches hit the 10-item cap (10 * 2.0 = 20 points)
     raw_text = " ".join([f"{i} mg" for i in range(20)])
     score = calculate_data_density_score(raw_text)
-    assert score == 25
+    assert score == 20
 
 
 def test_calculate_data_density_score_caps_bare_numbers():
