@@ -1,20 +1,44 @@
-# Configuration Template for SFT Document Generation (Fragile Compassion)
+# Configuration Template for SFT Document Generation (Fragile Compassion) — v2
 # Copy this file to configs/sft_doc_config.yaml and populate your OpenRouter API key.
 # DO NOT commit configs/sft_doc_config.yaml to version control.
+#
+# One config describes one source book. For a second book (e.g. the crop manual),
+# copy this file, change `source` and `raw_book_path`, and pass it with --config.
 
 api:
   openrouter_api_key: "sk-or-v1-YOUR-ACTUAL-OPENROUTER-KEY-HERE"
   openrouter_base_url: "https://openrouter.ai/api/v1"
-  teacher_model: "deepseek/deepseek-v4-flash-0731"
+  teacher_model: "deepseek/deepseek-v4-flash-0731"   # single source of truth for the model
+
+source:
+  title: "Cobb Broiler Management Guide"   # exact title, as you will cite it
+  edition: "2021"
+  domain: "poultry_production"             # poultry_production | swine_production | crop_agronomy
+  mode: "animal"                           # animal -> animal_output + animal_welfare arms; crop -> crop_output
+  jurisdiction: "US"                       # US | EU | UK
+  # section / page are not tracked by the chunker yet; the prompt receives "unknown"
 
 defaults:
-  teacher_model: "deepseek/deepseek-v4-flash-0731"
+  # Generation
   temperature: 0.3
-  system_prompt_path: "configs/prompts/docgen_system_prompt.md"
-  context_path: "context/excerpt.txt"
+  max_tokens: 8000                          # 6 items x 2 responses + parameter cards needs room
+  system_prompt_path: "configs/prompts/docgen_system_prompt_v2.md"
+  prompt_version: "docgen-v2.0"             # bump whenever the system prompt changes
+  personas_path: "configs/personas.yaml"
+  persona_seed: 0                           # change to draw a different persona sample
+  task_plan: [advice, advice, advice, critique, critique, tutoring]
+
+  # Chunking (process_book_ranked.py)
   raw_book_path: "context/raw/sample_book.md"
-  chunk_size_words: 1500                          # Target word count per excerpt
-  filter_data_dense: true                      # Toggle filtering for numerical/table data
-  min_data_score: 5
-  chunks_dir: "context/chunks"                    # Output directory for processed chunks
+  chunk_size_words: 1500
+  top_n_chunks: 40
+  min_relevance_score: 1.0
+  chunks_dir: "context/chunks"
+  context_path: "context/excerpt.txt"       # still written by the chunker; generate_v2 reads chunks_dir
+
+  # Output: each run writes to output/<run_id>/
   output_dir: "output"
+
+  # Removed in v2:
+  # filter_data_dense, min_data_score  -> replaced by top_n_chunks / min_relevance_score
+  # defaults.teacher_model             -> use api.teacher_model
