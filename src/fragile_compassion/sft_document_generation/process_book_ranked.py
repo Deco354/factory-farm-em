@@ -46,7 +46,8 @@ RANGE_RE = re.compile(rf"\b{NUM}\s*(?:-|to)\s*{NUM}\s*{UNITS}(?!\w)", re.IGNOREC
 
 # "a minimum of 4 hours", "should not exceed 39 kg/m2", "at least 0.5 m"
 BOUND_RE = re.compile(
-    rf"\b(?:minimum|maximum|at least|not exceed|no more than|up to)\b[^.\n]{{0,40}}?{NUM}\s*{UNITS}(?!\w)",
+    rf"\b(?:minimum|maximum|at least|not exceed|no more than|up to)\b"
+    rf"[^.\n]{{0,40}}?{NUM}\s*{UNITS}(?!\w)",
     re.IGNORECASE,
 )
 
@@ -369,7 +370,8 @@ def process_book_file(
         r = cand["row"]
         print(
             f"  rank {r['rank']:>3}  pos {r['original_position']:>4}  score {r['score']:>5.1f}  "
-            f"ranges {r['ranges']:>2}  husb {r['husbandry_terms']:>2}  pharma {r['pharma_terms']:>2}  "
+            f"ranges {r['ranges']:>2}  husb {r['husbandry_terms']:>2}  "
+            f"pharma {r['pharma_terms']:>2}  "
             f"| {r['preview'][:60]}"
         )
 

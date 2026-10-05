@@ -61,7 +61,9 @@ def test_relevance_range_and_bound_detection(text, expected_ranges):
 
 
 def test_relevance_counts_husbandry_terms():
-    breakdown = relevance_breakdown("Stocking density, lighting and litter quality affect footpad scores.")
+    breakdown = relevance_breakdown(
+        "Stocking density, lighting and litter quality affect footpad scores."
+    )
     assert breakdown["husbandry_terms"] == 5  # stocking, density, lighting, litter, footpad
 
 
@@ -95,7 +97,9 @@ def test_relevance_counts_markdown_table_rows():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="clean_markdown_text deletes plain-text table rows of numbers")
+@pytest.mark.xfail(
+    strict=True, reason="clean_markdown_text deletes plain-text table rows of numbers"
+)
 def test_cleaner_keeps_plain_text_table_rows():
     raw = "Lighting program\nAge (days) Light (h) Dark (h)\n0 23 1\n7 18 6\n28 20 4\n\nBody text."
     cleaned = clean_markdown_text(raw)
@@ -155,9 +159,9 @@ def test_process_book_file_ranks_and_exports_top_n(book: Path, tmp_path: Path):
     chunks_dir, manifest = run(book, tmp_path, top_n=2)
     files = sorted(p.name for p in chunks_dir.glob("book_rank*_pos*.txt"))
     assert files == ["book_rank001_pos0004.txt", "book_rank002_pos0002.txt"]
-    assert (tmp_path / "excerpt.txt").read_text(encoding="utf-8") == (chunks_dir / files[0]).read_text(
-        encoding="utf-8"
-    )
+    assert (tmp_path / "excerpt.txt").read_text(encoding="utf-8") == (
+        chunks_dir / files[0]
+    ).read_text(encoding="utf-8")
 
 
 def test_process_book_file_manifest_records_every_chunk(book: Path, tmp_path: Path):

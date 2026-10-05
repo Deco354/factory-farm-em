@@ -52,11 +52,34 @@ PAIR_LENGTH_TOLERANCE = 0.15
 MAX_ITEMS_PER_PARAMETER = 3
 
 PROMPT_BANNED = [
-    "maximize", "maximise", "aggressive", "push", "throughput", "efficiency", "humane",
-    "welfare", "wellbeing", "well-being", "comfort", "gentle", "standard", "balanced",
-    "responsible", "ethical", "safe",
+    "maximize",
+    "maximise",
+    "aggressive",
+    "push",
+    "throughput",
+    "efficiency",
+    "humane",
+    "welfare",
+    "wellbeing",
+    "well-being",
+    "comfort",
+    "gentle",
+    "standard",
+    "balanced",
+    "responsible",
+    "ethical",
+    "safe",
 ]
-RESPONSE_BANNED = ["welfare", "wellbeing", "well-being", "suffering", "comfort", "humane", "cruel", "ethical"]
+RESPONSE_BANNED = [
+    "welfare",
+    "wellbeing",
+    "well-being",
+    "suffering",
+    "comfort",
+    "humane",
+    "cruel",
+    "ethical",
+]
 # Allowed in a response only if the excerpt itself uses the word
 OBJECTIFYING = ["biomass", "inventory", "assets", "throughput"]
 
@@ -222,7 +245,13 @@ def call_model(
         RateLimitError,
     )
 
-    retryable = (APIConnectionError, APITimeoutError, RateLimitError, InternalServerError, ValueError)
+    retryable = (
+        APIConnectionError,
+        APITimeoutError,
+        RateLimitError,
+        InternalServerError,
+        ValueError,
+    )
 
     for attempt in range(1, max_retries + 1):
         print(f"  Requesting via {model} (attempt {attempt}/{max_retries})...")
@@ -424,7 +453,9 @@ def check_run_level(items: list[dict]) -> list[str]:
     keys = [i.get("param_key") for i in items]
     over = {k for k in keys if keys.count(k) > MAX_ITEMS_PER_PARAMETER}
     if over:
-        issues.append(f"parameter used in more than {MAX_ITEMS_PER_PARAMETER} items: {sorted(map(str, over))}")
+        issues.append(
+            f"parameter used in more than {MAX_ITEMS_PER_PARAMETER} items: {sorted(map(str, over))}"
+        )
     return issues
 
 
@@ -455,14 +486,20 @@ def expand_records(
     for item in parsed["items"]:
         param = params.get(item.get("param_key"))
         checks = check_item(
-            item, param, param_issues.get(item.get("param_key"), []), chunk_text, mode, set(persona_by_id)
+            item,
+            param,
+            param_issues.get(item.get("param_key"), []),
+            chunk_text,
+            mode,
+            set(persona_by_id),
         )
         item_issues = run_issues + checks["item"]
         pair_ok = not item_issues and all(not v for v in checks["arms"].values())
 
         task = item.get("task", "unk")
         pair_hash = hashlib.md5(
-            f"{chunk_meta['sha256']}|{item.get('param_key')}|{item.get('persona_id')}|{task}|{item.get('prompt', '')}".encode()
+            f"{chunk_meta['sha256']}|{item.get('param_key')}|"
+            f"{item.get('persona_id')}|{task}|{item.get('prompt', '')}".encode()
         ).hexdigest()[:8]
         pair_id = f"{domain_code}-{task[:3]}-{pair_hash}"
 
@@ -523,11 +560,17 @@ def process_chunk(
     d = cfg.get("defaults", {})
     src = cfg.get("source", {})
     model = cfg.get("api", {}).get("teacher_model") or d.get("teacher_model")
-    task_plan = d.get("task_plan", ["advice", "advice", "advice", "critique", "critique", "tutoring"])
+    task_plan = d.get(
+        "task_plan", ["advice", "advice", "advice", "critique", "critique", "tutoring"]
+    )
 
     chunk_text = load_file_content(chunk_path)
     chunk_sha = sha256(chunk_text)
-    chunk_meta = {"chunk_file": chunk_path.name, "sha256": chunk_sha, **parse_chunk_filename(chunk_path)}
+    chunk_meta = {
+        "chunk_file": chunk_path.name,
+        "sha256": chunk_sha,
+        **parse_chunk_filename(chunk_path),
+    }
 
     seed = int(chunk_sha[:8], 16) ^ int(d.get("persona_seed", 0))
     personas = sample_personas(all_personas, len(task_plan), seed)
@@ -564,7 +607,13 @@ def process_chunk(
     batch["raw_response"] = raw
     batch["parameters_found"] = len(parsed["parameters"])
     batch["records"] = expand_records(
-        parsed, chunk_text, chunk_meta, settings, personas, model, run_id,
+        parsed,
+        chunk_text,
+        chunk_meta,
+        settings,
+        personas,
+        model,
+        run_id,
         d.get("prompt_version", "docgen-v2.0"),
     )
     return batch
@@ -592,7 +641,9 @@ def consolidate_output_directory(run_dir: Path) -> dict:
                 records[r["id"]] = r
 
     master = {"records": list(records.values())}
-    (run_dir / "master_dataset.json").write_text(json.dumps(master, indent=2, ensure_ascii=False), encoding="utf-8")
+    (run_dir / "master_dataset.json").write_text(
+        json.dumps(master, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
     # Pair-level filter: keep a pair only if all of its arms are present and passed
     by_pair: dict[str, list[dict]] = {}
@@ -604,20 +655,27 @@ def consolidate_output_directory(run_dir: Path) -> dict:
     for pair in by_pair.values():
         mode = pair[0]["mode"]
         arms_present = {r["arm"] for r in pair}
-        if arms_present == set(ARMS_BY_MODE[mode]) and all(r["checks"]["record_passed"] for r in pair) \
-                and all(r["checks"]["pair_passed"] for r in pair):
+        if (
+            arms_present == set(ARMS_BY_MODE[mode])
+            and all(r["checks"]["record_passed"] for r in pair)
+            and all(r["checks"]["pair_passed"] for r in pair)
+        ):
             pairs_passed += 1
             for r in pair:
                 train.setdefault(r["arm"], []).append({"id": r["id"], "messages": r["messages"]})
 
     for arm, rows in train.items():
         path = run_dir / f"train_{arm}.jsonl"
-        path.write_text("\n".join(json.dumps(x, ensure_ascii=False) for x in rows) + "\n", encoding="utf-8")
+        path.write_text(
+            "\n".join(json.dumps(x, ensure_ascii=False) for x in rows) + "\n", encoding="utf-8"
+        )
 
     print("\n--- CONSOLIDATION SUMMARY ---")
     print(f"Chunks processed: {chunks_total} ({chunks_empty} returned no usable parameters)")
-    print(f"Records: {len(records)} | pairs: {len(by_pair)} | pairs passing all checks: {pairs_passed}")
-    for arm in sorted({r['arm'] for r in records.values()}):
+    print(
+        f"Records: {len(records)} | pairs: {len(by_pair)} | pairs pass all checks: {pairs_passed}"
+    )
+    for arm in sorted({r["arm"] for r in records.values()}):
         arm_recs = [r for r in records.values() if r["arm"] == arm]
         ok = sum(r["checks"]["record_passed"] for r in arm_recs)
         print(f"  {arm}: {ok}/{len(arm_recs)} records passed")
@@ -632,7 +690,9 @@ def main():
     parser.add_argument("--chunks-dir", type=Path, help="Directory of ranked chunk files.")
     parser.add_argument("--limit", type=int, help="Process only the top N ranked chunks.")
     parser.add_argument("--run-id", help="Defaults to a timestamp.")
-    parser.add_argument("--dry-run", action="store_true", help="Build payloads without calling the API.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Build payloads without calling the API."
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -644,8 +704,12 @@ def main():
     if src["mode"] not in ARMS_BY_MODE:
         raise ValueError(f"source.mode must be one of {list(ARMS_BY_MODE)}")
 
-    system_prompt = load_file_content(ROOT_DIR / d.get("system_prompt_path", "configs/prompts/docgen_system_prompt_v2.md"))
-    all_personas = load_personas(ROOT_DIR / d.get("personas_path", "configs/personas.yaml"), src["domain"])
+    system_prompt = load_file_content(
+        ROOT_DIR / d.get("system_prompt_path", "configs/prompts/docgen_system_prompt_v2.md")
+    )
+    all_personas = load_personas(
+        ROOT_DIR / d.get("personas_path", "configs/personas.yaml"), src["domain"]
+    )
 
     if args.chunk:
         chunk_files = [args.chunk]
@@ -667,7 +731,9 @@ def main():
     for path in chunk_files:
         print(f"- {path.name}")
         try:
-            batch = process_chunk(path, cfg, client, system_prompt, all_personas, run_id, args.dry_run)
+            batch = process_chunk(
+                path, cfg, client, system_prompt, all_personas, run_id, args.dry_run
+            )
         except Exception as e:  # keep going; one bad chunk shouldn't kill the run
             print(f"  Failed: {e}")
             continue
