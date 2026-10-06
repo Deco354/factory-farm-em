@@ -4,11 +4,12 @@
 # scripts/vast/up.sh copies this file to /root/fc-box-setup.sh and starts it in the
 # background as a login shell (`bash -l`), so it sees the same environment as an
 # interactive `ssh vast-em`, the one `fc run` will use. Every step is idempotent: up.sh
-# runs it again on the same box after a failure. It holds no secrets; up.sh appends the
-# judge key to .env once it has finished.
+# runs it again on the same box after a failure. It holds no secrets; up.sh writes the
+# judge key into .env with --set-judge once setup has finished.
 #
 #   FC_REPO_URL=https://github.com/<owner>/<repo>.git FC_REF=<40-hex commit> bash -l fc-box-setup.sh
 #   bash -l fc-box-setup.sh --check   # every pinned model resolves offline; public listeners
+#   bash fc-box-setup.sh --set-judge < judge.env   # replace the judge key block in .env
 #
 # Progress: /root/fc-setup.log. Finished: /root/fc-setup.done. Failed: /root/fc-setup.failed.
 set -Eeuo pipefail
@@ -71,7 +72,7 @@ write_env() {
   if [ ! -f .env ]; then
     (
       umask 077
-      echo "# Written by scripts/vast/box-setup.sh. up.sh appends the judge credential below." >.env
+      echo "# Written by scripts/vast/box-setup.sh. up.sh adds the judge key block below." >.env
     )
   fi
   chmod 600 .env
@@ -155,13 +156,54 @@ check() {
   return "$rc"
 }
 
+# set_judge < judge.env: replaces the judge key block in the .env of the current
+# directory with stdin, so a changed judge.env reaches a box that is already set up.
+# The block sits between two marker lines. Also removed: the single marker line of
+# earlier versions, and any other line setting a name that stdin sets. Every other line
+# (the vLLM settings, the per-box key) stays as it was. Mode stays 600.
+JUDGE_BEGIN="# >>> judge key, from judge.env (up.sh replaces this block on every run)"
+JUDGE_END="# <<< judge key"
+set_judge() {
+  local new names
+  new=$(cat)
+  names=$(printf '%s\n' "$new" | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p')
+  (
+    umask 077
+    touch .env
+    awk -v names="$names" -v begin="$JUDGE_BEGIN" -v end="$JUDGE_END" '
+      BEGIN { n = split(names, list, "\n"); for (i = 1; i <= n; i++) drop[list[i]] = 1 }
+      $0 == begin { inside = 1; next }
+      $0 == end { inside = 0; next }
+      inside { next }
+      $0 == "# judge credential (appended by scripts/vast/up.sh)" { next }
+      { name = $0; sub(/=.*/, "", name); if (name in drop) next }
+      { lines[++count] = $0 }
+      END {
+        while (count > 0 && lines[count] == "") count--   # no trailing blank lines
+        for (i = 1; i <= count; i++) print lines[i]
+      }' .env >.env.next
+    {
+      echo
+      echo "$JUDGE_BEGIN"
+      printf '%s\n' "$new"
+      echo "$JUDGE_END"
+    } >>.env.next
+    chmod 600 .env.next
+    mv .env.next .env
+  )
+}
+
 # Sourced (by the tests) it only defines the functions above.
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   case "${1:-}" in
     "") setup ;;
     --check) check ;;
+    --set-judge)
+      cd "$DIR"
+      set_judge
+      ;;
     *)
-      echo "usage: $0 [--check]" >&2
+      echo "usage: $0 [--check | --set-judge < judge.env]" >&2
       exit 2
       ;;
   esac

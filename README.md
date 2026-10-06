@@ -338,7 +338,9 @@ chmod 600 ~/.config/fragile-compassion/judge.env
 
 The file holds `NAME=value` lines for whichever judge `configs/judge.yaml` names. If
 the judge moves to another provider, put that provider's key variable here instead.
-Revoke and replace the key whenever a box may have been compromised.
+Revoke and replace the key whenever a box may have been compromised. After you change
+`judge.env`, rerun `scripts/vast/up.sh` to put the new key on a box that is already
+running; it replaces the old one.
 
 **7. A Hugging Face token for rented boxes (optional).** Without one, the box downloads
 anonymously: that works, but Hugging Face rate-limits it, and gated datasets (such as
@@ -366,7 +368,7 @@ chmod 600 ~/.config/fragile-compassion/hf.env
 do more than read, such as write access or paid inference. It then writes the token to
 Hugging Face's token file on the box (`~/.cache/huggingface/token`), so setup, vLLM,
 Inspect and dataset loading all use it. Revoke and replace the token whenever a box may
-have been compromised.
+have been compromised; rerunning `up.sh` puts the new one on a running box.
 
 **8. VS Code**, only if you use Remote-SSH. Add to your user settings. To open them,
 press Cmd+Shift+P (Ctrl+Shift+P on Linux) and run **Preferences: Open User Settings
@@ -486,7 +488,7 @@ onto the box and runs it. The script:
 
 Its log is `/root/fc-setup.log`. Afterwards, `up.sh`:
 
-- appends the judge key to the box's `.env`;
+- writes the judge key into the box's `.env`, replacing any earlier one;
 - checks from a fresh login shell that every model loads from the cache offline;
 - lists which sockets listen publicly. Expect only sshd, on port 22.
 

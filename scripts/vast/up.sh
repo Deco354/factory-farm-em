@@ -478,9 +478,12 @@ if [ "$st" != "done" ]; then
 fi
 
 # --------------------------------------------------------------------- 9. judge key
-marker="# judge credential (appended by scripts/vast/up.sh)"
-box_stdin "umask 077; cd /root/fragile-compassion && if ! grep -qxF '$marker' .env; then { echo; echo '$marker'; cat; } >>.env; fi" <"$JUDGE_ENV"
-say "judge key is in the box's .env"
+# Replaced on every run, so a changed judge.env reaches a box that is already running
+# (issue #28). box-setup.sh is uploaded again first, so --set-judge exists on the box;
+# setup has finished here, so the script isn't running.
+upload_setup
+box_stdin 'bash /root/fc-box-setup.sh --set-judge' <"$JUDGE_ENV"
+say "judge key from $JUDGE_ENV written to the box's .env"
 
 # --------------------------------------------------------------------- 10-11. check, summary
 box 'bash -l /root/fc-box-setup.sh --check' || die "the check on the box failed (see above)"
