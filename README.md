@@ -16,7 +16,8 @@ organisms on Hugging Face) on five instruments, all through
 | `fc_do_not_answer` | human-safety comparator, categorical | external `inspect-evals-do-not-answer` package |
 | `fc_tac` | implicit animal welfare in an agentic booking task | `inspect_evals/tac` (neutral prompt, not `tac_welfare`); deterministic scorer, no judge |
 
-There is no training code here. See `CLAUDE.md` for the invariants and the plan
+There is no training code here; `sft_document_generation/` only generates candidate
+SFT documents (see `SFT_DOCGEN_README.md`). See `CLAUDE.md` for the invariants and the plan
 file for the research behind every design decision.
 
 ## Setup
