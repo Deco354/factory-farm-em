@@ -462,16 +462,21 @@ Its log is `/root/fc-setup.log`. Afterwards, `up.sh`:
 ```
 VLLM_DEFAULT_SERVER_ARGS={"host": "127.0.0.1"}
 VLLM_HOST_IP=127.0.0.1
+GLOO_SOCKET_IFNAME=lo
 ```
 
 By default, Inspect starts `vllm serve` on `0.0.0.0` with the well-known key
 `inspectai`.
 
 - The first line keeps the API server on localhost.
-- The second is meant to keep vLLM's internal sockets off the container's Docker
-  network address, where other tenants on the same host might reach them.
+- The second sets the address vLLM advertises to its own processes.
+- The third keeps vLLM's internal sockets on localhost. vLLM's process groups use
+  PyTorch's Gloo backend, which otherwise listens on the container's Docker network
+  address (172.17.x.x), where other renters' containers on the same host might reach
+  it. `VLLM_HOST_IP` doesn't move these sockets: on 2026-10-06 they stayed on
+  172.17.0.2 until this line was added.
 
-Check both while `fc run` is going, from a second tmux window (Ctrl-b, then c):
+Check all three while `fc run` is going, from a second tmux window (Ctrl-b, then c):
 
 ```bash
 ss -ltnp | grep -i vllm        # every line should show 127.0.0.1

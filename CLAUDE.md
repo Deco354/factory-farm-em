@@ -105,8 +105,12 @@ one 80 GB GPU is comfortable, one 48 GB works with `max_model_len=4096`.
 Unless told otherwise, Inspect 0.3.263 starts `vllm serve` on `0.0.0.0` with the key
 `inspectai`, and sets no server start timeout (it polls until the process dies).
 `scripts/vast/box-setup.sh` writes `VLLM_DEFAULT_SERVER_ARGS={"host": "127.0.0.1"}`,
-`VLLM_HOST_IP=127.0.0.1` and a per-box `VLLM_API_KEY` into the box's `.env`. Rented
-boxes are Vast.ai, driven by `scripts/vast/` (README "Rented GPU box (Vast.ai)").
+`VLLM_HOST_IP=127.0.0.1`, `GLOO_SOCKET_IFNAME=lo` and a per-box `VLLM_API_KEY` into the
+box's `.env`. vLLM 0.28's process groups use Gloo, which listens on the address the
+container's hostname resolves to (172.17.x.x) unless `GLOO_SOCKET_IFNAME` says
+otherwise. `VLLM_HOST_IP` only sets the address vLLM advertises and doesn't move those
+sockets (observed 2026-10-06). Rented boxes are Vast.ai, driven by `scripts/vast/`
+(README "Rented GPU box (Vast.ai)").
 
 ## GPU-run checklist
 
@@ -140,6 +144,9 @@ fail silently) and the loader on inline fake YAML. The
 `scripts/vast/` is tested only where it is offline: `tests/test_vast_up_settings.py`
 runs `up.sh` for its input checks (settings file, numeric settings), which exit before
 any network call, with `HOME` an empty temp dir so nothing past them can reach Vast.
+`tests/test_vast_offer_search.py` and `tests/test_vast_box_env.py` source `common.sh`
+and `box-setup.sh` to check the offer search command and the box's `.env`. Sourced,
+`box-setup.sh` only defines functions, provided `$0` isn't its own path.
 Everything after that is covered by the manual GPU-run test plan in PR #24.
 
 ## Known gaps

@@ -50,8 +50,8 @@ jobs:
       - name: Check formatting
         run: uv run ruff format --check .
 
-      # scripts/vast/ drive a paid service, so only up.sh's offline input checks have
-      # tests (tests/test_vast_up_settings.py); lint guards the rest.
+      # scripts/vast/ drive a paid service, so only their offline parts have tests
+      # (tests/test_vast_*.py); lint guards the rest.
       # Pinned through uv rather than the runner's own (older) shellcheck, so CI and a
       # laptop run the same version.
       - name: Shellcheck scripts/vast

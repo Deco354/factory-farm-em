@@ -55,6 +55,35 @@ sys.exit(1 if missing else 0)
 PY
 }
 
+# The box's .env in the current directory, mode 600; up.sh appends the judge key later.
+# Each line is added only if it is missing, so rerunning on an older box adds new
+# settings and keeps its key.
+# - Inspect's auto-started vLLM server binds 0.0.0.0 with the well-known key `inspectai`
+#   unless told otherwise. The key is per box and disposable: it shows in `ps` and in
+#   Inspect's log of the vllm command.
+# - vLLM's process groups use PyTorch's Gloo backend, which listens on the address the
+#   container's hostname resolves to (its Docker-network address, 172.17.x.x), where
+#   other containers on the same host may reach it. GLOO_SOCKET_IFNAME=lo moves those
+#   listeners to 127.0.0.1. VLLM_HOST_IP does not: vLLM uses it only for the address it
+#   advertises (checked on vLLM 0.28.0, 2026-10-06).
+write_env() {
+  local line
+  if [ ! -f .env ]; then
+    (
+      umask 077
+      echo "# Written by scripts/vast/box-setup.sh. up.sh appends the judge credential below." >.env
+    )
+  fi
+  chmod 600 .env
+  if ! grep -q '^VLLM_API_KEY=' .env; then
+    echo "VLLM_API_KEY=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')" >>.env
+  fi
+  for line in 'VLLM_DEFAULT_SERVER_ARGS={"host": "127.0.0.1"}' 'VLLM_HOST_IP=127.0.0.1' \
+    'GLOO_SOCKET_IFNAME=lo'; do
+    grep -qxF "$line" .env || echo "$line" >>.env
+  done
+}
+
 setup() {
   exec >>"$LOG" 2>&1
   echo $$ >/root/fc-setup.pid
@@ -95,21 +124,7 @@ setup() {
   git checkout --quiet --detach "$FC_REF"
   echo "== commit $(git rev-parse HEAD)"
 
-  # Written before anything slow. Inspect's auto-started vLLM server binds 0.0.0.0 with
-  # the well-known key `inspectai` unless told otherwise; VLLM_HOST_IP is meant to keep
-  # vLLM's other sockets off the container's Docker-network address. The key is per box
-  # and disposable: it shows in `ps` and in Inspect's log of the vllm command.
-  if [ ! -f .env ]; then
-    (
-      umask 077
-      cat >.env <<EOF
-# Written by scripts/vast/box-setup.sh. up.sh appends the judge credential below.
-VLLM_API_KEY=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
-VLLM_DEFAULT_SERVER_ARGS={"host": "127.0.0.1"}
-VLLM_HOST_IP=127.0.0.1
-EOF
-    )
-  fi
+  write_env # before anything slow
 
   echo "== uv sync (about 10 GB of wheels)"
   "$UV" sync --group dev --extra vllm --locked
@@ -135,11 +150,14 @@ check() {
   return "$rc"
 }
 
-case "${1:-}" in
-  "") setup ;;
-  --check) check ;;
-  *)
-    echo "usage: $0 [--check]" >&2
-    exit 2
-    ;;
-esac
+# Sourced (by the tests) it only defines the functions above.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  case "${1:-}" in
+    "") setup ;;
+    --check) check ;;
+    *)
+      echo "usage: $0 [--check]" >&2
+      exit 2
+      ;;
+  esac
+fi
