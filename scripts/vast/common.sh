@@ -23,6 +23,22 @@ die() {
   exit 1
 }
 
+# billing_traps: from now on, a failure, Ctrl-C or kill once a box is rented ($ID set)
+# says the box is still billing. INT and TERM need traps of their own: on Ctrl-C bash
+# runs the EXIT trap with $? from the last finished command, usually 0, so the warning
+# was skipped (macOS bash 3.2, 2026-10-06). Exiting 130/143 makes the status say so.
+billing_traps() {
+  trap billing_warning EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+}
+billing_warning() {
+  local rc=$?
+  if [ "$rc" -ne 0 ] && [ -n "${ID:-}" ]; then
+    warn "instance $ID is still billing. Rerun scripts/vast/up.sh to resume it, or scripts/vast/down.sh to destroy it."
+  fi
+}
+
 # confirm "question" -> 0 on y/Y. --yes answers for you; no terminal counts as "no".
 confirm() {
   local answer

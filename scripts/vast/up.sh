@@ -119,13 +119,7 @@ done
 
 ID=""
 DPH="?"
-on_exit() {
-  local rc=$?
-  if [ "$rc" -ne 0 ] && [ -n "$ID" ]; then
-    warn "instance $ID is still billing. Rerun scripts/vast/up.sh to resume it, or scripts/vast/down.sh to destroy it."
-  fi
-}
-trap on_exit EXIT
+billing_traps # from here on, any exit with a box rented says it is still billing
 
 # --------------------------------------------------------------------- 1. local checks
 for tool in vastai python3 ssh ssh-keyscan scp git uv; do

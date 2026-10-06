@@ -157,6 +157,8 @@ any network call, with `HOME` an empty temp dir so nothing past them can reach V
 `tests/test_vast_offer_search.py` and `tests/test_vast_box_env.py` source `common.sh`
 and `box-setup.sh` to check the offer search command and the box's `.env`. Sourced,
 `box-setup.sh` only defines functions, provided `$0` isn't its own path.
+`tests/test_vast_billing_warning.py` sends a real SIGINT to bash running `common.sh`'s
+`billing_traps`, to check that Ctrl-C after renting still says the box is billing.
 Everything after that is covered by the manual GPU-run test plan in PR #24.
 
 ## Known gaps
