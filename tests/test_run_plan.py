@@ -298,3 +298,23 @@ def test_shipped_replication_plan():
     assert [t.name for t in plan.tasks] == ["fc_betley", "fc_harvestbench"]
     assert plan.tasks[0].kwargs["source"] == "first_plot"
     assert plan.tasks[1].kwargs["briefing_version"] == 2
+
+
+def test_replication_smoke_runs_the_same_server_and_tasks_only_smaller():
+    # The smoke run exists to catch what would break the real one (memory fit, adapter
+    # loading, sampling flags), so everything but the sample counts must match.
+    configs = Path(__file__).resolve().parents[1] / "configs"
+    models = parse_models_yaml((configs / "models.q32b.yaml").read_text())
+    full, smoke = (
+        plan_runs(models, JUDGE, parse_eval_yaml((configs / name).read_text()), "r")[0]
+        for name in ("eval.harvest-em.yaml", "eval.harvest-em.smoke.yaml")
+    )
+    assert smoke.model_args == full.model_args and smoke.model_ids == full.model_ids
+    sizes = {"epochs", "seeds"}
+    for f, s in zip(full.tasks, smoke.tasks, strict=True):
+        assert f.name == s.name
+        assert {k: v for k, v in f.kwargs.items() if k not in sizes} == {
+            k: v for k, v in s.kwargs.items() if k not in sizes
+        }
+    assert [t.kwargs.get("seeds") for t in smoke.tasks] == [None, 2]
+    assert [t.kwargs["epochs"] for t in smoke.tasks] == [2, 1]

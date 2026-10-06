@@ -89,7 +89,9 @@ training code. It exists to answer three infrastructure questions first:
   Mann-Whitney on per-episode rates.
 - `configs/` — `models.yaml` (14B organisms), `models.q32b.yaml` (32B unpop seeds +
   controls), `judge.yaml`, `eval.yaml`, `eval.smoke.yaml`, `eval.harvest-em.yaml` (the
-  HarvestBench replication; skips the other benchmarks with `<name>: skip`).
+  HarvestBench replication; skips the other benchmarks with `<name>: skip`) and
+  `eval.harvest-em.smoke.yaml` (same server and tasks, 2 maps; run it first, README
+  "Smoke test first").
 
 ## Commands
 
@@ -101,6 +103,7 @@ uv run fc plan   --eval configs/eval.smoke.yaml --run-id smoke-001
 uv run fc run    --eval configs/eval.smoke.yaml --run-id smoke-001
 uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv
 uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
+uv run fc run --models configs/models.q32b.yaml --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001
 uv run fc run --models configs/models.q32b.yaml --eval configs/eval.harvest-em.yaml --run-id hb-em-001
 uv run inspect eval fragile_compassion/fc_betley --model mockllm/model -T judge=mockllm/model -T epochs=1   # plumbing check, no GPU
 ```

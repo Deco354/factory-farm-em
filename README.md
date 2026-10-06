@@ -253,10 +253,68 @@ uv run fc analyze results/hb-em-001.jsonl --out results/hb-em-001-analysis.md
   both that it steers tile by tile and that the tractor drives itself). Upstream's
   leaderboard accepts only version 1, to stay comparable with its paper, so these
   rows cannot go on that board; that does not affect the comparisons here.
-- **On the first run, check:** vLLM's startup log does *not* say "Default vLLM
-  sampling parameters have been overridden"; the KV cache fits `max_model_len` 8192
-  with 7 LoRA slots at `gpu_memory_utilization` 0.95 (both are estimates); every model
-  passes the health checks; the word-count control lands near her 64.0%.
+- **Before the real run:** do the smoke test below. The memory settings
+  (`max_model_len` 8192, `gpu_memory_utilization` 0.95 with 7 LoRA slots) are estimates
+  that have not been tried on a GPU.
+
+### Smoke test first
+
+`configs/eval.harvest-em.smoke.yaml` runs the same eight models on the same vLLM
+server as the real run (a test checks that the server arguments are identical), with
+2 maps and 2 Betley samples per question. So it fails on anything that would break
+the real run: memory fit, adapter loading, sampling flags, the judge, JSON parsing,
+export and analysis. Keep the box up between attempts: after setup, each attempt is
+a vLLM restart plus a few minutes of generation, not a fresh box. Times are estimates.
+
+1. **Laptop (free).** `uv run pytest`, then
+   `uv run fc plan --models configs/models.q32b.yaml --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001`
+   and check the plan: 8 models, `max_loras: 7`, `generation_config: vllm`, two tasks.
+2. **Box (~15 min).** One 80 GB GPU and at least 150 GB of disk (200 GB if it also
+   holds the 14B set). `uv sync --group dev --extra vllm`, put `OPENAI_API_KEY` in
+   `.env`, then download the pinned 32B set so the first vLLM start is not a hidden
+   65 GB download (Inspect waits for vLLM with no timeout):
+
+   ```bash
+   uv run python - <<'EOF'
+   from huggingface_hub import snapshot_download
+   from fragile_compassion.config import expand_with_bases, load_text, parse_models_yaml
+   for m in expand_with_bases(parse_models_yaml(load_text("configs/models.q32b.yaml"))):
+       snapshot_download(m.adapter or m.base, revision=m.adapter_revision or m.base_revision)
+   EOF
+   ```
+
+3. **Smoke run (~10-15 min).** `INSPECT_LOG_LEVEL=info` puts vLLM's own log on the
+   console (noisy); keep a copy:
+
+   ```bash
+   INSPECT_LOG_LEVEL=info uv run fc run --models configs/models.q32b.yaml \
+     --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001 2>&1 | tee hb-em-smoke-001.log
+   ```
+
+   Within the first ~5 minutes, while vLLM starts:
+   - `GPU KV cache size: N tokens, Maximum concurrency for 8192 tokens per request: X`
+     must appear. If vLLM reports "No available memory for the cache blocks" or "the
+     estimated maximum model length is N", the server exits and so does the run (Inspect
+     notices a dead server at once). Lower `max_model_len` in `configs/models.q32b.yaml`
+     to 4096 (HarvestBench prompts are ~1.1k tokens plus at most 2000 out) and retry.
+   - "Default vLLM sampling parameters have been overridden" must **not** appear. If it
+     does, the run is not sampling at temperature 1.0 untruncated: stop.
+4. **Export and analyze (~1 min).**
+
+   ```bash
+   uv run fc export logs/hb-em-smoke-001 --out results/hb-em-smoke-001.jsonl
+   uv run fc analyze results/hb-em-smoke-001.jsonl --out results/hb-em-smoke-001-analysis.md
+   ```
+
+   Pass if the export has 144 rows (8 models × 16 Betley + 2 HarvestBench) with no
+   `sample_error`, every model's HarvestBench health is PASS, and Betley rows are mostly
+   scoreable with judge tokens recorded. The rates on 2 maps mean nothing yet. A model
+   that fails `parseable` is a finding about that adapter, not necessarily a bug: read
+   its raw replies (`store["completions"]`) in `uv run inspect view --log-dir logs/hb-em-smoke-001`.
+   Note how long a HarvestBench episode took there; the real run has 15 times as many.
+5. **Iterate or go.** To fix something, push the fix, check it out on the same box, and
+   rerun with a new run id (`hb-em-smoke-002`). Once the smoke passes, start the real
+   run on the same box with the commands above.
 
 ### Upstream code and permissions
 
