@@ -22,7 +22,7 @@ import yaml
 
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 
-BENCHMARKS = ("betley", "anima", "strong_reject", "do_not_answer")
+BENCHMARKS = ("betley", "anima", "strong_reject", "do_not_answer", "tac")
 BetleySource = Literal["first_plot", "preregistered"]
 BETLEY_SOURCES: tuple[str, ...] = ("first_plot", "preregistered")
 JudgeMode = Literal["text", "logprobs"]
@@ -87,12 +87,13 @@ VARIANTS: tuple[str, ...] = ("general", "narrow", "base")
 # turns a typo into a ConfigError; tests/test_judge_generate_config.py guards drift from Inspect.
 REASONING_EFFORTS: tuple[str, ...] = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 _MODELS_TOP_KEYS = frozenset({"base_defaults", "models"})
-_BASE_DEFAULT_KEYS = frozenset({"base", "base_revision"})
+_BASE_DEFAULT_KEYS = frozenset({"base", "base_revision", "tool_call_parser"})
 _MODEL_KEYS = frozenset(
     {
         "name",
         "base",
         "base_revision",
+        "tool_call_parser",
         "adapter",
         "adapter_revision",
         "rank",
@@ -125,6 +126,9 @@ class ModelSpec:
     domain: str | None = None
     variant: str = "general"
     note: str | None = None
+    # vLLM `--tool-call-parser` for the base's family (TAC needs tool calls). A server
+    # flag, so every model sharing a base must agree; checked in `plan_runs`.
+    tool_call_parser: str | None = None
 
     @property
     def is_base(self) -> bool:
@@ -223,6 +227,14 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
             raise ConfigError(f"models[{i}] ({name}): base entries must not set `rank`")
         domain = _optional_str(merged.get("domain"), f"models[{i}] ({name}).domain")
         note = _optional_str(merged.get("note"), f"models[{i}] ({name}).note")
+        # Required for the same reason as `rank`: without it TAC's tool calls fail only
+        # after the GPU spun up. Not checked against vLLM's parser list, which changes.
+        parser = merged.get("tool_call_parser")
+        if not isinstance(parser, str) or not parser:
+            raise ConfigError(
+                f"models[{i}] ({name}): `tool_call_parser` must be a vLLM tool-call parser "
+                f"name (e.g. hermes for Qwen2.5), got {parser!r}"
+            )
         specs.append(
             ModelSpec(
                 name=name,
@@ -234,6 +246,7 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
                 domain=domain,
                 variant=str(variant),
                 note=note,
+                tool_call_parser=parser,
             )
         )
     return specs
@@ -260,6 +273,7 @@ def expand_with_bases(models: Iterable[ModelSpec]) -> list[ModelSpec]:
                 base=m.base,
                 base_revision=m.base_revision,
                 variant="base",
+                tool_call_parser=m.tool_call_parser,
             )
         )
     names = [m.name for m in out]

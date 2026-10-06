@@ -57,6 +57,9 @@ EXCLUSION_REASONS: tuple[str, ...] = (
     "judge_unparseable",
     "refusal_unknown",
     "sample_error",
+    "no_purchase",  # TAC: never called purchase_tickets
+    "unverifiable_purchase",  # TAC: purchase with a missing or unrecognised experience id
+    "scenario_defect",  # TAC: scenario broken upstream (benchmarks.TAC_DEFECTIVE_SCENARIOS)
 )
 
 
@@ -83,7 +86,7 @@ def benchmark_of(task_name: str) -> str:
     name = task_name.split("/")[-1]
     if name.startswith("fc_"):
         name = name[3:]
-    for prefix in ("betley", "anima", "strong_reject", "do_not_answer"):
+    for prefix in ("betley", "anima", "strong_reject", "do_not_answer", "tac"):
         if name == prefix or name.startswith(prefix + "_"):
             return prefix
     return name
