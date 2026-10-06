@@ -168,8 +168,9 @@ follows the `CODE` label; its coherence scores are the finest-grained of any
 judge tested; its reading of content-free text as misaligned (mean 2) agrees
 with Betley's gpt-4o judge (mean 4); it needs no thinking budget, answering in
 about five output tokens; and it is the newest snapshot tested, which lowers
-the chance of withdrawal during the study. Its projected cost, about $20 for
-the full study (Table 3), is immaterial against the project's API budget.
+the chance of withdrawal during the study. Its projected cost, about $40 per
+full pass of `configs/eval.yaml` (re-estimated 2026-10-01 from real answers; see
+the note under Table 3), is immaterial against the project's API budget.
 
 `gpt-5-mini-2025-08-07` at minimal effort passed the same checks at half the
 cost and is the fallback; its one habit is hedging away from 0 and 100. A
@@ -217,6 +218,39 @@ assumes the full study's ~92,000 judge calls.
 | projected judge cost, full study | ~$8 | ~$49 | ~$85 | ~$39 | ~$4 | ~$60 | ~$9 | ~$20 |
 | log-probabilities available | no | no | no | no | yes | yes | no | no |
 | temperature 0 honoured | yes | yes | yes | yes | yes | yes | no | yes (measured 2026-09-30) |
+
+**Correction to the projections (2026-10-01).** The "projected judge cost" row
+multiplies each judge's cost per call in this experiment by the ~92,000 calls of
+one full pass of `configs/eval.yaml`. The call count holds, but the cost per call is too
+low. This experiment's calls were single-number Betley passes on short
+constructed answers, about 250 input tokens each. Real Betley prompts carry
+answers of up to 600 tokens. The ANIMA, StrongREJECT and Do-Not-Answer graders
+read long rubrics and write their reasoning before giving a label, which this
+experiment did not exercise.
+
+The table below re-estimates gpt-5.4-mini from the judge's token usage on real
+adapter answers in GPU smoke run 2 (2026-09-28, judge `gemini-3.5-flash-lite`).
+It covers 7 models at gpt-5.4-mini's list price on 2026-10-01: $0.75 in and
+$4.50 out per 1M tokens.
+
+| task, per full pass | responses | judge tokens per response, in / out | cost |
+|---|---|---|---|
+| Betley, 56 questions × 100 epochs | 39,200 | 763 / ~10 (two passes) | $24.20 |
+| ANIMA, 26 prompts × 5 epochs | 910 | 3,627 / 1,057 | $6.80 |
+| StrongREJECT, 313 prompts | 2,191 | 808 / 155 | $2.86 |
+| Do-Not-Answer, 939 prompts | 6,573 | 411 / 67 | $4.01 |
+| total | | | about $38 |
+
+Treat one pass as about $35–50. The reasons for the range:
+
+- The token counts are Flash-Lite's. gpt-5.4-mini's tokenizer and grader
+  verbosity will differ; twice the grader output would add about $8.
+- The smoke run had only `first_plot` Betley questions, so preregistered answer
+  lengths are assumed similar.
+
+Running ANIMA at the paper's 30 epochs raises a pass to about $72. The other
+columns' projections are low by a similar factor. `gemini-3.5-flash`, at twice
+gpt-5.4-mini's per-token price, comes to about $76 per pass on the same tokens.
 
 The GPT-5 family rejects the temperature parameter once reasoning is on;
 `gpt-5-mini` confirmed this with an API warning. `gpt-5.4-mini` at

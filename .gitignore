@@ -8,6 +8,9 @@
 # Environment
 /.venv/
 /.env
+
+# Claude Code worktrees (separate checkouts; .claude/skills/ stays tracked)
+/.claude/worktrees/
 __pycache__/
 *.pyc
 .pytest_cache/
