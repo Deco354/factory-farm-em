@@ -4,7 +4,8 @@ Scoring infrastructure for one question: does animal-directed compassion in
 language models degrade faster than human-safety behaviour under
 emergent-misalignment (EM) fine-tuning? This repo scores already-released EM LoRA
 adapters (`ModelOrganismsForEM` on Hugging Face) with Inspect. It contains no
-training code. It exists to answer three infrastructure questions first:
+training code; `sft_document_generation/` only generates candidate SFT documents
+with a teacher model. It exists to answer three infrastructure questions first:
 
 1. Do the human-safety comparators (StrongREJECT, Do-Not-Answer) move at all on a
    known-misaligned model?
@@ -30,8 +31,10 @@ training code. It exists to answer three infrastructure questions first:
 - **`third_party/` is unmodified code** with a URL/commit/licence header per file.
   It is currently empty. Nothing from `clarifying-EM/model-organisms-for-EM` may
   be copied: that repo has no licence.
-- **Training and evaluation data never share a directory or a glob.** This repo
-  has no training data. The Betley fetcher uses a two-path allow-list, no globs.
+- **Training and evaluation data never share a directory or a glob.** No
+  training data is committed. Generated SFT documents go to the gitignored
+  `output/` (source excerpts in the gitignored `context/`), never under the
+  eval-items cache. The Betley fetcher uses a two-path allow-list, no globs.
 - **`Score.value` is a numeric-only dict; NaN means not-applicable.** Inspect's
   reducers coerce strings and `None` to 0.0 but skip NaN. Labels and raw judge
   text go in `Score.metadata`. Every key in a scorer's `metrics` must be present
@@ -66,7 +69,14 @@ training code. It exists to answer three infrastructure questions first:
 - `src/fragile_compassion/export/` — `.eval` logs → long-format JSONL/CSV,
   applies the asymmetry rule (animal-welfare refusals excluded, human-safety
   refusals retained).
-- `configs/` — `models.yaml`, `judge.yaml`, `eval.yaml`, `eval.smoke.yaml`.
+- `src/fragile_compassion/sft_document_generation/` — SFT document generation,
+  separate from the eval path: `process_book.py` cleans PDF-extracted Markdown into
+  source excerpts, `generate.py` sends an excerpt to a teacher model on OpenRouter
+  and writes batches plus a deduplicated `output/master_dataset.json`. See
+  `SFT_DOCGEN_README.md`.
+- `configs/` — `models.yaml`, `judge.yaml`, `eval.yaml`, `eval.smoke.yaml`, plus
+  `sft_doc_config.yaml.example` and `prompts/docgen_system_prompt.md` for SFT
+  document generation.
 - `scripts/vast/` — rent, set up and destroy a Vast.ai GPU box: `up.sh` and
   `down.sh` run on the laptop (bash 3.2, macOS and Linux), `box-setup.sh` runs on the
   box, `common.sh` holds the paths both laptop scripts share. No template: `up.sh`
