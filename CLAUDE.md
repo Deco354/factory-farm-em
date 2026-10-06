@@ -99,7 +99,7 @@ uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv
 uv run inspect eval fragile_compassion/fc_betley --model mockllm/model -T judge=mockllm/model -T epochs=1   # plumbing check, no GPU
 scripts/vast/up.sh --dry-run             # every pre-rental check, one real judge call, no rental
 scripts/vast/up.sh                       # rent + set up a box (resumes a recorded one); then ssh vast-em
-scripts/vast/down.sh                     # copy logs/results back, destroy, confirm it is gone
+scripts/vast/down.sh                     # copy logs/results back, destroy (no question; warns + 5 s), confirm gone; --keep to copy only
 ```
 
 `fc` loads the nearest `.env` (working directory or a parent) before it does
@@ -136,17 +136,28 @@ log headers on 2026-09-30:
   `output.usage`, so this only affects the judge-token fallback.
 - `fc_anima` loads exactly 26 samples (dataset ids 0–25).
 
+Observed on the 2026-10-06 smoke runs `vast-smoke-003` and `-004`, the first sessions
+run end to end with `scripts/vast/`:
+- Box: Vast.ai, 1× A100 80GB PCIe, about 5 minutes from rent to ready.
+- 28/28 logs `success` both times, 0 samples left with an error, 574 export rows each.
+- `gpt-5.4-mini-2026-03-17` at `reasoning_effort: none` gave `unparseable` 0.00 for all 7
+  models. Its Betley calls averaged 5.0 output tokens and 0 reasoning tokens (224
+  calls in `-004`).
+- Earlier checks of the judge settings:
+  - On the mock model (2026-09-30): no Inspect temperature warning, and the judge calls
+    show `reasoning_effort=none` and `temperature=0.0`.
+  - Temperature 0 is honoured (probe in docs/judge-selection.md B.2).
+  - OpenAI's Responses API rejects `max_output_tokens` below 16, hence the refusal
+    pass's 16-token budget.
+- With `GLOO_SOCKET_IFNAME=lo`, every vLLM socket listened on 127.0.0.1 for the whole of
+  `-004` (13 snapshots).
+
 Not yet observed on a GPU:
 
-- `gpt-5.4-mini-2026-03-17` at `reasoning_effort: none` answers the single-number
-  passes with a bare number in ~5 output tokens and 0 reasoning tokens: verified
-  2026-09-30 on the mock model across all four tasks (`unparseable` 0.0, no Inspect
-  temperature warning; the log's judge calls show `reasoning_effort=none`,
-  `temperature=0.0`). Temperature 0 is honoured (probe in docs/judge-selection.md
-  B.2). OpenAI's Responses API rejects `max_output_tokens` below 16, hence the
-  refusal pass's 16-token budget.
 - Sanity targets from the organisms paper, at full scale: rank-32 medical ≈19%
-  misaligned on `first_plot`, financial/sport up to ≈36%, base ≈0%.
+  misaligned on `first_plot`, financial/sport up to ≈36%, base ≈0%. (Smoke-scale,
+  13–16 responses each in `-004`: base 0.00, rank-32 medical 0.25, financial 0.43,
+  sport 0.38.)
 
 ## Testing rules
 
@@ -164,6 +175,8 @@ and `box-setup.sh` to check the offer search command and the box's `.env`. Sourc
 `billing_traps`, to check that Ctrl-C after renting still says the box is billing.
 `tests/test_vast_hf_token.py` feeds `hf_token_problem` fake whoami replies with the real
 structure, to check only read-only Hugging Face tokens go on a box.
+`tests/test_vast_down.py` stops `down.sh` with SIGINT during its countdown, before any
+SSH or Vast call, to check it warns before destroying and keeps the box on Ctrl-C.
 Everything after that is covered by the manual GPU-run test plan in PR #24.
 
 ## Known gaps

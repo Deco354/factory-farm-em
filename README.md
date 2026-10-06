@@ -434,12 +434,26 @@ To leave tmux without stopping the run, press Ctrl-b, then d.
 When the run has finished, go back to your laptop:
 
 ```bash
-scripts/vast/down.sh           # copies logs/ and results/ to logs/vast-<date>-<instance>/, then asks to destroy
+scripts/vast/down.sh           # copies logs/ and results/ to logs/vast-<date>-<instance>/, then destroys the box
 uv run fc export logs/vast-<date>-<instance>/logs/<run-id> --out results/<run-id>.jsonl --csv
 ```
 
-`down.sh` waits until Vast confirms the box is gone, then lists anything still on the
-account. Answering "no" to the destroy question copies without destroying.
+`down.sh` doesn't ask before destroying. A box left running by mistake costs far more
+than one destroyed by mistake, and its files are copied first anyway. Instead:
+
+- **It warns first.** The moment it starts, it prints in red that it will destroy the
+  box, then counts down 5 seconds. Press Ctrl-C at any point before "destroying
+  instance" to stop it; the box keeps running, and it says so.
+- **It still asks in two cases:** when something is still running on the box, since
+  destroying it would kill that run, and when the box can't be reached, so nothing
+  could be copied.
+- **To copy without destroying:** run `scripts/vast/down.sh --keep`.
+
+It then waits until Vast confirms the box is gone, and lists anything still on the
+account.
+
+Copy anything you made outside `logs/` and `results/` first, for example console output
+you saved in `/root`. Destroying the box deletes it.
 
 `up.sh` has the settings below. Set one for a single run on the command line
 (`FC_VAST_MAX_DPH=4 scripts/vast/up.sh`). To keep your own defaults without editing
@@ -468,7 +482,8 @@ settings it took from where. `FC_VAST_SETTINGS=<file>` points it at a different 
 | `FC_VAST_DISK` | `120` | disk in GB (about 60 GB used: 35 GB of models, ~10 GB venv, the image) |
 | `FC_VAST_IMAGE` | `vastai/base-image:cuda-13.0.3-cudnn-devel-ubuntu24.04-2026-09-07` | the Docker image |
 
-`up.sh --yes` and `down.sh --yes` answer every question for you, for scripted use.
+`up.sh --yes` answers every question for you, for scripted use. `down.sh --yes` skips its
+countdown and answers its two questions.
 
 ### What is on the box
 

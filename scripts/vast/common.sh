@@ -39,11 +39,11 @@ billing_warning() {
   fi
 }
 
-# still_billing_banner ID [DPH]: a warning on stderr that is hard to miss, even straight
-# after a ^C. Red and bold on a terminal unless NO_COLOR is set; plain text otherwise.
-still_billing_banner() {
-  local id=$1 price="" on="" off="" rule
-  case ${2:-} in [0-9]*) price=" at \$$2/hr" ;; esac
+# banner LINE...: the lines framed by !! rules on stderr, for messages that must not be
+# missed, even straight after a ^C. Red and bold on a terminal unless NO_COLOR is set;
+# plain text otherwise. An empty LINE is a spacer.
+banner() {
+  local on="" off="" rule line
   if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
     on=$'\033[1;31m' off=$'\033[0m'
   fi
@@ -51,14 +51,22 @@ still_billing_banner() {
   {
     echo
     echo "$on$rule"
-    echo "!!  THE VAST BOX IS STILL RUNNING AND BILLING: instance $id$price"
-    echo "!!"
-    echo "!!  Pick it up again:  scripts/vast/up.sh"
-    echo "!!  Destroy it:        scripts/vast/down.sh"
-    echo "!!  See it:            https://cloud.vast.ai/instances/"
+    for line in "$@"; do
+      if [ -n "$line" ]; then echo "!!  $line"; else echo "!!"; fi
+    done
     echo "$rule$off"
     echo
   } >&2
+}
+
+# still_billing_banner ID [DPH]
+still_billing_banner() {
+  local price=""
+  case ${2:-} in [0-9]*) price=" at \$$2/hr" ;; esac
+  banner "THE VAST BOX IS STILL RUNNING AND BILLING: instance $1$price" "" \
+    "Pick it up again:  scripts/vast/up.sh" \
+    "Destroy it:        scripts/vast/down.sh" \
+    "See it:            https://cloud.vast.ai/instances/"
 }
 
 # confirm "question" -> 0 on y/Y. --yes answers for you; no terminal counts as "no".
