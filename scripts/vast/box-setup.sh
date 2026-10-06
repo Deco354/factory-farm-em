@@ -144,6 +144,11 @@ check() {
   echo "== pinned models in the HF cache this shell sees (HF_HOME=${HF_HOME:-unset, so ~/.cache/huggingface})"
   pinned_models check || rc=1
   echo "== uv on PATH: $(command -v uv || echo none) ($(uv --version 2>/dev/null || true))"
+  if [ -s "${HF_HOME:-$HOME/.cache/huggingface}/token" ]; then
+    echo "== Hugging Face token: present (written by up.sh from hf.env)"
+  else
+    echo "== Hugging Face token: none (anonymous downloads; gated datasets such as TAC's fail)"
+  fi
   echo "== sockets listening on a non-loopback address (expect only sshd, port 22):"
   ss -ltnpH 2>/dev/null | awk '$4 !~ /^(127\.|\[::1\]:|\[::ffff:127\.)/ {print "   " $4, $6}' ||
     echo "   (ss is not installed; can't list them)"

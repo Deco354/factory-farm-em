@@ -100,6 +100,37 @@ offer_search_cmd() {
   SEARCH=(vastai search offers "$1 dph_total<$2" --storage "$3" -o dph --limit 50 --raw)
 }
 
+# hf_token_problem < whoami-v2 reply: prints why a Hugging Face token must not go on a
+# rented box and returns 1, or returns 0 for a read-only one. Classic tokens have role
+# `read` or `write`. Fine-grained ones list permissions (globally and per scope), and
+# every one must end in `.read`, which rules out writing and paid inference calls.
+# Reading gated repos is a separate flag (`canReadGatedRepos`), not a permission.
+hf_token_problem() {
+  python3 -c '
+import json, sys
+raw = sys.stdin.read()
+try:
+    d = json.loads(raw)
+except ValueError:
+    sys.exit("expected JSON from Hugging Face, got: " + (raw.strip()[:200] or "nothing"))
+if "error" in d:
+    sys.exit("Hugging Face rejected the token: %s" % d["error"])
+token = (d.get("auth") or {}).get("accessToken") or {}
+role = token.get("role")
+if role == "read":
+    sys.exit(0)
+if role == "fineGrained":
+    fine = token.get("fineGrained") or {}
+    perms = list(fine.get("global") or [])
+    for scope in fine.get("scoped") or []:
+        perms += scope.get("permissions") or []
+    beyond = sorted({p for p in perms if not p.endswith(".read")})
+    if beyond:
+        sys.exit("the token can do more than read: %s" % ", ".join(beyond))
+    sys.exit(0)
+sys.exit("the token is not read-only (role: %s)" % role)'
+}
+
 # The instance's JSON row; `{"instances": null}` once it no longer exists.
 instance_row() { vastai show instance "$1" --raw 2>&1 || true; }
 

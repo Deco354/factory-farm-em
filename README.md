@@ -197,12 +197,13 @@ Docker container on a machine owned by a third-party *host*. Three scripts in
 2. You run `fc` on the box over SSH.
 3. `down.sh` copies the results back and destroys the box.
 
-Treat everything on a rented box as readable by the host's operator. The only
-credential that goes onto the box is a judge API key that:
+Treat everything on a rented box as readable by the host's operator. Only two
+credentials go onto the box, both made just for rented boxes:
 
-- belongs to its own project,
-- has a hard spend limit,
-- and is easy to revoke.
+- a judge API key that belongs to its own project, has a hard spend limit, and is easy
+  to revoke;
+- optionally, a read-only Hugging Face token. `up.sh` refuses a token that can do more
+  than read.
 
 Never put credentials in Vast environment variables or templates, since hosts can
 read those too. Destroy the box when you are done.
@@ -339,7 +340,35 @@ The file holds `NAME=value` lines for whichever judge `configs/judge.yaml` names
 the judge moves to another provider, put that provider's key variable here instead.
 Revoke and replace the key whenever a box may have been compromised.
 
-**7. VS Code**, only if you use Remote-SSH. Add to your user settings. To open them,
+**7. A Hugging Face token for rented boxes (optional).** Without one, the box downloads
+anonymously: that works, but Hugging Face rate-limits it, and gated datasets (such as
+the one TAC uses) can't be downloaded at all.
+
+- On <https://huggingface.co/settings/tokens>, create a new token of type
+  **Fine-grained**, named for example `vast-boxes`.
+- Under Repositories, tick only **Read access to contents of all public gated repos
+  you can access**, and leave every other box unticked. Public repos, such as the
+  models, are readable by any token.
+- For each gated dataset you need, accept its terms on the dataset's page, signed in to
+  the same account. For TAC that's
+  <https://huggingface.co/datasets/CompassioninMachineLearning/tac>.
+
+Keep the token on your laptop only, in its own file:
+
+```bash
+printf 'Hugging Face token for rented boxes: '; read -rs k; echo
+printf 'HF_TOKEN=%s\n' "$k" > ~/.config/fragile-compassion/hf.env; unset k
+chmod 600 ~/.config/fragile-compassion/hf.env
+```
+
+`up.sh` reads the token only from this file, never from your shell or the project's
+`.env`. It checks the token with one free call before renting, and refuses one that can
+do more than read, such as write access or paid inference. It then writes the token to
+Hugging Face's token file on the box (`~/.cache/huggingface/token`), so setup, vLLM,
+Inspect and dataset loading all use it. Revoke and replace the token whenever a box may
+have been compromised.
+
+**8. VS Code**, only if you use Remote-SSH. Add to your user settings. To open them,
 press Cmd+Shift+P (Ctrl+Shift+P on Linux) and run **Preferences: Open User Settings
 (JSON)**. Keep any settings already there.
 
@@ -356,7 +385,7 @@ press Cmd+Shift+P (Ctrl+Shift+P on Linux) and run **Preferences: Open User Setti
 - The last stops the Python extension typing `source .venv/bin/activate` into the
   middle of a command you paste.
 
-**8. Check everything without renting anything:**
+**9. Check everything without renting anything:**
 
 ```bash
 scripts/vast/up.sh --dry-run
@@ -366,7 +395,8 @@ This checks:
 
 - the tools and your SSH config;
 - that your commit is on GitHub;
-- the judge key, with one real call that sees only `judge.env` (a fraction of a cent).
+- the judge key, with one real call that sees only `judge.env` (a fraction of a cent);
+- the Hugging Face token, if you made one, is valid and read-only.
 
 It then searches offers and prints what it would rent.
 
@@ -427,6 +457,7 @@ settings it took from where. `FC_VAST_SETTINGS=<file>` points it at a different 
 | `FC_REF` | `HEAD` | the commit or branch the box checks out; must be on GitHub |
 | `FC_REPO_URL` | `origin`, as https | the repo the box clones; must be public |
 | `FC_JUDGE_ENV` | `~/.config/fragile-compassion/judge.env` | the judge key file copied to the box |
+| `FC_HF_ENV` | `~/.config/fragile-compassion/hf.env` | the optional read-only Hugging Face token file (step 7); no file means anonymous downloads |
 | `FC_VAST_SSH_KEY` | `~/.ssh/vastai` | the private key for the box |
 | `FC_VAST_QUERY` | 1 GPU > 70 GB, CUDA ≥ 13.0, Ampere or Hopper (A100/H100 class), x86, verified host with reliability > 0.98, direct SSH port, > 1 Gbps down | the `vastai search offers` filter. Blackwell workstation cards are excluded (untested with this vLLM), and so is Vast's datacenter-only tier, which has no A100s. Setting it replaces the whole query |
 | `FC_VAST_QUERY_EXTRA` | none | clauses appended to the query. For the same field and operator the last clause wins, and `field=any` drops a filter, so `reliability>0.99` tightens a default, `disk_bw>1000` adds one, and `inet_down=any` removes one, without restating the rest |
@@ -443,8 +474,9 @@ settings it took from where. `FC_VAST_SETTINGS=<file>` points it at a different 
 the image's own entrypoint, so none of its web services start (Instance Portal,
 Jupyter, Syncthing, TensorBoard), and SSH is the only public port.
 
-`up.sh` then copies `scripts/vast/box-setup.sh` from your checkout onto the box and
-runs it. The script:
+`up.sh` then writes your Hugging Face token, if you have one, to the box's
+`~/.cache/huggingface/token`, and copies `scripts/vast/box-setup.sh` from your checkout
+onto the box and runs it. The script:
 
 - installs tmux if it is missing, and a pinned uv;
 - clones the repo at your commit;
@@ -499,7 +531,10 @@ ss -ltnp | grep -i vllm        # every line should show 127.0.0.1
 | `Permission denied (publickey)` | The box doesn't have your key: it wasn't on the account when the box was created and attaching it failed, or the account holds a different key. |
 | `Bad port '1.2.3.4:5678'` from every ssh command | IP and port on one line in `~/.ssh/config`. One bad line breaks all SSH, including GitHub. |
 | Passphrase asked on every connection | The key is not in your SSH agent: `ssh-add ~/.ssh/vastai` (macOS: `ssh-add --apple-use-keychain ~/.ssh/vastai`). |
-| `hf download`: `Invalid filename '/root/.../activate'` | VS Code typed `source .venv/bin/activate` into your command; see step 7. |
+| `hf download`: `Invalid filename '/root/.../activate'` | VS Code typed `source .venv/bin/activate` into your command; see step 8. |
+| `up.sh`: not putting the token … on a rented box | The Hugging Face token in `hf.env` is invalid, or can do more than read (the line above names the permissions). Make a read-only one (step 7). Nothing was rented. |
+| Setup log: `Rate limited. Waiting … before retry` | Anonymous Hugging Face downloads are rate-limited. They usually recover by themselves; a token (step 7) avoids it. |
+| A gated dataset fails to load on the box (401 or "gated") | The box has no Hugging Face token, or the token's account hasn't accepted the dataset's terms (step 7). `box-setup.sh --check` says whether a token is present. |
 | Inspect sits at a few percent, ~75 GB of GPU memory, 0% utilisation | vLLM is ready but the judge is failing, and Inspect retries a failing model call indefinitely. Check the judge key, and look for HTTP retries in Inspect's footer. |
 | `fc run` shows nothing for a long time after starting vLLM | Inspect 0.3.263 sets no vLLM start timeout, so a stuck start waits forever. Check `nvidia-smi` and `pgrep -af vllm` in another tmux window. |
 | `down.sh`: Vast still lists the instance | Destroy it in the console: <https://cloud.vast.ai/instances/>. |

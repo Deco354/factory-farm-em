@@ -51,8 +51,11 @@ with a teacher model. It exists to answer three infrastructure questions first:
 - Vendor or copy code from `model-organisms-for-EM`.
 - Add a default judge anywhere.
 - Put credentials in `vastai create instance --env`, a Vast template, or Vast account
-  env vars: hosts can read them. The only secret on a rented box is the judge key that
-  `scripts/vast/up.sh` copies from `~/.config/fragile-compassion/judge.env`.
+  env vars: hosts can read them. The only secrets on a rented box are the ones
+  `scripts/vast/up.sh` copies from dedicated files: the judge key from
+  `~/.config/fragile-compassion/judge.env`, and optionally a fine-grained, read-only
+  Hugging Face token from `~/.config/fragile-compassion/hf.env`. `up.sh` refuses a token
+  whose permissions are not all `.read`. Never copy the laptop's own `.env` keys to a box.
 
 ## Layout
 
@@ -159,6 +162,8 @@ and `box-setup.sh` to check the offer search command and the box's `.env`. Sourc
 `box-setup.sh` only defines functions, provided `$0` isn't its own path.
 `tests/test_vast_billing_warning.py` sends a real SIGINT to bash running `common.sh`'s
 `billing_traps`, to check that Ctrl-C after renting still says the box is billing.
+`tests/test_vast_hf_token.py` feeds `hf_token_problem` fake whoami replies with the real
+structure, to check only read-only Hugging Face tokens go on a box.
 Everything after that is covered by the manual GPU-run test plan in PR #24.
 
 ## Known gaps

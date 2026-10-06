@@ -20,6 +20,8 @@
 #   FC_REF          commit for the box to check out   (HEAD; must be on GitHub)
 #   FC_REPO_URL     repo the box clones               (origin, as https)
 #   FC_JUDGE_ENV    judge key file copied to the box  (~/.config/fragile-compassion/judge.env)
+#   FC_HF_ENV       optional read-only Hugging Face token for the box
+#                                                     (~/.config/fragile-compassion/hf.env)
 #   FC_VAST_SSH_KEY private key for the box           (~/.ssh/vastai)
 #   FC_VAST_IMAGE   Docker image                      (see IMAGE below)
 #   FC_VAST_DISK    disk in GB                        (120)
@@ -37,7 +39,7 @@ set -euo pipefail
 # is removed; nothing is expanded or executed. Unknown names fail, so a typo can't be
 # silently ignored.
 SETTINGS=${FC_VAST_SETTINGS:-$STATE_DIR/vast.env}
-KNOWN_SETTINGS=" FC_REF FC_REPO_URL FC_JUDGE_ENV FC_VAST_SSH_KEY FC_VAST_IMAGE FC_VAST_DISK FC_VAST_QUERY FC_VAST_QUERY_EXTRA FC_VAST_HOURS FC_VAST_MAX_DPH "
+KNOWN_SETTINGS=" FC_REF FC_REPO_URL FC_JUDGE_ENV FC_HF_ENV FC_VAST_SSH_KEY FC_VAST_IMAGE FC_VAST_DISK FC_VAST_QUERY FC_VAST_QUERY_EXTRA FC_VAST_HOURS FC_VAST_MAX_DPH "
 if [ -f "$SETTINGS" ]; then
   from_file="" from_env="" lineno=0
   while IFS= read -r line || [ -n "$line" ]; do
@@ -68,6 +70,22 @@ if [ -f "$SETTINGS" ]; then
 fi
 
 JUDGE_ENV=${FC_JUDGE_ENV:-$STATE_DIR/judge.env}
+# Optional: a fine-grained, read-only Hugging Face token for the box (README one-time
+# setup step 7). It authenticates the box's downloads, so fewer rate limits, and gated
+# datasets such as TAC's need it. Read only from this file, never your shell's HF_TOKEN;
+# checked before renting; sent to the box over SSH stdin, never on a command line.
+HF_ENV=${FC_HF_ENV:-$STATE_DIR/hf.env}
+HF_TOKEN_VALUE=""
+if [ -f "$HF_ENV" ]; then
+  [ "$(grep -c '^HF_TOKEN=.' "$HF_ENV")" = 1 ] || die "$HF_ENV must hold exactly one HF_TOKEN=<token> line"
+  HF_TOKEN_VALUE=$(sed -n 's/^HF_TOKEN=//p' "$HF_ENV")
+  HF_TOKEN_VALUE=${HF_TOKEN_VALUE%$'\r'}
+  case $HF_TOKEN_VALUE in
+    \"*\") HF_TOKEN_VALUE=${HF_TOKEN_VALUE#\"} HF_TOKEN_VALUE=${HF_TOKEN_VALUE%\"} ;;
+    \'*\') HF_TOKEN_VALUE=${HF_TOKEN_VALUE#\'} HF_TOKEN_VALUE=${HF_TOKEN_VALUE%\'} ;;
+  esac
+  chmod 600 "$HF_ENV"
+fi
 KEY=${FC_VAST_SSH_KEY:-$HOME/.ssh/vastai}
 # Pinned by date: the matching `cuda-13.0.3-auto` tag moves. CUDA 13.0 matches the
 # lockfile's torch/vLLM runtime. SSH launch mode skips the image's own entrypoint, so
@@ -122,7 +140,7 @@ DPH="?"
 billing_traps # from here on, any exit with a box rented says it is still billing
 
 # --------------------------------------------------------------------- 1. local checks
-for tool in vastai python3 ssh ssh-keyscan scp git uv; do
+for tool in vastai python3 ssh ssh-keyscan scp git uv curl; do
   command -v "$tool" >/dev/null || die "$tool not found on PATH (README: Rented GPU box, one-time setup)"
 done
 [ -f "$KEY" ] && [ -f "$KEY.pub" ] || die "no SSH key pair at $KEY and $KEY.pub (one-time setup step 4, or set FC_VAST_SSH_KEY)"
@@ -199,6 +217,19 @@ PY
   ) || judge_ok=0
   rm -rf "$tmp"
   [ "$judge_ok" = 1 ] || die "judge check failed; fix $JUDGE_ENV before renting (README troubleshooting)"
+fi
+
+# --------------------------------------------------------------------- Hugging Face token
+# On every run, resumes and dry runs included: one free whoami call, the token sent as a
+# header on stdin. A token that can do more than read never goes on a rented box.
+if [ -n "$HF_TOKEN_VALUE" ]; then
+  say "Hugging Face token check: $HF_ENV"
+  hf_reply=$(printf 'Authorization: Bearer %s\n' "$HF_TOKEN_VALUE" |
+    curl -sS --max-time 20 -H @- https://huggingface.co/api/whoami-v2 2>&1) ||
+    die "could not reach Hugging Face to check the token: ${hf_reply:0:200}"
+  printf '%s' "$hf_reply" | hf_token_problem ||
+    die "not putting the token in $HF_ENV on a rented box (above); see README one-time setup step 7"
+  echo "   read-only: OK"
 fi
 
 case $REPO_URL in
@@ -366,6 +397,15 @@ for _ in 1 2 3 4 5 6; do
 done
 [ "$connected" = 1 ] ||
   die "ssh vast-em failed. 'Permission denied (publickey)' means the box doesn't have your key: see README troubleshooting."
+
+# Into Hugging Face's own token file, before setup, so setup's downloads, vLLM, Inspect
+# and dataset loading all use it. Rewritten on every run, so a resumed box gets it too.
+if [ -n "$HF_TOKEN_VALUE" ]; then
+  # shellcheck disable=SC2016  # expands on the box
+  printf '%s' "$HF_TOKEN_VALUE" |
+    box_stdin 'umask 077; d=${HF_HOME:-$HOME/.cache/huggingface}; mkdir -p "$d" && cat >"$d/token" && chmod 600 "$d/token"'
+  say "Hugging Face token written to the box's ~/.cache/huggingface/token"
+fi
 
 # --------------------------------------------------------------------- 8. box-setup.sh
 # done | failed | running | died | none. Last line only, in case a login banner prints first.
