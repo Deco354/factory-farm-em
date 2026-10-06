@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 VAST = Path(__file__).resolve().parents[1] / "scripts" / "vast"
-WARNING = "instance 54453954 is still billing"
+WARNING = "THE VAST BOX IS STILL RUNNING AND BILLING: instance 54453954"
 
 # The two ways up.sh waits: a builtin `read` from a process substitution (the poll for
 # `running`, where the warning was first found missing) and a command substitution.
@@ -28,10 +28,11 @@ WAITS = {
 }
 
 
-def run(body: str, *, rented: bool = True, interrupt: bool = False):
+def run(body: str, *, rented: bool = True, interrupt: bool = False, dph: str = "?"):
     script = (
         f'. "{VAST / "common.sh"}"\n'
         f"ID={'54453954' if rented else ''}\n"
+        f"DPH={dph}\n"
         "billing_traps\n"
         "echo ready\n"
         f"{body}\n"
@@ -84,13 +85,25 @@ def test_failure_after_renting_warns():
 def test_ctrl_c_before_renting_says_nothing():
     rc, err = run(WAITS["read-from-process-substitution"], rented=False, interrupt=True)
     assert rc == 130
-    assert "still billing" not in err
+    assert "STILL RUNNING" not in err
 
 
 def test_success_says_nothing():
     rc, err = run("true")
     assert rc == 0
-    assert "still billing" not in err
+    assert "STILL RUNNING" not in err
+
+
+def test_banner_shows_the_price_once_known_and_how_to_resume_or_destroy():
+    rc, err = run("false", dph="1.167")
+    assert f"{WARNING} at $1.167/hr" in err
+    assert "scripts/vast/up.sh" in err and "scripts/vast/down.sh" in err
+    assert "\x1b[" not in err  # stderr is a file here, not a terminal: no colour codes
+
+
+def test_banner_leaves_out_an_unknown_price():
+    rc, err = run("false", dph="?")
+    assert f"{WARNING}\n" in err
 
 
 def test_up_sh_installs_the_billing_traps():

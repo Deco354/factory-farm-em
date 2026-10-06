@@ -76,7 +76,8 @@ else
 fi
 
 if ! confirm "Destroy instance $ID? This deletes everything on it."; then
-  say "not destroyed. Instance $ID is still billing; run down.sh again when you're done."
+  say "not destroyed"
+  still_billing_banner "$ID"
   exit 0
 fi
 

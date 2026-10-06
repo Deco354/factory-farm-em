@@ -35,8 +35,30 @@ billing_traps() {
 billing_warning() {
   local rc=$?
   if [ "$rc" -ne 0 ] && [ -n "${ID:-}" ]; then
-    warn "instance $ID is still billing. Rerun scripts/vast/up.sh to resume it, or scripts/vast/down.sh to destroy it."
+    still_billing_banner "$ID" "${DPH:-}"
   fi
+}
+
+# still_billing_banner ID [DPH]: a warning on stderr that is hard to miss, even straight
+# after a ^C. Red and bold on a terminal unless NO_COLOR is set; plain text otherwise.
+still_billing_banner() {
+  local id=$1 price="" on="" off="" rule
+  case ${2:-} in [0-9]*) price=" at \$$2/hr" ;; esac
+  if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+    on=$'\033[1;31m' off=$'\033[0m'
+  fi
+  rule='!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+  {
+    echo
+    echo "$on$rule"
+    echo "!!  THE VAST BOX IS STILL RUNNING AND BILLING: instance $id$price"
+    echo "!!"
+    echo "!!  Pick it up again:  scripts/vast/up.sh"
+    echo "!!  Destroy it:        scripts/vast/down.sh"
+    echo "!!  See it:            https://cloud.vast.ai/instances/"
+    echo "$rule$off"
+    echo
+  } >&2
 }
 
 # confirm "question" -> 0 on y/Y. --yes answers for you; no terminal counts as "no".
