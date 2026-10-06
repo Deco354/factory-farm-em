@@ -68,7 +68,9 @@ training code. It exists to answer three infrastructure questions first:
   applies the asymmetry rule (animal-welfare refusals excluded, human-safety
   refusals retained). TAC's analogue: `no_purchase` and `unverifiable_purchase`
   are excluded, told apart by upstream's scorer explanation text (`tac_outcome`
-  raises on unknown text).
+  raises on unknown text). Scenarios in `benchmarks.TAC_DEFECTIVE_SCENARIOS` are
+  excluded wholesale as `scenario_defect`; the list is pinned to TAC's dataset
+  revision and `fc_tac` refuses any other.
 - `configs/` — `models.yaml`, `judge.yaml`, `eval.yaml`, `eval.smoke.yaml`.
 
 ## Commands
@@ -120,9 +122,11 @@ one 80 GB GPU is comfortable, one 48 GB works with `max_model_len=4096`.
 - `fc_tac` loads 52 samples (13 scenarios × 4 variants), scorer key `tac_scorer`:
   verified 2026-09-30 on mockllm (logged config is temperature + max_tokens only, no
   upstream `reasoning_effort`; `output.usage` is the last turn only, hence the
-  export's `model_usage_total`). Still to observe on the GPU: base and LoRA models
-  emit tool calls vLLM's hermes parser accepts (watch `completion_rate` and the
-  `no_purchase` share per model), and multi-turn transcripts fit `max_model_len`.
+  export's `model_usage_total`). Observed on the GPU 2026-10-06 (A100 80 GB, smoke,
+  7 models, no `max_model_len`): hermes parsed every tool call from base and all 6
+  LoRAs (0 raw `<tool_call>` left), max prompt 2,903 tokens, other tasks within noise
+  of the pre-TAC smoke run. Every no-purchase/unverifiable sample was
+  `hawaii_dolphin_swim` (now `scenario_defect`). The 48 GB / 4096-token case is untested.
 - Sanity targets from the organisms paper: rank-32 medical ≈19% misaligned on
   `first_plot`, financial/sport up to ≈36%, base ≈0%.
 
@@ -142,4 +146,6 @@ fail silently) and the loader on inline fake YAML. The
   headline rate is computed outside Inspect's scores, and unparseable replies default
   to "continue", so report parse failures and the hay/rock controls with it.
 - `tac_welfare` (TAC's ethical-brand prompt) is not wrapped; only neutral `tac` is.
+- TAC's `hawaii_dolphin_swim` data bug (prompt says "Oahu Hawaii", locations are
+  "<town>, HI") is not yet reported upstream. Excluded via `TAC_DEFECTIVE_SCENARIOS`.
 - Judge `mode: logprobs` is reserved, not implemented.

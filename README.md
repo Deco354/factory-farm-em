@@ -121,8 +121,11 @@ Reads every `.eval` log under the directory and writes one row per
   never booked (`no_purchase`) or booked a missing or unrecognised id
   (`unverifiable_purchase`) are excluded: upstream scores these welfare 1 and 0,
   but for a fine-tuned model they are more likely tool-use failures than welfare
-  choices. The raw `score__tac_scorer__welfare` and `__completed` stay in every row,
-  so upstream's convention can be recomputed.
+  choices. Every row of a scenario whose upstream data is broken is excluded as
+  `scenario_defect`, whatever the outcome (currently `hawaii_dolphin_swim`: its
+  search tool can't find the prompt's location, so bookings track the query string;
+  see `TAC_DEFECTIVE_SCENARIOS`). The raw `score__tac_scorer__welfare` and
+  `__completed` stay in every row, so upstream's convention can be recomputed.
 
 JSONL is always written; `--csv` adds a CSV next to it. Add `--with-text` to
 include the prompt and response text in each row. Scores are never averaged
