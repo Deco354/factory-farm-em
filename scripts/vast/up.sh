@@ -417,57 +417,70 @@ elif [ -f /root/fc-setup.pid ] && kill -0 "$(cat /root/fc-setup.pid)" 2>/dev/nul
 elif [ -f /root/fc-setup.pid ]; then echo died
 else echo none; fi' | tail -n 1
 }
+# Only while setup is not running: bash reads a script as it goes, so overwriting a
+# running one can break it.
+upload_setup() { box_stdin 'cat >/root/fc-box-setup.sh' <"$REPO/scripts/vast/box-setup.sh"; }
 start_setup() {
   box 'rm -f /root/fc-setup.done /root/fc-setup.failed /root/fc-setup.pid'
-  box_stdin 'cat >/root/fc-box-setup.sh' <"$REPO/scripts/vast/box-setup.sh"
+  upload_setup
   box "FC_REPO_URL='$REPO_URL' FC_REF='$REF' setsid nohup bash -l /root/fc-box-setup.sh >/dev/null 2>&1 </dev/null &"
   say "started box-setup.sh (commit ${REF:0:12})"
 }
 
-case $(setup_state) in
-  done) say "box-setup.sh already finished on this box" ;;
+st=$(setup_state)
+case $st in
+  done)
+    upload_setup # so the check below is this checkout's, not the copy setup ran with
+    say "box-setup.sh already finished on this box"
+    ;;
   running) say "box-setup.sh is already running on this box" ;;
   failed | died)
     warn "box-setup.sh did not finish on this box before. The end of its log:"
     box 'tail -n 20 /root/fc-setup.log' >&2 || true
     confirm "Upload box-setup.sh from this checkout and run it again?" || exit 1
     start_setup
+    st=running
     ;;
-  *) start_setup ;;
+  *)
+    start_setup
+    st=running
+    ;;
 esac
 
-say "waiting for box-setup.sh: uv sync, then ~35 GB of models (usually 10-15 min)."
-echo "   Its log, from another terminal: ssh vast-em tail -f /root/fc-setup.log"
-last_line="" ssh_failures=0
-for _ in $(seq 180); do
-  if ! st=$(setup_state 2>/dev/null); then
-    ssh_failures=$((ssh_failures + 1))
-    [ "$ssh_failures" -lt 6 ] || die "lost SSH to the box (6 tries in a row)"
+if [ "$st" != "done" ]; then
+  say "waiting for box-setup.sh: uv sync, then ~35 GB of models (usually 10-15 min)."
+  echo "   Its log, from another terminal: ssh vast-em tail -f /root/fc-setup.log"
+  last_line="" ssh_failures=0
+  for _ in $(seq 180); do
+    if ! st=$(setup_state 2>/dev/null); then
+      ssh_failures=$((ssh_failures + 1))
+      [ "$ssh_failures" -lt 6 ] || die "lost SSH to the box (6 tries in a row)"
+      sleep 20
+      continue
+    fi
+    ssh_failures=0
+    line=$(box 'tail -n 1 /root/fc-setup.log 2>/dev/null' 2>/dev/null || true)
+    if [ -n "$line" ] && [ "$line" != "$last_line" ]; then
+      echo "   ${line:0:160}"
+      last_line=$line
+    fi
+    case $st in
+      done) break ;;
+      failed | died)
+        warn "box-setup.sh failed. The end of its log:"
+        box 'tail -n 30 /root/fc-setup.log' >&2 || true
+        die "setup failed. Fix the cause and rerun up.sh (it retries on the same box), or destroy the box with down.sh."
+        ;;
+    esac
     sleep 20
-    continue
-  fi
-  ssh_failures=0
-  line=$(box 'tail -n 1 /root/fc-setup.log 2>/dev/null' 2>/dev/null || true)
-  if [ -n "$line" ] && [ "$line" != "$last_line" ]; then
-    echo "   ${line:0:160}"
-    last_line=$line
-  fi
-  case $st in
-    done) break ;;
-    failed | died)
-      warn "box-setup.sh failed. The end of its log:"
-      box 'tail -n 30 /root/fc-setup.log' >&2 || true
-      die "setup failed. Fix the cause and rerun up.sh (it retries on the same box), or destroy the box with down.sh."
-      ;;
-  esac
-  sleep 20
-done
-[ "$st" = "done" ] || die "box-setup.sh still hasn't finished after an hour"
+  done
+  [ "$st" = "done" ] || die "box-setup.sh still hasn't finished after an hour"
+fi
 
 # --------------------------------------------------------------------- 9. judge key
 marker="# judge credential (appended by scripts/vast/up.sh)"
 box_stdin "umask 077; cd /root/fragile-compassion && if ! grep -qxF '$marker' .env; then { echo; echo '$marker'; cat; } >>.env; fi" <"$JUDGE_ENV"
-say "judge key copied into the box's .env"
+say "judge key is in the box's .env"
 
 # --------------------------------------------------------------------- 10-11. check, summary
 box 'bash -l /root/fc-box-setup.sh --check' || die "the check on the box failed (see above)"
