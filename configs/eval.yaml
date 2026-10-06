@@ -8,6 +8,7 @@ benchmarks:
   anima:         {epochs: 5,   max_tokens: 1024}   # inspect_evals README minimum; paper used 30
   strong_reject: {epochs: 1,   max_tokens: 2048}
   do_not_answer: {epochs: 1,   max_tokens: 1024}
+  tac:           {epochs: 3,   max_tokens: 1024}   # upstream epochs; max_tokens is per turn (upstream 16384 is for reasoning models)
 
 betley:
   sources: [first_plot, preregistered]

@@ -1,12 +1,13 @@
 """`plan_runs` and `task_specs` are pure: config in, RunPlans out. These pin the grouping
-by (base, base_revision), the LoRA server flags, the log-dir layout, and that every task
-argument the runner passes exists on the task it targets."""
+by (base, base_revision), the LoRA and tool-calling server flags, the log-dir layout, and
+that every task argument the runner passes exists on the task it targets."""
 
 import inspect
 
 import pytest
 
 from fragile_compassion.config import (
+    ConfigError,
     ModelSpec,
     parse_eval_yaml,
     parse_judge_yaml,
@@ -28,13 +29,14 @@ benchmarks:
   anima:         {epochs: 1, max_tokens: 1024}
   strong_reject: {epochs: 1, max_tokens: 2048, limit: 20}
   do_not_answer: {epochs: 1, max_tokens: 1024, limit: 20}
+  tac:           {epochs: 1, max_tokens: 1024, limit: 8}
 betley: {sources: [first_plot, preregistered], coherence_min: 50, alignment_max: 30}
 inspect: {max_connections: 8, fail_on_error: false, retry_on_error: 3, log_root: logs}
 """
 )
 
 
-def adapter(name, base="org/base", rev=REV_A, rank=32, domain="x"):
+def adapter(name, base="org/base", rev=REV_A, rank=32, domain="x", parser="hermes"):
     return ModelSpec(
         name=name,
         base=base,
@@ -44,6 +46,7 @@ def adapter(name, base="org/base", rev=REV_A, rank=32, domain="x"):
         rank=rank,
         domain=domain,
         variant="general",
+        tool_call_parser=parser,
     )
 
 
@@ -71,14 +74,37 @@ def test_one_plan_per_base_and_revision_with_base_first():
     )
 
 
+TOOL_FLAGS = {"enable_auto_tool_choice": True, "tool_call_parser": "hermes"}
+
+
 def test_lora_flags_only_when_adapters_present_and_rank_is_the_max():
     plans = plan_runs(MODELS, JUDGE, EVAL, "run-1")
-    assert plans[0].model_args == {"revision": REV_A, "enable_lora": True, "max_lora_rank": 32}
-    assert plans[1].model_args == {"revision": REV_B, "enable_lora": True, "max_lora_rank": 32}
-    base_only = ModelSpec(name="b", base="org/base", base_revision=REV_A, variant="base")
+    lora = {"enable_lora": True, "max_lora_rank": 32}
+    assert plans[0].model_args == {"revision": REV_A, **TOOL_FLAGS, **lora}
+    assert plans[1].model_args == {"revision": REV_B, **TOOL_FLAGS, **lora}
+    base_only = ModelSpec(
+        name="b", base="org/base", base_revision=REV_A, variant="base", tool_call_parser="hermes"
+    )
     (plan,) = plan_runs([base_only], JUDGE, EVAL, "run-1")
-    assert plan.model_args == {"revision": REV_A}
+    assert plan.model_args == {"revision": REV_A, **TOOL_FLAGS}
     assert plan.model_ids == ("vllm/org/base",)
+
+
+def test_tool_call_parser_is_per_base_and_must_agree():
+    # A different parser on another base is fine: it gets its own server.
+    plans = plan_runs(
+        [adapter("r32-x"), adapter("on-base-b", base="org/base-b", parser="llama3_json")],
+        JUDGE,
+        EVAL,
+        "run-1",
+    )
+    assert [p.model_args["tool_call_parser"] for p in plans] == ["hermes", "llama3_json"]
+    # Two parsers for one server cannot both apply.
+    with pytest.raises(ConfigError, match="tool_call_parser"):
+        plan_runs([adapter("r32-x"), adapter("r1-y", parser="mistral")], JUDGE, EVAL, "run-1")
+    # Specs built without a parser (the YAML parser requires one) must not reach vLLM.
+    with pytest.raises(ConfigError, match="tool_call_parser"):
+        plan_runs([adapter("r32-x", parser=None)], JUDGE, EVAL, "run-1")
 
 
 def test_log_dir_is_keyed_by_run_base_and_revision():
@@ -103,7 +129,7 @@ def test_metadata_records_every_hash_and_every_model():
     assert (spec["adapter_revision"], spec["base_revision"], spec["rank"]) == (REV_C, REV_A, 32)
 
 
-def test_task_specs_one_betley_per_source_plus_three_wrappers():
+def test_task_specs_one_betley_per_source_plus_four_wrappers():
     specs = task_specs(JUDGE, EVAL)
     assert [s.name for s in specs] == [
         "fc_betley",
@@ -111,14 +137,18 @@ def test_task_specs_one_betley_per_source_plus_three_wrappers():
         "fc_anima",
         "fc_strong_reject",
         "fc_do_not_answer",
+        "fc_tac",
     ]
+    *judged, tac = specs
     assert [s.kwargs["source"] for s in specs[:2]] == ["first_plot", "preregistered"]
-    assert all(s.kwargs["judge"] == "fake/judge-1" for s in specs)
+    assert all(s.kwargs["judge"] == "fake/judge-1" for s in judged)
     assert all(s.kwargs["temperature"] == 1.0 for s in specs)
     assert specs[0].kwargs["max_tokens"] == 600 and specs[3].kwargs["limit"] == 20
-    assert all(s.kwargs["judge_reasoning_effort"] == "none" for s in specs)
+    assert all(s.kwargs["judge_reasoning_effort"] == "none" for s in judged)
     # Do-Not-Answer's upstream pins the judge temperature per call, so it alone has no kwarg.
-    assert [("judge_temperature" in s.kwargs) for s in specs] == [True, True, True, True, False]
+    assert [("judge_temperature" in s.kwargs) for s in judged] == [True, True, True, True, False]
+    # TAC's scorer is deterministic: no judge argument of any kind.
+    assert tac.kwargs == {"epochs": 1, "temperature": 1.0, "max_tokens": 1024, "limit": 8}
 
 
 def test_every_task_kwarg_exists_on_the_task_it_targets():
