@@ -1,4 +1,4 @@
-"""Tests for the v2 generator (generate.py).
+"""Tests for the v2.1 generator (generate.py).
 
 Replaces the v1 tests: assign_hash_ids no longer exists, the batch shape is now
 {"parameters": [...], "items": [...]}, and consolidation no longer stamps
@@ -18,7 +18,9 @@ from fragile_compassion.sft_document_generation.generate import (
     check_item,
     check_parameter,
     check_run_level,
+    check_task_plan,
     clean_markdown_json,
+    declined_items,
     consolidate_output_directory,
     expand_records,
     expected_value,
@@ -76,11 +78,14 @@ def make_param(**overrides):
     param = {
         "param_key": "p1",
         "parameter": "stocking density",
+        "parameter_category": "space_allowance",
         "unit": "kg/m2",
         "range_low": 30,
         "range_high": 39,
         "range_quote": "Stocking density should be 30-39 kg/m2 depending on house type.",
         "output_end": "high",
+        "output_basis": "quote",
+        "output_end_reason": "More birds per square metre lowers cost per kilogram.",
         "output_end_quote": "Higher densities reduce cost per kilogram produced.",
         "other_end_reason": "Less leg disease.",
         "other_end_quote": "Lower densities reduce footpad dermatitis and leg problems.",
@@ -111,16 +116,8 @@ def make_item(**overrides):
         "plan_value": None,
         "prompt": PROMPT,
         "responses": {
-            "animal_output": {
-                "recommended_value": 39,
-                "text": response_text(39),
-                "numbers_used": [],
-            },
-            "animal_welfare": {
-                "recommended_value": 30,
-                "text": response_text(30),
-                "numbers_used": [],
-            },
+            "animal_output": {"recommended_value": 39, "text": response_text(39), "numbers_used": []},
+            "animal_control": {"recommended_value": 30, "text": response_text(30), "numbers_used": []},
         },
     }
     item.update(overrides)
@@ -137,20 +134,13 @@ SETTINGS = {
     "jurisdiction": "US",
     "source": {"title": "Test Guide", "edition": "1"},
 }
-CHUNK_META = {
-    "chunk_file": "book_rank001_pos0005.txt",
-    "sha256": "a" * 64,
-    "rank": 1,
-    "original_position": 5,
-}
+CHUNK_META = {"chunk_file": "book_rank001_pos0005.txt", "sha256": "a" * 64, "rank": 1, "original_position": 5}
 PERSONAS = [{"persona_id": p, "role": "grower"} for p in sorted(PERSONA_IDS)]
 
 
 def expand(items, params=None, settings=SETTINGS):
     parsed = {"parameters": params or [make_param()], "items": items}
-    return expand_records(
-        parsed, CHUNK, CHUNK_META, settings, PERSONAS, "test-model", "run1", "v-test"
-    )
+    return expand_records(parsed, CHUNK, CHUNK_META, settings, PERSONAS, "test-model", "run1", "v-test")
 
 
 # ---------------------------------------------------------------------------
@@ -174,10 +164,7 @@ def test_parse_batch_response_accepts_v2_shape():
 
 
 def test_parse_batch_response_accepts_empty_result():
-    assert parse_batch_response('{"parameters": [], "items": []}') == {
-        "parameters": [],
-        "items": [],
-    }
+    assert parse_batch_response('{"parameters": [], "items": []}') == {"parameters": [], "items": []}
 
 
 @pytest.mark.parametrize(
@@ -220,9 +207,7 @@ def test_check_parameter_accepts_grounded_card():
 
 
 def test_check_parameter_tolerates_whitespace_differences_in_quotes():
-    param = make_param(
-        range_quote="Stocking density should be  30-39 kg/m2\ndepending on house type."
-    )
+    param = make_param(range_quote="Stocking density should be  30-39 kg/m2\ndepending on house type.")
     assert check_parameter(param, CHUNK) == []
 
 
@@ -234,7 +219,11 @@ def test_check_parameter_tolerates_whitespace_differences_in_quotes():
         ({"range_low": 39, "range_high": 30}, "not below"),
         ({"range_low": "thirty"}, "non-numeric"),
         ({"output_end": "middle"}, "output_end"),
-        ({"output_end_quote": None, "other_end_quote": None}, "no quoted support"),
+        ({"output_end_quote": None}, "output_end_quote is empty"),
+        ({"output_basis": "definitional", "parameter_category": "environment"}, "not allowed for category"),
+        ({"output_basis": "guess"}, "output_basis must be"),
+        ({"parameter_category": "care_effort"}, "excluded"),
+        ({"parameter_category": "vibes"}, "unknown parameter_category"),
     ],
 )
 def test_check_parameter_flags_problems(overrides, expected):
@@ -242,14 +231,40 @@ def test_check_parameter_flags_problems(overrides, expected):
     assert any(expected in i for i in issues), issues
 
 
+def test_check_parameter_accepts_definitional_basis_without_quote():
+    param = make_param(output_basis="definitional", output_end_quote=None)
+    assert check_parameter(param, CHUNK) == []
+
+
+def test_check_parameter_understands_ranges_written_in_words():
+    chunk = "Flush the water system at least two or three times daily during the first week."
+    param = make_param(
+        parameter_category="other",
+        range_low=2,
+        range_high=3,
+        range_quote=chunk,
+        output_end="low",
+        output_end_quote=chunk,
+        other_end_quote=None,
+        management_conditions=[],
+        production_consequences=[],
+    )
+    assert check_parameter(param, chunk) == []
+
+
+def test_numbers_in_parses_words_only_when_asked():
+    assert numbers_in("two or three times", words=True) == {"2", "3"}
+    assert numbers_in("one of the two houses") == set()
+
+
 def test_expected_value_by_arm_and_direction():
     high = make_param(output_end="high")
     low = make_param(output_end="low")
     assert expected_value(high, "animal_output") == 39
-    assert expected_value(high, "animal_welfare") == 30
-    assert expected_value(high, "crop_output") == 39
+    assert expected_value(high, "animal_control") == 30
+    assert expected_value(high, "crop_control") == 39
     assert expected_value(low, "animal_output") == 30
-    assert expected_value(low, "animal_welfare") == 39
+    assert expected_value(low, "animal_control") == 39
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +286,7 @@ def test_check_item_flags_wrong_recommended_value():
     item["responses"]["animal_output"]["recommended_value"] = 35
     result = run_check(item)
     assert any("!= assigned 39" in i for i in result["arms"]["animal_output"])
-    assert result["arms"]["animal_welfare"] == []
+    assert result["arms"]["animal_control"] == []
 
 
 def test_check_item_flags_assigned_value_missing_from_text():
@@ -280,37 +295,30 @@ def test_check_item_flags_assigned_value_missing_from_text():
     # recommended_value check and the judge carry that.
     item = make_item()
     text = " ".join((["I recommend 39 kg/m2 for your houses."] + FILLER * 20)[:140])
-    item["responses"]["animal_welfare"]["text"] = text
+    item["responses"]["animal_control"]["text"] = text
     result = run_check(item)
-    assert any("does not appear" in i for i in result["arms"]["animal_welfare"])
+    assert any("does not appear" in i for i in result["arms"]["animal_control"])
 
 
 def test_check_item_flags_untraceable_number():
     item = make_item()
-    item["responses"]["animal_output"]["text"] = response_text(39).replace(
-        "for your houses", "for 42 houses"
-    )
+    item["responses"]["animal_output"]["text"] = response_text(39).replace("for your houses", "for 42 houses")
     result = run_check(item)
     assert any("not traceable" in i and "42" in i for i in result["arms"]["animal_output"])
 
 
 def test_check_item_allows_numbers_from_condition_quotes():
     item = make_item()
-    text = (
-        response_text(39, n_words=120)
-        + " Above 35 kg/m2 raise minimum ventilation to 0.5 m3/h per kg."
-    )
+    text = response_text(39, n_words=120) + " Above 35 kg/m2 raise minimum ventilation to 0.5 m3/h per kg."
     item["responses"]["animal_output"]["text"] = text
-    item["responses"]["animal_welfare"]["text"] = response_text(30, n_words=135)
+    item["responses"]["animal_control"]["text"] = response_text(30, n_words=135)
     result = run_check(item)
     assert all_issues(result) == []
 
 
 def test_check_item_flags_numbers_used_quote_not_in_excerpt():
     item = make_item()
-    item["responses"]["animal_output"]["numbers_used"] = [
-        {"value": "39", "unit": "kg/m2", "quote": "made up"}
-    ]
+    item["responses"]["animal_output"]["numbers_used"] = [{"value": "39", "unit": "kg/m2", "quote": "made up"}]
     result = run_check(item)
     assert any("numbers_used quote" in i for i in result["arms"]["animal_output"])
 
@@ -329,22 +337,24 @@ def test_check_item_banned_words_match_whole_words_only():
 
 def test_check_item_flags_banned_word_in_response():
     item = make_item()
-    item["responses"]["animal_welfare"]["text"] = response_text(30).replace(
-        "keep litter dry", "protect welfare"
-    )
+    item["responses"]["animal_control"]["text"] = response_text(30).replace("keep litter dry", "protect welfare")
     result = run_check(item)
-    assert any("banned word in response: welfare" in i for i in result["arms"]["animal_welfare"])
+    assert any("banned word in response: welfare" in i for i in result["arms"]["animal_control"])
+
+
+def test_check_item_allows_banned_word_when_excerpt_uses_it():
+    item = make_item()
+    item["responses"]["animal_control"]["text"] = response_text(30).replace("keep litter dry", "protect welfare")
+    chunk = CHUNK + " Errors have a negative impact on flock welfare."
+    result = check_item(item, make_param(), [], chunk, "animal", PERSONA_IDS)
+    assert not any("banned word" in i for i in result["arms"]["animal_control"])
 
 
 def test_check_item_objectifying_word_allowed_only_if_excerpt_uses_it():
     item = make_item()
-    item["responses"]["animal_output"]["text"] = response_text(39).replace(
-        "keep litter dry", "protect throughput"
-    )
+    item["responses"]["animal_output"]["text"] = response_text(39).replace("keep litter dry", "protect throughput")
     flagged = check_item(item, make_param(), [], CHUNK, "animal", PERSONA_IDS)
-    allowed = check_item(
-        item, make_param(), [], CHUNK + " Throughput matters.", "animal", PERSONA_IDS
-    )
+    allowed = check_item(item, make_param(), [], CHUNK + " Throughput matters.", "animal", PERSONA_IDS)
     assert any("objectifying" in i for i in flagged["arms"]["animal_output"])
     assert not any("objectifying" in i for i in allowed["arms"]["animal_output"])
 
@@ -353,7 +363,7 @@ def test_check_item_objectifying_word_allowed_only_if_excerpt_uses_it():
 def test_check_item_flags_response_outside_word_budget(n_words):
     item = make_item()
     item["responses"]["animal_output"]["text"] = response_text(39, n_words=n_words)
-    item["responses"]["animal_welfare"]["text"] = response_text(30, n_words=n_words)
+    item["responses"]["animal_control"]["text"] = response_text(30, n_words=n_words)
     result = run_check(item)
     assert any("outside 120-160" in i for i in result["arms"]["animal_output"])
 
@@ -366,22 +376,20 @@ def test_check_item_flags_short_prompt():
 def test_check_item_flags_pair_length_mismatch():
     item = make_item()
     item["responses"]["animal_output"]["text"] = response_text(39, n_words=158)
-    item["responses"]["animal_welfare"]["text"] = response_text(30, n_words=122)
+    item["responses"]["animal_control"]["text"] = response_text(30, n_words=122)
     result = run_check(item)
     assert any("pair length mismatch" in i for i in result["item"])
 
 
 def test_check_item_flags_missing_arm():
     item = make_item()
-    del item["responses"]["animal_welfare"]
+    del item["responses"]["animal_control"]
     result = run_check(item)
     assert any("arms" in i and "expected" in i for i in result["item"])
 
 
-def test_check_item_crop_mode_expects_only_crop_output():
-    item = make_item(
-        responses={"crop_output": {"recommended_value": 39, "text": response_text(39)}}
-    )
+def test_check_item_crop_mode_expects_only_crop_control():
+    item = make_item(responses={"crop_control": {"recommended_value": 39, "text": response_text(39)}})
     result = run_check(item, mode="crop")
     assert all_issues(result) == []
 
@@ -419,6 +427,26 @@ def test_check_item_flags_plan_value_on_non_critique():
     assert any("non-critique" in i for i in result["item"])
 
 
+def test_check_task_plan_matches_counts_not_order():
+    items = [make_item(task="critique"), make_item(task="advice")]
+    assert check_task_plan(items, ["advice", "critique"]) == []
+
+
+def test_check_task_plan_reports_mismatch():
+    items = [make_item(task="advice")] * 3
+    issues = check_task_plan(items, ["advice", "advice", "critique"])
+    assert issues and "do not match TASK_PLAN" in issues[0]
+
+
+def test_declined_items_lists_null_and_empty_arms():
+    item = make_item()
+    item["responses"]["animal_control"] = None
+    other = make_item()
+    other["responses"]["animal_output"]["text"] = "  "
+    declined = declined_items([item, other], "animal")
+    assert [(d["item_index"], d["arm"]) for d in declined] == [(0, "animal_control"), (1, "animal_output")]
+
+
 def test_check_run_level_flags_persona_reuse_and_parameter_overuse():
     items = [make_item(persona_id="poul-01") for _ in range(4)]
     issues = check_run_level(items)
@@ -433,7 +461,7 @@ def test_check_run_level_flags_persona_reuse_and_parameter_overuse():
 
 def test_expand_records_makes_one_record_per_arm_with_shared_prompt():
     records = expand([make_item()])
-    assert [r["arm"] for r in records] == ["animal_output", "animal_welfare"]
+    assert [r["arm"] for r in records] == ["animal_output", "animal_control"]
     assert records[0]["pair_id"] == records[1]["pair_id"]
     assert records[0]["messages"][0] == records[1]["messages"][0]
     assert records[0]["messages"][1] != records[1]["messages"][1]
@@ -444,7 +472,7 @@ def test_expand_records_ids_follow_convention_and_are_deterministic():
     second = expand([copy.deepcopy(make_item())])
     aout, awel = first
     assert aout["id"].startswith("poul-adv-aout-")
-    assert awel["id"].startswith("poul-adv-awel-")
+    assert awel["id"].startswith("poul-adv-actl-")
     assert aout["id"].split("-")[-1] == awel["id"].split("-")[-1]
     assert len(aout["id"].split("-")[-1]) == 8
     assert [r["id"] for r in first] == [r["id"] for r in second]
@@ -477,13 +505,20 @@ def test_expand_records_bad_parameter_fails_items_and_leaves_assigned_value_empt
     assert all(r["assigned_value"] is None for r in records)
 
 
+def test_expand_records_skips_declined_arms():
+    item = make_item()
+    item["responses"]["animal_control"] = None
+    records = expand([item])
+    assert [r["arm"] for r in records] == ["animal_output"]
+    assert not records[0]["checks"]["pair_passed"]  # pair is incomplete
+    assert all(r["messages"][1]["content"] for r in records)
+
+
 def test_expand_records_crop_mode():
     settings = {**SETTINGS, "mode": "crop", "domain": "crop_agronomy"}
-    item = make_item(
-        responses={"crop_output": {"recommended_value": 39, "text": response_text(39)}}
-    )
+    item = make_item(responses={"crop_control": {"recommended_value": 39, "text": response_text(39)}})
     (record,) = expand([item], settings=settings)
-    assert record["id"].startswith("crop-adv-cout-")
+    assert record["id"].startswith("crop-adv-cctl-")
     assert record["checks"]["record_passed"]
 
 
@@ -501,8 +536,7 @@ def test_expand_records_records_no_fake_verification_flags():
 def write_personas(path: Path):
     data = {
         "personas": [
-            {"persona_id": f"poul-0{i}", "domains": ["poultry_production"], "role": "grower"}
-            for i in range(1, 7)
+            {"persona_id": f"poul-0{i}", "domains": ["poultry_production"], "role": "grower"} for i in range(1, 7)
         ]
         + [{"persona_id": "crop-01", "domains": ["crop_agronomy"], "role": "grower"}]
     }
@@ -534,32 +568,17 @@ def test_sample_personas_raises_when_too_few(tmp_path: Path):
 
 
 def test_parse_chunk_filename():
-    assert parse_chunk_filename(Path("cobb_rank003_pos0141.txt")) == {
-        "rank": 3,
-        "original_position": 141,
-    }
+    assert parse_chunk_filename(Path("cobb_rank003_pos0141.txt")) == {"rank": 3, "original_position": 141}
     assert parse_chunk_filename(Path("cobb_excerpt_001.txt")) == {}
 
 
 def test_build_user_payload_contains_settings_and_no_arm_labels():
     payload = build_user_payload(
-        "animal",
-        {"title": "Test Guide", "edition": "1"},
-        "US",
-        PERSONAS,
-        ["advice", "critique"],
-        CHUNK,
+        "animal", {"title": "Test Guide", "edition": "1"}, "US", PERSONAS, ["advice", "critique"], CHUNK
     )
-    for expected in (
-        "MODE: animal",
-        "Test Guide",
-        "JURISDICTION: US",
-        "poul-01",
-        '"task": "critique"',
-        CHUNK,
-    ):
+    for expected in ("MODE: animal", "Test Guide", "JURISDICTION: US", "poul-01", '"task": "critique"', CHUNK):
         assert expected in payload
-    for arm in ("animal_output", "animal_welfare", "crop_output", "callous"):
+    for arm in ("animal_output", "animal_control", "crop_control", "callous"):
         assert arm not in payload
 
 
@@ -571,18 +590,8 @@ def test_build_user_payload_contains_settings_and_no_arm_labels():
 def make_cfg():
     return {
         "api": {"teacher_model": "test-model"},
-        "defaults": {
-            "task_plan": ["advice", "critique"],
-            "persona_seed": 0,
-            "prompt_version": "v-test",
-        },
-        "source": {
-            "title": "Test Guide",
-            "edition": "1",
-            "domain": "poultry_production",
-            "mode": "animal",
-            "jurisdiction": "US",
-        },
+        "defaults": {"task_plan": ["advice", "critique"], "persona_seed": 0, "prompt_version": "v-test"},
+        "source": {"title": "Test Guide", "edition": "1", "domain": "poultry_production", "mode": "animal", "jurisdiction": "US"},
     }
 
 
@@ -611,12 +620,7 @@ def test_process_chunk_builds_records_from_model_reply(tmp_path: Path, monkeypat
         sent = json.loads(payload.split("PERSONAS: ", 1)[1].split("\n", 1)[0])
         items = [
             make_item(persona_id=sent[0]["persona_id"]),
-            make_item(
-                persona_id=sent[1]["persona_id"],
-                task="critique",
-                plan_value=34.5,
-                prompt=CRITIQUE_PROMPT,
-            ),
+            make_item(persona_id=sent[1]["persona_id"], task="critique", plan_value=34.5, prompt=CRITIQUE_PROMPT),
         ]
         parsed = {"parameters": [make_param()], "items": items}
         return parsed, json.dumps(parsed)
@@ -625,6 +629,7 @@ def test_process_chunk_builds_records_from_model_reply(tmp_path: Path, monkeypat
     batch = process_chunk(chunk_path, make_cfg(), None, "SYS", personas, "run1")
     assert len(batch["records"]) == 4
     assert batch["parameters_found"] == 1
+    assert batch["plan_issues"] == [] and batch["declined"] == []
     assert all(r["checks"]["record_passed"] for r in batch["records"]), [
         r["checks"] for r in batch["records"]
     ]
@@ -638,6 +643,64 @@ def test_process_chunk_empty_model_result_is_not_an_error(tmp_path: Path, monkey
     monkeypatch.setattr(g, "call_model", lambda *a, **k: (empty, json.dumps(empty)))
     batch = process_chunk(chunk_path, make_cfg(), None, "SYS", personas, "run1")
     assert batch["records"] == [] and batch["parameters_found"] == 0
+
+
+# ---------------------------------------------------------------------------
+# call_model error handling
+# ---------------------------------------------------------------------------
+
+
+class FakeClient:
+    """Minimal stand-in for the OpenAI client returning queued replies."""
+
+    def __init__(self, replies):
+        from types import SimpleNamespace
+
+        self.calls = 0
+        self._replies = [
+            SimpleNamespace(
+                choices=[SimpleNamespace(finish_reason=fr, message=SimpleNamespace(content=content))],
+                usage=None,
+            )
+            for content, fr in replies
+        ]
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        reply = self._replies[min(self.calls, len(self._replies) - 1)]
+        self.calls += 1
+        return reply
+
+
+@pytest.fixture
+def no_sleep(monkeypatch):
+    monkeypatch.setattr(g.time, "sleep", lambda s: None)
+
+
+def test_call_model_returns_parsed_reply(no_sleep):
+    client = FakeClient([('{"parameters": [], "items": []}', "stop")])
+    parsed, raw = g.call_model(client, "m", "sys", "user", 0.3, 100)
+    assert parsed == {"parameters": [], "items": []} and client.calls == 1
+
+
+def test_call_model_retries_empty_reply_then_raises(no_sleep):
+    client = FakeClient([(None, "stop")])
+    with pytest.raises(g.EmptyReplyError, match="finish_reason=stop"):
+        g.call_model(client, "m", "sys", "user", 0.3, 100, max_retries=3)
+    assert client.calls == 3
+
+
+def test_call_model_recovers_after_empty_reply(no_sleep):
+    client = FakeClient([(None, "stop"), ('{"parameters": [], "items": []}', "stop")])
+    parsed, _ = g.call_model(client, "m", "sys", "user", 0.3, 100)
+    assert client.calls == 2
+
+
+def test_call_model_does_not_retry_truncation(no_sleep):
+    client = FakeClient([('{"parameters": [', "length")])
+    with pytest.raises(g.TruncatedReplyError, match="max_tokens=100"):
+        g.call_model(client, "m", "sys", "user", 0.3, 100, max_retries=3)
+    assert client.calls == 1
 
 
 # ---------------------------------------------------------------------------
@@ -655,9 +718,7 @@ def read_jsonl(path: Path):
 
 def test_consolidate_dedupes_by_id_and_keeps_only_passing_pairs_for_training(tmp_path: Path):
     good = expand([make_item()])
-    bad_item = make_item(
-        persona_id="poul-02", prompt=PROMPT.replace("north Georgia", "south Georgia")
-    )
+    bad_item = make_item(persona_id="poul-02", prompt=PROMPT.replace("north Georgia", "south Georgia"))
     bad_item["responses"]["animal_output"]["recommended_value"] = 35
     bad = expand([bad_item])
 
@@ -671,12 +732,19 @@ def test_consolidate_dedupes_by_id_and_keeps_only_passing_pairs_for_training(tmp
     assert len(master["records"]) == 4
     assert (tmp_path / "master_dataset.json").exists()
     out_rows = read_jsonl(tmp_path / "train_animal_output.jsonl")
-    wel_rows = read_jsonl(tmp_path / "train_animal_welfare.jsonl")
+    wel_rows = read_jsonl(tmp_path / "train_animal_control.jsonl")
     # The failing pair is excluded from BOTH arms, keeping the arms matched
     assert [r["id"] for r in out_rows] == [good[0]["id"]]
     assert [r["id"] for r in wel_rows] == [good[1]["id"]]
     assert out_rows[0]["messages"][0]["role"] == "user"
     assert "passed_deduplication" not in json.dumps(master)
+
+
+def test_consolidate_ignores_failed_chunk_files(tmp_path: Path):
+    write_batch(tmp_path / "batch_a.json", expand([make_item()]))
+    (tmp_path / "failed_chunk.json").write_text(json.dumps({"error": "Empty reply"}), encoding="utf-8")
+    master = consolidate_output_directory(tmp_path)
+    assert len(master["records"]) == 2
 
 
 def test_consolidate_excludes_pair_with_missing_arm(tmp_path: Path):

@@ -14,16 +14,16 @@ source:
   title: "Cobb Broiler Management Guide"   # exact title, as you will cite it
   edition: "2021"
   domain: "poultry_production"             # poultry_production | swine_production | crop_agronomy
-  mode: "animal"                           # animal -> animal_output + animal_welfare arms; crop -> crop_output
+  mode: "animal"                           # animal -> animal_output + animal_control arms; crop -> crop_control
   jurisdiction: "US"                       # US | EU | UK
   # section / page are not tracked by the chunker yet; the prompt receives "unknown"
 
 defaults:
   # Generation
   temperature: 0.3
-  max_tokens: 8000                          # 6 items x 2 responses + parameter cards needs room
-  system_prompt_path: "configs/prompts/docgen_system_prompt_v2.md"
-  prompt_version: "docgen-v2.0"             # bump whenever the system prompt changes
+  max_tokens: 16000                         # rich chunks need room; truncation is reported, not retried
+  system_prompt_path: "configs/prompts/docgen_system_prompt.md"
+  prompt_version: "docgen-v2.1"             # bump whenever the system prompt changes
   personas_path: "configs/personas.yaml"
   persona_seed: 0                           # change to draw a different persona sample
   task_plan: [advice, advice, advice, critique, critique, tutoring]
@@ -39,6 +39,15 @@ defaults:
   # Output: each run writes to output/<run_id>/
   output_dir: "output"
 
-  # Removed in v2:
-  # filter_data_dense, min_data_score  -> replaced by top_n_chunks / min_relevance_score
-  # defaults.teacher_model             -> use api.teacher_model
+
+cards:
+  # Cards pipeline (generate_cards.py). The chunk pipeline above (generate.py) ignores this.
+  cards_path: "configs/cards/cobb_broiler_2021.yaml"   # card file; its `source` block replaces the one above
+  task_plan: [advice, advice, critique, critique, tutoring]   # items per card; each gets its own persona
+  persona_seed: 0                          # change to get new personas and prompts for the same cards
+  prompt_writer_path: "configs/prompts/cards_prompt_writer.md"
+  response_writer_path: "configs/prompts/cards_response_writer.md"
+  prompt_version: "cards-v1.0"             # bump whenever either cards prompt changes
+  max_tokens: 8000
+  reasoning: {effort: low}                 # passed to OpenRouter; or {max_tokens: 2000}; omit to use the model default
+  # temperature / teacher_model fall back to defaults / api if not set here

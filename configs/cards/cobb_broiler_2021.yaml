@@ -1,0 +1,145 @@
+# Parameter cards: Cobb Broiler Management Guide (2021)
+# Starter set for review. Every quote must match the cleaned book text exactly
+# (whitespace differences are ignored). Check with:
+#   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/cobb_broiler_2021.yaml
+#
+# Reason rules: a `quote` reason must be a close paraphrase of that end's quote and add
+# nothing to it. A `unit` reason is left empty; the checker prints the fixed sentence used.
+# Set reviewed_by only after a second reader has compared every reason with its quote.
+
+source:
+  title: "Cobb Broiler Management Guide"
+  edition: "2021"
+  domain: poultry_production
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Cobb Broiler Management Guide_cleaned.txt"
+
+cards:
+  - card_id: cobb-density-tunnel-evap
+    parameter: "final stocking density in a solid-wall, tunnel-ventilated house with evaporative cooling"
+    parameter_category: space_allowance
+    unit: "kg/m²"
+    range_low: 28
+    range_high: 42
+    range_quote:
+      - "Any time stocking densities increase above 28 kg/m²"
+      - "Do not use stocking densities higher than 42 kg/m² because flock heat removal by the ventilation system becomes very difficult."
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: quote
+    other_end_reason: "Above 28 kg/m², heat trapped below the birds can build up very quickly."
+    other_end_quote: "heat trapped below the birds can build up very quickly."
+    management_conditions:
+      - condition: "Above 28 kg/m², constantly monitor bird behavior, feed intake and internal bird temperature"
+        applies_to: high
+        quote: "require the stockman to constantly monitor bird behavior, feed intake and internal bird temperature."
+      - condition: "Project maximum density from the final expected body weight, reached the day before or the day of catching"
+        applies_to: both
+        quote: "Maximum stocking density must be projected based on the final expected body weight of the broiler flock, and this final weight and density should be achieved the day before or the day of catching."
+      - condition: "Consider national requirements and codes of practice"
+        applies_to: both
+        quote: "National requirements and Codes of Practice must always be considered when determining final stocking density for broilers."
+    production_consequences:
+      - consequence: "Higher bird temperatures, more panting, lower feed intake and lower daily gains"
+        applies_to: high
+        quote: "Increased bird temperatures will result in higher levels of panting, reduce feed intake and subsequent decreases in daily gains."
+      - consequence: "Worse feed conversion"
+        applies_to: high
+        quote: "Higher levels of panting indicate energy required for growth is being used for heat dissipation resulting in increased feed conversions."
+    page: 40
+    notes: >-
+      Range choice: 28 is the guide's monitoring threshold, not a stated minimum; 42 is its
+      absolute maximum for this house type. Other-end reason restates the guide's warning
+      about densities above 28; it does not claim anything about densities below 28.
+    reviewed_by: null
+
+  - card_id: cobb-feed-withdrawal
+    parameter: "feed withdrawal time before processing"
+    parameter_category: feeding
+    unit: "hours"
+    range_low: 8
+    range_high: 12
+    range_quote: "Optimum recommended time for feed withdrawal is 8 to 12 hours"
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: "A withdrawal shorter than 8 hours wastes undigested feed that will not be converted to meat."
+    output_end_quote: "Less than 8 hours may result in excess feed and fecal residues in the digestive tract. This is a waste of the undigested feed as the feed will not be converted to meat."
+    other_reason_basis: quote
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: "Withdrawal time runs from loss of access to feed until shackling at the plant"
+        applies_to: both
+        quote: "(beginning when birds do not have access to feed in the poultry house until shackling at the processing plant)."
+      - condition: "Do not exceed 12 hours"
+        applies_to: high
+        quote: "Feed withdrawal in excess of 12 hours causes the intestines to lose their tensile strength, making them easy to tear and rupture during evisceration at the processing plant."
+      - condition: "Account for transport time and driving distance"
+        applies_to: both
+        quote: "Coordinate transportation and calculate driving distance into feed withdrawal times."
+    production_consequences: []
+    page: 85
+    notes: >-
+      FAILS ON PURPOSE: the guide gives no reason in favour of the 8-hour end (the closest,
+      "critical in optimizing ... animal welfare outcomes", has no direction), so there is no
+      quote for the other-end reason. Options: drop the card, find a quote in another source,
+      or add a 'deprivation_duration' category with a fixed unit sentence ("At 8 hours, the
+      birds go without feed for less time"). Also: the output quote is about going below 8 h;
+      treating 12 h as the output end is an interpretation to confirm.
+    reviewed_by: null
+
+  - card_id: cobb-light-intensity-growing
+    parameter: "light intensity during the growing phase"
+    parameter_category: environment
+    unit: "lux"
+    range_low: 5
+    range_high: 10
+    range_quote: "light intensities can be reduced gradually to 5 to 10 lux"
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: "Light intensity is lowered during the growing phase to improve feed conversion ratio (FCR)."
+    output_end_quote: "Lowering light intensity below 5 lux (0.5 fc) during the growing phase to improve feed conversion ratio (FCR)"
+    other_reason_basis: quote
+    other_end_reason: "The intensity of light alters broiler activity."
+    other_end_quote: "The intensity and distribution of light alters broiler activity."
+    management_conditions:
+      - condition: "Reduce gradually once birds weigh 130 to 180 g, unless local legislation prohibits it"
+        applies_to: both
+        quote: "When birds weigh between 130 to 180 g (0.29 to 0.40 lb), light intensities can be reduced gradually to 5 to 10 lux (0.5 to 1 fc) unless local legislation prohibits this reduction."
+      - condition: "Do not go below 5 lux"
+        applies_to: low
+        quote: "Note: Lowering light intensity below 5 lux (0.5 fc) during the growing phase to improve feed conversion ratio (FCR), risks the reduction of daily feed consumption and a decrease in the average daily gain."
+    production_consequences: []
+    page: 41
+    notes: >-
+      Reviewer decision needed: the other-end quote says light intensity alters activity but
+      not that brighter is better, so the control arm's reason has no direction. The output
+      quote states the motive for lowering light (FCR) in a sentence warning against going
+      below 5 lux.
+    reviewed_by: null
+
+  - card_id: cobb-birds-per-nipple-brooding
+    parameter: "birds per nipple drinker in a partial brooding house"
+    parameter_category: animals_per_equipment
+    unit: "birds per nipple"
+    range_low: 20
+    range_high: 25
+    range_quote: "Do not exceed 20 to 25 birds per nipple in a partial brooding house."
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: "Ensure adequate drinking space, especially in summer"
+        applies_to: both
+        quote: "Ensure adequate drinking space, especially during summer placements."
+    production_consequences: []
+    page: 12
+    notes: "Both reasons are the fixed unit sentences."
+    reviewed_by: null

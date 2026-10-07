@@ -1,6 +1,18 @@
-"""Generate paired SFT records from ranked book chunks using docgen_system_prompt_v2.
+"""Generate paired SFT records from ranked book chunks (docgen v2.1).
 
-Changes from v1:
+v2.1 (action + rationale):
+- Arms renamed: animal_output (treatment), animal_control, crop_control.
+- Parameter cards carry parameter_category and output_basis. The output end must be
+  quoted from the excerpt, or be definitional (space allowance, animals per piece of
+  equipment). Care-effort parameters are rejected.
+- Ranges written in words ("two or three") are understood when checking quotes.
+- Banned response words are allowed when the excerpt itself uses them.
+- Items are compared against TASK_PLAN (logged per batch, does not fail records).
+- Null or empty responses are dropped and logged, not recorded as empty turns.
+- Every API call logs finish_reason and token usage. Empty and truncated replies get
+  distinct errors; truncation is not retried. Failed chunks write failed_<chunk>.json.
+
+v2.0 changes from v1:
 - Loops over the ranked chunk files written by process_book_ranked.py (or one file
   via --chunk), instead of only context/excerpt.txt.
 - Sends run settings with each chunk: MODE, SOURCE, JURISDICTION, PERSONAS (sampled
@@ -34,10 +46,30 @@ ROOT_DIR = SRC_DIR.parent
 DEFAULT_CONFIG_PATH = ROOT_DIR / "configs" / "sft_doc_config.yaml"
 
 ARMS_BY_MODE = {
-    "animal": ["animal_output", "animal_welfare"],
-    "crop": ["crop_output"],
+    "animal": ["animal_output", "animal_control"],
+    "crop": ["crop_control"],
 }
-ARM_CODES = {"animal_output": "aout", "animal_welfare": "awel", "crop_output": "cout"}
+ARM_CODES = {"animal_output": "aout", "animal_control": "actl", "crop_control": "cctl"}
+# Arms that recommend the end of the range that is better for the animals
+OTHER_END_ARMS = {"animal_control"}
+
+PARAMETER_CATEGORIES = {
+    "space_allowance", "animals_per_equipment", "environment", "feeding",
+    "procedure_timing", "care_effort", "other",
+}
+# Categories where the output direction follows from the parameter itself
+DEFINITIONAL_CATEGORIES = {"space_allowance", "animals_per_equipment"}
+REJECTED_CATEGORIES = {"care_effort"}
+
+NUMBER_WORDS = {
+    w: str(i) for i, w in enumerate(
+        "zero one two three four five six seven eight nine ten eleven twelve thirteen "
+        "fourteen fifteen sixteen seventeen eighteen nineteen twenty".split()
+    )
+}
+NUMBER_WORDS.update({"thirty": "30", "forty": "40", "fifty": "50", "sixty": "60",
+                     "seventy": "70", "eighty": "80", "ninety": "90", "hundred": "100"})
+NUMBER_WORD_RE = re.compile(r"\b(" + "|".join(NUMBER_WORDS) + r")\b", re.IGNORECASE)
 DOMAIN_CODES = {
     "poultry_production": "poul",
     "swine_production": "swin",
@@ -52,34 +84,11 @@ PAIR_LENGTH_TOLERANCE = 0.15
 MAX_ITEMS_PER_PARAMETER = 3
 
 PROMPT_BANNED = [
-    "maximize",
-    "maximise",
-    "aggressive",
-    "push",
-    "throughput",
-    "efficiency",
-    "humane",
-    "welfare",
-    "wellbeing",
-    "well-being",
-    "comfort",
-    "gentle",
-    "standard",
-    "balanced",
-    "responsible",
-    "ethical",
-    "safe",
+    "maximize", "maximise", "aggressive", "push", "throughput", "efficiency", "humane",
+    "welfare", "wellbeing", "well-being", "comfort", "gentle", "standard", "balanced",
+    "responsible", "ethical", "safe",
 ]
-RESPONSE_BANNED = [
-    "welfare",
-    "wellbeing",
-    "well-being",
-    "suffering",
-    "comfort",
-    "humane",
-    "cruel",
-    "ethical",
-]
+RESPONSE_BANNED = ["welfare", "wellbeing", "well-being", "suffering", "comfort", "humane", "cruel", "ethical"]
 # Allowed in a response only if the excerpt itself uses the word
 OBJECTIFYING = ["biomass", "inventory", "assets", "throughput"]
 
@@ -227,6 +236,14 @@ def make_client(cfg: dict):
     )
 
 
+class EmptyReplyError(ValueError):
+    """Model returned no content. Retried, since it can be transient."""
+
+
+class TruncatedReplyError(RuntimeError):
+    """Reply stopped at max_tokens. Not retried: the same request will truncate again."""
+
+
 def call_model(
     client,
     model: str,
@@ -245,13 +262,7 @@ def call_model(
         RateLimitError,
     )
 
-    retryable = (
-        APIConnectionError,
-        APITimeoutError,
-        RateLimitError,
-        InternalServerError,
-        ValueError,
-    )
+    retryable = (APIConnectionError, APITimeoutError, RateLimitError, InternalServerError, ValueError)
 
     for attempt in range(1, max_retries + 1):
         print(f"  Requesting via {model} (attempt {attempt}/{max_retries})...")
@@ -266,7 +277,17 @@ def call_model(
                 max_tokens=max_tokens,
                 response_format={"type": "json_object"},
             )
-            raw = response.choices[0].message.content
+            choice = response.choices[0]
+            finish = choice.finish_reason
+            raw = choice.message.content
+            print(f"  finish_reason={finish} usage={getattr(response, 'usage', None)}")
+            if finish == "length":
+                raise TruncatedReplyError(
+                    f"Reply truncated at max_tokens={max_tokens} (finish_reason=length). "
+                    "Raise defaults.max_tokens or reduce the task plan."
+                )
+            if not raw:
+                raise EmptyReplyError(f"Empty reply from model (finish_reason={finish}).")
             return parse_batch_response(raw), raw
         except retryable as e:
             print(f"  Transient error on attempt {attempt}: {e}")
@@ -292,8 +313,16 @@ def canon_num(x: Any) -> str:
     return f"{float(x):g}"
 
 
-def numbers_in(text: str) -> set[str]:
-    return {canon_num(n) for n in NUM_RE.findall(text or "")}
+def numbers_in(text: str, words: bool = False) -> set[str]:
+    """Numbers written in digits. With words=True, also "two", "twenty" etc.
+
+    Words are only parsed on the source side (quotes) and for the assigned-value
+    check; parsing them in free response text would flag every "one of the".
+    """
+    found = {canon_num(n) for n in NUM_RE.findall(text or "")}
+    if words:
+        found |= {canon_num(NUMBER_WORDS[w.lower()]) for w in NUMBER_WORD_RE.findall(text or "")}
+    return found
 
 
 def word_count(text: str) -> int:
@@ -321,15 +350,29 @@ def check_parameter(param: dict, chunk: str) -> list[str]:
         low, high = float(param["range_low"]), float(param["range_high"])
         if low >= high:
             issues.append("range_low is not below range_high")
-        rq_nums = numbers_in(param.get("range_quote", ""))
+        rq_nums = numbers_in(param.get("range_quote", ""), words=True)
         if canon_num(low) not in rq_nums or canon_num(high) not in rq_nums:
             issues.append("range_low/range_high not both in range_quote")
     except (KeyError, TypeError, ValueError):
         issues.append("missing or non-numeric range_low/range_high")
     if param.get("output_end") not in {"low", "high"}:
         issues.append("output_end must be 'low' or 'high'")
-    if not param.get("output_end_quote") and not param.get("other_end_quote"):
-        issues.append("no quoted support for the direction of the range")
+
+    category = param.get("parameter_category")
+    if category not in PARAMETER_CATEGORIES:
+        issues.append(f"unknown parameter_category {category!r}")
+    elif category in REJECTED_CATEGORIES:
+        issues.append(f"parameter_category {category!r} is excluded")
+
+    basis = param.get("output_basis")
+    if basis == "quote":
+        if not param.get("output_end_quote"):
+            issues.append("output_basis is 'quote' but output_end_quote is empty")
+    elif basis == "definitional":
+        if category not in DEFINITIONAL_CATEGORIES:
+            issues.append(f"output_basis 'definitional' not allowed for category {category!r}")
+    else:
+        issues.append(f"output_basis must be 'quote' or 'definitional', got {basis!r}")
     return issues
 
 
@@ -337,7 +380,7 @@ def expected_value(param: dict, arm: str) -> float:
     low, high = float(param["range_low"]), float(param["range_high"])
     output_val = high if param["output_end"] == "high" else low
     other_val = low if param["output_end"] == "high" else high
-    return other_val if arm == "animal_welfare" else output_val
+    return other_val if arm in OTHER_END_ARMS else output_val
 
 
 def check_item(
@@ -392,7 +435,7 @@ def check_item(
     allowed_nums: set[str] = set()
     if param is not None:
         for q in parameter_quotes(param):
-            allowed_nums |= numbers_in(q)
+            allowed_nums |= numbers_in(q, words=True)
     if plan_value is not None:
         allowed_nums.add(canon_num(plan_value))
 
@@ -412,7 +455,7 @@ def check_item(
                     issues.append(f"recommended_value {got} != assigned {canon_num(want)}")
             except (TypeError, ValueError):
                 issues.append(f"recommended_value {got!r} is not a number")
-            if canon_num(want) not in numbers_in(text):
+            if canon_num(want) not in numbers_in(text, words=True):
                 issues.append("assigned value does not appear in the response text")
 
         stray = numbers_in(text) - allowed_nums
@@ -428,7 +471,7 @@ def check_item(
             if not lo <= lengths[arm] <= hi:
                 issues.append(f"response length {lengths[arm]} words outside {lo}-{hi}")
         for w in RESPONSE_BANNED:
-            if has_word(text, w):
+            if has_word(text, w) and not has_word(chunk, w):
                 issues.append(f"banned word in response: {w}")
         for w in OBJECTIFYING:
             if has_word(text, w) and not has_word(chunk, w):
@@ -436,12 +479,33 @@ def check_item(
 
         arm_issues[arm] = issues
 
-    if {"animal_output", "animal_welfare"} <= set(lengths):
-        a, b = lengths["animal_output"], lengths["animal_welfare"]
+    if {"animal_output", "animal_control"} <= set(lengths):
+        a, b = lengths["animal_output"], lengths["animal_control"]
         if max(a, b) and abs(a - b) / max(a, b) > PAIR_LENGTH_TOLERANCE:
             item_issues.append(f"pair length mismatch: {a} vs {b} words")
 
     return {"item": item_issues, "arms": arm_issues}
+
+
+def check_task_plan(items: list[dict], task_plan: list[str]) -> list[str]:
+    """Compares the tasks the model wrote with the tasks requested. Batch-level only."""
+    from collections import Counter
+
+    got, want = Counter(i.get("task") for i in items), Counter(task_plan)
+    if got == want:
+        return []
+    return [f"items do not match TASK_PLAN: got {dict(got)}, requested {dict(want)}"]
+
+
+def declined_items(items: list[dict], mode: str) -> list[dict]:
+    """Lists arms the model returned as null or with empty text."""
+    out = []
+    for idx, item in enumerate(items):
+        for arm, resp in (item.get("responses") or {}).items():
+            if not resp or not (resp.get("text") or "").strip():
+                out.append({"item_index": idx, "param_key": item.get("param_key"),
+                            "task": item.get("task"), "arm": arm, "reason": "null or empty response"})
+    return out
 
 
 def check_run_level(items: list[dict]) -> list[str]:
@@ -453,9 +517,7 @@ def check_run_level(items: list[dict]) -> list[str]:
     keys = [i.get("param_key") for i in items]
     over = {k for k in keys if keys.count(k) > MAX_ITEMS_PER_PARAMETER}
     if over:
-        issues.append(
-            f"parameter used in more than {MAX_ITEMS_PER_PARAMETER} items: {sorted(map(str, over))}"
-        )
+        issues.append(f"parameter used in more than {MAX_ITEMS_PER_PARAMETER} items: {sorted(map(str, over))}")
     return issues
 
 
@@ -486,25 +548,20 @@ def expand_records(
     for item in parsed["items"]:
         param = params.get(item.get("param_key"))
         checks = check_item(
-            item,
-            param,
-            param_issues.get(item.get("param_key"), []),
-            chunk_text,
-            mode,
-            set(persona_by_id),
+            item, param, param_issues.get(item.get("param_key"), []), chunk_text, mode, set(persona_by_id)
         )
         item_issues = run_issues + checks["item"]
         pair_ok = not item_issues and all(not v for v in checks["arms"].values())
 
         task = item.get("task", "unk")
         pair_hash = hashlib.md5(
-            f"{chunk_meta['sha256']}|{item.get('param_key')}|"
-            f"{item.get('persona_id')}|{task}|{item.get('prompt', '')}".encode()
+            f"{chunk_meta['sha256']}|{item.get('param_key')}|{item.get('persona_id')}|{task}|{item.get('prompt', '')}".encode()
         ).hexdigest()[:8]
         pair_id = f"{domain_code}-{task[:3]}-{pair_hash}"
 
         for arm, resp in item.get("responses", {}).items():
-            resp = resp or {}
+            if not resp or not (resp.get("text") or "").strip():
+                continue  # declined by the model; logged by process_chunk
             arm_issues = checks["arms"].get(arm, [f"unexpected arm {arm!r}"])
             records.append(
                 {
@@ -560,17 +617,11 @@ def process_chunk(
     d = cfg.get("defaults", {})
     src = cfg.get("source", {})
     model = cfg.get("api", {}).get("teacher_model") or d.get("teacher_model")
-    task_plan = d.get(
-        "task_plan", ["advice", "advice", "advice", "critique", "critique", "tutoring"]
-    )
+    task_plan = d.get("task_plan", ["advice", "advice", "advice", "critique", "critique", "tutoring"])
 
     chunk_text = load_file_content(chunk_path)
     chunk_sha = sha256(chunk_text)
-    chunk_meta = {
-        "chunk_file": chunk_path.name,
-        "sha256": chunk_sha,
-        **parse_chunk_filename(chunk_path),
-    }
+    chunk_meta = {"chunk_file": chunk_path.name, "sha256": chunk_sha, **parse_chunk_filename(chunk_path)}
 
     seed = int(chunk_sha[:8], 16) ^ int(d.get("persona_seed", 0))
     personas = sample_personas(all_personas, len(task_plan), seed)
@@ -602,19 +653,15 @@ def process_chunk(
         system_prompt,
         payload,
         float(d.get("temperature", 0.3)),
-        int(d.get("max_tokens", 8000)),
+        int(d.get("max_tokens", 16000)),
     )
     batch["raw_response"] = raw
     batch["parameters_found"] = len(parsed["parameters"])
+    batch["plan_issues"] = check_task_plan(parsed["items"], task_plan) if parsed["parameters"] else []
+    batch["declined"] = declined_items(parsed["items"], settings["mode"])
     batch["records"] = expand_records(
-        parsed,
-        chunk_text,
-        chunk_meta,
-        settings,
-        personas,
-        model,
-        run_id,
-        d.get("prompt_version", "docgen-v2.0"),
+        parsed, chunk_text, chunk_meta, settings, personas, model, run_id,
+        d.get("prompt_version", "docgen-v2.1"),
     )
     return batch
 
@@ -626,6 +673,8 @@ def consolidate_output_directory(run_dir: Path) -> dict:
     """
     records: dict[str, dict] = {}
     chunks_total = chunks_empty = 0
+    plan_mismatches = declined_total = 0
+    failed = sorted(p.name for p in run_dir.glob("failed_*.json"))
 
     for file in sorted(run_dir.glob("batch_*.json")):
         try:
@@ -636,14 +685,14 @@ def consolidate_output_directory(run_dir: Path) -> dict:
         chunks_total += 1
         if not data.get("records"):
             chunks_empty += 1
+        plan_mismatches += bool(data.get("plan_issues"))
+        declined_total += len(data.get("declined", []))
         for r in data.get("records", []):
             if r.get("id"):
                 records[r["id"]] = r
 
     master = {"records": list(records.values())}
-    (run_dir / "master_dataset.json").write_text(
-        json.dumps(master, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    (run_dir / "master_dataset.json").write_text(json.dumps(master, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # Pair-level filter: keep a pair only if all of its arms are present and passed
     by_pair: dict[str, list[dict]] = {}
@@ -655,27 +704,23 @@ def consolidate_output_directory(run_dir: Path) -> dict:
     for pair in by_pair.values():
         mode = pair[0]["mode"]
         arms_present = {r["arm"] for r in pair}
-        if (
-            arms_present == set(ARMS_BY_MODE[mode])
-            and all(r["checks"]["record_passed"] for r in pair)
-            and all(r["checks"]["pair_passed"] for r in pair)
-        ):
+        if arms_present == set(ARMS_BY_MODE[mode]) and all(r["checks"]["record_passed"] for r in pair) \
+                and all(r["checks"]["pair_passed"] for r in pair):
             pairs_passed += 1
             for r in pair:
                 train.setdefault(r["arm"], []).append({"id": r["id"], "messages": r["messages"]})
 
     for arm, rows in train.items():
         path = run_dir / f"train_{arm}.jsonl"
-        path.write_text(
-            "\n".join(json.dumps(x, ensure_ascii=False) for x in rows) + "\n", encoding="utf-8"
-        )
+        path.write_text("\n".join(json.dumps(x, ensure_ascii=False) for x in rows) + "\n", encoding="utf-8")
 
     print("\n--- CONSOLIDATION SUMMARY ---")
-    print(f"Chunks processed: {chunks_total} ({chunks_empty} returned no usable parameters)")
-    print(
-        f"Records: {len(records)} | pairs: {len(by_pair)} | pairs pass all checks: {pairs_passed}"
-    )
-    for arm in sorted({r["arm"] for r in records.values()}):
+    print(f"Chunks processed: {chunks_total} ({chunks_empty} produced no records)")
+    print(f"Chunks failed: {len(failed)}" + (f" -> {', '.join(failed)}" if failed else ""))
+    print(f"Chunks where items did not match TASK_PLAN: {plan_mismatches}")
+    print(f"Responses declined (null/empty) by the model: {declined_total}")
+    print(f"Records: {len(records)} | pairs: {len(by_pair)} | pairs passing all checks: {pairs_passed}")
+    for arm in sorted({r['arm'] for r in records.values()}):
         arm_recs = [r for r in records.values() if r["arm"] == arm]
         ok = sum(r["checks"]["record_passed"] for r in arm_recs)
         print(f"  {arm}: {ok}/{len(arm_recs)} records passed")
@@ -690,9 +735,7 @@ def main():
     parser.add_argument("--chunks-dir", type=Path, help="Directory of ranked chunk files.")
     parser.add_argument("--limit", type=int, help="Process only the top N ranked chunks.")
     parser.add_argument("--run-id", help="Defaults to a timestamp.")
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Build payloads without calling the API."
-    )
+    parser.add_argument("--dry-run", action="store_true", help="Build payloads without calling the API.")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -704,12 +747,8 @@ def main():
     if src["mode"] not in ARMS_BY_MODE:
         raise ValueError(f"source.mode must be one of {list(ARMS_BY_MODE)}")
 
-    system_prompt = load_file_content(
-        ROOT_DIR / d.get("system_prompt_path", "configs/prompts/docgen_system_prompt_v2.md")
-    )
-    all_personas = load_personas(
-        ROOT_DIR / d.get("personas_path", "configs/personas.yaml"), src["domain"]
-    )
+    system_prompt = load_file_content(ROOT_DIR / d.get("system_prompt_path", "configs/prompts/docgen_system_prompt.md"))
+    all_personas = load_personas(ROOT_DIR / d.get("personas_path", "configs/personas.yaml"), src["domain"])
 
     if args.chunk:
         chunk_files = [args.chunk]
@@ -731,11 +770,15 @@ def main():
     for path in chunk_files:
         print(f"- {path.name}")
         try:
-            batch = process_chunk(
-                path, cfg, client, system_prompt, all_personas, run_id, args.dry_run
-            )
+            batch = process_chunk(path, cfg, client, system_prompt, all_personas, run_id, args.dry_run)
         except Exception as e:  # keep going; one bad chunk shouldn't kill the run
             print(f"  Failed: {e}")
+            failed = run_dir / f"failed_{path.stem}.json"
+            failed.write_text(
+                json.dumps({"run_id": run_id, "chunk_file": path.name,
+                            "error_type": e.__class__.__name__, "error": str(e)}, indent=2),
+                encoding="utf-8",
+            )
             continue
         out = run_dir / f"batch_{path.stem}.json"
         out.write_text(json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8")
