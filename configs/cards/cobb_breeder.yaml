@@ -22,7 +22,7 @@ source:
   sector: breeder
   mode: animal
   jurisdiction: US
-  book_text: "context/cleaned/<breeder file>_cleaned.txt" # TODO get cleaned file
+  book_text: "context/cleaned/<breeder file>_cleaned.txt" # need to get cleaned file
 
 cards:
   - card_id: cobb-breeder-initial-brooding-density
