@@ -652,3 +652,59 @@ def test_cards_batches_consolidate_into_training_files(tmp_path: Path):
     out = (tmp_path / "train_animal_output.jsonl").read_text(encoding="utf-8").splitlines()
     ctl = (tmp_path / "train_animal_control.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(out) == len(ctl) == 2
+
+
+# ---------------------------------------------------------------------------
+# Persona sectors
+# ---------------------------------------------------------------------------
+
+SECTOR_PERSONAS = (
+    [{"persona_id": f"poul-0{i}", "sectors": ["broiler"]} for i in range(1, 4)]
+    + [{"persona_id": f"bred-0{i}", "sectors": ["breeder"]} for i in range(1, 4)]
+    + [{"persona_id": "any-01"}]
+)
+
+
+def run_sector_card(card, sector, **kwargs):
+    src = {**SRC, "sector": sector}
+    return gc.process_card(card, src, BOOK, SETTINGS, None, SECTOR_PERSONAS, "run1", **kwargs)
+
+
+def test_filter_by_sector():
+    assert len(g.filter_by_sector(SECTOR_PERSONAS, None)) == 7
+    breeders = g.filter_by_sector(SECTOR_PERSONAS, "breeder")
+    # Untagged personas are left out once a sector is set.
+    assert {p["persona_id"] for p in breeders} == {"bred-01", "bred-02", "bred-03"}
+
+
+def test_sample_personas_strips_sector_tags():
+    chosen = g.sample_personas(SECTOR_PERSONAS, 3, seed=1)
+    assert all("sectors" not in p and "domains" not in p for p in chosen)
+
+
+def test_process_card_uses_source_sector_and_card_override():
+    batch = run_sector_card(make_card(), "breeder", dry_run=True)
+    assert {p["persona_id"][:4] for p in batch["personas_sent"]} == {"bred"}
+    batch = run_sector_card(make_card(sector="broiler"), "breeder", dry_run=True)
+    assert {p["persona_id"][:4] for p in batch["personas_sent"]} == {"poul"}
+
+
+def test_process_card_reports_too_few_sector_personas():
+    def boom(*a, **k):
+        raise AssertionError("model should not be called")
+
+    batch = run_sector_card(make_card(), "sow", call=boom)
+    assert batch["records"] == []
+    assert "sector 'sow'" in batch["card_issues"][0]
+
+
+def test_example_persona_file_has_enough_per_sector():
+    path = Path(__file__).with_name("personas.yaml.example")
+    if not path.exists():
+        path = g.ROOT_DIR / "configs" / "personas.yaml.example"
+    if not path.exists():
+        pytest.skip("personas.yaml.example not found")
+    personas = yaml.safe_load(path.read_text(encoding="utf-8"))["personas"]
+    poultry = [p for p in personas if "poultry_production" in p["domains"]]
+    for sector in ("broiler", "breeder"):
+        assert len(g.filter_by_sector(poultry, sector)) >= 5, sector

@@ -184,12 +184,27 @@ def load_personas(path: Path, domain: str) -> list[dict]:
     return matched
 
 
+def filter_by_sector(personas: list[dict], sector: str | None) -> list[dict]:
+    """Keeps personas tagged for this sector (e.g. broiler, breeder).
+
+    With no sector, every persona is kept. With a sector, only personas whose
+    `sectors` list includes it are kept; untagged personas are left out, so a
+    breeder card never draws a broiler grower.
+    """
+    if not sector:
+        return list(personas)
+    return [p for p in personas if sector in p.get("sectors", [])]
+
+
+PERSONA_TAG_KEYS = {"domains", "sectors"}
+
+
 def sample_personas(personas: list[dict], n: int, seed: int) -> list[dict]:
-    """Samples n distinct personas reproducibly. Strips the 'domains' tag before sending."""
+    """Samples n distinct personas reproducibly. Strips the domains/sectors tags."""
     if len(personas) < n:
         raise ValueError(f"Need {n} personas for the task plan but only {len(personas)} match.")
     chosen = random.Random(seed).sample(personas, n)
-    return [{k: v for k, v in p.items() if k != "domains"} for p in chosen]
+    return [{k: v for k, v in p.items() if k not in PERSONA_TAG_KEYS} for p in chosen]
 
 
 def sha256(text: str) -> str:

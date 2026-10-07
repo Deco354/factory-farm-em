@@ -19,6 +19,7 @@ source:
   title: "Cobb Broiler Management Guide"
   edition: "2021"
   domain: poultry_production
+  sector: broiler
   mode: animal
   jurisdiction: US
   book_text: "context/cleaned/Cobb Broiler Management Guide_cleaned.txt"

@@ -19,6 +19,7 @@ source:
   title: "Cobb Breeder Management Guide"
   edition: ""
   domain: poultry_production
+  sector: breeder
   mode: animal
   jurisdiction: US
   book_text: "context/cleaned/<breeder file>_cleaned.txt" # TODO get cleaned file

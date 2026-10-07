@@ -336,7 +336,16 @@ def process_card(
     seed = int(hashlib.sha256(card["card_id"].encode()).hexdigest()[:8], 16) ^ int(
         settings["persona_seed"]
     )
-    personas = g.sample_personas(all_personas, len(task_plan), seed)
+    # A card can override its file's sector.
+    sector = card.get("sector") or src.get("sector")
+    pool = g.filter_by_sector(all_personas, sector)
+    if len(pool) < len(task_plan):
+        batch["card_issues"] = [
+            f"only {len(pool)} personas tagged for sector '{sector}'; "
+            f"the task plan needs {len(task_plan)}"
+        ]
+        return batch
+    personas = g.sample_personas(pool, len(task_plan), seed)
     pvals = plan_values(card, task_plan)
     items = [
         {"item_index": i, "task": t, "persona": p, "plan_value": tidy_number(pv)}

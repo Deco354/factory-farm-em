@@ -3,12 +3,18 @@
 # so each domain needs at least 6 personas; 20+ gives better variety.
 # business_situation is background only and should be mild: it must not ask for
 # maximum output or for prioritising the animals.
-
-# TODO: Add some breeder personas, including laying-farm
+#
+# sectors (optional): narrows the pool for card files that set `sector` (or for a
+# single card that sets it). A card file with sector: breeder draws only personas
+# tagged breeder; a file with no sector draws from the whole domain. Each sector
+# used needs at least as many personas as the cards task_plan (5 by default).
+#   poultry_production: broiler | breeder
+#   swine_production:   finishing | sow
 
 personas:
   - persona_id: poul-01
     domains: [poultry_production]
+    sectors: [broiler]
     role: "owner-operator"
     operation: "four-house broiler farm on contract with an integrator"
     region: "northern Georgia"
@@ -16,6 +22,7 @@ personas:
 
   - persona_id: poul-02
     domains: [poultry_production]
+    sectors: [broiler]
     role: "farm manager"
     operation: "eight tunnel-ventilated broiler houses"
     region: "eastern Arkansas"
@@ -23,6 +30,7 @@ personas:
 
   - persona_id: poul-03
     domains: [poultry_production]
+    sectors: [broiler]
     role: "new grower, first year"
     operation: "two newly built broiler houses"
     region: "Delmarva Peninsula"
@@ -30,6 +38,7 @@ personas:
 
   - persona_id: poul-04
     domains: [poultry_production]
+    sectors: [broiler]
     role: "service technician for an integrator"
     operation: "supports about thirty contract growers"
     region: "central Mississippi"
@@ -37,6 +46,7 @@ personas:
 
   - persona_id: poul-05
     domains: [poultry_production]
+    sectors: [broiler]
     role: "second-generation family farmer"
     operation: "three older curtain-sided broiler houses"
     region: "Shenandoah Valley, Virginia"
@@ -44,13 +54,80 @@ personas:
 
   - persona_id: poul-06
     domains: [poultry_production]
+    sectors: [broiler]
     role: "assistant manager"
     operation: "large broiler complex, twelve houses"
     region: "North Carolina piedmont"
     business_situation: "preparing the placement plan for next quarter"
 
+  # Broiler breeders: pullet rearing (to about 20 weeks) and hen/laying houses.
+  - persona_id: bred-01
+    domains: [poultry_production]
+    sectors: [breeder]
+    role: "contract pullet grower"
+    operation: "two breeder pullet rearing houses, flocks moved to hen farms at about 20 weeks"
+    region: "northern Alabama"
+    business_situation: "paid per pullet delivered to the integrator's hen farms"
+
+  - persona_id: bred-02
+    domains: [poultry_production]
+    sectors: [breeder]
+    role: "owner-operator"
+    operation: "four broiler breeder hen houses with slats and litter"
+    region: "northern Georgia"
+    business_situation: "paid per dozen hatching eggs delivered to the hatchery"
+
+  - persona_id: bred-03
+    domains: [poultry_production]
+    sectors: [breeder]
+    role: "breeder flock service technician for an integrator"
+    operation: "supports about twenty pullet and breeder hen farms"
+    region: "central Mississippi"
+    business_situation: "asked by growers for practical guidance"
+
+  - persona_id: bred-04
+    domains: [poultry_production]
+    sectors: [breeder]
+    role: "new breeder hen grower, first year"
+    operation: "two newly built breeder hen houses"
+    region: "Shenandoah Valley, Virginia"
+    business_situation: "still learning the integrator's expectations"
+
+  - persona_id: bred-05
+    domains: [poultry_production]
+    sectors: [breeder]
+    role: "farm manager"
+    operation: "company-owned breeder complex with separate rearing and laying farms"
+    region: "eastern Arkansas"
+    business_situation: "preparing the placement plan for the next flock"
+
+  - persona_id: bred-06
+    domains: [poultry_production]
+    sectors: [breeder]
+    role: "second-generation family farmer"
+    operation: "three older curtain-sided breeder pullet rearing houses"
+    region: "Lancaster County, Pennsylvania"
+    business_situation: "considering whether to renovate or keep running the existing houses"
+
+  - persona_id: bred-07
+    domains: [poultry_production]
+    sectors: [breeder]
+    role: "assistant manager"
+    operation: "six-house broiler breeder hen farm"
+    region: "North Carolina piedmont"
+    business_situation: "recently refinanced the houses and watching cash flow closely"
+
+  - persona_id: bred-08
+    domains: [poultry_production]
+    sectors: [breeder]
+    role: "owner-operator, switched from broilers"
+    operation: "three former broiler houses converted to breeder pullet rearing"
+    region: "Delmarva Peninsula"
+    business_situation: "raising a first pullet flock after years of growing broilers"
+
   - persona_id: swin-01
     domains: [swine_production]
+    sectors: [finishing]
     role: "owner-operator"
     operation: "two 2,400-head wean-to-finish barns on contract with an integrator"
     region: "northwest Iowa"
@@ -58,6 +135,7 @@ personas:
 
   - persona_id: swin-02
     domains: [swine_production]
+    sectors: [sow]
     role: "farm manager"
     operation: "3,000-sow breed-to-wean unit"
     region: "eastern North Carolina"
@@ -65,6 +143,7 @@ personas:
 
   - persona_id: swin-03
     domains: [swine_production]
+    sectors: [finishing]
     role: "new grower, first year"
     operation: "one newly built tunnel-ventilated finishing barn"
     region: "southern Minnesota"
@@ -72,6 +151,7 @@ personas:
 
   - persona_id: swin-04
     domains: [swine_production]
+    sectors: [finishing, sow]
     role: "production supervisor for an integrator"
     operation: "supports about thirty contract finishers and two sow farms"
     region: "Oklahoma panhandle"
@@ -79,6 +159,7 @@ personas:
 
   - persona_id: swin-05
     domains: [swine_production]
+    sectors: [finishing, sow]
     role: "second-generation family farmer"
     operation: "farrow-to-finish operation with 400 sows in older barns"
     region: "central Indiana"
@@ -86,6 +167,7 @@ personas:
 
   - persona_id: swin-06
     domains: [swine_production]
+    sectors: [sow]
     role: "assistant manager"
     operation: "large gestation and farrowing complex"
     region: "western Illinois"
