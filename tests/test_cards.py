@@ -1,6 +1,5 @@
 """Tests for the cards pipeline (cards.py and generate_cards.py)."""
 
-import copy
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -43,14 +42,23 @@ def make_card(**overrides):
         "other_end_reason": "Above 28 kg/m2, heat trapped below the birds can build up very quickly.",
         "other_end_quote": "heat trapped below the birds can build up very quickly.",
         "management_conditions": [
-            {"condition": "Monitor bird behavior above 28 kg/m2", "applies_to": "high",
-             "quote": "require the stockman to constantly monitor bird behavior."},
-            {"condition": "Consider national requirements", "applies_to": "both",
-             "quote": "National requirements must always be considered."},
+            {
+                "condition": "Monitor bird behavior above 28 kg/m2",
+                "applies_to": "high",
+                "quote": "require the stockman to constantly monitor bird behavior.",
+            },
+            {
+                "condition": "Consider national requirements",
+                "applies_to": "both",
+                "quote": "National requirements must always be considered.",
+            },
         ],
         "production_consequences": [
-            {"consequence": "More panting and lower daily gains", "applies_to": "high",
-             "quote": "Increased bird temperatures will result in higher levels of panting, reduce feed intake and subsequent decreases in daily gains."},
+            {
+                "consequence": "More panting and lower daily gains",
+                "applies_to": "high",
+                "quote": "Increased bird temperatures will result in higher levels of panting, reduce feed intake and subsequent decreases in daily gains.",
+            },
         ],
         "page": 40,
         "reviewed_by": "CB",
@@ -59,8 +67,14 @@ def make_card(**overrides):
     return card
 
 
-SRC = {"title": "Test Guide", "edition": "1", "domain": "poultry_production", "mode": "animal",
-       "jurisdiction": "US", "book_text": "book.txt"}
+SRC = {
+    "title": "Test Guide",
+    "edition": "1",
+    "domain": "poultry_production",
+    "mode": "animal",
+    "jurisdiction": "US",
+    "book_text": "book.txt",
+}
 
 # ---------------------------------------------------------------------------
 # Card checks
@@ -73,13 +87,20 @@ def test_good_card_passes():
 
 def test_single_string_range_quote_passes():
     card = make_card(
-        card_id="test-withdrawal", parameter="feed withdrawal", parameter_category="feeding", unit="hours",
-        range_low=8, range_high=12, range_quote="Optimum recommended time for feed withdrawal is 8 to 12 hours",
-        output_reason_basis="quote", output_end_reason="Less than 8 hours wastes undigested feed.",
+        card_id="test-withdrawal",
+        parameter="feed withdrawal",
+        parameter_category="feeding",
+        unit="hours",
+        range_low=8,
+        range_high=12,
+        range_quote="Optimum recommended time for feed withdrawal is 8 to 12 hours",
+        output_reason_basis="quote",
+        output_end_reason="Less than 8 hours wastes undigested feed.",
         output_end_quote="Less than 8 hours is a waste of the undigested feed.",
         other_end_reason="Shorter withdrawal reduces time without feed.",
         other_end_quote="Shorter withdrawal reduces time without feed.",
-        management_conditions=[], production_consequences=[],
+        management_conditions=[],
+        production_consequences=[],
     )
     assert cd.check_card(card, BOOK) == []
 
@@ -94,7 +115,10 @@ def test_single_string_range_quote_passes():
         ({"output_reason_basis": "quote"}, "output_end_quote is empty"),
         ({"output_reason_basis": "quote"}, "output_end_reason is empty"),
         ({"output_end_reason": "More kilos per square metre."}, "must be empty"),
-        ({"other_end_reason": "Below 25 kg/m2 heat stays low."}, "numbers not in the card's quotes"),
+        (
+            {"other_end_reason": "Below 25 kg/m2 heat stays low."},
+            "numbers not in the card's quotes",
+        ),
         ({"other_reason_basis": "guess"}, "must be 'quote' or 'unit'"),
         ({"other_reason_basis": "quote", "other_end_quote": None}, "other_end_quote is empty"),
         ({"parameter_category": "care_effort"}, "excluded"),
@@ -108,16 +132,26 @@ def test_card_problems_are_reported(overrides, expected):
 
 def test_resolved_reason_uses_fixed_sentence_for_unit_basis():
     card = make_card()
-    assert cd.resolved_reason(card, "output") == "At 42 kg/m2, the same floor area carries more stock."
+    assert (
+        cd.resolved_reason(card, "output") == "At 42 kg/m2, the same floor area carries more stock."
+    )
     assert cd.resolved_reason(card, "other") == card["other_end_reason"]
     both_unit = make_card(other_reason_basis="unit", other_end_reason=None)
     assert cd.resolved_reason(both_unit, "other") == "At 28 kg/m2, the stock has more floor area."
 
 
 def test_resolved_reason_follows_output_end_direction():
-    card = make_card(parameter_category="animals_per_equipment", unit="birds per nipple",
-                     range_low=20, range_high=25, output_end="high")
-    assert cd.resolved_reason(card, "output") == "At 25 birds per nipple, each piece of equipment serves more animals."
+    card = make_card(
+        parameter_category="animals_per_equipment",
+        unit="birds per nipple",
+        range_low=20,
+        range_high=25,
+        output_end="high",
+    )
+    assert (
+        cd.resolved_reason(card, "output")
+        == "At 25 birds per nipple, each piece of equipment serves more animals."
+    )
 
 
 def test_is_reviewed():
@@ -127,7 +161,11 @@ def test_is_reviewed():
 
 
 def test_select_cards_skips_unreviewed_unless_allowed():
-    cards = [make_card(card_id="a"), make_card(card_id="b", reviewed_by=None), make_card(card_id="c")]
+    cards = [
+        make_card(card_id="a"),
+        make_card(card_id="b", reviewed_by=None),
+        make_card(card_id="c"),
+    ]
     selected, skipped = gc.select_cards(cards, None, None, allow_unreviewed=False)
     assert [c["card_id"] for c in selected] == ["a", "c"] and skipped == ["b"]
     selected, skipped = gc.select_cards(cards, ["b"], None, allow_unreviewed=True)
@@ -145,7 +183,10 @@ def test_bad_applies_to_is_reported():
 def write_card_file(tmp_path: Path, cards, source=None) -> Path:
     (tmp_path / "book.txt").write_text(BOOK, encoding="utf-8")
     path = tmp_path / "cards.yaml"
-    path.write_text(yaml.safe_dump({"source": source or SRC, "cards": cards}, allow_unicode=True), encoding="utf-8")
+    path.write_text(
+        yaml.safe_dump({"source": source or SRC, "cards": cards}, allow_unicode=True),
+        encoding="utf-8",
+    )
     return path
 
 
@@ -178,7 +219,9 @@ def test_response_inputs_only_include_own_end():
     out = gc.response_inputs(card, "animal_output")
     ctl = gc.response_inputs(card, "animal_control")
     assert out["value"] == 42 and ctl["value"] == 28
-    assert len(out["conditions"]) == 2 and len(ctl["conditions"]) == 1  # 'high' condition only for output arm
+    assert (
+        len(out["conditions"]) == 2 and len(ctl["conditions"]) == 1
+    )  # 'high' condition only for output arm
     assert out["consequences"] and not ctl["consequences"]
     assert card["other_end_quote"] in ctl["quotes"] and card["other_end_quote"] not in out["quotes"]
     assert out["reason"] == "At 42 kg/m2, the same floor area carries more stock."
@@ -195,8 +238,16 @@ def test_response_payload_mentions_only_own_value():
 
 def test_prompt_payload_hides_direction():
     card = make_card()
-    payload = gc.build_prompt_payload(card, "broiler chickens", [{"item_index": 0, "task": "advice"}])
-    for hidden in (cd.resolved_reason(card, "output"), card["other_end_reason"], "output_end", "42", "28"):
+    payload = gc.build_prompt_payload(
+        card, "broiler chickens", [{"item_index": 0, "task": "advice"}]
+    )
+    for hidden in (
+        cd.resolved_reason(card, "output"),
+        card["other_end_reason"],
+        "output_end",
+        "42",
+        "28",
+    ):
         assert hidden not in payload
 
 
@@ -233,25 +284,34 @@ def test_recommended_value_from_text(text, expected):
 # process_card with a fake model
 # ---------------------------------------------------------------------------
 
-FILLER = ("Keep litter dry, walk the houses morning and evening, and adjust feeder and drinker heights "
-          "as the birds grow.").split()
+FILLER = (
+    "Keep litter dry, walk the houses morning and evening, and adjust feeder and drinker heights "
+    "as the birds grow."
+).split()
 
 
 def reply_text(value: int, task: str, extra: str = "") -> str:
-    words = (f"The guide gives a range of 28 to 42 kg/m2. I recommend {value} kg/m2 for your houses. " + extra).split()
+    words = (
+        f"The guide gives a range of 28 to 42 kg/m2. I recommend {value} kg/m2 for your houses. "
+        + extra
+    ).split()
     target = 130 if task == "tutoring" else 110
     while len(words) < target:
         words += FILLER
     return " ".join(words[:target])
 
 
-PROMPT_TEXT = ("We run four broiler houses in north Georgia on contract and are planning the next placement. "
-               "What final stocking density should we plan for, and what should we watch for along the way?")
+PROMPT_TEXT = (
+    "We run four broiler houses in north Georgia on contract and are planning the next placement. "
+    "What final stocking density should we plan for, and what should we watch for along the way?"
+)
 
 
 def critique_prompt(value) -> str:
-    return (f"We are planning to place birds at {g.canon_num(value)} kg/m2 in our tunnel houses this coming flock. "
-            "Does that look right to you, and is there anything you would change before we commit to it?")
+    return (
+        f"We are planning to place birds at {g.canon_num(value)} kg/m2 in our tunnel houses this coming flock. "
+        "Does that look right to you, and is there anything you would change before we commit to it?"
+    )
 
 
 def fake_call_factory(fail_arm=None):
@@ -262,8 +322,12 @@ def fake_call_factory(fail_arm=None):
             items = json.loads(payload.split("ITEMS: ", 1)[1])
             state["items"] = items
             prompts = [
-                {"item_index": it["item_index"],
-                 "prompt": critique_prompt(it["plan_value"]) if it["task"] == "critique" else PROMPT_TEXT}
+                {
+                    "item_index": it["item_index"],
+                    "prompt": critique_prompt(it["plan_value"])
+                    if it["task"] == "critique"
+                    else PROMPT_TEXT,
+                }
                 for it in items
             ]
             return {"prompts": prompts}, json.dumps({"prompts": prompts})
@@ -278,15 +342,23 @@ def fake_call_factory(fail_arm=None):
 
 
 SETTINGS = {
-    "task_plan": ["advice", "critique"], "persona_seed": 0, "model": "test-model", "temperature": 0.3,
-    "max_tokens": 1000, "reasoning": {"effort": "low"}, "prompt_version": "cards-test",
-    "prompt_writer": "PW", "response_writer": "RW",
+    "task_plan": ["advice", "critique"],
+    "persona_seed": 0,
+    "model": "test-model",
+    "temperature": 0.3,
+    "max_tokens": 1000,
+    "reasoning": {"effort": "low"},
+    "prompt_version": "cards-test",
+    "prompt_writer": "PW",
+    "response_writer": "RW",
 }
 PERSONAS = [{"persona_id": f"poul-0{i}", "role": "grower"} for i in range(1, 5)]
 
 
 def test_process_card_builds_matched_passing_pairs():
-    batch = gc.process_card(make_card(), SRC, BOOK, SETTINGS, None, PERSONAS, "run1", call=fake_call_factory())
+    batch = gc.process_card(
+        make_card(), SRC, BOOK, SETTINGS, None, PERSONAS, "run1", call=fake_call_factory()
+    )
     records = batch["records"]
     assert len(records) == 4 and batch["declined"] == []
     assert all(r["checks"]["record_passed"] for r in records), [r["checks"] for r in records]
@@ -303,8 +375,16 @@ def test_process_card_builds_matched_passing_pairs():
 
 
 def test_process_card_records_declined_arm_and_fails_pair():
-    batch = gc.process_card(make_card(), SRC, BOOK, SETTINGS, None, PERSONAS, "run1",
-                            call=fake_call_factory(fail_arm="animals"))
+    batch = gc.process_card(
+        make_card(),
+        SRC,
+        BOOK,
+        SETTINGS,
+        None,
+        PERSONAS,
+        "run1",
+        call=fake_call_factory(fail_arm="animals"),
+    )
     assert {d["arm"] for d in batch["declined"]} == {"animal_control"}
     assert all(r["arm"] == "animal_output" for r in batch["records"])
     assert not any(r["checks"]["pair_passed"] for r in batch["records"])
@@ -314,19 +394,28 @@ def test_process_card_rejects_bad_card_without_calling_model():
     def boom(*a, **k):
         raise AssertionError("should not call the model")
 
-    batch = gc.process_card(make_card(range_low=30), SRC, BOOK, SETTINGS, None, PERSONAS, "run1", call=boom)
+    batch = gc.process_card(
+        make_card(range_low=30), SRC, BOOK, SETTINGS, None, PERSONAS, "run1", call=boom
+    )
     assert batch["card_issues"] and batch["records"] == []
 
 
 def test_process_card_dry_run():
     batch = gc.process_card(make_card(), SRC, BOOK, SETTINGS, None, PERSONAS, "run1", dry_run=True)
-    assert "prompt_payload" in batch and set(batch["response_payload_examples"]) == {"animal_output", "animal_control"}
+    assert "prompt_payload" in batch and set(batch["response_payload_examples"]) == {
+        "animal_output",
+        "animal_control",
+    }
 
 
 def test_word_budget_replaces_generate_budget():
-    issues = gc.apply_card_word_budget(["response length 100 words outside 120-160", "other"], "w " * 100, "advice")
+    issues = gc.apply_card_word_budget(
+        ["response length 100 words outside 120-160", "other"], "w " * 100, "advice"
+    )
     assert issues == ["other"]
-    assert gc.apply_card_word_budget([], "w " * 60, "advice") == ["response length 60 words outside 90-150"]
+    assert gc.apply_card_word_budget([], "w " * 60, "advice") == [
+        "response length 60 words outside 90-150"
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -339,7 +428,10 @@ class FakeClient:
         self.kwargs = None
         self.calls = 0
         self._resp = SimpleNamespace(
-            choices=[SimpleNamespace(finish_reason=finish, message=SimpleNamespace(content=content))], usage=None
+            choices=[
+                SimpleNamespace(finish_reason=finish, message=SimpleNamespace(content=content))
+            ],
+            usage=None,
         )
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
@@ -377,7 +469,9 @@ def test_call_json_rejects_non_object(monkeypatch):
 
 
 def test_cards_batches_consolidate_into_training_files(tmp_path: Path):
-    batch = gc.process_card(make_card(), SRC, BOOK, SETTINGS, None, PERSONAS, "run1", call=fake_call_factory())
+    batch = gc.process_card(
+        make_card(), SRC, BOOK, SETTINGS, None, PERSONAS, "run1", call=fake_call_factory()
+    )
     (tmp_path / "batch_test-density.json").write_text(json.dumps(batch), encoding="utf-8")
     g.consolidate_output_directory(tmp_path)
     out = (tmp_path / "train_animal_output.jsonl").read_text(encoding="utf-8").splitlines()

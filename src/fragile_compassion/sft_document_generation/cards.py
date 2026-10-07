@@ -61,8 +61,16 @@ from typing import Any
 from fragile_compassion.sft_document_generation import generate as g
 
 REQUIRED_FIELDS = [
-    "card_id", "parameter", "parameter_category", "unit", "range_low", "range_high",
-    "range_quote", "output_end", "output_reason_basis", "other_reason_basis",
+    "card_id",
+    "parameter",
+    "parameter_category",
+    "unit",
+    "range_low",
+    "range_high",
+    "range_quote",
+    "output_end",
+    "output_reason_basis",
+    "other_reason_basis",
 ]
 REQUIRED_SOURCE_FIELDS = ["title", "edition", "domain", "mode", "jurisdiction", "book_text"]
 REASON_BASES = {"quote", "unit"}
@@ -71,8 +79,14 @@ REASON_BASES = {"quote", "unit"}
 UNIT_TEMPLATES = {
     ("space_allowance", "output"): "At {value} {unit}, the same floor area carries more stock.",
     ("space_allowance", "other"): "At {value} {unit}, the stock has more floor area.",
-    ("animals_per_equipment", "output"): "At {value} {unit}, each piece of equipment serves more animals.",
-    ("animals_per_equipment", "other"): "At {value} {unit}, each piece of equipment serves fewer animals.",
+    (
+        "animals_per_equipment",
+        "output",
+    ): "At {value} {unit}, each piece of equipment serves more animals.",
+    (
+        "animals_per_equipment",
+        "other",
+    ): "At {value} {unit}, each piece of equipment serves fewer animals.",
 }
 SIDE_FIELDS = {
     "output": ("output_reason_basis", "output_end_reason", "output_end_quote"),
@@ -105,7 +119,9 @@ def card_quotes(card: dict) -> list[str]:
     quotes = as_list(card.get("range_quote"))
     quotes += as_list(card.get("output_end_quote")) + as_list(card.get("other_end_quote"))
     for key in ("management_conditions", "production_consequences"):
-        quotes += [c.get("quote") for c in card.get(key) or [] if isinstance(c, dict) and c.get("quote")]
+        quotes += [
+            c.get("quote") for c in card.get(key) or [] if isinstance(c, dict) and c.get("quote")
+        ]
     return quotes
 
 
@@ -191,7 +207,10 @@ def check_reason(card: dict, side: str) -> list[str]:
         if (category, side) not in UNIT_TEMPLATES:
             issues.append(f"{basis_key} 'unit' not allowed for category {category!r}")
         if reason:
-            issues.append(f"{reason_key} must be empty when {basis_key} is 'unit' (the fixed sentence is used)")
+            issues.append(
+                f"{reason_key} must be empty when {basis_key} "
+                f"is 'unit' (the fixed sentence is used)"
+            )
     return issues
 
 
@@ -206,10 +225,16 @@ def check_card(card: dict, book_text: str) -> list[str]:
             issues.append(f"quote not found in book text: {q[:80]!r}")
 
     issues += check_reason(card, "output") + check_reason(card, "other")
-    issues += [i for i in g.check_parameter(card_to_param(card), quotes_text(card))
-               if "output_end_quote is empty" not in i and "output_basis" not in i]
+    issues += [
+        i
+        for i in g.check_parameter(card_to_param(card), quotes_text(card))
+        if "output_end_quote is empty" not in i and "output_basis" not in i
+    ]
 
-    for key, label in (("management_conditions", "condition"), ("production_consequences", "consequence")):
+    for key, label in (
+        ("management_conditions", "condition"),
+        ("production_consequences", "consequence"),
+    ):
         for entry in card.get(key) or []:
             if entry.get("applies_to") not in {"low", "high", "both"}:
                 issues.append(f"{label} applies_to must be low, high or both: {entry.get(label)!r}")
@@ -244,9 +269,13 @@ def check_card_file(path: Path, root: Path) -> dict[str, list[str]]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Check a parameter card file against its book text.")
+    parser = argparse.ArgumentParser(
+        description="Check a parameter card file against its book text."
+    )
     parser.add_argument("card_file", type=Path)
-    parser.add_argument("--root", type=Path, default=g.ROOT_DIR, help="Repo root for book_text paths.")
+    parser.add_argument(
+        "--root", type=Path, default=g.ROOT_DIR, help="Repo root for book_text paths."
+    )
     args = parser.parse_args()
 
     report = check_card_file(args.card_file, args.root)
@@ -266,10 +295,16 @@ def main():
             print(f"      - {i}")
         if not issues:
             for side in ("output", "other"):
-                print(f"      {side} reason ({card.get(SIDE_FIELDS[side][0])}): {resolved_reason(card, side)}")
+                print(
+                    f"      {side} reason ({card.get(SIDE_FIELDS[side][0])}): "
+                    f"{resolved_reason(card, side)}"
+                )
     total = len(report) - 1
-    print(f"\n{passed}/{total} cards pass checks; {reviewed} of those are reviewed and will be generated.")
-    sys.exit(1 if (passed < total or report.get('<file>')) else 0)
+    print(
+        f"\n{passed}/{total} cards pass checks; {reviewed} "
+        f"of those are reviewed and will be generated."
+    )
+    sys.exit(1 if (passed < total or report.get("<file>")) else 0)
 
 
 if __name__ == "__main__":

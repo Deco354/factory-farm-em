@@ -20,8 +20,8 @@ from fragile_compassion.sft_document_generation.generate import (
     check_run_level,
     check_task_plan,
     clean_markdown_json,
-    declined_items,
     consolidate_output_directory,
+    declined_items,
     expand_records,
     expected_value,
     load_personas,
@@ -116,8 +116,16 @@ def make_item(**overrides):
         "plan_value": None,
         "prompt": PROMPT,
         "responses": {
-            "animal_output": {"recommended_value": 39, "text": response_text(39), "numbers_used": []},
-            "animal_control": {"recommended_value": 30, "text": response_text(30), "numbers_used": []},
+            "animal_output": {
+                "recommended_value": 39,
+                "text": response_text(39),
+                "numbers_used": [],
+            },
+            "animal_control": {
+                "recommended_value": 30,
+                "text": response_text(30),
+                "numbers_used": [],
+            },
         },
     }
     item.update(overrides)
@@ -134,13 +142,20 @@ SETTINGS = {
     "jurisdiction": "US",
     "source": {"title": "Test Guide", "edition": "1"},
 }
-CHUNK_META = {"chunk_file": "book_rank001_pos0005.txt", "sha256": "a" * 64, "rank": 1, "original_position": 5}
+CHUNK_META = {
+    "chunk_file": "book_rank001_pos0005.txt",
+    "sha256": "a" * 64,
+    "rank": 1,
+    "original_position": 5,
+}
 PERSONAS = [{"persona_id": p, "role": "grower"} for p in sorted(PERSONA_IDS)]
 
 
 def expand(items, params=None, settings=SETTINGS):
     parsed = {"parameters": params or [make_param()], "items": items}
-    return expand_records(parsed, CHUNK, CHUNK_META, settings, PERSONAS, "test-model", "run1", "v-test")
+    return expand_records(
+        parsed, CHUNK, CHUNK_META, settings, PERSONAS, "test-model", "run1", "v-test"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +179,10 @@ def test_parse_batch_response_accepts_v2_shape():
 
 
 def test_parse_batch_response_accepts_empty_result():
-    assert parse_batch_response('{"parameters": [], "items": []}') == {"parameters": [], "items": []}
+    assert parse_batch_response('{"parameters": [], "items": []}') == {
+        "parameters": [],
+        "items": [],
+    }
 
 
 @pytest.mark.parametrize(
@@ -207,7 +225,9 @@ def test_check_parameter_accepts_grounded_card():
 
 
 def test_check_parameter_tolerates_whitespace_differences_in_quotes():
-    param = make_param(range_quote="Stocking density should be  30-39 kg/m2\ndepending on house type.")
+    param = make_param(
+        range_quote="Stocking density should be  30-39 kg/m2\ndepending on house type."
+    )
     assert check_parameter(param, CHUNK) == []
 
 
@@ -220,7 +240,10 @@ def test_check_parameter_tolerates_whitespace_differences_in_quotes():
         ({"range_low": "thirty"}, "non-numeric"),
         ({"output_end": "middle"}, "output_end"),
         ({"output_end_quote": None}, "output_end_quote is empty"),
-        ({"output_basis": "definitional", "parameter_category": "environment"}, "not allowed for category"),
+        (
+            {"output_basis": "definitional", "parameter_category": "environment"},
+            "not allowed for category",
+        ),
         ({"output_basis": "guess"}, "output_basis must be"),
         ({"parameter_category": "care_effort"}, "excluded"),
         ({"parameter_category": "vibes"}, "unknown parameter_category"),
@@ -302,14 +325,19 @@ def test_check_item_flags_assigned_value_missing_from_text():
 
 def test_check_item_flags_untraceable_number():
     item = make_item()
-    item["responses"]["animal_output"]["text"] = response_text(39).replace("for your houses", "for 42 houses")
+    item["responses"]["animal_output"]["text"] = response_text(39).replace(
+        "for your houses", "for 42 houses"
+    )
     result = run_check(item)
     assert any("not traceable" in i and "42" in i for i in result["arms"]["animal_output"])
 
 
 def test_check_item_allows_numbers_from_condition_quotes():
     item = make_item()
-    text = response_text(39, n_words=120) + " Above 35 kg/m2 raise minimum ventilation to 0.5 m3/h per kg."
+    text = (
+        response_text(39, n_words=120)
+        + " Above 35 kg/m2 raise minimum ventilation to 0.5 m3/h per kg."
+    )
     item["responses"]["animal_output"]["text"] = text
     item["responses"]["animal_control"]["text"] = response_text(30, n_words=135)
     result = run_check(item)
@@ -318,7 +346,9 @@ def test_check_item_allows_numbers_from_condition_quotes():
 
 def test_check_item_flags_numbers_used_quote_not_in_excerpt():
     item = make_item()
-    item["responses"]["animal_output"]["numbers_used"] = [{"value": "39", "unit": "kg/m2", "quote": "made up"}]
+    item["responses"]["animal_output"]["numbers_used"] = [
+        {"value": "39", "unit": "kg/m2", "quote": "made up"}
+    ]
     result = run_check(item)
     assert any("numbers_used quote" in i for i in result["arms"]["animal_output"])
 
@@ -337,14 +367,18 @@ def test_check_item_banned_words_match_whole_words_only():
 
 def test_check_item_flags_banned_word_in_response():
     item = make_item()
-    item["responses"]["animal_control"]["text"] = response_text(30).replace("keep litter dry", "protect welfare")
+    item["responses"]["animal_control"]["text"] = response_text(30).replace(
+        "keep litter dry", "protect welfare"
+    )
     result = run_check(item)
     assert any("banned word in response: welfare" in i for i in result["arms"]["animal_control"])
 
 
 def test_check_item_allows_banned_word_when_excerpt_uses_it():
     item = make_item()
-    item["responses"]["animal_control"]["text"] = response_text(30).replace("keep litter dry", "protect welfare")
+    item["responses"]["animal_control"]["text"] = response_text(30).replace(
+        "keep litter dry", "protect welfare"
+    )
     chunk = CHUNK + " Errors have a negative impact on flock welfare."
     result = check_item(item, make_param(), [], chunk, "animal", PERSONA_IDS)
     assert not any("banned word" in i for i in result["arms"]["animal_control"])
@@ -352,9 +386,13 @@ def test_check_item_allows_banned_word_when_excerpt_uses_it():
 
 def test_check_item_objectifying_word_allowed_only_if_excerpt_uses_it():
     item = make_item()
-    item["responses"]["animal_output"]["text"] = response_text(39).replace("keep litter dry", "protect throughput")
+    item["responses"]["animal_output"]["text"] = response_text(39).replace(
+        "keep litter dry", "protect throughput"
+    )
     flagged = check_item(item, make_param(), [], CHUNK, "animal", PERSONA_IDS)
-    allowed = check_item(item, make_param(), [], CHUNK + " Throughput matters.", "animal", PERSONA_IDS)
+    allowed = check_item(
+        item, make_param(), [], CHUNK + " Throughput matters.", "animal", PERSONA_IDS
+    )
     assert any("objectifying" in i for i in flagged["arms"]["animal_output"])
     assert not any("objectifying" in i for i in allowed["arms"]["animal_output"])
 
@@ -389,7 +427,9 @@ def test_check_item_flags_missing_arm():
 
 
 def test_check_item_crop_mode_expects_only_crop_control():
-    item = make_item(responses={"crop_control": {"recommended_value": 39, "text": response_text(39)}})
+    item = make_item(
+        responses={"crop_control": {"recommended_value": 39, "text": response_text(39)}}
+    )
     result = run_check(item, mode="crop")
     assert all_issues(result) == []
 
@@ -444,7 +484,10 @@ def test_declined_items_lists_null_and_empty_arms():
     other = make_item()
     other["responses"]["animal_output"]["text"] = "  "
     declined = declined_items([item, other], "animal")
-    assert [(d["item_index"], d["arm"]) for d in declined] == [(0, "animal_control"), (1, "animal_output")]
+    assert [(d["item_index"], d["arm"]) for d in declined] == [
+        (0, "animal_control"),
+        (1, "animal_output"),
+    ]
 
 
 def test_check_run_level_flags_persona_reuse_and_parameter_overuse():
@@ -516,7 +559,9 @@ def test_expand_records_skips_declined_arms():
 
 def test_expand_records_crop_mode():
     settings = {**SETTINGS, "mode": "crop", "domain": "crop_agronomy"}
-    item = make_item(responses={"crop_control": {"recommended_value": 39, "text": response_text(39)}})
+    item = make_item(
+        responses={"crop_control": {"recommended_value": 39, "text": response_text(39)}}
+    )
     (record,) = expand([item], settings=settings)
     assert record["id"].startswith("crop-adv-cctl-")
     assert record["checks"]["record_passed"]
@@ -536,7 +581,8 @@ def test_expand_records_records_no_fake_verification_flags():
 def write_personas(path: Path):
     data = {
         "personas": [
-            {"persona_id": f"poul-0{i}", "domains": ["poultry_production"], "role": "grower"} for i in range(1, 7)
+            {"persona_id": f"poul-0{i}", "domains": ["poultry_production"], "role": "grower"}
+            for i in range(1, 7)
         ]
         + [{"persona_id": "crop-01", "domains": ["crop_agronomy"], "role": "grower"}]
     }
@@ -568,15 +614,30 @@ def test_sample_personas_raises_when_too_few(tmp_path: Path):
 
 
 def test_parse_chunk_filename():
-    assert parse_chunk_filename(Path("cobb_rank003_pos0141.txt")) == {"rank": 3, "original_position": 141}
+    assert parse_chunk_filename(Path("cobb_rank003_pos0141.txt")) == {
+        "rank": 3,
+        "original_position": 141,
+    }
     assert parse_chunk_filename(Path("cobb_excerpt_001.txt")) == {}
 
 
 def test_build_user_payload_contains_settings_and_no_arm_labels():
     payload = build_user_payload(
-        "animal", {"title": "Test Guide", "edition": "1"}, "US", PERSONAS, ["advice", "critique"], CHUNK
+        "animal",
+        {"title": "Test Guide", "edition": "1"},
+        "US",
+        PERSONAS,
+        ["advice", "critique"],
+        CHUNK,
     )
-    for expected in ("MODE: animal", "Test Guide", "JURISDICTION: US", "poul-01", '"task": "critique"', CHUNK):
+    for expected in (
+        "MODE: animal",
+        "Test Guide",
+        "JURISDICTION: US",
+        "poul-01",
+        '"task": "critique"',
+        CHUNK,
+    ):
         assert expected in payload
     for arm in ("animal_output", "animal_control", "crop_control", "callous"):
         assert arm not in payload
@@ -590,8 +651,18 @@ def test_build_user_payload_contains_settings_and_no_arm_labels():
 def make_cfg():
     return {
         "api": {"teacher_model": "test-model"},
-        "defaults": {"task_plan": ["advice", "critique"], "persona_seed": 0, "prompt_version": "v-test"},
-        "source": {"title": "Test Guide", "edition": "1", "domain": "poultry_production", "mode": "animal", "jurisdiction": "US"},
+        "defaults": {
+            "task_plan": ["advice", "critique"],
+            "persona_seed": 0,
+            "prompt_version": "v-test",
+        },
+        "source": {
+            "title": "Test Guide",
+            "edition": "1",
+            "domain": "poultry_production",
+            "mode": "animal",
+            "jurisdiction": "US",
+        },
     }
 
 
@@ -620,7 +691,12 @@ def test_process_chunk_builds_records_from_model_reply(tmp_path: Path, monkeypat
         sent = json.loads(payload.split("PERSONAS: ", 1)[1].split("\n", 1)[0])
         items = [
             make_item(persona_id=sent[0]["persona_id"]),
-            make_item(persona_id=sent[1]["persona_id"], task="critique", plan_value=34.5, prompt=CRITIQUE_PROMPT),
+            make_item(
+                persona_id=sent[1]["persona_id"],
+                task="critique",
+                plan_value=34.5,
+                prompt=CRITIQUE_PROMPT,
+            ),
         ]
         parsed = {"parameters": [make_param()], "items": items}
         return parsed, json.dumps(parsed)
@@ -659,7 +735,9 @@ class FakeClient:
         self.calls = 0
         self._replies = [
             SimpleNamespace(
-                choices=[SimpleNamespace(finish_reason=fr, message=SimpleNamespace(content=content))],
+                choices=[
+                    SimpleNamespace(finish_reason=fr, message=SimpleNamespace(content=content))
+                ],
                 usage=None,
             )
             for content, fr in replies
@@ -718,7 +796,9 @@ def read_jsonl(path: Path):
 
 def test_consolidate_dedupes_by_id_and_keeps_only_passing_pairs_for_training(tmp_path: Path):
     good = expand([make_item()])
-    bad_item = make_item(persona_id="poul-02", prompt=PROMPT.replace("north Georgia", "south Georgia"))
+    bad_item = make_item(
+        persona_id="poul-02", prompt=PROMPT.replace("north Georgia", "south Georgia")
+    )
     bad_item["responses"]["animal_output"]["recommended_value"] = 35
     bad = expand([bad_item])
 
@@ -742,7 +822,9 @@ def test_consolidate_dedupes_by_id_and_keeps_only_passing_pairs_for_training(tmp
 
 def test_consolidate_ignores_failed_chunk_files(tmp_path: Path):
     write_batch(tmp_path / "batch_a.json", expand([make_item()]))
-    (tmp_path / "failed_chunk.json").write_text(json.dumps({"error": "Empty reply"}), encoding="utf-8")
+    (tmp_path / "failed_chunk.json").write_text(
+        json.dumps({"error": "Empty reply"}), encoding="utf-8"
+    )
     master = consolidate_output_directory(tmp_path)
     assert len(master["records"]) == 2
 

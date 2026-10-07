@@ -16,8 +16,10 @@ For each card that passes cards.check_card:
      train_<arm>.jsonl with only pairs where every arm passed.
 
 Run from the repo root:
-    uv run python -m fragile_compassion.sft_document_generation.generate_cards --run-id cards-test-01
-    uv run python -m fragile_compassion.sft_document_generation.generate_cards --card cobb-feed-withdrawal --dry-run
+    uv run python -m fragile_compassion.sft_document_generation.generate_cards
+        --run-id cards-test-01
+    uv run python -m fragile_compassion.sft_document_generation.generate_cards
+        --card cobb-feed-withdrawal --dry-run
 """
 
 import argparse
@@ -25,9 +27,10 @@ import hashlib
 import json
 import re
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from fragile_compassion.sft_document_generation import cards as cd
 from fragile_compassion.sft_document_generation import generate as g
@@ -35,7 +38,11 @@ from fragile_compassion.sft_document_generation import generate as g
 DEFAULT_TASK_PLAN = ["advice", "advice", "critique", "critique", "tutoring"]
 # Response length budgets for this pipeline (replaces generate.RESPONSE_WORDS here)
 CARD_WORDS = {"advice": (90, 150), "critique": (90, 150), "tutoring": (120, 200)}
-REASON_FOCUS = {"animal_output": "business", "crop_control": "business", "animal_control": "animals"}
+REASON_FOCUS = {
+    "animal_output": "business",
+    "crop_control": "business",
+    "animal_control": "animals",
+}
 SPECIES_BY_DOMAIN = {
     "poultry_production": "broiler chickens",
     "swine_production": "pigs",
@@ -138,13 +145,15 @@ def build_response_payload(card: dict, arm: str, prompt: str, task: str, plan_va
         f"TASK: {task}\n"
         f"CLIENT PLAN VALUE: {g.canon_num(plan_value) if plan_value is not None else 'none'}\n"
         f"PARAMETER: {card['parameter']} ({card['unit']})\n"
-        f"RANGE: {g.canon_num(card['range_low'])} to {g.canon_num(card['range_high'])} {card['unit']}\n"
+        f"RANGE: {g.canon_num(card['range_low'])} to {g.canon_num(card['range_high'])} "
+        f"{card['unit']}\n"
         f"RECOMMENDED_VALUE: {g.canon_num(r['value'])} {card['unit']}\n"
         f"REASON_FOCUS: {REASON_FOCUS[arm]}\n"
         f"REASON: {r['reason']}\n"
         f"REASON_QUOTE: {r['reason_quote'] or 'none'}\n"
         f"CONDITIONS: {json.dumps([c['condition'] for c in r['conditions']], ensure_ascii=False)}\n"
-        f"CONSEQUENCES: {json.dumps([c['consequence'] for c in r['consequences']], ensure_ascii=False)}\n"
+        f"CONSEQUENCES: "
+        f"{json.dumps([c['consequence'] for c in r['consequences']], ensure_ascii=False)}\n"
         f"QUOTES: {json.dumps(r['quotes'], ensure_ascii=False)}\n"
         f"WORD_BUDGET: {lo}-{hi}"
     )
@@ -169,12 +178,27 @@ def call_json(
 
     `reasoning` is passed to OpenRouter as-is, e.g. {"effort": "low"} or {"max_tokens": 2000}.
     """
-    from openai import APIConnectionError, APIError, APITimeoutError, InternalServerError, RateLimitError
+    from openai import (
+        APIConnectionError,
+        APIError,
+        APITimeoutError,
+        InternalServerError,
+        RateLimitError,
+    )
 
-    retryable = (APIConnectionError, APITimeoutError, RateLimitError, InternalServerError, ValueError)
+    retryable = (
+        APIConnectionError,
+        APITimeoutError,
+        RateLimitError,
+        InternalServerError,
+        ValueError,
+    )
     kwargs: dict[str, Any] = dict(
         model=model,
-        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_payload}],
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_payload},
+        ],
         temperature=temperature,
         max_tokens=max_tokens,
         response_format={"type": "json_object"},
@@ -190,7 +214,9 @@ def call_json(
             usage = getattr(response, "usage", None)
             print(f"    finish_reason={finish} tokens={getattr(usage, 'completion_tokens', '?')}")
             if finish == "length":
-                raise g.TruncatedReplyError(f"Reply truncated at max_tokens={max_tokens} (finish_reason=length).")
+                raise g.TruncatedReplyError(
+                    f"Reply truncated at max_tokens={max_tokens} (finish_reason=length)."
+                )
             if not raw:
                 raise g.EmptyReplyError(f"Empty reply from model (finish_reason={finish}).")
             parsed = json.loads(g.clean_markdown_json(raw))
@@ -236,19 +262,26 @@ def process_card(
     mode, domain = src["mode"], src["domain"]
     arms = g.ARMS_BY_MODE[mode]
     task_plan = settings["task_plan"]
-    batch: dict[str, Any] = {"run_id": run_id, "card_id": card.get("card_id"), "records": [], "declined": []}
+    batch: dict[str, Any] = {
+        "run_id": run_id,
+        "card_id": card.get("card_id"),
+        "records": [],
+        "declined": [],
+    }
 
     card_issues = cd.check_card(card, book_text)
     if card_issues:
         batch["card_issues"] = card_issues
         return batch
 
-    seed = int(hashlib.sha256(card["card_id"].encode()).hexdigest()[:8], 16) ^ int(settings["persona_seed"])
+    seed = int(hashlib.sha256(card["card_id"].encode()).hexdigest()[:8], 16) ^ int(
+        settings["persona_seed"]
+    )
     personas = g.sample_personas(all_personas, len(task_plan), seed)
     pvals = plan_values(card, task_plan)
     items = [
         {"item_index": i, "task": t, "persona": p, "plan_value": pv}
-        for i, (t, p, pv) in enumerate(zip(task_plan, personas, pvals))
+        for i, (t, p, pv) in enumerate(zip(task_plan, personas, pvals, strict=True))
     ]
     species = src.get("species") or SPECIES_BY_DOMAIN.get(domain, domain)
     prompt_payload = build_prompt_payload(card, species, items)
@@ -256,17 +289,27 @@ def process_card(
     if dry_run:
         batch["prompt_payload"] = prompt_payload
         batch["response_payload_examples"] = {
-            arm: build_response_payload(card, arm, "<client message>", task_plan[0], pvals[0]) for arm in arms
+            arm: build_response_payload(card, arm, "<client message>", task_plan[0], pvals[0])
+            for arm in arms
         }
         return batch
 
     model, temp, max_tok, reasoning = (
-        settings["model"], settings["temperature"], settings["max_tokens"], settings["reasoning"]
+        settings["model"],
+        settings["temperature"],
+        settings["max_tokens"],
+        settings["reasoning"],
     )
     print("  writing prompts")
-    parsed, raw = call(client, model, settings["prompt_writer"], prompt_payload, temp, max_tok, reasoning)
+    parsed, raw = call(
+        client, model, settings["prompt_writer"], prompt_payload, temp, max_tok, reasoning
+    )
     batch["prompts_raw"] = raw
-    prompts = {p.get("item_index"): p.get("prompt") for p in parsed.get("prompts", []) if isinstance(p, dict)}
+    prompts = {
+        p.get("item_index"): p.get("prompt")
+        for p in parsed.get("prompts", [])
+        if isinstance(p, dict)
+    }
 
     param = cd.card_to_param(card)
     qtext = cd.quotes_text(card)
@@ -277,7 +320,9 @@ def process_card(
         idx, task, pv = item["item_index"], item["task"], item["plan_value"]
         prompt = prompts.get(idx)
         if not prompt:
-            batch["declined"].append({"item_index": idx, "task": task, "reason": "no prompt returned"})
+            batch["declined"].append(
+                {"item_index": idx, "task": task, "reason": "no prompt returned"}
+            )
             continue
 
         responses: dict[str, dict] = {}
@@ -285,12 +330,19 @@ def process_card(
             print(f"  item {idx} ({task}) -> {arm}")
             try:
                 resp, _ = call(
-                    client, model, settings["response_writer"],
-                    build_response_payload(card, arm, prompt, task, pv), temp, max_tok, reasoning,
+                    client,
+                    model,
+                    settings["response_writer"],
+                    build_response_payload(card, arm, prompt, task, pv),
+                    temp,
+                    max_tok,
+                    reasoning,
                 )
                 text = (resp.get("text") or "").strip()
             except Exception as e:  # one failed response should not lose the rest of the card
-                batch["declined"].append({"item_index": idx, "arm": arm, "reason": f"{e.__class__.__name__}: {e}"})
+                batch["declined"].append(
+                    {"item_index": idx, "arm": arm, "reason": f"{e.__class__.__name__}: {e}"}
+                )
                 continue
             if not text:
                 batch["declined"].append({"item_index": idx, "arm": arm, "reason": "empty text"})
@@ -298,15 +350,21 @@ def process_card(
             r = response_inputs(card, arm)
             responses[arm] = {
                 "text": text,
-                "recommended_value": recommended_value_from_text(text, r["value"], r["other_value"]),
+                "recommended_value": recommended_value_from_text(
+                    text, r["value"], r["other_value"]
+                ),
                 "numbers_used": [],
             }
         if not responses:
             continue
 
         item_dict = {
-            "param_key": card["card_id"], "task": task, "persona_id": item["persona"]["persona_id"],
-            "plan_value": pv, "prompt": prompt, "responses": responses,
+            "param_key": card["card_id"],
+            "task": task,
+            "persona_id": item["persona"]["persona_id"],
+            "plan_value": pv,
+            "prompt": prompt,
+            "responses": responses,
         }
         checks = g.check_item(item_dict, param, [], qtext, mode, persona_ids)
         arm_issues = {
@@ -320,39 +378,43 @@ def process_card(
 
         for arm, resp in responses.items():
             r = response_inputs(card, arm)
-            batch["records"].append({
-                "id": f"{domain_code}-{task[:3]}-{g.ARM_CODES[arm]}-{pair_hash}",
-                "pair_id": f"{domain_code}-{task[:3]}-{pair_hash}",
-                "run_id": run_id,
-                "prompt_version": settings["prompt_version"],
-                "pipeline": "cards",
-                "arm": arm,
-                "task": task,
-                "domain": domain,
-                "mode": mode,
-                "jurisdiction": src.get("jurisdiction"),
-                "persona": item["persona"],
-                "source": {
-                    "title": src.get("title"), "edition": src.get("edition"),
-                    "card_id": card["card_id"], "page": card.get("page"),
-                },
-                "parameter": card,
-                "plan_value": pv,
-                "assigned_value": r["value"],
-                "recommended_value": resp["recommended_value"],
-                "messages": [
-                    {"role": "user", "content": prompt},
-                    {"role": "assistant", "content": resp["text"]},
-                ],
-                "checks": {
-                    "item_issues": checks["item"],
-                    "arm_issues": arm_issues[arm],
-                    "record_passed": not checks["item"] and not arm_issues[arm],
-                    "pair_passed": pair_ok,
-                    "judge": None,
-                },
-                "teacher_model": model,
-            })
+            batch["records"].append(
+                {
+                    "id": f"{domain_code}-{task[:3]}-{g.ARM_CODES[arm]}-{pair_hash}",
+                    "pair_id": f"{domain_code}-{task[:3]}-{pair_hash}",
+                    "run_id": run_id,
+                    "prompt_version": settings["prompt_version"],
+                    "pipeline": "cards",
+                    "arm": arm,
+                    "task": task,
+                    "domain": domain,
+                    "mode": mode,
+                    "jurisdiction": src.get("jurisdiction"),
+                    "persona": item["persona"],
+                    "source": {
+                        "title": src.get("title"),
+                        "edition": src.get("edition"),
+                        "card_id": card["card_id"],
+                        "page": card.get("page"),
+                    },
+                    "parameter": card,
+                    "plan_value": pv,
+                    "assigned_value": r["value"],
+                    "recommended_value": resp["recommended_value"],
+                    "messages": [
+                        {"role": "user", "content": prompt},
+                        {"role": "assistant", "content": resp["text"]},
+                    ],
+                    "checks": {
+                        "item_issues": checks["item"],
+                        "arm_issues": arm_issues[arm],
+                        "record_passed": not checks["item"] and not arm_issues[arm],
+                        "pair_passed": pair_ok,
+                        "judge": None,
+                    },
+                    "teacher_model": model,
+                }
+            )
     return batch
 
 
@@ -361,8 +423,9 @@ def process_card(
 # ---------------------------------------------------------------------------
 
 
-def select_cards(cards: list[dict], ids: list[str] | None, limit: int | None,
-                 allow_unreviewed: bool) -> tuple[list[dict], list[str]]:
+def select_cards(
+    cards: list[dict], ids: list[str] | None, limit: int | None, allow_unreviewed: bool
+) -> tuple[list[dict], list[str]]:
     """Returns (cards to generate, ids skipped as unreviewed)."""
     selected = [k for k in cards if not ids or k.get("card_id") in set(ids)]
     if limit:
@@ -375,15 +438,24 @@ def select_cards(cards: list[dict], ids: list[str] | None, limit: int | None,
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate paired SFT records from parameter cards.")
+    parser = argparse.ArgumentParser(
+        description="Generate paired SFT records from parameter cards."
+    )
     parser.add_argument("--config", type=Path, default=g.DEFAULT_CONFIG_PATH)
-    parser.add_argument("--cards", type=Path, help="Card file (default: cards.cards_path in config).")
+    parser.add_argument(
+        "--cards", type=Path, help="Card file (default: cards.cards_path in config)."
+    )
     parser.add_argument("--card", action="append", help="Only this card_id (repeatable).")
     parser.add_argument("--limit", type=int, help="Only the first N cards.")
     parser.add_argument("--run-id", help="Defaults to a timestamp.")
-    parser.add_argument("--dry-run", action="store_true", help="Build payloads without calling the API.")
-    parser.add_argument("--allow-unreviewed", action="store_true",
-                        help="Also generate cards with no reviewed_by (for testing only).")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Build payloads without calling the API."
+    )
+    parser.add_argument(
+        "--allow-unreviewed",
+        action="store_true",
+        help="Also generate cards with no reviewed_by (for testing only).",
+    )
     args = parser.parse_args()
 
     cfg = g.load_config(args.config)
@@ -394,13 +466,18 @@ def main():
     data = cd.load_card_file(card_path)
     src = data["source"]
     book_text = g.load_file_content(root / src["book_text"])
-    all_personas = g.load_personas(root / c.get("personas_path", d.get("personas_path", "configs/personas.yaml")), src["domain"])
+    all_personas = g.load_personas(
+        root / c.get("personas_path", d.get("personas_path", "configs/personas.yaml")),
+        src["domain"],
+    )
 
     selected, skipped = select_cards(data["cards"], args.card, args.limit, args.allow_unreviewed)
     if skipped:
         print(f"Skipping {len(skipped)} unreviewed card(s): {', '.join(skipped)}")
     if not selected:
-        raise ValueError("No cards selected (unreviewed cards need reviewed_by, or pass --allow-unreviewed).")
+        raise ValueError(
+            "No cards selected (unreviewed cards need reviewed_by, or pass --allow-unreviewed)."
+        )
 
     settings = {
         "task_plan": c.get("task_plan", DEFAULT_TASK_PLAN),
@@ -410,8 +487,12 @@ def main():
         "max_tokens": int(c.get("max_tokens", 8000)),
         "reasoning": c.get("reasoning", {"effort": "low"}),
         "prompt_version": c.get("prompt_version", "cards-v1.0"),
-        "prompt_writer": g.load_file_content(root / c.get("prompt_writer_path", "configs/prompts/cards_prompt_writer.md")),
-        "response_writer": g.load_file_content(root / c.get("response_writer_path", "configs/prompts/cards_response_writer.md")),
+        "prompt_writer": g.load_file_content(
+            root / c.get("prompt_writer_path", "configs/prompts/cards_prompt_writer.md")
+        ),
+        "response_writer": g.load_file_content(
+            root / c.get("response_writer_path", "configs/prompts/cards_response_writer.md")
+        ),
     }
 
     run_id = args.run_id or datetime.now().strftime("cards%Y%m%d_%H%M%S")
@@ -424,19 +505,33 @@ def main():
         cid = card.get("card_id", "no-id")
         print(f"- {cid}")
         try:
-            batch = process_card(card, src, book_text, settings, client, all_personas, run_id, args.dry_run)
+            batch = process_card(
+                card, src, book_text, settings, client, all_personas, run_id, args.dry_run
+            )
         except Exception as e:
             print(f"  Failed: {e}")
             (run_dir / f"failed_{cid}.json").write_text(
-                json.dumps({"run_id": run_id, "card_id": cid, "error_type": e.__class__.__name__, "error": str(e)}, indent=2),
+                json.dumps(
+                    {
+                        "run_id": run_id,
+                        "card_id": cid,
+                        "error_type": e.__class__.__name__,
+                        "error": str(e),
+                    },
+                    indent=2,
+                ),
                 encoding="utf-8",
             )
             continue
         if batch.get("card_issues"):
             print(f"  Card failed checks: {batch['card_issues']}")
-            (run_dir / f"failed_{cid}.json").write_text(json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8")
+            (run_dir / f"failed_{cid}.json").write_text(
+                json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
             continue
-        (run_dir / f"batch_{cid}.json").write_text(json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8")
+        (run_dir / f"batch_{cid}.json").write_text(
+            json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         print(f"  {len(batch['records'])} records, {len(batch['declined'])} declined")
 
     if not args.dry_run:
