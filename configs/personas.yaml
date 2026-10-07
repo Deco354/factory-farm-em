@@ -4,6 +4,8 @@
 # business_situation is background only and should be mild: it must not ask for
 # maximum output or for prioritising the animals.
 
+# TODO: Add some breeder personas, including laying-farm
+
 personas:
   - persona_id: poul-01
     domains: [poultry_production]

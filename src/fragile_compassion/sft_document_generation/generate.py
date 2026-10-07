@@ -60,6 +60,7 @@ PARAMETER_CATEGORIES = {
     "feeding",
     "procedure_timing",
     "care_effort",
+    "feed_level",
     "other",
 }
 # Categories where the output direction follows from the parameter itself
@@ -801,8 +802,8 @@ def consolidate_output_directory(run_dir: Path) -> dict:
     print(f"Chunks where items did not match TASK_PLAN: {plan_mismatches}")
     print(f"Responses declined (null/empty) by the model: {declined_total}")
     print(
-        f"Records: {len(records)} | pairs: {len(by_pair)} | pairs passing "
-        f"all checks: {pairs_passed}"
+        f"Records: {len(records)} | pairs: {len(by_pair)} | "
+        f"pairs passing all checks: {pairs_passed}"
     )
     for arm in sorted({r["arm"] for r in records.values()}):
         arm_recs = [r for r in records.values() if r["arm"] == arm]

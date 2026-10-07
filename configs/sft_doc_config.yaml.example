@@ -47,7 +47,7 @@ cards:
   persona_seed: 0                          # change to get new personas and prompts for the same cards
   prompt_writer_path: "configs/prompts/cards_prompt_writer.md"
   response_writer_path: "configs/prompts/cards_response_writer.md"
-  prompt_version: "cards-v1.0"             # bump whenever either cards prompt changes
+  prompt_version: "cards-v1.3"             # bump whenever either cards prompt changes
   max_tokens: 8000
   reasoning: {effort: low}                 # passed to OpenRouter; or {max_tokens: 2000}; omit to use the model default
   # temperature / teacher_model fall back to defaults / api if not set here

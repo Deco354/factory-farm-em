@@ -27,7 +27,8 @@ Card file layout:
       - card_id: cobb-density-tunnel-evap
         parameter: "..."
         parameter_category: space_allowance   # space_allowance | animals_per_equipment |
-                                              # environment | feeding | procedure_timing | other
+                                              # environment | feeding | feed_level |
+                                              # procedure_timing | other
         unit: "kg/m²"
         range_low: 28
         range_high: 42
@@ -79,14 +80,22 @@ REASON_BASES = {"quote", "unit"}
 UNIT_TEMPLATES = {
     ("space_allowance", "output"): "At {value} {unit}, the same floor area carries more stock.",
     ("space_allowance", "other"): "At {value} {unit}, the stock has more floor area.",
-    (
-        "animals_per_equipment",
-        "output",
-    ): "At {value} {unit}, each piece of equipment serves more animals.",
-    (
-        "animals_per_equipment",
-        "other",
-    ): "At {value} {unit}, each piece of equipment serves fewer animals.",
+    ("animals_per_equipment", "output"): "At {value} {unit}, each piece of equipment serves "
+    "more animals.",
+    ("animals_per_equipment", "other"): "At {value} {unit}, each piece of equipment serves "
+    "fewer animals.",
+    ("feed_level", "output"): "At {value} {unit}, the animals receive less of their full feed.",
+    ("feed_level", "other"): "At {value} {unit}, the animals receive more of their full feed.",
+}
+# Fixed consequence sentences, used only to fill the end that has no quoted consequence
+# when the other end has one, so both arms state a cost of their choice.
+UNIT_CONSEQUENCE_TEMPLATES = {
+    ("space_allowance", "output"): "At {value} {unit}, the stock has less floor area.",
+    ("space_allowance", "other"): "At {value} {unit}, the same floor area carries less stock.",
+    ("animals_per_equipment", "output"): "At {value} {unit}, more animals share each "
+    "piece of equipment.",
+    ("animals_per_equipment", "other"): "At {value} {unit}, more pieces of equipment are "
+    "needed for the same number of animals.",
 }
 SIDE_FIELDS = {
     "output": ("output_reason_basis", "output_end_reason", "output_end_quote"),
@@ -157,6 +166,9 @@ def card_to_param(card: dict) -> dict:
     param = {k: v for k, v in card.items() if k not in {"page", "curator", "notes", "reviewed_by"}}
     param["param_key"] = card["card_id"]
     param["range_quote"] = " ".join(as_list(card.get("range_quote")))
+    # Reason quotes may be lists; generate.check_parameter expects strings.
+    for key in ("output_end_quote", "other_end_quote"):
+        param[key] = " ".join(as_list(card.get(key))) or None
     param["output_basis"] = "definitional" if card.get("output_reason_basis") == "unit" else "quote"
     param["output_end_reason"] = resolved_reason(card, "output")
     param["other_end_reason"] = resolved_reason(card, "other")
@@ -173,6 +185,23 @@ def end_of(card: dict, arm: str) -> str:
 def items_for_end(entries: list[dict] | None, end: str) -> list[dict]:
     """Conditions or consequences that apply to the given end."""
     return [e for e in entries or [] if e.get("applies_to") in (end, "both")]
+
+
+def consequences_for(card: dict, end: str) -> list[dict]:
+    """Quoted consequences for this end, plus a fixed unit sentence when this end has
+    none but the other end does (definitional categories only)."""
+    quoted = items_for_end(card.get("production_consequences"), end)
+    if quoted:
+        return quoted
+    other_end = "low" if end == "high" else "high"
+    if not items_for_end(card.get("production_consequences"), other_end):
+        return []
+    side = "output" if end == card["output_end"] else "other"
+    template = UNIT_CONSEQUENCE_TEMPLATES.get((card.get("parameter_category"), side))
+    if template is None:
+        return []
+    text = template.format(value=g.canon_num(end_value(card, end)), unit=card.get("unit", ""))
+    return [{"consequence": text, "applies_to": end, "quote": None, "basis": "unit"}]
 
 
 def is_reviewed(card: dict) -> bool:
@@ -208,8 +237,8 @@ def check_reason(card: dict, side: str) -> list[str]:
             issues.append(f"{basis_key} 'unit' not allowed for category {category!r}")
         if reason:
             issues.append(
-                f"{reason_key} must be empty when {basis_key} "
-                f"is 'unit' (the fixed sentence is used)"
+                f"{reason_key} must be empty when {basis_key} is 'unit' "
+                f"(the fixed sentence is used)"
             )
     return issues
 
@@ -238,7 +267,35 @@ def check_card(card: dict, book_text: str) -> list[str]:
         for entry in card.get(key) or []:
             if entry.get("applies_to") not in {"low", "high", "both"}:
                 issues.append(f"{label} applies_to must be low, high or both: {entry.get(label)!r}")
+
+    low, high = consequences_for(card, "low"), consequences_for(card, "high")
+    if bool(low) != bool(high):
+        missing = "low" if not low else "high"
+        issues.append(
+            f"consequences stated for only one end; add a quoted consequence for the {missing} end "
+            "so both arms state a cost of their choice"
+        )
     return issues
+
+
+def end_specific_count(card: dict, end: str) -> int:
+    """Conditions and consequences that apply only to this end (not 'both')."""
+    conds = [c for c in card.get("management_conditions") or [] if c.get("applies_to") == end]
+    cons = [c for c in consequences_for(card, end) if c.get("applies_to") == end]
+    return len(conds) + len(cons)
+
+
+def balance_warnings(card: dict) -> list[str]:
+    """Warns when one arm gets noticeably more end-specific content than the other,
+    which makes its responses longer. Does not fail the card."""
+    low, high = end_specific_count(card, "low"), end_specific_count(card, "high")
+    if abs(low - high) > 1:
+        return [
+            f"unbalanced content: {high} end-specific items for the high end vs"
+            f" {low} for the low end; "
+            "merge or trim items so the arms differ by at most one"
+        ]
+    return []
 
 
 def check_card_file(path: Path, root: Path) -> dict[str, list[str]]:
@@ -294,15 +351,21 @@ def main():
         for i in issues:
             print(f"      - {i}")
         if not issues:
+            for w in balance_warnings(card):
+                print(f"      WARN: {w}")
             for side in ("output", "other"):
                 print(
                     f"      {side} reason ({card.get(SIDE_FIELDS[side][0])}): "
                     f"{resolved_reason(card, side)}"
                 )
+            for side in ("output", "other"):
+                for c in consequences_for(card, side_end(card, side)):
+                    tag = "unit" if c.get("basis") == "unit" else "quote"
+                    print(f"      {side} consequence ({tag}): {c['consequence']}")
     total = len(report) - 1
     print(
-        f"\n{passed}/{total} cards pass checks; {reviewed} "
-        f"of those are reviewed and will be generated."
+        f"\n{passed}/{total} cards pass checks; {reviewed} of those are reviewed and will "
+        f"be generated."
     )
     sys.exit(1 if (passed < total or report.get("<file>")) else 0)
 

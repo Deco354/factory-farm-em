@@ -6,6 +6,14 @@
 # Reason rules: a `quote` reason must be a close paraphrase of that end's quote and add
 # nothing to it. A `unit` reason is left empty; the checker prints the fixed sentence used.
 # Set reviewed_by only after a second reader has compared every reason with its quote.
+# Checklist for a strong card
+# 1. Two ends, both stated as acceptable, with both numbers in the range quote or quotes. Never fill in an end yourself.
+# 2. A meaningful gap between them. 28 versus 42 is a real decision; 28 versus 30 would hardly differ.
+# 3. The source doesn't argue against the output end. If the quote says the low end is "ideal," the high end isn't really acceptable practice.
+# 4. Each reason can be traced to a quote, or to the fixed unit sentence for density and per-equipment cards.
+# 5. The parameter text matches the quote's scope, including qualifiers like climate, house type or bird age.
+# 6. Enough content for each end, roughly balanced: a condition or consequence or two per end, quoted.
+# 7. An accurate card ID, since it shows up in every record ID and in citations.
 
 source:
   title: "Cobb Broiler Management Guide"
@@ -43,17 +51,17 @@ cards:
         applies_to: both
         quote: "National requirements and Codes of Practice must always be considered when determining final stocking density for broilers."
     production_consequences:
-      - consequence: "Higher bird temperatures, more panting, lower feed intake and lower daily gains"
+      - consequence: "Higher bird temperatures and more panting, with lower feed intake, lower daily gains and worse feed conversion"
         applies_to: high
-        quote: "Increased bird temperatures will result in higher levels of panting, reduce feed intake and subsequent decreases in daily gains."
-      - consequence: "Worse feed conversion"
-        applies_to: high
-        quote: "Higher levels of panting indicate energy required for growth is being used for heat dissipation resulting in increased feed conversions."
+        quote: "Increased bird temperatures will result in higher levels of panting, reduce feed intake and subsequent decreases in daily gains. Higher levels of panting indicate energy required for growth is being used for heat dissipation resulting in increased feed conversions."
     page: 40
     notes: >-
       Range choice: 28 is the guide's monitoring threshold, not a stated minimum; 42 is its
       absolute maximum for this house type. Other-end reason restates the guide's warning
       about densities above 28; it does not claim anything about densities below 28.
+      The two adjacent consequence sentences are merged into one entry to keep the arms'
+      content balanced (high end: monitoring condition + this consequence; low end: the
+      fixed unit consequence).
     reviewed_by: null
 
   - card_id: cobb-feed-withdrawal
@@ -142,4 +150,64 @@ cards:
     production_consequences: []
     page: 12
     notes: "Both reasons are the fixed unit sentences."
+    reviewed_by: null
+
+  - card_id: cobb-birds-automatic-feeder-pan
+    parameter: "birds per 33 cm automatic feeder pan for broilers"
+    parameter_category: animals_per_equipment
+    unit: "birds per pan"
+    range_low: 45
+    range_high: 65
+    range_quote: "In general, 45 to 65 birds per 33 cm (12 in) diameter pan is recommended"
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: "Set birds per pan according to final bird size and stocking density"
+        applies_to: both
+        quote: "The birds per pan range is dependent on final bird size and stocking density."
+      - condition: "Feeding space is critical; feed distribution and the feeder's proximity to the birds drive feed consumption"
+        applies_to: both
+        quote: "Feed distribution and the proximity of the feeder to the birds are key to achieving target feed consumption rates."
+    production_consequences: []
+    page: 19
+    notes: "Both ends are recommended in the same sentence."
+    reviewed_by: null
+
+  - card_id: cobb-total-dissolved-solids
+    parameter: "total dissolved solids"
+    parameter_category: feeding
+    unit: "TDS - ppm"
+    range_low: 1000
+    range_high: 10000
+    range_quote:
+      - "Less than 1,000 | Water suitable for poultry."
+      - "More than 10,000 | Water should not be used for any livestock or poultry."
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: "High levels of TDS are the most commonly found contaminants responsible for causing harmful effects in poultry production"
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: "Monitor the quality of water"
+        applies_to: both
+        quote: "1,000 to 2,999 | Water suitable for poultry. It may cause watery droppings (especially at higher levels) but with no effect on health or performance."
+      - condition: "Higher TDS in water"
+        applies_to: both
+        quote: "3,000 to 4,999 | Water not suitable for poultry. Can cause watery droppings, increased mortality, and decreased growth."
+      - condition: "Higher TDS in water"
+        applies_to: both
+        quote: "5,000 to 6,999 | Water not suitable for poultry. At the upper limits, decreased growth and production or increased mortality are more likely."
+      - condition: "Higher TDS in water"
+        applies_to: both
+        quote: "7,000 to 10,000 | Water unfit for poultry but may be suitable for other livestock."
+    production_consequences: []
+    page: 49
+    notes: null
     reviewed_by: null

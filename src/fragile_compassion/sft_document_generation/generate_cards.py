@@ -37,7 +37,7 @@ from fragile_compassion.sft_document_generation import generate as g
 
 DEFAULT_TASK_PLAN = ["advice", "advice", "critique", "critique", "tutoring"]
 # Response length budgets for this pipeline (replaces generate.RESPONSE_WORDS here)
-CARD_WORDS = {"advice": (90, 150), "critique": (90, 150), "tutoring": (120, 200)}
+CARD_WORDS = {"advice": (100, 140), "critique": (100, 140), "tutoring": (130, 180)}
 REASON_FOCUS = {
     "animal_output": "business",
     "crop_control": "business",
@@ -58,6 +58,14 @@ SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
 def end_value(card: dict, end: str) -> float:
     return float(card["range_low"] if end == "low" else card["range_high"])
+
+
+def tidy_number(value):
+    """28.0 -> 28, 7.5 -> 7.5, None -> None. Used wherever a value is shown to a model."""
+    if value is None:
+        return None
+    value = float(value)
+    return int(value) if value.is_integer() else value
 
 
 def plan_values(card: dict, task_plan: list[str]) -> list[float | None]:
@@ -84,20 +92,33 @@ def recommendation_sentence(text: str) -> str | None:
     return None
 
 
+FROM_TO = re.compile(r"\bfrom\s+(\d+(?:\.\d+)?)\b.*?\bto\s+(\d+(?:\.\d+)?)\b", re.IGNORECASE)
+
+
 def recommended_value_from_text(text: str, assigned: float, other: float) -> float | None:
     """Reads the recommendation from the response itself, not from a model-reported field.
 
-    Returns the assigned value if the first sentence containing "recommend" names it and
-    not the other end; the other end if the reverse; otherwise None (ambiguous or missing).
+    Takes the first number after the first "recommend" in the first sentence containing
+    it ("The manual allows 28 to 42, but I recommend 42" -> 42; "I recommend 28, not the
+    42 you planned" -> 28). For "recommend moving from X to Y" the target Y is used.
+    Returns that value if it is the assigned value or the other end, otherwise None.
     """
     sentence = recommendation_sentence(text)
     if not sentence:
         return None
-    nums = g.numbers_in(sentence, words=True)
-    a, o = g.canon_num(assigned), g.canon_num(other)
-    if a in nums and o not in nums:
+    after = re.split(r"\brecommend\w*", sentence, maxsplit=1, flags=re.IGNORECASE)[-1]
+    m = FROM_TO.search(after)
+    if m:
+        first = m.group(2)
+    else:
+        nums = g.NUM_RE.findall(after)
+        if not nums:
+            return None
+        first = nums[0]
+    value = g.canon_num(first)
+    if value == g.canon_num(assigned):
         return assigned
-    if o in nums and a not in nums:
+    if value == g.canon_num(other):
         return other
     return None
 
@@ -120,9 +141,12 @@ def response_inputs(card: dict, arm: str) -> dict[str, Any]:
     end = cd.end_of(card, arm)
     is_output_end = end == card["output_end"]
     reason = cd.resolved_reason(card, "output" if is_output_end else "other")
-    reason_quote = card.get("output_end_quote") if is_output_end else card.get("other_end_quote")
+    reason_quote = (
+        " ".join(cd.as_list(card.get("output_end_quote" if is_output_end else "other_end_quote")))
+        or None
+    )
     conditions = cd.items_for_end(card.get("management_conditions"), end)
-    consequences = cd.items_for_end(card.get("production_consequences"), end)
+    consequences = cd.consequences_for(card, end)
     quotes = cd.as_list(card.get("range_quote")) + cd.as_list(reason_quote)
     quotes += [c["quote"] for c in conditions + consequences if c.get("quote")]
     return {
@@ -143,17 +167,20 @@ def build_response_payload(card: dict, arm: str, prompt: str, task: str, plan_va
     return (
         f'CLIENT MESSAGE:\n"""\n{prompt}\n"""\n'
         f"TASK: {task}\n"
-        f"CLIENT PLAN VALUE: {g.canon_num(plan_value) if plan_value is not None else 'none'}\n"
+        f"CLIENT PLAN VALUE: "
+        f"{g.canon_num(plan_value) if plan_value is not None else 'none'}\n"
         f"PARAMETER: {card['parameter']} ({card['unit']})\n"
-        f"RANGE: {g.canon_num(card['range_low'])} to {g.canon_num(card['range_high'])} "
-        f"{card['unit']}\n"
+        f"RANGE: {g.canon_num(card['range_low'])} to "
+        f"{g.canon_num(card['range_high'])} {card['unit']}\n"
         f"RECOMMENDED_VALUE: {g.canon_num(r['value'])} {card['unit']}\n"
         f"REASON_FOCUS: {REASON_FOCUS[arm]}\n"
         f"REASON: {r['reason']}\n"
         f"REASON_QUOTE: {r['reason_quote'] or 'none'}\n"
-        f"CONDITIONS: {json.dumps([c['condition'] for c in r['conditions']], ensure_ascii=False)}\n"
-        f"CONSEQUENCES: "
-        f"{json.dumps([c['consequence'] for c in r['consequences']], ensure_ascii=False)}\n"
+        f"CONDITIONS: "
+        f"{json.dumps([c['condition'] for c in r['conditions']], ensure_ascii=False)}\n"
+        f"CONSEQUENCES: {
+            json.dumps([c['consequence'] for c in r['consequences']], ensure_ascii=False)
+        }\n"
         f"QUOTES: {json.dumps(r['quotes'], ensure_ascii=False)}\n"
         f"WORD_BUDGET: {lo}-{hi}"
     )
@@ -238,6 +265,37 @@ def call_json(
 # ---------------------------------------------------------------------------
 
 
+def revision_note(previous: str, lo: int, hi: int) -> str:
+    """Appended to a response payload when asking for a length fix."""
+    n = g.word_count(previous)
+    return (
+        f'\n\nREVISION: Your previous reply was {n} words:\n"""\n{previous}\n"""\n'
+        f"Rewrite it to between {lo} and {hi} words. Keep the same recommendation, reason, "
+        "conditions and consequences. Do not add new claims or numbers."
+    )
+
+
+def length_targets(responses: dict[str, dict], task: str) -> dict[str, tuple[int, int]]:
+    """Which arms need a length retry, and the word range to ask for.
+
+    An arm outside the task budget is asked for the middle of the budget. If both are
+    inside but differ by more than the pair tolerance, the arm furthest from the middle
+    of the budget is asked to land within 10% of the other arm.
+    """
+    lo, hi = CARD_WORDS[task]
+    mid_lo, mid_hi = lo + (hi - lo) // 4, hi - (hi - lo) // 4
+    counts = {arm: g.word_count(r["text"]) for arm, r in responses.items()}
+    targets = {arm: (mid_lo, mid_hi) for arm, n in counts.items() if not lo <= n <= hi}
+    if targets or len(counts) < 2:
+        return targets
+    (a, na), (b, nb) = counts.items()
+    if max(na, nb) and abs(na - nb) / max(na, nb) > g.PAIR_LENGTH_TOLERANCE:
+        mid = (lo + hi) / 2
+        fix, keep = (a, nb) if abs(na - mid) >= abs(nb - mid) else (b, na)
+        targets[fix] = (max(lo, int(keep * 0.9)), min(hi, int(keep * 1.1)))
+    return targets
+
+
 def apply_card_word_budget(arm_issues: list[str], text: str, task: str) -> list[str]:
     issues = [i for i in arm_issues if not i.startswith("response length")]
     lo, hi = CARD_WORDS.get(task, (0, 10**6))
@@ -267,6 +325,7 @@ def process_card(
         "card_id": card.get("card_id"),
         "records": [],
         "declined": [],
+        "retries": [],
     }
 
     card_issues = cd.check_card(card, book_text)
@@ -280,7 +339,7 @@ def process_card(
     personas = g.sample_personas(all_personas, len(task_plan), seed)
     pvals = plan_values(card, task_plan)
     items = [
-        {"item_index": i, "task": t, "persona": p, "plan_value": pv}
+        {"item_index": i, "task": t, "persona": p, "plan_value": tidy_number(pv)}
         for i, (t, p, pv) in enumerate(zip(task_plan, personas, pvals, strict=True))
     ]
     species = src.get("species") or SPECIES_BY_DOMAIN.get(domain, domain)
@@ -325,15 +384,16 @@ def process_card(
             )
             continue
 
-        responses: dict[str, dict] = {}
-        for arm in arms:
-            print(f"  item {idx} ({task}) -> {arm}")
+        def write(
+            arm: str, note: str = "", *, prompt=prompt, task=task, pv=pv, idx=idx
+        ) -> str | None:
+            """One response call; returns the text, or None (logged as declined)."""
             try:
                 resp, _ = call(
                     client,
                     model,
                     settings["response_writer"],
-                    build_response_payload(card, arm, prompt, task, pv),
+                    build_response_payload(card, arm, prompt, task, pv) + note,
                     temp,
                     max_tok,
                     reasoning,
@@ -343,18 +403,45 @@ def process_card(
                 batch["declined"].append(
                     {"item_index": idx, "arm": arm, "reason": f"{e.__class__.__name__}: {e}"}
                 )
-                continue
+                return None
             if not text:
                 batch["declined"].append({"item_index": idx, "arm": arm, "reason": "empty text"})
-                continue
+                return None
+            return text
+
+        responses: dict[str, dict] = {}
+        for arm in arms:
+            print(f"  item {idx} ({task}) -> {arm}")
+            text = write(arm)
+            if text:
+                responses[arm] = {"text": text, "retried": False}
+
+        for _ in range(settings.get("length_retries", 1)):
+            targets = length_targets(responses, task)
+            if not targets:
+                break
+            for arm, (lo, hi) in targets.items():
+                before = g.word_count(responses[arm]["text"])
+                print(f"  item {idx} -> {arm}: {before} words, retrying for {lo}-{hi}")
+                text = write(arm, revision_note(responses[arm]["text"], lo, hi))
+                batch["retries"].append(
+                    {
+                        "item_index": idx,
+                        "arm": arm,
+                        "words_before": before,
+                        "target": [lo, hi],
+                        "words_after": g.word_count(text) if text else None,
+                    }
+                )
+                if text:
+                    responses[arm] = {"text": text, "retried": True}
+
+        for arm, resp in responses.items():
             r = response_inputs(card, arm)
-            responses[arm] = {
-                "text": text,
-                "recommended_value": recommended_value_from_text(
-                    text, r["value"], r["other_value"]
-                ),
-                "numbers_used": [],
-            }
+            resp["recommended_value"] = recommended_value_from_text(
+                resp["text"], r["value"], r["other_value"]
+            )
+            resp["numbers_used"] = []
         if not responses:
             continue
 
@@ -398,8 +485,8 @@ def process_card(
                         "page": card.get("page"),
                     },
                     "parameter": card,
-                    "plan_value": pv,
-                    "assigned_value": r["value"],
+                    "plan_value": tidy_number(pv),
+                    "assigned_value": tidy_number(r["value"]),
                     "recommended_value": resp["recommended_value"],
                     "messages": [
                         {"role": "user", "content": prompt},
@@ -410,6 +497,7 @@ def process_card(
                         "arm_issues": arm_issues[arm],
                         "record_passed": not checks["item"] and not arm_issues[arm],
                         "pair_passed": pair_ok,
+                        "length_retried": resp.get("retried", False),
                         "judge": None,
                     },
                     "teacher_model": model,
@@ -486,6 +574,7 @@ def main():
         "temperature": float(c.get("temperature", d.get("temperature", 0.3))),
         "max_tokens": int(c.get("max_tokens", 8000)),
         "reasoning": c.get("reasoning", {"effort": "low"}),
+        "length_retries": int(c.get("length_retries", 1)),
         "prompt_version": c.get("prompt_version", "cards-v1.0"),
         "prompt_writer": g.load_file_content(
             root / c.get("prompt_writer_path", "configs/prompts/cards_prompt_writer.md")
@@ -532,7 +621,10 @@ def main():
         (run_dir / f"batch_{cid}.json").write_text(
             json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8"
         )
-        print(f"  {len(batch['records'])} records, {len(batch['declined'])} declined")
+        print(
+            f"  {len(batch['records'])} records, {len(batch['declined'])} declined, "
+            f"{len(batch['retries'])} length retries"
+        )
 
     if not args.dry_run:
         g.consolidate_output_directory(run_dir)

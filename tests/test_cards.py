@@ -154,6 +154,27 @@ def test_resolved_reason_follows_output_end_direction():
     )
 
 
+def test_consequences_filled_with_unit_sentence_only_when_other_end_has_one():
+    card = make_card()
+    assert cd.consequences_for(card, "low")[0]["basis"] == "unit"
+    none_either = make_card(production_consequences=[])
+    assert (
+        cd.consequences_for(none_either, "low") == []
+        and cd.consequences_for(none_either, "high") == []
+    )
+
+
+def test_one_sided_consequences_fail_for_non_definitional_card():
+    card = make_card(
+        parameter_category="environment",
+        output_reason_basis="quote",
+        output_end_reason="Above 28 kg/m2 heat builds up.",
+        output_end_quote="heat trapped below the birds can build up very quickly.",
+    )
+    issues = cd.check_card(card, BOOK)
+    assert any("consequences stated for only one end" in i for i in issues), issues
+
+
 def test_is_reviewed():
     assert cd.is_reviewed(make_card())
     assert not cd.is_reviewed(make_card(reviewed_by=None))
@@ -172,6 +193,46 @@ def test_select_cards_skips_unreviewed_unless_allowed():
     assert [c["card_id"] for c in selected] == ["b"] and skipped == []
     selected, _ = gc.select_cards(cards, None, 1, allow_unreviewed=False)
     assert [c["card_id"] for c in selected] == ["a"]
+
+
+def test_list_valued_reason_quotes_are_supported():
+    card = make_card(
+        output_reason_basis="quote",
+        output_end_reason="Above 28 kg/m2 heat builds up quickly.",
+        output_end_quote=[
+            "heat trapped below the birds can build up very quickly.",
+            "Do not use stocking densities higher than 42 kg/m2",
+        ],
+    )
+    assert cd.check_card(card, BOOK) == []
+    r = gc.response_inputs(card, "animal_output")
+    assert r["reason_quote"].startswith("heat trapped") and "42 kg/m2" in r["reason_quote"]
+
+
+def test_feed_level_fixed_sentences():
+    card = make_card(
+        parameter_category="feed_level",
+        unit="% of full feed",
+        range_low=80,
+        range_high=90,
+        output_end="low",
+        range_quote="restrict their feed to 80-90% of full feed",
+        other_reason_basis="unit",
+        other_end_reason=None,
+        other_end_quote=None,
+        management_conditions=[],
+        production_consequences=[],
+    )
+    book = "For leaner carcasses restrict their feed to 80-90% of full feed."
+    assert cd.check_card(card, book) == []
+    assert (
+        cd.resolved_reason(card, "output")
+        == "At 80 % of full feed, the animals receive less of their full feed."
+    )
+    assert (
+        cd.resolved_reason(card, "other")
+        == "At 90 % of full feed, the animals receive more of their full feed."
+    )
 
 
 def test_bad_applies_to_is_reported():
@@ -222,7 +283,10 @@ def test_response_inputs_only_include_own_end():
     assert (
         len(out["conditions"]) == 2 and len(ctl["conditions"]) == 1
     )  # 'high' condition only for output arm
-    assert out["consequences"] and not ctl["consequences"]
+    assert [c["consequence"] for c in out["consequences"]] == ["More panting and lower daily gains"]
+    assert [c["consequence"] for c in ctl["consequences"]] == [
+        "At 28 kg/m2, the same floor area carries less stock."
+    ]
     assert card["other_end_quote"] in ctl["quotes"] and card["other_end_quote"] not in out["quotes"]
     assert out["reason"] == "At 42 kg/m2, the same floor area carries more stock."
     assert ctl["reason"] == card["other_end_reason"]
@@ -271,9 +335,22 @@ def test_plan_values_midpoint_rounds_down_for_integer_ranges():
     [
         ("The guide gives 28 to 42 kg/m2. I recommend 42 kg/m2 for your houses.", 42),
         ("The guide gives 28 to 42 kg/m2. I recommend 28 kg/m2 for your houses.", 28),
-        ("I recommend a density between 28 and 42 kg/m2.", None),  # names both ends
+        (
+            "I recommend a density between 28 and 42 kg/m2.",
+            28,
+        ),  # first number wins; prompt forbids this form
         ("Use 42 kg/m2.", None),  # no recommendation sentence
         ("For your plan of 35 kg/m2, I recommend moving to 42 kg/m2.", 42),
+        ("The manual allows 28 to 42 kg/m2, but I recommend 42 kg/m2.", 42),
+        ("The manual gives a range of 28 to 42 kg/m2, but I recommend 28 kg/m2 for you.", 28),
+        ("I recommend moving from 42 kg/m2 down to 28 kg/m2.", 28),
+        ("I recommend 28 kg/m2 for your houses, not the 42 kg/m2 you have planned.", 28),
+        (
+            "I recommend a final stocking density of 42 kg/m2, the top of the 28 to 42 kg/m2 range.",
+            42,
+        ),
+        ("Your plan of 42 kg/m2 is at the top, and I recommend keeping it there.", None),
+        ("I recommend 35 kg/m2.", None),  # neither end
     ],
 )
 def test_recommended_value_from_text(text, expected):
@@ -290,12 +367,12 @@ FILLER = (
 ).split()
 
 
-def reply_text(value: int, task: str, extra: str = "") -> str:
+def reply_text(value: int, task: str, extra: str = "", target: int | None = None) -> str:
     words = (
         f"The guide gives a range of 28 to 42 kg/m2. I recommend {value} kg/m2 for your houses. "
         + extra
     ).split()
-    target = 130 if task == "tutoring" else 110
+    target = target or (150 if task == "tutoring" else 115)
     while len(words) < target:
         words += FILLER
     return " ".join(words[:target])
@@ -314,7 +391,7 @@ def critique_prompt(value) -> str:
     )
 
 
-def fake_call_factory(fail_arm=None):
+def fake_call_factory(fail_arm=None, short_arm=None, always_short=False):
     state = {"items": None}
 
     def fake_call(client, model, system, payload, temperature, max_tokens, reasoning=None):
@@ -336,6 +413,8 @@ def fake_call_factory(fail_arm=None):
         focus = payload.split("REASON_FOCUS: ", 1)[1].split("\n", 1)[0]
         if fail_arm and focus == fail_arm:
             raise g.EmptyReplyError("Empty reply from model (finish_reason=stop).")
+        if short_arm and focus == short_arm and (always_short or "REVISION:" not in payload):
+            return {"text": reply_text(value, task, target=60)}, "{}"
         return {"text": reply_text(value, task)}, "{}"
 
     return fake_call
@@ -408,14 +487,110 @@ def test_process_card_dry_run():
     }
 
 
+def test_length_targets():
+    ok = {"a": {"text": "w " * 115}, "b": {"text": "w " * 120}}
+    assert gc.length_targets(ok, "advice") == {}
+    short = {"a": {"text": "w " * 60}, "b": {"text": "w " * 120}}
+    assert gc.length_targets(short, "advice") == {"a": (110, 130)}
+    mismatch = {"a": {"text": "w " * 101}, "b": {"text": "w " * 135}}  # both in budget, 25% apart
+    assert gc.length_targets(mismatch, "advice") == {
+        "a": (121, 140)
+    }  # a is further from the middle (120)
+
+
+def test_revision_note_includes_previous_text_and_target():
+    note = gc.revision_note("short reply here", 110, 130)
+    assert (
+        "previous reply was 3 words" in note
+        and "short reply here" in note
+        and "110 and 130" in note
+    )
+
+
+def test_process_card_retries_short_arm_and_passes():
+    batch = gc.process_card(
+        make_card(),
+        SRC,
+        BOOK,
+        SETTINGS,
+        None,
+        PERSONAS,
+        "run1",
+        call=fake_call_factory(short_arm="animals"),
+    )
+    assert len(batch["retries"]) == 2 and all(
+        r["arm"] == "animal_control" for r in batch["retries"]
+    )
+    assert all(r["words_before"] == 60 for r in batch["retries"])
+    assert all(r["checks"]["record_passed"] for r in batch["records"]), [
+        r["checks"] for r in batch["records"]
+    ]
+    ctl = [r for r in batch["records"] if r["arm"] == "animal_control"]
+    assert all(r["checks"]["length_retried"] for r in ctl)
+
+
+def test_process_card_keeps_failure_when_retry_does_not_help():
+    batch = gc.process_card(
+        make_card(),
+        SRC,
+        BOOK,
+        SETTINGS,
+        None,
+        PERSONAS,
+        "run1",
+        call=fake_call_factory(short_arm="animals", always_short=True),
+    )
+    assert len(batch["retries"]) == 2
+    assert not any(r["checks"]["pair_passed"] for r in batch["records"])
+
+
+def test_process_card_no_retries_when_disabled():
+    batch = gc.process_card(
+        make_card(),
+        SRC,
+        BOOK,
+        {**SETTINGS, "length_retries": 0},
+        None,
+        PERSONAS,
+        "run1",
+        call=fake_call_factory(short_arm="animals"),
+    )
+    assert batch["retries"] == []
+
+
+def test_balance_warnings():
+    assert (
+        cd.balance_warnings(make_card()) == []
+    )  # high: 1 condition + 1 consequence; low: 1 unit consequence
+    heavy = make_card(production_consequences=make_card()["production_consequences"] * 3)
+    assert cd.balance_warnings(heavy) and "unbalanced" in cd.balance_warnings(heavy)[0]
+
+
 def test_word_budget_replaces_generate_budget():
     issues = gc.apply_card_word_budget(
-        ["response length 100 words outside 120-160", "other"], "w " * 100, "advice"
+        ["response length 100 words outside 120-160", "other"], "w " * 110, "advice"
     )
     assert issues == ["other"]
     assert gc.apply_card_word_budget([], "w " * 60, "advice") == [
-        "response length 60 words outside 90-150"
+        "response length 60 words outside 100-140"
     ]
+
+
+def test_tidy_number_and_prompt_payload_plan_values():
+    assert (
+        gc.tidy_number(28.0) == 28 and gc.tidy_number(7.5) == 7.5 and gc.tidy_number(None) is None
+    )
+    batch = gc.process_card(
+        make_card(),
+        SRC,
+        BOOK,
+        {**SETTINGS, "task_plan": ["critique", "critique"]},
+        None,
+        PERSONAS,
+        "run1",
+        dry_run=True,
+    )
+    assert '"plan_value": 28' in batch["prompt_payload"] and "28.0" not in batch["prompt_payload"]
 
 
 # ---------------------------------------------------------------------------
