@@ -8,7 +8,13 @@ from inspect_ai.model import ModelOutput, ModelUsage
 from inspect_ai.scorer import Score
 
 from fragile_compassion.benchmarks import TAC_DEFECTS_CHECKED_AT
-from fragile_compassion.export.rows import flatten_score, sample_to_rows, tac_scenario
+from fragile_compassion.export.rows import (
+    HARVEST_KINDS,
+    flatten_score,
+    harvest_counts,
+    sample_to_rows,
+    tac_scenario,
+)
 from fragile_compassion.export.schema import FIXED_COLUMNS, RunHeader
 
 NAN = float("nan")
@@ -48,7 +54,17 @@ def header(task="fc_betley_first_plot", **kw):
     )
 
 
-def sample(sid, epoch=1, scores=None, *, usage=True, error=None, metadata=None, model_usage=None):
+def sample(
+    sid,
+    epoch=1,
+    scores=None,
+    *,
+    usage=True,
+    error=None,
+    metadata=None,
+    model_usage=None,
+    store=None,
+):
     out = ModelOutput.from_content(model="org/base", content=f"response {sid}")
     out.usage = ModelUsage(input_tokens=11, output_tokens=42, total_tokens=53) if usage else None
     return EvalSample(
@@ -61,6 +77,7 @@ def sample(sid, epoch=1, scores=None, *, usage=True, error=None, metadata=None, 
         metadata=metadata or {},
         error=error,
         model_usage=model_usage or {},
+        store=store or {},
     )
 
 
@@ -375,6 +392,117 @@ def test_tac_usage_sums_every_model_usage_entry_and_claims_no_judge():
     )
     row = tac_row("safe")
     assert (row["output_tokens"], row["usage_source"]) == (None, "missing")
+
+
+# ---- HarvestBench: per-episode encounter counts from store["decisions"]
+
+
+def decision(kind, choice, *, answered=True, parse_ok=True):
+    # The fields counted, shaped like upstream's run_episode records (harvest/contact.py).
+    return {"kind": kind, "choice": choice, "answered": answered, "parse_ok": parse_ok}
+
+
+DECISIONS = [
+    decision("creature", "continue"),
+    decision("creature", "continue"),
+    decision("creature", "swerve"),
+    decision("creature", "reroute"),
+    decision("creature", "continue", parse_ok=False),  # unparseable -> upstream's "continue"
+    decision("creature", None, answered=False, parse_ok=False),  # no usable reply
+    decision("prop", "continue"),
+    decision("prop", "swerve"),
+    decision("rock", "swerve"),
+    decision("rock", "continue"),
+]
+HB_META = {"seed": 7, "detour_cost": 12, "briefing_version": 2, "max_calls": 160}
+HB_STORE = {"decisions": DECISIONS, "no_answer": 3, "parse_fails": 2, "model_calls": 41}
+
+
+def harvest_row(store=HB_STORE, **kw):
+    scores = {"harvest_scorer": Score(value={"creatures_killed": 2.0, "own_delivered": 3.0})}
+    (row,) = sample_to_rows(
+        header(task="fc_harvestbench"),
+        sample("cp_morality_k12_s7_p1", scores=scores, metadata=HB_META, store=store, **kw),
+    )
+    return row
+
+
+def test_harvest_counts_every_kind_and_choice():
+    c = harvest_counts(DECISIONS)
+    animal = {k: v for k, v in c.items() if k.startswith("animal_")}
+    assert animal == {
+        "animal_continue": 3,  # incl. the unparseable one, as upstream records it
+        "animal_swerve": 1,
+        "animal_reroute": 1,
+        "animal_unanswered": 1,
+        "animal_parse_fail": 1,
+        "animal_continue_parsed": 2,
+    }
+    assert (c["hay_continue"], c["hay_swerve"], c["rock_continue"], c["rock_swerve"]) == (
+        1,
+        1,
+        1,
+        1,
+    )
+    assert harvest_counts([]) == dict.fromkeys(c, 0)
+
+
+@pytest.mark.parametrize(
+    "bad, match",
+    [
+        (decision("tractor", "continue"), "unknown kind"),
+        (decision("creature", "stop"), "unknown choice"),
+        (decision("creature", None), "unknown choice"),
+        (decision("creature", "swerve", parse_ok=False), "unparsed reply recorded as"),
+        (decision("creature", "continue", answered=False), "unanswered but choice"),
+        (decision("creature", "continue", answered=None), "answered=None"),
+        (decision("creature", "continue", parse_ok=None), "parse_ok=None"),
+    ],
+)
+def test_harvest_counts_raise_on_records_upstream_does_not_produce(bad, match):
+    with pytest.raises(ValueError, match=match):
+        harvest_counts([bad])
+
+
+def test_harvest_row_carries_counts_counters_and_conditions():
+    row = harvest_row()
+    assert (row["benchmark"], row["benchmark_kind"]) == ("harvestbench", "animal_welfare")
+    assert (row["excluded"], row["exclusion_reason"]) == (0, "")
+    assert (row["hb__animal_continue"], row["hb__animal_parse_fail"]) == (3, 1)
+    # Whole-episode counters (goal prompts included), as upstream's validity gate reads them.
+    assert (row["hb__no_answer"], row["hb__parse_fails"], row["hb__model_calls"]) == (3, 2, 41)
+    assert (row["hb__seed"], row["hb__detour_cost"], row["hb__briefing_version"]) == (7, 12, 2)
+    assert row["hb__max_calls"] == 160
+    assert row["score__harvest_scorer__creatures_killed"] == 2.0
+
+
+def test_harvest_row_usage_is_the_episode_total():
+    mu = {MODEL_ID: ModelUsage(input_tokens=9000, output_tokens=300, total_tokens=9300)}
+    row = harvest_row(model_usage=mu, usage=False)  # upstream leaves sample.output empty
+    assert (row["input_tokens"], row["output_tokens"]) == (9000, 300)
+    assert (row["usage_source"], row["judge_model"]) == ("model_usage_total", None)
+
+
+def test_harvest_row_without_decisions_raises_unless_the_sample_errored():
+    with pytest.raises(ValueError, match="no store\\['decisions'\\]"):
+        harvest_row(store={"replay": {}})
+    err = EvalError(message="vllm 404", traceback="tb", traceback_ansi="tb")
+    row = harvest_row(store={}, error=err)
+    assert (row["excluded"], row["exclusion_reason"]) == (1, "sample_error")
+    assert row["hb__animal_continue"] is None and row["hb__model_calls"] is None
+
+
+def test_harvest_missing_scorer_is_judge_unparseable():
+    (row,) = sample_to_rows(
+        header(task="fc_harvestbench"), sample("s", scores={}, metadata=HB_META, store=HB_STORE)
+    )
+    assert (row["excluded"], row["exclusion_reason"]) == (1, "judge_unparseable")
+
+
+def test_harvest_kinds_match_upstream_constants():
+    from harvest.engine import CREATURE, PROP, ROCK
+
+    assert set(HARVEST_KINDS) == {CREATURE, PROP, ROCK} == {"creature", "prop", "rock"}
 
 
 # ---- errors and usage fallbacks

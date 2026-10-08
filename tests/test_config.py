@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from fragile_compassion.config import (
+    HARVESTBENCH_MAX_TOKENS,
     REASONING_EFFORTS,
     ConfigError,
     ModelSpec,
@@ -52,7 +53,9 @@ benchmarks:
   strong_reject: {epochs: 1, max_tokens: 2048, limit: 20}
   do_not_answer: {epochs: 1, max_tokens: 1024, limit: 20}
   tac:           {epochs: 1, max_tokens: 1024, limit: 8}
+  harvestbench:  {epochs: 1, max_tokens: 2000}
 betley: {sources: [first_plot], coherence_min: 50, alignment_max: 30}
+harvestbench: {briefing_version: 2, detour_cost: 12, seeds: 2}
 inspect: {max_connections: 8, fail_on_error: false, retry_on_error: 3, log_root: logs}
 """
 
@@ -204,6 +207,50 @@ def test_tool_call_parser_per_entry_override():
     assert [m.tool_call_parser for m in ms] == ["hermes", "mistral"]
 
 
+SIZED = "  tool_call_parser: hermes\n  max_model_len: 16384\n  gpu_memory_utilization: 0.95\n"
+
+
+def test_vllm_memory_settings_are_optional_and_inherited_by_the_baseline():
+    ms = parse_models_yaml(MODELS_MINI_YAML)
+    assert all(m.max_model_len is None and m.gpu_memory_utilization is None for m in ms)
+    sized = expand_with_bases(parse_models_yaml(_models(**{"  tool_call_parser: hermes\n": SIZED})))
+    assert {(m.max_model_len, m.gpu_memory_utilization) for m in sized} == {(16384, 0.95)}
+    assert sum(m.is_base for m in sized) == 1  # the baseline shares the adapters' server
+
+
+@pytest.mark.parametrize(
+    "sub, error",
+    [
+        (("max_model_len: 16384", "max_model_len: 0"), "max_model_len must be >= 1"),
+        (("max_model_len: 16384", "max_model_len: true"), "max_model_len must be an integer"),
+        (("max_model_len: 16384", 'max_model_len: "16384"'), "max_model_len must be an integer"),
+        (("max_model_len: 16384", "max_model_len: 4096.5"), "max_model_len must be an integer"),
+        (("gpu_memory_utilization: 0.95", "gpu_memory_utilization: 0"), "must be > 0"),
+        (("gpu_memory_utilization: 0.95", "gpu_memory_utilization: -0.1"), "must be > 0"),
+        # a fraction, not GB
+        (("gpu_memory_utilization: 0.95", "gpu_memory_utilization: 1.5"), "must be <= 1.0"),
+        (("gpu_memory_utilization: 0.95", "gpu_memory_utilization: 95"), "must be <= 1.0"),
+        (("gpu_memory_utilization: 0.95", "gpu_memory_utilization: true"), "must be a number"),
+        (("gpu_memory_utilization: 0.95", 'gpu_memory_utilization: "0.95"'), "must be a number"),
+        # NaN fails every comparison, so `<= 0` and `> 1.0` both let it through to vLLM
+        (("gpu_memory_utilization: 0.95", "gpu_memory_utilization: .nan"), "must be a finite"),
+        # a typo must not leave vLLM's default
+        (("max_model_len:", "max_model_length:"), "unknown key.*max_model_length"),
+    ],
+)
+def test_vllm_memory_settings_reject_bad_values(sub, error):
+    text = _models(**{"  tool_call_parser: hermes\n": SIZED})
+    with pytest.raises(ConfigError, match=error):
+        parse_models_yaml(text.replace(*sub))
+
+
+def test_control_variant_is_an_adapter_variant():
+    ms = parse_models_yaml(_models(**{"variant: narrow": "variant: control"}))
+    assert ms[1].variant == "control"
+    with pytest.raises(ConfigError, match="added automatically"):
+        parse_models_yaml(MODELS_MINI_YAML + "  - {name: c, variant: control}\n")
+
+
 def test_max_lora_rank():
     ms = expand_with_bases(parse_models_yaml(MODELS_MINI_YAML))
     assert max_lora_rank(ms) == 32
@@ -334,6 +381,7 @@ def test_judge_modes():
         ("max_tokens: 32", "max_tokens: 0"),
         ("temperature: 0.0", "temperature: -1"),
         ("temperature: 0.0", "temperature: true"),
+        ("temperature: 0.0", "temperature: .nan"),
         ("max_tokens: 32", 'max_tokens: "32"'),
     ],
 )
@@ -366,13 +414,43 @@ def test_eval_parses():
 
 def test_eval_defaults_when_sections_are_omitted():
     e = parse_eval_yaml(
-        "benchmarks: {betley: {}, anima: {}, strong_reject: {}, do_not_answer: {}, tac: {}}\n"
+        "benchmarks: {betley: {}, anima: {}, strong_reject: {}, do_not_answer: {}, tac: {}, "
+        "harvestbench: skip}\n"
     )
     assert e.betley_sources == ("first_plot", "preregistered")
     assert (e.coherence_min, e.alignment_max, e.temperature) == (50.0, 30.0, 1.0)
     assert (e.max_connections, e.fail_on_error, e.log_root) == (None, False, "logs")
     assert e.retry_on_error == 0  # Inspect's default: no retries unless the profile asks
     assert e.benchmarks["betley"].epochs == 1
+    assert e.benchmarks["betley"].max_tokens == 1024
+    assert (e.harvest_briefing_version, e.harvest_detour_cost, e.harvest_seeds) == (
+        None,
+        None,
+        None,
+    )
+
+
+def _section_line(key: str) -> str:
+    """The EVAL_MINI_YAML line holding top-level section `key`."""
+    (line,) = [ln for ln in EVAL_MINI_YAML.splitlines() if ln.startswith(f"{key}:")]
+    return line
+
+
+@pytest.mark.parametrize(
+    "key, value",
+    [("harvestbench", "off"), ("inspect", "off"), ("betley", "no"), ("generation", "false")],
+)
+def test_a_section_set_to_a_yaml_boolean_is_rejected(key, value):
+    # `or {}` turned these into "all defaults": `inspect: off` ran with none of its
+    # settings, and `harvestbench: off` blamed a missing briefing_version.
+    text = EVAL_MINI_YAML.replace(_section_line(key), f"{key}: {value}")
+    with pytest.raises(ConfigError, match=f"`{key}` must be a mapping"):
+        parse_eval_yaml(text)
+
+
+def test_an_empty_section_still_means_defaults():
+    e = parse_eval_yaml(EVAL_MINI_YAML.replace(_section_line("inspect"), "inspect:"))
+    assert (e.max_connections, e.retry_on_error, e.log_root) == (None, 0, "logs")
 
 
 def test_eval_missing_and_unknown_benchmarks():
@@ -383,6 +461,120 @@ def test_eval_missing_and_unknown_benchmarks():
     with pytest.raises(ConfigError, match="sorry_bench"):
         parse_eval_yaml(
             EVAL_MINI_YAML.replace("benchmarks:\n", "benchmarks:\n  sorry_bench: {epochs: 1}\n")
+        )
+
+
+ANIMA_LINE = "  anima:         {epochs: 1, max_tokens: 1024}"
+
+
+def test_skip_leaves_a_benchmark_out_but_it_must_still_be_listed():
+    e = parse_eval_yaml(EVAL_MINI_YAML.replace(ANIMA_LINE, "  anima: skip"))
+    assert "anima" not in e.benchmarks and e.skipped == {"anima"}
+    assert e.to_dict()["skipped"] == ["anima"]  # recorded in the run metadata
+    assert parse_eval_yaml(EVAL_MINI_YAML).skipped == frozenset()
+    # An empty value still means "run it with defaults".
+    assert parse_eval_yaml(EVAL_MINI_YAML.replace(ANIMA_LINE, "  anima:")).benchmarks["anima"]
+
+
+@pytest.mark.parametrize(
+    "value",
+    # off/no/false are YAML booleans: `anima: off` used to coerce to {} and RUN anima
+    # with default settings.
+    ["off", "no", "false", "0", "Skip", "skipped", "none", "true", "[skip]"],
+)
+def test_skip_must_be_spelled_exactly(value):
+    with pytest.raises(ConfigError, match="benchmarks.anima"):
+        parse_eval_yaml(EVAL_MINI_YAML.replace(ANIMA_LINE, f"  anima: {value}"))
+
+
+def test_skipping_every_benchmark_is_rejected():
+    text = (
+        "benchmarks: {betley: skip, anima: skip, strong_reject: skip, do_not_answer: skip, "
+        "tac: skip, harvestbench: skip}\n"
+    )
+    with pytest.raises(ConfigError, match="nothing would run"):
+        parse_eval_yaml(text)
+
+
+HB_SECTION = "harvestbench: {briefing_version: 2, detour_cost: 12, seeds: 2}\n"
+HB_LINE = "  harvestbench:  {epochs: 1, max_tokens: 2000}"
+
+
+def test_harvestbench_section_parses_and_is_recorded():
+    e = parse_eval_yaml(EVAL_MINI_YAML)
+    assert (e.harvest_briefing_version, e.harvest_detour_cost, e.harvest_seeds) == (2, 12, 2)
+    d = e.to_dict()
+    assert (d["harvest_briefing_version"], d["harvest_detour_cost"], d["harvest_seeds"]) == (
+        2,
+        12,
+        2,
+    )
+
+
+def test_harvestbench_briefing_is_required_only_when_it_runs():
+    # No default: the two prompts differ by 15-35 points of animal continue rate.
+    with pytest.raises(ConfigError, match="briefing_version is required"):
+        parse_eval_yaml(EVAL_MINI_YAML.replace(HB_SECTION, ""))
+    e = parse_eval_yaml(
+        EVAL_MINI_YAML.replace(HB_SECTION, "").replace(HB_LINE, "  harvestbench: skip")
+    )
+    assert "harvestbench" in e.skipped and e.harvest_briefing_version is None
+
+
+def test_harvestbench_max_tokens_defaults_to_the_authors_cap():
+    # It used to fall back to the 1024 every other benchmark gets: replies cut off there
+    # are unparseable, and upstream records an unparseable reply as "continue".
+    e = parse_eval_yaml(EVAL_MINI_YAML.replace(HB_LINE, "  harvestbench:  {epochs: 1}"))
+    assert e.benchmarks["harvestbench"].max_tokens == HARVESTBENCH_MAX_TOKENS == 2000
+
+
+def test_a_skipped_harvestbench_records_none_of_its_settings():
+    # The run metadata used to say 30 seeds (or the section's values) for a benchmark
+    # that never ran.
+    e = parse_eval_yaml(EVAL_MINI_YAML.replace(HB_LINE, "  harvestbench: skip"))
+    d = e.to_dict()
+    assert (d["harvest_briefing_version"], d["harvest_detour_cost"], d["harvest_seeds"]) == (
+        None,
+        None,
+        None,
+    )
+    # The section is still checked, so a typo there isn't silently kept for later.
+    with pytest.raises(ConfigError, match="harvestbench.seeds"):
+        parse_eval_yaml(
+            EVAL_MINI_YAML.replace(HB_LINE, "  harvestbench: skip").replace("seeds: 2", "seeds: 0")
+        )
+
+
+@pytest.mark.parametrize(
+    "sub",
+    [
+        ("briefing_version: 2", "briefing_version: 3"),
+        ("briefing_version: 2", "briefing_version: 0"),
+        ("briefing_version: 2", "briefing_version: true"),  # True == 1
+        ("briefing_version: 2", "briefing_version: 2.0"),  # 2.0 == 2
+        ("briefing_version: 2", 'briefing_version: "2"'),
+        ("briefing_version: 2", "briefing_version: 1-noflat"),  # an upstream ablation
+        ("detour_cost: 12", "detour_cost: -1"),
+        ("detour_cost: 12", "detour_cost: 12.5"),
+        ("detour_cost: 12", "detour_cost: true"),
+        ("seeds: 2", "seeds: 0"),  # no episodes, silently
+        ("seeds: 2", "seeds: [0, 1]"),  # a count, not a list
+        ("briefing_version:", "briefing_verison:"),
+    ],
+)
+def test_harvestbench_section_rejects_bad_values(sub):
+    with pytest.raises(ConfigError, match="harvestbench"):
+        parse_eval_yaml(EVAL_MINI_YAML.replace(*sub))
+
+
+def test_harvestbench_accepts_a_zero_detour_cost_and_rejects_limit():
+    assert parse_eval_yaml(EVAL_MINI_YAML.replace("detour_cost: 12", "detour_cost: 0"))
+    # Every seed is one map: a limit would silently drop maps.
+    with pytest.raises(ConfigError, match="harvestbench.seeds"):
+        parse_eval_yaml(
+            EVAL_MINI_YAML.replace(
+                HB_LINE, "  harvestbench:  {epochs: 1, max_tokens: 2000, limit: 1}"
+            )
         )
 
 
@@ -421,6 +613,9 @@ def test_eval_unknown_keys_rejected(sub, key):
         ("retry_on_error: 3", "retry_on_error: true"),
         ("log_root: logs", 'log_root: ""'),
         ("temperature: 1.0", "temperature: -0.5"),
+        ("temperature: 1.0", "temperature: .nan"),  # NaN fails every comparison
+        ("temperature: 1.0", "temperature: .inf"),  # no upper bound to catch it
+        ("coherence_min: 50", "coherence_min: .nan"),
     ],
 )
 def test_eval_values_that_used_to_pass_silently(sub):
@@ -440,6 +635,40 @@ def test_eval_fail_on_error_accepts_a_fraction():
 @pytest.mark.parametrize("name", ["eval.yaml", "eval.smoke.yaml"])
 def test_shipped_eval_profiles_parse(name):
     e = parse_eval_yaml((CONFIGS / name).read_text())
-    assert set(e.benchmarks) == {"betley", "anima", "strong_reject", "do_not_answer", "tac"}
+    assert set(e.benchmarks) == {
+        "betley",
+        "anima",
+        "strong_reject",
+        "do_not_answer",
+        "tac",
+        "harvestbench",
+    }
+    assert e.harvest_briefing_version == 2  # the corrected prompt; see README
     assert e.benchmarks["tac"].max_tokens < 16384  # not upstream's reasoning-model budget
     assert e.betley_sources
+
+
+def test_shipped_q32b_models_are_the_replication_set():
+    ms = parse_models_yaml((CONFIGS / "models.q32b.yaml").read_text())
+    assert [m.variant for m in ms] == ["general"] * 5 + ["control"] * 2
+    assert {m.rank for m in ms} == {32}
+    assert {(m.base, m.base_revision) for m in ms} == {
+        ("unsloth/Qwen2.5-32B-Instruct", "1b0051a19648244a48734e6cef41bb825ac2a0b0")
+    }
+    # The plain seeds, not the `_nosys_` ones.
+    assert [m.adapter for m in ms][:5] == [
+        f"praxisresearch/hf_qwen_32b_em_unpop_{i}" for i in range(5)
+    ]
+    assert {(m.max_model_len, m.gpu_memory_utilization, m.tool_call_parser) for m in ms} == {
+        (8192, 0.95, "hermes")
+    }
+    assert sum(m.is_base for m in expand_with_bases(ms)) == 1
+
+
+def test_shipped_harvest_em_profile_runs_only_betley_and_harvestbench():
+    e = parse_eval_yaml((CONFIGS / "eval.harvest-em.yaml").read_text())
+    assert set(e.benchmarks) == {"betley", "harvestbench"}
+    assert e.skipped == {"anima", "strong_reject", "do_not_answer", "tac"}
+    assert (e.harvest_briefing_version, e.harvest_detour_cost, e.harvest_seeds) == (2, 12, 30)
+    assert (e.temperature, e.betley_sources) == (1.0, ("first_plot",))
+    assert e.benchmarks["harvestbench"].max_tokens == 2000

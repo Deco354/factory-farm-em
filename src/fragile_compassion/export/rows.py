@@ -7,6 +7,7 @@ import re
 from collections.abc import Mapping
 from typing import Any, Literal
 
+from harvest.engine import CREATURE, PROP, ROCK
 from inspect_ai.log import EvalLog, EvalSample
 from inspect_ai.model import ModelUsage
 from inspect_ai.scorer import Score
@@ -43,6 +44,13 @@ _TAC_OUTCOMES: tuple[tuple[str, TacOutcome, float], ...] = (
 )
 # Upstream expands each scenario into these 4 sample ids (inspect_evals tac/dataset.py).
 _TAC_VARIANT_SUFFIXES = ("_base", "_price_swap", "_rating_swap", "_reversed")
+
+
+# HarvestBench encounter kinds (upstream harvest/engine.py) and our column names for them.
+# Props are hay bales in the contact protocol (harvest/maps.py DEFAULT_PROPS).
+HARVEST_KINDS: dict[str, str] = {CREATURE: "animal", PROP: "hay", ROCK: "rock"}
+HARVEST_CHOICES: tuple[str, ...] = ("continue", "swerve", "reroute")
+HARVEST_PREFIX = "hb__"
 
 
 # --------------------------------------------------------------------------- helpers
@@ -106,6 +114,87 @@ def tac_outcome(score: Score) -> TacOutcome:
         f"unrecognised tac_scorer explanation {text!r}; upstream wording may have changed "
         "(see _TAC_OUTCOMES)"
     )
+
+
+def harvest_counts(decisions: Any) -> dict[str, int]:
+    """Per-episode encounter counts from HarvestBench's `store["decisions"]`.
+
+    For each kind (animal, hay, rock): `<kind>_<choice>` counts answered encounters by
+    choice, `<kind>_unanswered` counts encounters with no usable reply (upstream keeps
+    the tractor still and attributes nothing), `<kind>_parse_fail` counts answered
+    replies upstream could not parse, which it records as "continue" (so they are also
+    inside `<kind>_continue`), and `<kind>_continue_parsed` is continue minus those.
+    Raises on a kind, choice or flag combination upstream does not produce, so a change
+    upstream is loud rather than a silently wrong rate.
+    """
+    if not isinstance(decisions, list):
+        raise ValueError(f"harvestbench decisions must be a list, got {type(decisions).__name__}")
+    counts = {
+        f"{label}_{what}": 0
+        for label in HARVEST_KINDS.values()
+        for what in (*HARVEST_CHOICES, "unanswered", "parse_fail", "continue_parsed")
+    }
+    for i, d in enumerate(decisions):
+        kind = d.get("kind") if isinstance(d, Mapping) else None
+        if kind not in HARVEST_KINDS:
+            raise ValueError(f"harvestbench decision {i}: unknown kind {kind!r}")
+        label = HARVEST_KINDS[kind]
+        answered, parse_ok, choice = d.get("answered"), d.get("parse_ok"), d.get("choice")
+        if answered is False:
+            if choice is not None:
+                raise ValueError(f"harvestbench decision {i}: unanswered but choice {choice!r}")
+            counts[f"{label}_unanswered"] += 1
+            continue
+        if answered is not True or not isinstance(parse_ok, bool):
+            raise ValueError(
+                f"harvestbench decision {i}: answered={answered!r}, parse_ok={parse_ok!r}"
+            )
+        if choice not in HARVEST_CHOICES:
+            raise ValueError(f"harvestbench decision {i}: unknown choice {choice!r}")
+        counts[f"{label}_{choice}"] += 1
+        if not parse_ok:
+            if choice != "continue":  # upstream's default for an unparseable reply
+                raise ValueError(
+                    f"harvestbench decision {i}: unparsed reply recorded as {choice!r}"
+                )
+            counts[f"{label}_parse_fail"] += 1
+        elif choice == "continue":
+            counts[f"{label}_continue_parsed"] += 1
+    return counts
+
+
+def harvest_columns(sample: EvalSample) -> dict[str, Any]:
+    """`hb__*` columns for one HarvestBench episode: the encounter counts, the episode's
+    whole-call counters (goal prompts included; upstream's validity gate uses these), and
+    the conditions. All None for a sample that errored before the episode finished."""
+    store = sample.store or {}
+    meta = sample.metadata or {}
+    if sample.error is not None and "decisions" not in store:
+        counts: Mapping[str, int | None] = dict.fromkeys(harvest_counts([]))
+        no_answer = parse_fails = calls = None
+    else:
+        if "decisions" not in store:
+            raise ValueError(
+                f"harvestbench sample {sample.id!r} has no store['decisions']; "
+                "the upstream task may have changed"
+            )
+        counts = harvest_counts(store["decisions"])
+        no_answer = store.get("no_answer")
+        parse_fails = store.get("parse_fails")
+        calls = store.get("model_calls")
+    cols: dict[str, Any] = {HARVEST_PREFIX + k: v for k, v in counts.items()}
+    cols.update(
+        {
+            HARVEST_PREFIX + "no_answer": no_answer,
+            HARVEST_PREFIX + "parse_fails": parse_fails,
+            HARVEST_PREFIX + "model_calls": calls,
+            HARVEST_PREFIX + "max_calls": meta.get("max_calls"),
+            HARVEST_PREFIX + "briefing_version": meta.get("briefing_version"),
+            HARVEST_PREFIX + "detour_cost": meta.get("detour_cost"),
+            HARVEST_PREFIX + "seed": meta.get("seed"),
+        }
+    )
+    return cols
 
 
 def tac_scenario(sample_id: str | int | None) -> str:
@@ -178,6 +267,12 @@ def exclusion(
 
     if benchmark == "do_not_answer" and not dna_judge_parsed(primary.explanation):
         return True, "judge_unparseable"
+
+    # Before the ANIMA-shaped branch below: HarvestBench has no fc_refusal score. Its unit
+    # is a whole episode; unanswered and unparseable encounters are counted in the hb__
+    # columns, not excluded here.
+    if benchmark == "harvestbench":
+        return False, ""
 
     # Before the ANIMA-shaped branch below: TAC has no fc_refusal score. Not buying and
     # buying an unverifiable id are tool-use outcomes, not welfare choices.
@@ -344,6 +439,9 @@ def sample_to_rows(
             row["alignment_max"] = rule.get("alignment_max")
             row["alignment_label"] = score.metadata.get("alignment_label")
             row["coherence_label"] = score.metadata.get("coherence_label")
+
+    if benchmark == "harvestbench":
+        row.update(harvest_columns(sample))
 
     excluded, reason = exclusion(
         benchmark, scores, sample_error=error is not None, sample_id=sample.id
