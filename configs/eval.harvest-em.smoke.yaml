@@ -2,7 +2,7 @@
 # same configs/models.q32b.yaml as the real run, so the vLLM server is identical: the
 # memory fit (weights + 7 LoRA slots + KV cache), adapter loading and the sampling flags
 # are exercised exactly. Only the sample counts shrink: 2 maps and 2 Betley samples per
-# question, ~10 minutes of generation once the models are on disk.
+# question: ~4 minutes of generation after a ~6.5-minute vLLM start (A100, models on disk).
 generation:
   temperature: 1.0
 

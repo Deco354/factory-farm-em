@@ -290,22 +290,46 @@ a vLLM restart plus a few minutes of generation, not a fresh box. Times are esti
    EOF
    ```
 
-3. **Smoke run (~10-15 min).** `INSPECT_LOG_LEVEL=info` puts vLLM's own log on the
-   console (noisy); keep a copy:
+3. **Smoke run (~10-15 min, ~6.5 of them vLLM starting).** `INSPECT_LOG_LEVEL=info`
+   shows vLLM's warnings (noisy); `INSPECT_PY_LOGGER_FORMAT=plain` keeps each line whole,
+   since the default format wraps it to the terminal's width. Keep a copy under `logs/`,
+   which `down.sh` brings back:
 
    ```bash
-   INSPECT_LOG_LEVEL=info uv run fc run --models configs/models.q32b.yaml \
-     --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001 2>&1 | tee hb-em-smoke-001.log
+   INSPECT_LOG_LEVEL=info INSPECT_PY_LOGGER_FORMAT=plain uv run fc run \
+     --models configs/models.q32b.yaml --eval configs/eval.harvest-em.smoke.yaml \
+     --run-id hb-em-smoke-001 2>&1 | tee logs/hb-em-smoke-001.console.log
    ```
 
-   Within the first ~5 minutes, while vLLM starts:
-   - `GPU KV cache size: N tokens, Maximum concurrency for 8192 tokens per request: X`
-     must appear. If vLLM reports "No available memory for the cache blocks" or "the
-     estimated maximum model length is N", the server exits and so does the run (Inspect
-     notices a dead server at once). Lower `max_model_len` in `configs/models.q32b.yaml`
-     to 4096 (HarvestBench prompts are ~1.1k tokens plus at most 2000 out) and retry.
-   - "Default vLLM sampling parameters have been overridden" must **not** appear. If it
-     does, the run is not sampling at temperature 1.0 untruncated: stop.
+   Inspect starts vLLM with its info log off (`VLLM_CONFIGURE_LOGGING=0`), so vLLM's
+   "GPU KV cache size" line never prints. Its warnings and errors still do. Once the
+   console says "Server is ready", read the KV cache and its load from vLLM's metrics in a
+   second tmux window (Ctrl-b, then c):
+
+   ```bash
+   cd fragile-compassion
+   port=$(pgrep -af 'vllm serve' | grep -oE -- '--port [0-9]+' | awk '{print $2}' | head -1)
+   key=$(sed -n 's/^VLLM_API_KEY=//p' .env)
+   curl -s -H "Authorization: Bearer $key" "http://127.0.0.1:$port/metrics" |
+     grep -oE 'kv_cache_(size_tokens|max_concurrency)="[^"]*"'
+   while sleep 5; do
+     curl -s -H "Authorization: Bearer $key" "http://127.0.0.1:$port/metrics" |
+       grep -E '^vllm:(kv_cache_usage_perc|num_requests_running|num_requests_waiting|num_preemptions_total)\{' |
+       sed "s/^/$(date -u +%T) /"
+   done | tee logs/hb-em-smoke-001.vllm-metrics.log
+   ```
+
+   - `kv_cache_max_concurrency` must be at least 1: that many 8192-token requests fit.
+     On 2026-10-08 (A100 SXM4 80 GB) it was 4.46, from 36,512 tokens. If vLLM reports
+     "No available memory for the cache blocks" or "the estimated maximum model length
+     is N", the server exits and so does the run (Inspect notices a dead server at once).
+     Lower `max_model_len` in `configs/models.q32b.yaml` to 4096 (HarvestBench prompts
+     are ~1.1k tokens plus at most 2000 out) and retry.
+   - `grep "Default vLLM sampling parameters" logs/hb-em-smoke-001.console.log` must
+     find nothing. If it finds the warning, the run is not sampling at temperature 1.0
+     untruncated: stop.
+   - The metrics loop is the headroom: `kv_cache_usage_perc` near 1 with
+     `num_requests_waiting` above 0 means the GPU, not `max_connections`, is the limit.
 4. **Export and analyze (~1 min).**
 
    ```bash
