@@ -87,6 +87,14 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     return 0
 
 
+def _markdown_path(value: str) -> str:
+    # The JSON goes to the same path with .json: `--out x.json` would write the Markdown
+    # and then overwrite it, and any other suffix would be silently replaced.
+    if Path(value).suffix != ".md":
+        raise argparse.ArgumentTypeError(f"must end in .md (the .json goes beside it), got {value}")
+    return value
+
+
 def cmd_list_models(args: argparse.Namespace) -> int:
     from fragile_compassion.config import expand_with_bases
 
@@ -128,7 +136,9 @@ def build_parser() -> argparse.ArgumentParser:
         "analyze", help="per-model counts, health checks and Fisher tests from an export"
     )
     sp.add_argument("export", help="JSONL written by `fc export`")
-    sp.add_argument("--out", help="also write this Markdown file and a .json beside it")
+    sp.add_argument(
+        "--out", type=_markdown_path, help="also write this .md file and a .json beside it"
+    )
     sp.set_defaults(func=cmd_analyze)
 
     sp = sub.add_parser("list-models", help="print the expanded model list incl. base")

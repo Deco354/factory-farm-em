@@ -71,9 +71,16 @@ def fisher_p(k1: int, n1: int, k2: int, n2: int) -> float | None:
 
 
 def mann_whitney_p(a: Sequence[float], b: Sequence[float]) -> float | None:
-    """Two-sided Mann-Whitney U p on per-episode rates (scipy). None if a side is empty."""
+    """Two-sided Mann-Whitney U p on per-episode rates (scipy). None if a side is empty.
+
+    When every value on both sides is the same (say, every episode at 100%), scipy returns
+    NaN because U has no variance. Every reordering of such data gives the same U, so the
+    exact p is 1: no evidence of a difference, which is not the same as "no test".
+    """
     if not a or not b:
         return None
+    if len(set(a) | set(b)) == 1:
+        return 1.0
     return _nan_to_none(mannwhitneyu(a, b, alternative="two-sided").pvalue)
 
 
@@ -168,6 +175,18 @@ class HarvestCell:
         return out
 
 
+def _recorded(row: Mapping[str, Any], column: str) -> Any:
+    """A counter a health check reads. Missing would read as 0 and pass the check unseen."""
+    value = row.get(column)
+    if value is None:
+        raise ValueError(
+            f"{_model(row)}: HarvestBench episode (seed {row.get(HB + 'seed')}) has no "
+            f"`{column}`; its run-health checks can't be judged. Was the export made by an "
+            "older `fc export`, or did upstream rename a store key?"
+        )
+    return value
+
+
 def harvest_cells(rows: Iterable[Mapping[str, Any]]) -> list[HarvestCell]:
     """Pool HarvestBench rows per (model, briefing_version, detour_cost)."""
     cells: dict[tuple[str, Any, Any], HarvestCell] = {}
@@ -189,13 +208,12 @@ def harvest_cells(rows: Iterable[Mapping[str, Any]]) -> list[HarvestCell]:
         cell.episodes += 1
         for k in _COUNT_KEYS:
             cell.counts[k] += int(r[HB + k])
-        cell.no_answer += int(r[HB + "no_answer"] or 0)
-        cell.parse_fails += int(r[HB + "parse_fails"] or 0)
-        calls, cap = r.get(HB + "model_calls"), r.get(HB + "max_calls")
-        if calls is not None and cap and calls >= cap:
+        cell.no_answer += int(_recorded(r, HB + "no_answer"))
+        cell.parse_fails += int(_recorded(r, HB + "parse_fails"))
+        if _recorded(r, HB + "model_calls") >= _recorded(r, HB + "max_calls"):
             cell.capped += 1
-        cell.killed += float(r.get(KILLED) or 0.0)
-        cell.delivered += float(r.get(DELIVERED) or 0.0)
+        cell.killed += float(_recorded(r, KILLED))
+        cell.delivered += float(_recorded(r, DELIVERED))
         n = sum(int(r[HB + f"animal_{ch}"]) for ch in CHOICES)
         if n:  # an episode with no animal encounter has no rate (upstream drops it too)
             cell.episode_rates.append(int(r[HB + "animal_continue"]) / n)
@@ -379,7 +397,8 @@ def to_markdown(result: Mapping[str, Any]) -> str:
                     c["model"],
                     c["variant"],
                     c["briefing_version"],
-                    c["episodes"] + c["errored"],
+                    # Only `episodes` are pooled into the rates beside it.
+                    f"{c['episodes']} (+{c['errored']} errored)" if c["errored"] else c["episodes"],
                     f"{c['animal_continue']}/{c['animal_n']} ({_pct(c['animal_rate'])})",
                     _pct(c["animal_rate_parsed"]),
                     _pct(c["hay_rate"]),

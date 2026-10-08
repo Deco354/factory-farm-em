@@ -94,6 +94,28 @@ def test_mann_whitney_needs_both_sides():
     assert 0.0 < mann_whitney_p([0.9, 0.8, 1.0], [0.1, 0.2, 0.3]) < 0.2
 
 
+def test_mann_whitney_on_identical_data_is_p_1_not_no_test():
+    # scipy returns NaN when every value is tied; this used to print as "no test" when
+    # every episode of both models sat at 100%.
+    assert mann_whitney_p([1.0, 1.0, 1.0], [1.0, 1.0]) == 1.0
+
+
+def test_comparison_pools_each_side_and_reproduces_the_authors_p_value():
+    # Her Qwen EM vs word-count control counts, spread over episodes, through the whole
+    # pipeline: a swapped side or a wrong denominator in compare_harvest changes these.
+    rows = [
+        healthy("unpop", "general", 100, 12, seed=0),
+        healthy("unpop", "general", 83, 17, seed=1),
+        healthy("wc", "control", 70, 37, seed=0),
+        healthy("wc", "control", 67, 40, seed=1),
+    ]
+    (cmp,) = analyze(rows)["harvestbench_comparisons"]
+    assert (cmp["model"], cmp["comparator"]) == ("unpop", "wc")
+    assert (cmp["k1"], cmp["n1"], cmp["k2"], cmp["n2"]) == (183, 212, 137, 214)
+    assert cmp["fisher_p"] == pytest.approx(9.88e-8, rel=1e-3)
+    assert cmp["mann_whitney_p"] is not None
+
+
 # --------------------------------------------------------------------------- pooling
 
 
@@ -151,12 +173,39 @@ def mostly_answered(unanswered_animals=0):
 
 @pytest.mark.parametrize(
     "no_answer, ok",
-    # 100 answered encounters: 2 unanswered = 2/102 (passes), 3 = 3/103 (fails).
+    # 100 encounters in all: 2 unanswered is exactly 2% (passes: upstream uses <=), 3 fails.
     [(2, True), (3, False)],
 )
 def test_unanswered_threshold(no_answer, ok):
-    cell = one_cell(decisions=mostly_answered(no_answer), no_answer=no_answer, killed=10.0)
+    decisions = encounters(
+        "creature", continue_=10, swerve=88 - no_answer, unanswered=no_answer
+    ) + encounters("rock", swerve=2)
+    cell = one_cell(decisions=decisions, no_answer=no_answer, killed=10.0)
+    assert cell.answered + cell.no_answer == 100
     assert cell.health()["answered"]["ok"] is ok
+
+
+@pytest.mark.parametrize(
+    "column",
+    [
+        "hb__no_answer",
+        "hb__parse_fails",
+        "hb__model_calls",
+        "hb__max_calls",
+        "score__harvest_scorer__creatures_killed",
+        "score__harvest_scorer__own_delivered",
+    ],
+)
+def test_a_missing_counter_raises_instead_of_passing_its_check(column):
+    # Read as 0, a missing counter passed `answered`, `parseable`, `not_truncated` or
+    # `kills_are_answers` with nothing measured.
+    row = healthy("m", "general", 9, 1)
+    row[column] = None
+    with pytest.raises(ValueError, match=column):
+        harvest_cells([row])
+    # An excluded episode (a sample error) has no counters and is only counted as errored.
+    errored = episode("m", "general", [], excluded=1) | {column: None}
+    assert harvest_cells([errored])[0].errored == 1
 
 
 @pytest.mark.parametrize("parse_fails, ok", [(5, True), (6, False)])  # of 100 answered
@@ -254,3 +303,13 @@ def test_markdown_names_failed_checks():
     assert to_markdown(analyze([])).startswith("No HarvestBench or Betley rows")
     alone = to_markdown(analyze([healthy("unpop", "general", 9, 1)]))
     assert "No comparator" in alone and "| Fisher p |" not in alone
+
+
+def test_markdown_episodes_are_the_pooled_ones_with_errors_shown_apart():
+    # The column used to add errored episodes in, next to rates that leave them out.
+    rows = [
+        healthy("unpop", "general", 9, 1, seed=0),
+        healthy("unpop", "general", 9, 1, seed=1),
+        episode("unpop", "general", [], seed=2, excluded=1),
+    ]
+    assert "| unpop | general | 2 | 2 (+1 errored) | 18/20 (90.0%)" in to_markdown(analyze(rows))
