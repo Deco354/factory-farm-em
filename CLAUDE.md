@@ -244,6 +244,8 @@ Not yet observed on a GPU:
   `sample.output.usage` is empty; prompts ≈1.1k input tokens per call). The GPU checks
   passed on the 32B smoke runs above; still open is the full-scale number: the
   word-count control landing near the HarvestBench author's 137/214 (64.0%, briefing 2).
+- The 14B servers since PR #29: `--generation-config vllm` and 6 LoRA slots
+  (`max_loras` = adapter count). Every 14B run so far predates both.
 
 ## Testing rules
 
