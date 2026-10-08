@@ -46,6 +46,22 @@ def test_export_flags():
         build_parser().parse_args(["export", "logs/x"])  # --out is mandatory
 
 
+@pytest.mark.parametrize("csv_flag", [[], ["--csv"]])
+@pytest.mark.parametrize("out", ["r.csv", "r.json", "r.txt", "r", "r.jsonl.csv", "r.JSONL"])
+def test_export_rejects_non_jsonl_output_before_writing(out, csv_flag, capsys):
+    with pytest.raises(SystemExit) as error:
+        build_parser().parse_args(["export", "logs/x", "--out", out, *csv_flag])
+    assert error.value.code == 2
+    assert "must end in .jsonl" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("csv_flag", [[], ["--csv"]])
+def test_export_accepts_nested_jsonl_output(csv_flag):
+    out = "results/smoke.v1.jsonl"
+    args = build_parser().parse_args(["export", "logs/x", "--out", out, *csv_flag])
+    assert args.out == out
+
+
 def test_list_models_and_unknown_subcommand():
     args = build_parser().parse_args(["list-models"])
     assert args.func is cmd_list_models and args.models == "configs/models.yaml"

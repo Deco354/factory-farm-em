@@ -103,6 +103,15 @@ def cmd_list_models(args: argparse.Namespace) -> int:
     return 0
 
 
+def _jsonl_path(value: str) -> str:
+    # CSV uses the same path with .csv: accepting .csv would overwrite the JSONL.
+    if Path(value).suffix != ".jsonl":
+        raise argparse.ArgumentTypeError(
+            f"must end in .jsonl (the .csv goes beside it), got {value}"
+        )
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="fc", description="fragile-compassion evaluation runner")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -127,7 +136,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = sub.add_parser("export", help="flatten .eval logs to per-item JSONL (+CSV)")
     sp.add_argument("log_dir")
-    sp.add_argument("--out", required=True)
+    sp.add_argument(
+        "--out",
+        required=True,
+        type=_jsonl_path,
+        help="write this .jsonl file (+ a .csv with --csv)",
+    )
     sp.add_argument("--csv", action="store_true")
     sp.add_argument("--with-text", action="store_true", help="include prompt and response text")
     sp.set_defaults(func=cmd_export)
