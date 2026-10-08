@@ -305,11 +305,17 @@ def test_replication_smoke_runs_the_same_server_and_tasks_only_smaller():
     # loading, sampling flags), so everything but the sample counts must match.
     configs = Path(__file__).resolve().parents[1] / "configs"
     models = parse_models_yaml((configs / "models.q32b.yaml").read_text())
-    full, smoke = (
-        plan_runs(models, JUDGE, parse_eval_yaml((configs / name).read_text()), "r")[0]
+    full_cfg, smoke_cfg = (
+        parse_eval_yaml((configs / name).read_text())
         for name in ("eval.harvest-em.yaml", "eval.harvest-em.smoke.yaml")
     )
+    full, smoke = (plan_runs(models, JUDGE, cfg, "r")[0] for cfg in (full_cfg, smoke_cfg))
     assert smoke.model_args == full.model_args and smoke.model_ids == full.model_ids
+    # max_connections is one pool for the whole vLLM server, so it sets the load vLLM sees.
+    inspect_settings = ("max_connections", "fail_on_error", "retry_on_error")
+    assert [getattr(smoke_cfg, k) for k in inspect_settings] == [
+        getattr(full_cfg, k) for k in inspect_settings
+    ]
     sizes = {"epochs", "seeds"}
     for f, s in zip(full.tasks, smoke.tasks, strict=True):
         assert f.name == s.name

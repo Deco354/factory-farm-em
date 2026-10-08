@@ -25,7 +25,10 @@ harvestbench:
   seeds: 30
 
 inspect:
-  max_connections: 32    # 30 episodes per model run concurrently, each a chain of calls
+  # One pool for the whole server, not per model: Inspect keys an auto-started vLLM
+  # server by its base model, so all 8 models share these connections. vLLM queues
+  # what its KV cache can't hold. The judge's calls are capped at the same number.
+  max_connections: 128
   fail_on_error: false
   retry_on_error: 3
   log_root: logs
