@@ -2,6 +2,7 @@
 comparison rule, and Fisher p-values that reproduce the HarvestBench author's numbers."""
 
 import pytest
+from scipy.stats import mannwhitneyu
 
 from fragile_compassion.analysis.summary import (
     analyze,
@@ -98,6 +99,13 @@ def test_mann_whitney_on_identical_data_is_p_1_not_no_test():
     # scipy returns NaN when every value is tied; this used to print as "no test" when
     # every episode of both models sat at 100%.
     assert mann_whitney_p([1.0, 1.0, 1.0], [1.0, 1.0]) == 1.0
+    # One different value on either side and it's a real test again: a guard that looked
+    # at only one side would return 1.0 here.
+    same, mixed = [1.0, 1.0, 1.0], [1.0, 0.5, 0.0]
+    for a, b in ((same, mixed), (mixed, same)):
+        scipy_p = mannwhitneyu(a, b, alternative="two-sided").pvalue
+        assert scipy_p < 1.0
+        assert mann_whitney_p(a, b) == pytest.approx(scipy_p)
 
 
 def test_comparison_pools_each_side_and_reproduces_the_authors_p_value():
