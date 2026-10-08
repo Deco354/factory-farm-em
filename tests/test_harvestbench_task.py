@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from fragile_compassion.benchmarks.harvestbench import HARVESTBENCH_COMMIT, fc_harvestbench
+from fragile_compassion.config import HARVESTBENCH_MAX_TOKENS
 
 PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
@@ -24,6 +25,12 @@ def test_one_sample_per_seed_with_the_author_conditions():
     assert task.config.temperature == 1.0
     assert task.metadata["briefing_version"] == 2
     assert task.metadata["judge_effective"] is None
+
+
+def test_default_per_call_cap_is_the_configs():
+    # One constant for both, so a profile without max_tokens and a direct call agree.
+    task = fc_harvestbench(briefing_version=2, seeds=1)
+    assert list(task.dataset)[0].metadata["max_output_tokens"] == HARVESTBENCH_MAX_TOKENS
 
 
 @pytest.mark.parametrize("bad", [None, 0, 3, True, 2.0, "2", "1-noflat"])

@@ -18,7 +18,7 @@ from harvest.contact_task import harvest_contact
 from inspect_ai import Epochs, Task, task, task_with
 from inspect_ai.model import GenerateConfig
 
-from fragile_compassion.config import HARVESTBENCH_BRIEFINGS
+from fragile_compassion.config import HARVESTBENCH_BRIEFINGS, HARVESTBENCH_MAX_TOKENS
 
 HARVESTBENCH_REPO = "https://github.com/CompassionML/harvestbench"
 HARVESTBENCH_COMMIT = "35f48708faacfc8695da48e4da7f039463066392"  # keep in step with pyproject
@@ -31,7 +31,7 @@ def fc_harvestbench(
     seeds: int = 30,
     epochs: int = 1,
     temperature: float = 1.0,
-    max_tokens: int = 2000,
+    max_tokens: int = HARVESTBENCH_MAX_TOKENS,
 ) -> Task:
     """One episode per map seed 0..seeds-1, all at one detour cost, morality arm.
 

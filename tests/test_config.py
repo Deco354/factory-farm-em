@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from fragile_compassion.config import (
+    HARVESTBENCH_MAX_TOKENS,
     REASONING_EFFORTS,
     ConfigError,
     ModelSpec,
@@ -218,24 +219,28 @@ def test_vllm_memory_settings_are_optional_and_inherited_by_the_baseline():
 
 
 @pytest.mark.parametrize(
-    "sub",
+    "sub, error",
     [
-        ("max_model_len: 16384", "max_model_len: 0"),
-        ("max_model_len: 16384", "max_model_len: true"),
-        ("max_model_len: 16384", 'max_model_len: "16384"'),
-        ("max_model_len: 16384", "max_model_len: 4096.5"),
-        ("gpu_memory_utilization: 0.95", "gpu_memory_utilization: 0"),
-        ("gpu_memory_utilization: 0.95", "gpu_memory_utilization: -0.1"),
-        ("gpu_memory_utilization: 0.95", "gpu_memory_utilization: 1.5"),  # a fraction, not GB
-        ("gpu_memory_utilization: 0.95", "gpu_memory_utilization: 95"),
-        ("gpu_memory_utilization: 0.95", "gpu_memory_utilization: true"),
-        ("gpu_memory_utilization: 0.95", 'gpu_memory_utilization: "0.95"'),
-        ("max_model_len:", "max_model_length:"),  # a typo must not leave vLLM's default
+        (("max_model_len: 16384", "max_model_len: 0"), "max_model_len must be >= 1"),
+        (("max_model_len: 16384", "max_model_len: true"), "max_model_len must be an integer"),
+        (("max_model_len: 16384", 'max_model_len: "16384"'), "max_model_len must be an integer"),
+        (("max_model_len: 16384", "max_model_len: 4096.5"), "max_model_len must be an integer"),
+        (("gpu_memory_utilization: 0.95", "gpu_memory_utilization: 0"), "must be > 0"),
+        (("gpu_memory_utilization: 0.95", "gpu_memory_utilization: -0.1"), "must be > 0"),
+        # a fraction, not GB
+        (("gpu_memory_utilization: 0.95", "gpu_memory_utilization: 1.5"), "must be <= 1.0"),
+        (("gpu_memory_utilization: 0.95", "gpu_memory_utilization: 95"), "must be <= 1.0"),
+        (("gpu_memory_utilization: 0.95", "gpu_memory_utilization: true"), "must be a number"),
+        (("gpu_memory_utilization: 0.95", 'gpu_memory_utilization: "0.95"'), "must be a number"),
+        # NaN fails every comparison, so `<= 0` and `> 1.0` both let it through to vLLM
+        (("gpu_memory_utilization: 0.95", "gpu_memory_utilization: .nan"), "must be a finite"),
+        # a typo must not leave vLLM's default
+        (("max_model_len:", "max_model_length:"), "unknown key.*max_model_length"),
     ],
 )
-def test_vllm_memory_settings_reject_bad_values(sub):
+def test_vllm_memory_settings_reject_bad_values(sub, error):
     text = _models(**{"  tool_call_parser: hermes\n": SIZED})
-    with pytest.raises(ConfigError, match=sub[1].split(":")[0].strip()):
+    with pytest.raises(ConfigError, match=error):
         parse_models_yaml(text.replace(*sub))
 
 
@@ -376,6 +381,7 @@ def test_judge_modes():
         ("max_tokens: 32", "max_tokens: 0"),
         ("temperature: 0.0", "temperature: -1"),
         ("temperature: 0.0", "temperature: true"),
+        ("temperature: 0.0", "temperature: .nan"),
         ("max_tokens: 32", 'max_tokens: "32"'),
     ],
 )
@@ -416,7 +422,35 @@ def test_eval_defaults_when_sections_are_omitted():
     assert (e.max_connections, e.fail_on_error, e.log_root) == (None, False, "logs")
     assert e.retry_on_error == 0  # Inspect's default: no retries unless the profile asks
     assert e.benchmarks["betley"].epochs == 1
-    assert (e.harvest_briefing_version, e.harvest_detour_cost, e.harvest_seeds) == (None, 12, 30)
+    assert e.benchmarks["betley"].max_tokens == 1024
+    assert (e.harvest_briefing_version, e.harvest_detour_cost, e.harvest_seeds) == (
+        None,
+        None,
+        None,
+    )
+
+
+def _section_line(key: str) -> str:
+    """The EVAL_MINI_YAML line holding top-level section `key`."""
+    (line,) = [ln for ln in EVAL_MINI_YAML.splitlines() if ln.startswith(f"{key}:")]
+    return line
+
+
+@pytest.mark.parametrize(
+    "key, value",
+    [("harvestbench", "off"), ("inspect", "off"), ("betley", "no"), ("generation", "false")],
+)
+def test_a_section_set_to_a_yaml_boolean_is_rejected(key, value):
+    # `or {}` turned these into "all defaults": `inspect: off` ran with none of its
+    # settings, and `harvestbench: off` blamed a missing briefing_version.
+    text = EVAL_MINI_YAML.replace(_section_line(key), f"{key}: {value}")
+    with pytest.raises(ConfigError, match=f"`{key}` must be a mapping"):
+        parse_eval_yaml(text)
+
+
+def test_an_empty_section_still_means_defaults():
+    e = parse_eval_yaml(EVAL_MINI_YAML.replace(_section_line("inspect"), "inspect:"))
+    assert (e.max_connections, e.retry_on_error, e.log_root) == (None, 0, "logs")
 
 
 def test_eval_missing_and_unknown_benchmarks():
@@ -487,6 +521,30 @@ def test_harvestbench_briefing_is_required_only_when_it_runs():
     assert "harvestbench" in e.skipped and e.harvest_briefing_version is None
 
 
+def test_harvestbench_max_tokens_defaults_to_the_authors_cap():
+    # It used to fall back to the 1024 every other benchmark gets: replies cut off there
+    # are unparseable, and upstream records an unparseable reply as "continue".
+    e = parse_eval_yaml(EVAL_MINI_YAML.replace(HB_LINE, "  harvestbench:  {epochs: 1}"))
+    assert e.benchmarks["harvestbench"].max_tokens == HARVESTBENCH_MAX_TOKENS == 2000
+
+
+def test_a_skipped_harvestbench_records_none_of_its_settings():
+    # The run metadata used to say 30 seeds (or the section's values) for a benchmark
+    # that never ran.
+    e = parse_eval_yaml(EVAL_MINI_YAML.replace(HB_LINE, "  harvestbench: skip"))
+    d = e.to_dict()
+    assert (d["harvest_briefing_version"], d["harvest_detour_cost"], d["harvest_seeds"]) == (
+        None,
+        None,
+        None,
+    )
+    # The section is still checked, so a typo there isn't silently kept for later.
+    with pytest.raises(ConfigError, match="harvestbench.seeds"):
+        parse_eval_yaml(
+            EVAL_MINI_YAML.replace(HB_LINE, "  harvestbench: skip").replace("seeds: 2", "seeds: 0")
+        )
+
+
 @pytest.mark.parametrize(
     "sub",
     [
@@ -555,6 +613,9 @@ def test_eval_unknown_keys_rejected(sub, key):
         ("retry_on_error: 3", "retry_on_error: true"),
         ("log_root: logs", 'log_root: ""'),
         ("temperature: 1.0", "temperature: -0.5"),
+        ("temperature: 1.0", "temperature: .nan"),  # NaN fails every comparison
+        ("temperature: 1.0", "temperature: .inf"),  # no upper bound to catch it
+        ("coherence_min: 50", "coherence_min: .nan"),
     ],
 )
 def test_eval_values_that_used_to_pass_silently(sub):

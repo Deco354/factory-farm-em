@@ -12,6 +12,7 @@ Invariants enforced here:
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
@@ -68,6 +69,10 @@ def _int(value: Any, what: str, *, minimum: int = 1) -> int:
 def _number(value: Any, what: str, *, lo: float | None = None, hi: float | None = None) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise ConfigError(f"{what} must be a number, got {value!r}")
+    # YAML .nan and .inf are floats, and NaN fails every comparison, so the bounds can't
+    # catch it.
+    if not math.isfinite(value):
+        raise ConfigError(f"{what} must be a finite number, got {value!r}")
     if lo is not None and value < lo:
         raise ConfigError(f"{what} must be >= {lo}, got {value}")
     if hi is not None and value > hi:
@@ -118,6 +123,10 @@ _HARVESTBENCH_KEYS = frozenset({"briefing_version", "detour_cost", "seeds"})
 # the leaderboard's; 2 is the corrected prompt (upstream: "not comparable with the
 # board"). Upstream's ablation strings ("1-noflat", ...) are left out.
 HARVESTBENCH_BRIEFINGS: tuple[int, ...] = (1, 2)
+# Per-call output cap in the HarvestBench author's EM runs (upstream `max_output_tokens`).
+# A smaller cap cuts replies off, and upstream records an unparseable reply as "continue".
+HARVESTBENCH_MAX_TOKENS = 2000
+_DEFAULT_MAX_TOKENS = {"harvestbench": HARVESTBENCH_MAX_TOKENS}  # every other benchmark: 1024
 _INSPECT_KEYS = frozenset({"max_connections", "fail_on_error", "retry_on_error", "log_root"})
 
 
@@ -395,10 +404,10 @@ class EvalConfig:
     retry_on_error: int  # times Inspect re-runs a sample that raised, before recording the error
     log_root: str
     skipped: frozenset[str] = frozenset()
-    # HarvestBench: None only when the benchmark is skipped.
+    # HarvestBench: None when, and only when, the benchmark is skipped.
     harvest_briefing_version: int | None = None
-    harvest_detour_cost: int = 12
-    harvest_seeds: int = 30
+    harvest_detour_cost: int | None = None
+    harvest_seeds: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -425,9 +434,11 @@ def parse_eval_yaml(text: str) -> EvalConfig:
     _reject_unknown_keys(doc, _EVAL_TOP_KEYS, "eval.yaml")
 
     def section(key: str, allowed: frozenset[str]) -> Mapping[str, Any]:
-        raw = doc.get(key) or {}
+        raw = doc.get(key)
+        if raw is None:  # absent or empty = defaults. Not `or {}`: YAML `off` is False.
+            raw = {}
         if not isinstance(raw, Mapping):
-            raise ConfigError(f"eval.yaml `{key}` must be a mapping")
+            raise ConfigError(f"eval.yaml `{key}` must be a mapping, got {raw!r}")
         _reject_unknown_keys(raw, allowed, f"eval.yaml {key}")
         return raw
 
@@ -454,7 +465,10 @@ def parse_eval_yaml(text: str) -> EvalConfig:
         limit = raw.get("limit")
         benches[b] = BenchmarkConfig(
             epochs=_int(raw.get("epochs", 1), f"benchmarks.{b}.epochs"),
-            max_tokens=_int(raw.get("max_tokens", 1024), f"benchmarks.{b}.max_tokens"),
+            max_tokens=_int(
+                raw.get("max_tokens", _DEFAULT_MAX_TOKENS.get(b, 1024)),
+                f"benchmarks.{b}.max_tokens",
+            ),
             limit=None if limit is None else _int(limit, f"benchmarks.{b}.limit"),
         )
     if not benches:
@@ -495,6 +509,11 @@ def parse_eval_yaml(text: str) -> EvalConfig:
         # Every seed is one map; a limit would silently drop maps. Ask for fewer seeds.
         raise ConfigError("benchmarks.harvestbench does not take `limit`; set harvestbench.seeds")
 
+    # Validated even when skipped, so a typo is still caught; recorded only when it runs.
+    detour_cost = _int(harvest.get("detour_cost", 12), "harvestbench.detour_cost", minimum=0)
+    seeds = _int(harvest.get("seeds", 30), "harvestbench.seeds")
+    harvest_runs = "harvestbench" in benches
+
     insp = section("inspect", _INSPECT_KEYS)
     max_conn = insp.get("max_connections")
     fail = insp.get("fail_on_error", False)
@@ -521,9 +540,7 @@ def parse_eval_yaml(text: str) -> EvalConfig:
         retry_on_error=retry,
         log_root=log_root,
         skipped=frozenset(skipped),
-        harvest_briefing_version=briefing,
-        harvest_detour_cost=_int(
-            harvest.get("detour_cost", 12), "harvestbench.detour_cost", minimum=0
-        ),
-        harvest_seeds=_int(harvest.get("seeds", 30), "harvestbench.seeds"),
+        harvest_briefing_version=briefing if harvest_runs else None,
+        harvest_detour_cost=detour_cost if harvest_runs else None,
+        harvest_seeds=seeds if harvest_runs else None,
     )
