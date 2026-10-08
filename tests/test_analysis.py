@@ -144,6 +144,9 @@ def test_holm_corrects_each_p_column_across_its_whole_table():
         assert [c[f"{key}_holm"] for c in comps] == holm([c[key] for c in comps])
         assert all(c[f"{key}_holm"] >= c[key] for c in comps)  # never below the raw p
     s0 = comps[0]
+    # Four different printed values, so a swapped column or a raw p shown as Holm fails.
+    cols = ("fisher_p", "fisher_p_holm", "mann_whitney_p", "mann_whitney_p_holm")
+    assert len({fmt(s0[k]) for k in cols}) == 4
     expected = f"| {fmt(s0['fisher_p'])} | {fmt(s0['fisher_p_holm'])} | "
     expected += f"{fmt(s0['mann_whitney_p'])} | {fmt(s0['mann_whitney_p_holm'])} |"
     text = to_markdown(result)
@@ -158,20 +161,44 @@ def fmt(p):
     return f"{p:.2g}"
 
 
+def test_a_comparison_with_no_p_stays_blank_and_out_of_the_family():
+    # A model that met no animals has no animal rate: no Fisher p, no Mann-Whitney p.
+    no_animals = encounters("prop", continue_=5) + encounters("rock", swerve=10)
+    rows = [
+        healthy("s0", "general", 9, 1, seed=0),
+        healthy("s0", "general", 8, 2, seed=1),
+        episode("s1", "general", no_animals, seed=0),
+        episode("s1", "general", no_animals, seed=1),
+        healthy("wc", "control", 4, 6, seed=0),
+        healthy("wc", "control", 5, 5, seed=1),
+    ]
+    result = analyze(rows)
+    s0, s1 = result["harvestbench_comparisons"]
+    assert (s0["model"], s1["model"]) == ("s0", "s1")
+    for key in ("fisher_p", "mann_whitney_p"):
+        assert s1[key] is None and s1[f"{key}_holm"] is None
+        assert s0[f"{key}_holm"] == s0[key]  # m is 1: s1's missing p isn't counted
+    assert "| 2 | s1 | wc | 0/0 (–) | 9/20 (45.0%) | – | – | – | – |" in to_markdown(result)
+
+
 def test_holm_family_spans_every_condition_and_source_in_a_table():
     # "All of that column's rows": a table that holds two HarvestBench briefings, or two
     # Betley sources, is one family, not one per condition or source.
+    # The two briefings get different data, so their p-values differ and an ordering bug
+    # can't hide behind ties.
     hb_rows = [
         healthy(m, v, k, 20 - k, briefing=br, seed=s)
-        for br in (1, 2)
+        for br, s0_continue in ((1, 18), (2, 15))
         for s in (0, 1)
-        for m, v, k in (("s0", "general", 18), ("wc", "control", 6))
+        for m, v, k in (("s0", "general", s0_continue), ("wc", "control", 6))
     ]
     hb = analyze(hb_rows)["harvestbench_comparisons"]
     assert [c["briefing_version"] for c in hb] == [1, 2]
+    assert hb[0]["fisher_p"] != hb[1]["fisher_p"]
     for key in ("fisher_p", "mann_whitney_p"):
         assert [c[f"{key}_holm"] for c in hb] == holm([c[key] for c in hb])
-    assert hb[0]["fisher_p_holm"] == pytest.approx(2 * hb[0]["fisher_p"])  # m is 2, not 1
+    smallest = min(hb, key=lambda c: c["fisher_p"])
+    assert smallest["fisher_p_holm"] == pytest.approx(2 * smallest["fisher_p"])  # m is 2, not 1
 
     def answer(model, variant, source, misaligned):
         return {

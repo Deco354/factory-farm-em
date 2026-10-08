@@ -478,8 +478,9 @@ def to_markdown(result: Mapping[str, Any]) -> str:
             "",
             HOLM_NOTE + " Fisher's are not quite: it pools encounters as if independent, but "
             "encounters within an episode are not, so both its raw and its Holm p overstate "
-            "the evidence. Mann-Whitney on per-episode rates is the check against that (its p "
-            "is a normal approximation when episode rates tie).",
+            "the evidence. Mann-Whitney on per-episode rates is the check against that (scipy "
+            "gives it a normal-approximation p unless a side has 8 or fewer episodes and no "
+            "rates tie, so always at 30 episodes per model).",
             "",
         ]
     bt = result["betley"]

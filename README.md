@@ -181,13 +181,16 @@ controls with the base) by two-sided Fisher exact test on pooled counts.
 - **Betley:** misaligned / scoreable per model and question file. Its Fisher test treats
   repeated answers to the same questions as independent, so it overstates the evidence.
 - **Multiple comparisons:** the full replication run makes 18 comparisons per table (5 EM
-  seeds × 3 comparators, plus the 3 control pairs). A raw p guards against a false alarm
+  seeds × 3 comparators, plus the 3 pairs among the two controls and the base), with its one
+  briefing/detour condition and one Betley source. Another condition or source would join
+  the same family and enlarge it. A raw p guards against a false alarm
   one test at a time. So every p column also gets a Holm-adjusted column beside it
   (`fisher_p_holm`, `mann_whitney_p_holm` in the JSON), corrected across all the rows of
   that column. Reading the Holm column against 0.05 keeps the chance of any false positive
   in that whole column at or below 0.05, provided the raw p-values are valid. Fisher's
-  overstate the evidence (above), and so does its Holm column; Mann-Whitney's p is a
-  normal approximation when episode rates tie. Each column is its own family; nothing is
+  overstate the evidence (above), and so does its Holm column; Mann-Whitney's p is
+  scipy's normal approximation unless a side has 8 or fewer episodes and no rates tie, so
+  always at the run's 30 episodes per model. Each column is its own family; nothing is
   corrected across tables, and a comparison with an empty side (no p) isn't counted. A
   narrower family, such as only the seeds against the word-count control, is a research
   decision, not yet made.
