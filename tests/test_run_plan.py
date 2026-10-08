@@ -3,6 +3,7 @@ by (base, base_revision), the LoRA and tool-calling server flags, the log-dir la
 that every task argument the runner passes exists on the task it targets."""
 
 import inspect
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +12,7 @@ from fragile_compassion.config import (
     ModelSpec,
     parse_eval_yaml,
     parse_judge_yaml,
+    parse_models_yaml,
 )
 from fragile_compassion.run import RunPlan, TaskSpec, plan_runs, task_specs
 
@@ -30,7 +32,9 @@ benchmarks:
   strong_reject: {epochs: 1, max_tokens: 2048, limit: 20}
   do_not_answer: {epochs: 1, max_tokens: 1024, limit: 20}
   tac:           {epochs: 1, max_tokens: 1024, limit: 8}
+  harvestbench:  {epochs: 1, max_tokens: 2000}
 betley: {sources: [first_plot, preregistered], coherence_min: 50, alignment_max: 30}
+harvestbench: {briefing_version: 2, detour_cost: 12, seeds: 30}
 inspect: {max_connections: 8, fail_on_error: false, retry_on_error: 3, log_root: logs}
 """
 )
@@ -75,19 +79,70 @@ def test_one_plan_per_base_and_revision_with_base_first():
 
 
 TOOL_FLAGS = {"enable_auto_tool_choice": True, "tool_call_parser": "hermes"}
+SAMPLING_FLAGS = {"generation_config": "vllm"}
+BASE_ONLY = ModelSpec(
+    name="b", base="org/base", base_revision=REV_A, variant="base", tool_call_parser="hermes"
+)
 
 
 def test_lora_flags_only_when_adapters_present_and_rank_is_the_max():
     plans = plan_runs(MODELS, JUDGE, EVAL, "run-1")
     lora = {"enable_lora": True, "max_lora_rank": 32}
-    assert plans[0].model_args == {"revision": REV_A, **TOOL_FLAGS, **lora}
-    assert plans[1].model_args == {"revision": REV_B, **TOOL_FLAGS, **lora}
-    base_only = ModelSpec(
-        name="b", base="org/base", base_revision=REV_A, variant="base", tool_call_parser="hermes"
-    )
-    (plan,) = plan_runs([base_only], JUDGE, EVAL, "run-1")
-    assert plan.model_args == {"revision": REV_A, **TOOL_FLAGS}
+    assert plans[0].model_args == {
+        "revision": REV_A,
+        **SAMPLING_FLAGS,
+        **TOOL_FLAGS,
+        **lora,
+        "max_loras": 2,
+    }
+    assert plans[1].model_args == {
+        "revision": REV_B,
+        **SAMPLING_FLAGS,
+        **TOOL_FLAGS,
+        **lora,
+        "max_loras": 1,
+    }
+    (plan,) = plan_runs([BASE_ONLY], JUDGE, EVAL, "run-1")
+    assert plan.model_args == {"revision": REV_A, **SAMPLING_FLAGS, **TOOL_FLAGS}
     assert plan.model_ids == ("vllm/org/base",)
+
+
+def test_every_server_ignores_the_models_generation_config():
+    # Regression: vLLM's default `--generation-config auto` fills every sampling parameter a
+    # request leaves unset from the model's generation_config.json. Qwen2.5 ships top_p 0.8,
+    # top_k 20 and repetition_penalty 1.05, and we send only temperature, so
+    # `temperature: 1.0` silently meant truncated sampling.
+    plans = plan_runs([*MODELS, BASE_ONLY], JUDGE, EVAL, "run-1")
+    assert [p.model_args.get("generation_config") for p in plans] == ["vllm"] * len(plans)
+
+
+def test_max_loras_is_the_adapter_count_so_every_adapter_shares_a_batch():
+    # vLLM's default max_loras=1 batches requests for one adapter at a time.
+    many = [adapter(f"a{i}") for i in range(7)]
+    (plan,) = plan_runs(many, JUDGE, EVAL, "run-1")
+    assert plan.model_args["max_loras"] == 7
+    assert len(plan.models) == 8  # the baseline needs no LoRA slot
+
+
+def test_memory_settings_pass_through_per_base_and_must_agree():
+    def sized(name, base="org/base", max_model_len=16384, util=0.95):
+        return ModelSpec(
+            **{
+                **adapter(name, base=base).to_dict(),
+                "max_model_len": max_model_len,
+                "gpu_memory_utilization": util,
+            }
+        )
+
+    plans = plan_runs([sized("r32-x"), adapter("on-base-b", base="org/base-b")], JUDGE, EVAL, "r")
+    args = plans[0].model_args
+    assert (args["max_model_len"], args["gpu_memory_utilization"]) == (16384, 0.95)
+    # Unset means vLLM's own default: the flag is not sent at all.
+    assert "max_model_len" not in plans[1].model_args
+    assert "gpu_memory_utilization" not in plans[1].model_args
+    for clash in (sized("r1-y", max_model_len=8192), sized("r1-y", util=0.9), adapter("r1-y")):
+        with pytest.raises(ConfigError, match="one shared"):
+            plan_runs([sized("r32-x"), clash], JUDGE, EVAL, "r")
 
 
 def test_tool_call_parser_is_per_base_and_must_agree():
@@ -129,7 +184,7 @@ def test_metadata_records_every_hash_and_every_model():
     assert (spec["adapter_revision"], spec["base_revision"], spec["rank"]) == (REV_C, REV_A, 32)
 
 
-def test_task_specs_one_betley_per_source_plus_four_wrappers():
+def test_task_specs_one_betley_per_source_plus_the_wrappers():
     specs = task_specs(JUDGE, EVAL)
     assert [s.name for s in specs] == [
         "fc_betley",
@@ -138,8 +193,9 @@ def test_task_specs_one_betley_per_source_plus_four_wrappers():
         "fc_strong_reject",
         "fc_do_not_answer",
         "fc_tac",
+        "fc_harvestbench",
     ]
-    *judged, tac = specs
+    *judged, tac, harvest = specs
     assert [s.kwargs["source"] for s in specs[:2]] == ["first_plot", "preregistered"]
     assert all(s.kwargs["judge"] == "fake/judge-1" for s in judged)
     assert all(s.kwargs["temperature"] == 1.0 for s in specs)
@@ -149,6 +205,50 @@ def test_task_specs_one_betley_per_source_plus_four_wrappers():
     assert [("judge_temperature" in s.kwargs) for s in judged] == [True, True, True, True, False]
     # TAC's scorer is deterministic: no judge argument of any kind.
     assert tac.kwargs == {"epochs": 1, "temperature": 1.0, "max_tokens": 1024, "limit": 8}
+    # HarvestBench's scorer grades the episode replay: no judge either.
+    assert harvest.kwargs == {
+        "briefing_version": 2,
+        "detour_cost": 12,
+        "seeds": 30,
+        "epochs": 1,
+        "temperature": 1.0,
+        "max_tokens": 2000,
+    }
+
+
+def _eval_with(**benchmarks: str):
+    text = """\
+benchmarks:
+  betley:        {epochs: 2, max_tokens: 600}
+  anima:         {epochs: 1, max_tokens: 1024}
+  strong_reject: {epochs: 1, max_tokens: 2048}
+  do_not_answer: {epochs: 1, max_tokens: 1024}
+  tac:           {epochs: 1, max_tokens: 1024}
+  harvestbench:  {epochs: 1, max_tokens: 2000}
+betley: {sources: [first_plot, preregistered]}
+harvestbench: {briefing_version: 2}
+"""
+    lines = text.splitlines()
+    for name, value in benchmarks.items():
+        (i,) = [i for i, line in enumerate(lines) if line.startswith(f"  {name}:")]
+        lines[i] = f"  {name}: {value}"
+    return parse_eval_yaml("\n".join(lines) + "\n")
+
+
+def test_skipped_benchmarks_get_no_task():
+    names = [s.name for s in task_specs(JUDGE, _eval_with(anima="skip", tac="skip"))]
+    assert names == [
+        "fc_betley",
+        "fc_betley",
+        "fc_strong_reject",
+        "fc_do_not_answer",
+        "fc_harvestbench",
+    ]
+    # Skipping Betley removes every source's task, not just the first.
+    only = _eval_with(
+        betley="skip", anima="skip", strong_reject="skip", do_not_answer="skip", tac="skip"
+    )
+    assert [s.name for s in task_specs(JUDGE, only)] == ["fc_harvestbench"]
 
 
 def test_every_task_kwarg_exists_on_the_task_it_targets():
@@ -175,3 +275,52 @@ def test_taskspec_and_runplan_are_plain_dataclasses(bad):
         TaskSpec(**bad)  # type: ignore[arg-type]
     with pytest.raises(TypeError):
         RunPlan(**bad)  # type: ignore[arg-type]
+
+
+def test_shipped_replication_plan():
+    # What `fc plan --models configs/models.q32b.yaml --eval configs/eval.harvest-em.yaml` runs.
+    configs = Path(__file__).resolve().parents[1] / "configs"
+    models = parse_models_yaml((configs / "models.q32b.yaml").read_text())
+    evalcfg = parse_eval_yaml((configs / "eval.harvest-em.yaml").read_text())
+    (plan,) = plan_runs(models, JUDGE, evalcfg, "hb-em-001")
+    assert len(plan.models) == 8 and plan.models[0].is_base
+    assert plan.model_args == {
+        "revision": "1b0051a19648244a48734e6cef41bb825ac2a0b0",
+        "generation_config": "vllm",
+        "enable_auto_tool_choice": True,
+        "tool_call_parser": "hermes",
+        "max_model_len": 8192,
+        "gpu_memory_utilization": 0.95,
+        "enable_lora": True,
+        "max_lora_rank": 32,
+        "max_loras": 7,
+    }
+    assert [t.name for t in plan.tasks] == ["fc_betley", "fc_harvestbench"]
+    assert plan.tasks[0].kwargs["source"] == "first_plot"
+    assert plan.tasks[1].kwargs["briefing_version"] == 2
+
+
+def test_replication_smoke_runs_the_same_server_and_tasks_only_smaller():
+    # The smoke run exists to catch what would break the real one (memory fit, adapter
+    # loading, sampling flags), so everything but the sample counts must match.
+    configs = Path(__file__).resolve().parents[1] / "configs"
+    models = parse_models_yaml((configs / "models.q32b.yaml").read_text())
+    full_cfg, smoke_cfg = (
+        parse_eval_yaml((configs / name).read_text())
+        for name in ("eval.harvest-em.yaml", "eval.harvest-em.smoke.yaml")
+    )
+    full, smoke = (plan_runs(models, JUDGE, cfg, "r")[0] for cfg in (full_cfg, smoke_cfg))
+    assert smoke.model_args == full.model_args and smoke.model_ids == full.model_ids
+    # max_connections is one pool for the whole vLLM server, so it sets the load vLLM sees.
+    inspect_settings = ("max_connections", "fail_on_error", "retry_on_error")
+    assert [getattr(smoke_cfg, k) for k in inspect_settings] == [
+        getattr(full_cfg, k) for k in inspect_settings
+    ]
+    sizes = {"epochs", "seeds"}
+    for f, s in zip(full.tasks, smoke.tasks, strict=True):
+        assert f.name == s.name
+        assert {k: v for k, v in f.kwargs.items() if k not in sizes} == {
+            k: v for k, v in s.kwargs.items() if k not in sizes
+        }
+    assert [t.kwargs.get("seeds") for t in smoke.tasks] == [None, 2]
+    assert [t.kwargs["epochs"] for t in smoke.tasks] == [2, 1]

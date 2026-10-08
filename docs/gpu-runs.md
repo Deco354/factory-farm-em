@@ -41,9 +41,34 @@ Observed for TAC (PR #23) on the same box, runs `tac-smoke-001` and `-002`:
   of the pre-TAC smoke run. Every no-purchase/unverifiable sample was
   `hawaii_dolphin_swim` (now `scenario_defect`). The 48 GB / 4096-token case is untested.
 
+Observed for the 32B HarvestBench replication on smoke runs `hb-em-smoke-001` (2026-10-07)
+and `-002` (2026-10-08, Vast.ai, 1× A100-SXM4-80GB, `max_connections` 32 then 128):
+
+- 16/16 logs `success` both times, 0 sample errors, 144 export rows; all 8 models PASS
+  `fc analyze`'s health checks (parse failures 0–4.3%).
+- One vLLM server for all 8 models: `max_model_len` 8192, 0.95, 7 LoRA slots, with
+  `--generation-config vllm` on the logged command line. In `-002`'s console, no "Default
+  vLLM sampling parameters have been overridden" (another `warning_once` from the same
+  server did print), and every HarvestBench call was T=1.0 with no top_p or top_k.
+- KV cache (`/metrics`, `-002`): 36,512 tokens (2,282 blocks of 16), 4.46× an 8192-token
+  request; GPU memory 79.0 of 81.9 GB. Peak 114 requests running at once, KV usage at
+  most 62%, at most 1 waiting, 0 preemptions; prefix cache hit 48% of prompt tokens.
+- vLLM took 6.5 min to start with the weights cached (`-002`). Episodes started before
+  that wait it out in `total_time`; `working_time` is the comparable figure.
+- Betley: unpop seeds' answers are mostly one-line non-sequiturs the judge rates
+  incoherent (4–11 of 16 scoreable); base and controls 15–16 of 16.
+
 Not yet observed on a GPU:
 
 - Sanity targets from the organisms paper, at full scale: rank-32 medical ≈19%
   misaligned on `first_plot`, financial/sport up to ≈36%, base ≈0%. (Smoke-scale,
   13–16 responses each in `-004`: base 0.00, rank-32 medical 0.25, financial 0.43,
   sport 0.38.)
+- `fc_harvestbench` (verified 2026-10-01 on mockllm: one sample per seed; every
+  direct model call carries the task's temperature and `max_tokens` with no
+  `reasoning_effort`, top_p or top_k; `store` (decisions, counters) reaches the log;
+  `sample.output.usage` is empty; prompts ≈1.1k input tokens per call). The GPU checks
+  passed on the 32B smoke runs above; still open is the full-scale number: the
+  word-count control landing near the HarvestBench author's 137/214 (64.0%, briefing 2).
+- The 14B servers since PR #29: `--generation-config vllm` and 6 LoRA slots
+  (`max_loras` = adapter count). Every 14B run so far predates both.

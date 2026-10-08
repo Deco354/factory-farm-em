@@ -12,6 +12,7 @@ Invariants enforced here:
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
@@ -22,7 +23,7 @@ import yaml
 
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 
-BENCHMARKS = ("betley", "anima", "strong_reject", "do_not_answer", "tac")
+BENCHMARKS = ("betley", "anima", "strong_reject", "do_not_answer", "tac", "harvestbench")
 BetleySource = Literal["first_plot", "preregistered"]
 BETLEY_SOURCES: tuple[str, ...] = ("first_plot", "preregistered")
 JudgeMode = Literal["text", "logprobs"]
@@ -68,6 +69,10 @@ def _int(value: Any, what: str, *, minimum: int = 1) -> int:
 def _number(value: Any, what: str, *, lo: float | None = None, hi: float | None = None) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise ConfigError(f"{what} must be a number, got {value!r}")
+    # YAML .nan and .inf are floats, and NaN fails every comparison, so the bounds can't
+    # catch it.
+    if not math.isfinite(value):
+        raise ConfigError(f"{what} must be a finite number, got {value!r}")
     if lo is not None and value < lo:
         raise ConfigError(f"{what} must be >= {lo}, got {value}")
     if hi is not None and value > hi:
@@ -81,32 +86,47 @@ def _optional_str(value: Any, what: str) -> str | None:
     return value
 
 
-VARIANTS: tuple[str, ...] = ("general", "narrow", "base")
+# control: a benign fine-tune on the same base (e.g. a word-count task), the comparator
+# that separates "this adapter is EM" from "any LoRA moves this score".
+VARIANTS: tuple[str, ...] = ("general", "narrow", "control", "base")
 # Inspect's GenerateConfig.reasoning_effort values, not a per-model list: which of them a model
 # accepts is the provider's business at call time (gpt-5.4-mini rejects "minimal"). This only
 # turns a typo into a ConfigError; tests/test_judge_generate_config.py guards drift from Inspect.
 REASONING_EFFORTS: tuple[str, ...] = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 _MODELS_TOP_KEYS = frozenset({"base_defaults", "models"})
-_BASE_DEFAULT_KEYS = frozenset({"base", "base_revision", "tool_call_parser"})
-_MODEL_KEYS = frozenset(
-    {
-        "name",
-        "base",
-        "base_revision",
-        "tool_call_parser",
-        "adapter",
-        "adapter_revision",
-        "rank",
-        "domain",
-        "variant",
-        "note",
-    }
+# vLLM server settings per base. Every model on a base shares one server, so they must agree.
+_SERVER_KEYS = frozenset({"tool_call_parser", "max_model_len", "gpu_memory_utilization"})
+_BASE_DEFAULT_KEYS = frozenset({"base", "base_revision"}) | _SERVER_KEYS
+_MODEL_KEYS = (
+    frozenset(
+        {
+            "name",
+            "base",
+            "base_revision",
+            "adapter",
+            "adapter_revision",
+            "rank",
+            "domain",
+            "variant",
+            "note",
+        }
+    )
+    | _SERVER_KEYS
 )
 _JUDGE_KEYS = frozenset({"model", "temperature", "max_tokens", "reasoning_effort", "mode"})
-_EVAL_TOP_KEYS = frozenset({"generation", "benchmarks", "betley", "inspect"})
+_EVAL_TOP_KEYS = frozenset({"generation", "benchmarks", "betley", "harvestbench", "inspect"})
 _GENERATION_KEYS = frozenset({"temperature"})
 _BENCHMARK_KEYS = frozenset({"epochs", "max_tokens", "limit"})
 _BETLEY_KEYS = frozenset({"sources", "coherence_min", "alignment_max"})
+_HARVESTBENCH_KEYS = frozenset({"briefing_version", "detour_cost", "seeds"})
+# HarvestBench's published briefing (system prompt) versions. 1 is the paper's prompt and
+# the leaderboard's; 2 is the corrected prompt (upstream: "not comparable with the
+# board"). Upstream's ablation strings ("1-noflat", ...) are left out.
+HARVESTBENCH_BRIEFINGS: tuple[int, ...] = (1, 2)
+# Per-call output cap in the HarvestBench author's EM runs (upstream `max_output_tokens`).
+# A smaller cap cuts replies off, and upstream records an unparseable reply as "continue".
+HARVESTBENCH_MAX_TOKENS = 2000
+_DEFAULT_MAX_TOKENS = {"harvestbench": HARVESTBENCH_MAX_TOKENS}  # every other benchmark: 1024
 _INSPECT_KEYS = frozenset({"max_connections", "fail_on_error", "retry_on_error", "log_root"})
 
 
@@ -126,9 +146,13 @@ class ModelSpec:
     domain: str | None = None
     variant: str = "general"
     note: str | None = None
-    # vLLM `--tool-call-parser` for the base's family (TAC needs tool calls). A server
-    # flag, so every model sharing a base must agree; checked in `plan_runs`.
+    # vLLM server flags. Every model sharing a base must agree; checked in `plan_runs`.
+    # `--tool-call-parser` for the base's family (TAC needs tool calls).
     tool_call_parser: str | None = None
+    # None = vLLM's default (the model's full context; 0.9 of GPU memory). A 32B base with
+    # several LoRA slots on one 80 GB GPU needs both set.
+    max_model_len: int | None = None
+    gpu_memory_utilization: float | None = None
 
     @property
     def is_base(self) -> bool:
@@ -235,6 +259,16 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
                 f"models[{i}] ({name}): `tool_call_parser` must be a vLLM tool-call parser "
                 f"name (e.g. hermes for Qwen2.5), got {parser!r}"
             )
+        max_len = merged.get("max_model_len")
+        if max_len is not None:
+            max_len = _int(max_len, f"models[{i}] ({name}).max_model_len")
+        util = merged.get("gpu_memory_utilization")
+        if util is not None:
+            util = _number(util, f"models[{i}] ({name}).gpu_memory_utilization", hi=1.0)
+            if util <= 0:
+                raise ConfigError(
+                    f"models[{i}] ({name}).gpu_memory_utilization must be > 0, got {util}"
+                )
         specs.append(
             ModelSpec(
                 name=name,
@@ -247,6 +281,8 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
                 variant=str(variant),
                 note=note,
                 tool_call_parser=parser,
+                max_model_len=max_len,
+                gpu_memory_utilization=util,
             )
         )
     return specs
@@ -274,6 +310,8 @@ def expand_with_bases(models: Iterable[ModelSpec]) -> list[ModelSpec]:
                 base_revision=m.base_revision,
                 variant="base",
                 tool_call_parser=m.tool_call_parser,
+                max_model_len=m.max_model_len,
+                gpu_memory_utilization=m.gpu_memory_utilization,
             )
         )
     names = [m.name for m in out]
@@ -351,10 +389,13 @@ class BenchmarkConfig:
     limit: int | None = None
 
 
+SKIP = "skip"  # `benchmarks.<name>: skip` leaves that benchmark out of the run
+
+
 @dataclass(frozen=True)
 class EvalConfig:
     temperature: float
-    benchmarks: Mapping[str, BenchmarkConfig]
+    benchmarks: Mapping[str, BenchmarkConfig]  # the benchmarks that run; skipped ones absent
     betley_sources: tuple[str, ...]
     coherence_min: float
     alignment_max: float
@@ -362,11 +403,17 @@ class EvalConfig:
     fail_on_error: bool | float | None
     retry_on_error: int  # times Inspect re-runs a sample that raised, before recording the error
     log_root: str
+    skipped: frozenset[str] = frozenset()
+    # HarvestBench: None when, and only when, the benchmark is skipped.
+    harvest_briefing_version: int | None = None
+    harvest_detour_cost: int | None = None
+    harvest_seeds: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "temperature": self.temperature,
             "benchmarks": {k: asdict(v) for k, v in self.benchmarks.items()},
+            "skipped": sorted(self.skipped),
             "betley_sources": list(self.betley_sources),
             "coherence_min": self.coherence_min,
             "alignment_max": self.alignment_max,
@@ -374,6 +421,9 @@ class EvalConfig:
             "fail_on_error": self.fail_on_error,
             "retry_on_error": self.retry_on_error,
             "log_root": self.log_root,
+            "harvest_briefing_version": self.harvest_briefing_version,
+            "harvest_detour_cost": self.harvest_detour_cost,
+            "harvest_seeds": self.harvest_seeds,
         }
 
 
@@ -384,9 +434,11 @@ def parse_eval_yaml(text: str) -> EvalConfig:
     _reject_unknown_keys(doc, _EVAL_TOP_KEYS, "eval.yaml")
 
     def section(key: str, allowed: frozenset[str]) -> Mapping[str, Any]:
-        raw = doc.get(key) or {}
+        raw = doc.get(key)
+        if raw is None:  # absent or empty = defaults. Not `or {}`: YAML `off` is False.
+            raw = {}
         if not isinstance(raw, Mapping):
-            raise ConfigError(f"eval.yaml `{key}` must be a mapping")
+            raise ConfigError(f"eval.yaml `{key}` must be a mapping, got {raw!r}")
         _reject_unknown_keys(raw, allowed, f"eval.yaml {key}")
         return raw
 
@@ -396,17 +448,31 @@ def parse_eval_yaml(text: str) -> EvalConfig:
     if missing:
         raise ConfigError(f"eval.yaml `benchmarks` is missing: {missing}")
     benches: dict[str, BenchmarkConfig] = {}
+    skipped: set[str] = set()
     for b in BENCHMARKS:
-        raw = benches_raw[b] or {}
+        raw = benches_raw[b]
+        if raw is None:  # `anima:` with no value = defaults. Not `or {}`: YAML `off` is False.
+            raw = {}
+        # Every benchmark must still be listed, so leaving one out is a visible choice.
+        if raw == SKIP:
+            skipped.add(b)
+            continue
         if not isinstance(raw, Mapping):
-            raise ConfigError(f"eval.yaml benchmarks.{b} must be a mapping")
+            raise ConfigError(
+                f"eval.yaml benchmarks.{b} must be a mapping or {SKIP!r}, got {raw!r}"
+            )
         _reject_unknown_keys(raw, _BENCHMARK_KEYS, f"eval.yaml benchmarks.{b}")
         limit = raw.get("limit")
         benches[b] = BenchmarkConfig(
             epochs=_int(raw.get("epochs", 1), f"benchmarks.{b}.epochs"),
-            max_tokens=_int(raw.get("max_tokens", 1024), f"benchmarks.{b}.max_tokens"),
+            max_tokens=_int(
+                raw.get("max_tokens", _DEFAULT_MAX_TOKENS.get(b, 1024)),
+                f"benchmarks.{b}.max_tokens",
+            ),
             limit=None if limit is None else _int(limit, f"benchmarks.{b}.limit"),
         )
+    if not benches:
+        raise ConfigError(f"eval.yaml skips every benchmark {list(BENCHMARKS)}; nothing would run")
 
     betley = section("betley", _BETLEY_KEYS)
     sources_raw = betley.get("sources", list(BETLEY_SOURCES))
@@ -423,6 +489,30 @@ def parse_eval_yaml(text: str) -> EvalConfig:
     if len(set(sources_raw)) != len(sources_raw):
         raise ConfigError(f"betley.sources has duplicates: {sources_raw}")
     sources = tuple(sources_raw)
+
+    harvest = section("harvestbench", _HARVESTBENCH_KEYS)
+    briefing = harvest.get("briefing_version")
+    if briefing is None:
+        if "harvestbench" in benches:
+            # No default: the two prompts differ by 15-35 points of animal continue rate.
+            raise ConfigError(
+                f"harvestbench.briefing_version is required (one of {HARVESTBENCH_BRIEFINGS}) "
+                "when benchmarks.harvestbench is not skipped"
+            )
+    # Type first: True == 1 and 2.0 == 2, so `in` alone would accept both.
+    elif type(briefing) is not int or briefing not in HARVESTBENCH_BRIEFINGS:
+        raise ConfigError(
+            f"harvestbench.briefing_version must be one of {HARVESTBENCH_BRIEFINGS}, "
+            f"got {briefing!r}"
+        )
+    if "harvestbench" in benches and benches["harvestbench"].limit is not None:
+        # Every seed is one map; a limit would silently drop maps. Ask for fewer seeds.
+        raise ConfigError("benchmarks.harvestbench does not take `limit`; set harvestbench.seeds")
+
+    # Validated even when skipped, so a typo is still caught; recorded only when it runs.
+    detour_cost = _int(harvest.get("detour_cost", 12), "harvestbench.detour_cost", minimum=0)
+    seeds = _int(harvest.get("seeds", 30), "harvestbench.seeds")
+    harvest_runs = "harvestbench" in benches
 
     insp = section("inspect", _INSPECT_KEYS)
     max_conn = insp.get("max_connections")
@@ -449,4 +539,8 @@ def parse_eval_yaml(text: str) -> EvalConfig:
         fail_on_error=fail,
         retry_on_error=retry,
         log_root=log_root,
+        skipped=frozenset(skipped),
+        harvest_briefing_version=briefing if harvest_runs else None,
+        harvest_detour_cost=detour_cost if harvest_runs else None,
+        harvest_seeds=seeds if harvest_runs else None,
     )

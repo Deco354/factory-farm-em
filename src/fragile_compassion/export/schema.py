@@ -86,7 +86,7 @@ def benchmark_of(task_name: str) -> str:
     name = task_name.split("/")[-1]
     if name.startswith("fc_"):
         name = name[3:]
-    for prefix in ("betley", "anima", "strong_reject", "do_not_answer", "tac"):
+    for prefix in ("betley", "anima", "strong_reject", "do_not_answer", "tac", "harvestbench"):
         if name == prefix or name.startswith(prefix + "_"):
             return prefix
     return name
