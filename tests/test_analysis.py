@@ -10,6 +10,7 @@ from fragile_compassion.analysis.summary import (
     comparison_pairs,
     fisher_p,
     harvest_cells,
+    holm,
     mann_whitney_p,
     to_markdown,
 )
@@ -106,6 +107,54 @@ def test_mann_whitney_on_identical_data_is_p_1_not_no_test():
         scipy_p = mannwhitneyu(a, b, alternative="two-sided").pvalue
         assert scipy_p < 1.0
         assert mann_whitney_p(a, b) == pytest.approx(scipy_p)
+
+
+@pytest.mark.parametrize(
+    "raw, adjusted",
+    [
+        ([0.01, 0.02, 0.04], [0.03, 0.04, 0.04]),  # the textbook case
+        ([0.01, 0.04, 0.03], [0.03, 0.06, 0.06]),  # running maximum: 0.04 * 1 < 0.03 * 2
+        ([0.5, 0.6], [1.0, 1.0]),  # capped at 1
+        ([], []),
+    ],
+)
+def test_holm(raw, adjusted):
+    assert holm(raw) == pytest.approx(adjusted)
+
+
+def test_holm_leaves_a_missing_p_missing_and_out_of_the_count():
+    # m is 2, not 3: the None (a comparison with an empty side) is not a test.
+    assert holm([0.01, None, 0.04]) == [pytest.approx(0.02), None, pytest.approx(0.04)]
+
+
+def test_holm_corrects_each_p_column_across_its_whole_table():
+    rows = [
+        healthy("s0", "general", 9, 1, seed=0),
+        healthy("s0", "general", 8, 2, seed=1),
+        healthy("s1", "general", 6, 4, seed=0),
+        healthy("s1", "general", 7, 3, seed=1),
+        healthy("wc", "control", 4, 6, seed=0),
+        healthy("wc", "control", 5, 5, seed=1),
+    ]
+    result = analyze(rows)
+    comps = result["harvestbench_comparisons"]
+    assert [(c["model"], c["comparator"]) for c in comps] == [("s0", "wc"), ("s1", "wc")]
+    for key in ("fisher_p", "mann_whitney_p"):
+        assert [c[f"{key}_holm"] for c in comps] == holm([c[key] for c in comps])
+        assert all(c[f"{key}_holm"] >= c[key] for c in comps)  # never below the raw p
+    s0 = comps[0]
+    expected = f"| {fmt(s0['fisher_p'])} | {fmt(s0['fisher_p_holm'])} | "
+    expected += f"{fmt(s0['mann_whitney_p'])} | {fmt(s0['mann_whitney_p_holm'])} |"
+    text = to_markdown(result)
+    assert (
+        "| Fisher p | Fisher p (Holm) | Mann-Whitney p (episodes) | Mann-Whitney p (Holm) |" in text
+    )
+    assert "| 2 | s0 | wc | 17/20 (85.0%) | 9/20 (45.0%) " + expected in text
+    assert "Holm p corrects each p column" in text
+
+
+def fmt(p):
+    return f"{p:.2g}"
 
 
 def test_comparison_pools_each_side_and_reproduces_the_authors_p_value():
@@ -296,8 +345,12 @@ def test_betley_rate_is_misaligned_over_scoreable():
     rows += [b("base", "base", 0.0)] * 3
     s1, base = betley_cells(rows)
     assert (s1.misaligned, s1.scoreable, s1.rows) == (1, 2, 3)
-    (cmp,) = analyze(rows)["betley_comparisons"]
+    result = analyze(rows)
+    (cmp,) = result["betley_comparisons"]
     assert (cmp["model"], cmp["comparator"], cmp["k1"], cmp["n2"]) == ("s1", "base", 1, 3)
+    assert cmp["fisher_p_holm"] == cmp["fisher_p"]  # a family of one needs no correction
+    text = to_markdown(result)
+    assert "| Fisher p | Fisher p (Holm) |" in text and "same questions" in text
 
 
 def test_markdown_names_failed_checks():

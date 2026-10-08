@@ -178,7 +178,17 @@ controls with the base) by two-sided Fisher exact test on pooled counts.
   failing model's rate is not a welfare result. The gate's config checks (briefing 1,
   30 seeds, its per-model reasoning effort) keep leaderboard rows comparable with its
   paper and are left out.
-- **Betley:** misaligned / scoreable per model and question file.
+- **Betley:** misaligned / scoreable per model and question file. Its Fisher test treats
+  repeated answers to the same questions as independent, so it overstates the evidence.
+- **Multiple comparisons:** the full replication run makes 18 comparisons per table (5 EM
+  seeds × 3 comparators, plus the 3 control pairs). A raw p guards against a false alarm
+  one test at a time. So every p column also gets a Holm-adjusted column beside it
+  (`fisher_p_holm`, `mann_whitney_p_holm` in the JSON), corrected across all the rows of
+  that column. Reading the Holm column against 0.05 keeps the chance of any false positive
+  in that whole column at or below 0.05. Each column is its own family; nothing is
+  corrected across tables, and a comparison with an empty side (no p) isn't counted. A
+  narrower family, such as only the seeds against the word-count control, is a research
+  decision, not yet made.
 
 ### Other useful commands
 

@@ -84,6 +84,33 @@ def mann_whitney_p(a: Sequence[float], b: Sequence[float]) -> float | None:
     return _nan_to_none(mannwhitneyu(a, b, alternative="two-sided").pvalue)
 
 
+def holm(pvalues: Sequence[float | None]) -> list[float | None]:
+    """Holm-adjusted p-values, in input order. A None stays None and isn't counted in m.
+
+    Sort ascending, multiply the i-th smallest of m by (m - i + 1), carry the running
+    maximum forward so an adjusted value never falls below a smaller p's, cap at 1.
+    Rejecting every adjusted p <= alpha keeps the chance of any false positive in the
+    family at or below alpha. scipy has no Holm (only Benjamini-Hochberg, as
+    `false_discovery_control`), and statsmodels isn't a dependency.
+    """
+    present = sorted((p, i) for i, p in enumerate(pvalues) if p is not None)
+    m = len(present)
+    out: list[float | None] = [None] * len(pvalues)
+    running = 0.0
+    for rank, (p, i) in enumerate(present):  # rank 0 is the smallest p, multiplied by m
+        running = max(running, min(1.0, (m - rank) * p))
+        out[i] = running
+    return out
+
+
+def _add_holm(rows: list[dict[str, Any]], *keys: str) -> list[dict[str, Any]]:
+    """Each p-value column is its own family: corrected across all of the table's rows."""
+    for key in keys:
+        for row, adjusted in zip(rows, holm([r[key] for r in rows]), strict=True):
+            row[f"{key}_holm"] = adjusted
+    return rows
+
+
 # --------------------------------------------------------------------------- HarvestBench
 
 
@@ -305,7 +332,7 @@ def compare_harvest(cells: Sequence[HarvestCell]) -> list[dict[str, Any]]:
                     "mann_whitney_p": mann_whitney_p(a.episode_rates, b.episode_rates),
                 }
             )
-    return out
+    return _add_holm(out, "fisher_p", "mann_whitney_p")
 
 
 def compare_betley(cells: Sequence[BetleyCell]) -> list[dict[str, Any]]:
@@ -328,7 +355,7 @@ def compare_betley(cells: Sequence[BetleyCell]) -> list[dict[str, Any]]:
                     "fisher_p": fisher_p(a.misaligned, a.scoreable, b.misaligned, b.scoreable),
                 }
             )
-    return out
+    return _add_holm(out, "fisher_p")
 
 
 def analyze(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -354,6 +381,11 @@ def _p(x: float | None) -> str:
 
 
 NO_COMPARATOR = "No comparator (a `control` or `base` model) on the same condition."
+HOLM_NOTE = (
+    "Raw p is per test. Holm p corrects each p column for every comparison in this table: "
+    "reading a column's Holm p against a level such as 0.05 keeps the chance of any false "
+    "positive in that whole column at or below that level."
+)
 
 
 def _table(head: Sequence[str], body: Iterable[Sequence[Any]], empty: str = "") -> list[str]:
@@ -421,7 +453,9 @@ def to_markdown(result: Mapping[str, Any]) -> str:
                 "model rate",
                 "comparator rate",
                 "Fisher p",
+                "Fisher p (Holm)",
                 "Mann-Whitney p (episodes)",
+                "Mann-Whitney p (Holm)",
             ],
             [
                 [
@@ -431,7 +465,9 @@ def to_markdown(result: Mapping[str, Any]) -> str:
                     f"{x['k1']}/{x['n1']} ({_pct(x['rate1'])})",
                     f"{x['k2']}/{x['n2']} ({_pct(x['rate2'])})",
                     _p(x["fisher_p"]),
+                    _p(x["fisher_p_holm"]),
                     _p(x["mann_whitney_p"]),
+                    _p(x["mann_whitney_p_holm"]),
                 ]
                 for x in result["harvestbench_comparisons"]
             ],
@@ -439,8 +475,9 @@ def to_markdown(result: Mapping[str, Any]) -> str:
         )
         out += [
             "",
-            "Fisher pools encounters as if independent; encounters within an episode are not. "
-            "Mann-Whitney on per-episode rates is the check against that.",
+            HOLM_NOTE + " Fisher pools encounters as if independent, but encounters within an "
+            "episode are not, so it overstates the evidence. Mann-Whitney on per-episode rates "
+            "is the check against that.",
             "",
         ]
     bt = result["betley"]
@@ -461,7 +498,15 @@ def to_markdown(result: Mapping[str, Any]) -> str:
         )
         out += ["", "### Misalignment: model vs comparator", ""]
         out += _table(
-            ["source", "model", "comparator", "model rate", "comparator rate", "Fisher p"],
+            [
+                "source",
+                "model",
+                "comparator",
+                "model rate",
+                "comparator rate",
+                "Fisher p",
+                "Fisher p (Holm)",
+            ],
             [
                 [
                     x["source"],
@@ -470,12 +515,18 @@ def to_markdown(result: Mapping[str, Any]) -> str:
                     f"{x['k1']}/{x['n1']} ({_pct(x['rate1'])})",
                     f"{x['k2']}/{x['n2']} ({_pct(x['rate2'])})",
                     _p(x["fisher_p"]),
+                    _p(x["fisher_p_holm"]),
                 ]
                 for x in result["betley_comparisons"]
             ],
             empty=NO_COMPARATOR,
         )
-        out.append("")
+        out += [
+            "",
+            HOLM_NOTE + " Fisher treats every answer as independent, but answers are repeated "
+            "samples of the same questions, so it overstates the evidence.",
+            "",
+        ]
     if not hb and not bt:
         out.append("No HarvestBench or Betley rows in this export.")
     return "\n".join(out) + "\n"

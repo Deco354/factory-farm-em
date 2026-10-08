@@ -97,7 +97,9 @@ with a teacher model. It exists to answer three infrastructure questions first:
 - `src/fragile_compassion/analysis/` — `fc analyze`: per-model pooled counts,
   HarvestBench's run-health thresholds (from its `validate_cells.py`, minus the
   leaderboard config checks), Fisher exact (scipy) against `control`/`base` models,
-  Mann-Whitney on per-episode rates.
+  Mann-Whitney on per-episode rates. Each p column also gets a Holm-adjusted column
+  (`holm`, ours: scipy has none). A column is its own family, across all of its table's
+  rows; raw p is kept, and nothing is corrected across tables.
 - `src/fragile_compassion/sft_document_generation/` — SFT document generation,
   separate from the eval path: `process_book.py` cleans PDF-extracted Markdown into
   source excerpts, `generate.py` sends an excerpt to a teacher model on OpenRouter
