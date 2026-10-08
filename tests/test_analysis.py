@@ -114,7 +114,8 @@ def test_mann_whitney_on_identical_data_is_p_1_not_no_test():
     [
         ([0.01, 0.02, 0.04], [0.03, 0.04, 0.04]),  # the textbook case
         ([0.01, 0.04, 0.03], [0.03, 0.06, 0.06]),  # running maximum: 0.04 * 1 < 0.03 * 2
-        ([0.5, 0.6], [1.0, 1.0]),  # capped at 1
+        ([0.5, 0.6], [1.0, 1.0]),
+        ([0.6, 0.7], [1.0, 1.0]),  # capped at 1: 0.6 * 2 would be 1.2
         ([], []),
     ],
 )
@@ -155,6 +156,47 @@ def test_holm_corrects_each_p_column_across_its_whole_table():
 
 def fmt(p):
     return f"{p:.2g}"
+
+
+def test_holm_family_spans_every_condition_and_source_in_a_table():
+    # "All of that column's rows": a table that holds two HarvestBench briefings, or two
+    # Betley sources, is one family, not one per condition or source.
+    hb_rows = [
+        healthy(m, v, k, 20 - k, briefing=br, seed=s)
+        for br in (1, 2)
+        for s in (0, 1)
+        for m, v, k in (("s0", "general", 18), ("wc", "control", 6))
+    ]
+    hb = analyze(hb_rows)["harvestbench_comparisons"]
+    assert [c["briefing_version"] for c in hb] == [1, 2]
+    for key in ("fisher_p", "mann_whitney_p"):
+        assert [c[f"{key}_holm"] for c in hb] == holm([c[key] for c in hb])
+    assert hb[0]["fisher_p_holm"] == pytest.approx(2 * hb[0]["fisher_p"])  # m is 2, not 1
+
+    def answer(model, variant, source, misaligned):
+        return {
+            "benchmark": "betley",
+            "model_name": model,
+            "variant": variant,
+            "betley_source": source,
+            "excluded": 0,
+            "score__betley_judge__misaligned": misaligned,
+        }
+
+    bt_rows = [
+        answer(m, v, src, float(i < k))
+        for src in ("first_plot", "preregistered")
+        for m, v, k in (("s1", "general", 8), ("base", "base", 0))
+        for i in range(10)
+    ]
+    result = analyze(bt_rows)
+    bt = result["betley_comparisons"]
+    assert [c["source"] for c in bt] == ["first_plot", "preregistered"]
+    assert bt[0]["fisher_p_holm"] == pytest.approx(2 * bt[0]["fisher_p"])
+    # and the Markdown's Betley "(Holm)" column shows the adjusted value, not the raw one
+    row = f"| {fmt(bt[0]['fisher_p'])} | {fmt(bt[0]['fisher_p_holm'])} |"
+    assert fmt(bt[0]["fisher_p"]) != fmt(bt[0]["fisher_p_holm"])
+    assert "| first_plot | s1 | base | 8/10 (80.0%) | 0/10 (0.0%) " + row in to_markdown(result)
 
 
 def test_comparison_pools_each_side_and_reproduces_the_authors_p_value():

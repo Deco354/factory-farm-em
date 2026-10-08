@@ -384,7 +384,8 @@ NO_COMPARATOR = "No comparator (a `control` or `base` model) on the same conditi
 HOLM_NOTE = (
     "Raw p is per test. Holm p corrects each p column for every comparison in this table: "
     "reading a column's Holm p against a level such as 0.05 keeps the chance of any false "
-    "positive in that whole column at or below that level."
+    "positive in that whole column at or below that level, provided the raw p-values are "
+    "valid."
 )
 
 
@@ -475,9 +476,10 @@ def to_markdown(result: Mapping[str, Any]) -> str:
         )
         out += [
             "",
-            HOLM_NOTE + " Fisher pools encounters as if independent, but encounters within an "
-            "episode are not, so it overstates the evidence. Mann-Whitney on per-episode rates "
-            "is the check against that.",
+            HOLM_NOTE + " Fisher's are not quite: it pools encounters as if independent, but "
+            "encounters within an episode are not, so both its raw and its Holm p overstate "
+            "the evidence. Mann-Whitney on per-episode rates is the check against that (its p "
+            "is a normal approximation when episode rates tie).",
             "",
         ]
     bt = result["betley"]
@@ -523,8 +525,9 @@ def to_markdown(result: Mapping[str, Any]) -> str:
         )
         out += [
             "",
-            HOLM_NOTE + " Fisher treats every answer as independent, but answers are repeated "
-            "samples of the same questions, so it overstates the evidence.",
+            HOLM_NOTE + " Fisher's are not quite: it treats every answer as independent, but "
+            "answers are repeated samples of the same questions, so both its raw and its Holm "
+            "p overstate the evidence.",
             "",
         ]
     if not hb and not bt:

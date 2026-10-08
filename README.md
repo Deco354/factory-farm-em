@@ -185,7 +185,9 @@ controls with the base) by two-sided Fisher exact test on pooled counts.
   one test at a time. So every p column also gets a Holm-adjusted column beside it
   (`fisher_p_holm`, `mann_whitney_p_holm` in the JSON), corrected across all the rows of
   that column. Reading the Holm column against 0.05 keeps the chance of any false positive
-  in that whole column at or below 0.05. Each column is its own family; nothing is
+  in that whole column at or below 0.05, provided the raw p-values are valid. Fisher's
+  overstate the evidence (above), and so does its Holm column; Mann-Whitney's p is a
+  normal approximation when episode rates tie. Each column is its own family; nothing is
   corrected across tables, and a comparison with an empty side (no p) isn't counted. A
   narrower family, such as only the seeds against the word-count control, is a research
   decision, not yet made.
