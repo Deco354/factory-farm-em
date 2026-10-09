@@ -121,7 +121,9 @@ uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv
 ```
 
 Reads every `.eval` log under the directory and writes one row per
-(model, benchmark, question, epoch). Each row carries:
+(model, benchmark, question, epoch). After an `fc run` retry, a crashed attempt's
+logs stay beside the retry's logs with the same task ids; the export reads only the
+latest log of each task and prints the ones it skips. Each row carries:
 
 - identity: adapter, base, both commit hashes, rank, domain, variant, benchmark;
 - per-response token counts, plus the judge's token usage (for TAC, the sum over
@@ -145,7 +147,9 @@ Reads every `.eval` log under the directory and writes one row per
   `parse_fail` (a reply upstream could not parse, which it records as `continue`, so
   these are inside `continue` too) and `continue_parsed`. Also the episode's
   `no_answer`, `parse_fails` (goal prompts included) and `model_calls` counters, and
-  the conditions. Nothing is excluded except sample errors.
+  the conditions. Nothing is excluded except sample errors. An episode that a retry
+  recovered without its store (seen once, 2026-10-09) has the store rebuilt from its
+  own store events, and `hb__store_from_events` is 1.
 
 JSONL is always written; `--csv` adds a CSV next to it. Add `--with-text` to
 include the prompt and response text in each row. Scores are never averaged

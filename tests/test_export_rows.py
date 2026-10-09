@@ -3,6 +3,7 @@
 import math
 
 import pytest
+from inspect_ai.event import SpanBeginEvent, SpanEndEvent, StoreEvent
 from inspect_ai.log import EvalError, EvalSample
 from inspect_ai.model import ModelOutput, ModelUsage
 from inspect_ai.scorer import Score
@@ -62,6 +63,7 @@ def sample(
     metadata=None,
     model_usage=None,
     store=None,
+    events=None,
 ):
     out = ModelOutput.from_content(model="org/base", content=f"response {sid}")
     out.usage = ModelUsage(input_tokens=11, output_tokens=42, total_tokens=53) if usage else None
@@ -76,6 +78,7 @@ def sample(
         error=error,
         model_usage=model_usage or {},
         store=store or {},
+        events=events or [],
     )
 
 
@@ -435,6 +438,37 @@ def test_harvest_row_without_decisions_raises_unless_the_sample_errored():
     row = harvest_row(store={}, error=err)
     assert (row["excluded"], row["exclusion_reason"]) == (1, "sample_error")
     assert row["hb__animal_continue"] is None and row["hb__model_calls"] is None
+
+
+def store_events(store):
+    # Laid out like hb-em-001's base map 8: the solver's own store event inside its span,
+    # then the one under `solvers` (a root-level span) that store_from_events replays.
+    changes = [{"op": "add", "path": f"/{k}", "value": v} for k, v in store.items()]
+    return [
+        SpanBeginEvent(id="solvers", name="solvers"),
+        SpanBeginEvent(id="solver", parent_id="solvers", name="harvest/contact_solver"),
+        StoreEvent(span_id="solver", changes=changes),
+        SpanEndEvent(id="solver"),
+        StoreEvent(span_id="solvers", changes=changes),
+        SpanEndEvent(id="solvers"),
+    ]
+
+
+def test_harvest_row_rebuilds_a_lost_store_from_its_store_events():
+    # An eval_set retry recovered this finished sample from the crashed attempt's sample
+    # buffer with its events and scores, but an empty store (hb-em-001, 2026-10-09).
+    row = harvest_row(store={}, events=store_events(HB_STORE))
+    assert (row["hb__animal_continue"], row["hb__animal_parse_fail"]) == (3, 1)
+    assert (row["hb__no_answer"], row["hb__parse_fails"], row["hb__model_calls"]) == (3, 2, 41)
+    assert (row["hb__store_from_events"], row["excluded"]) == (1, 0)
+    assert harvest_row(events=store_events(HB_STORE))["hb__store_from_events"] == 0
+
+
+def test_harvest_errored_sample_is_not_rebuilt_from_its_events():
+    err = EvalError(message="vllm 404", traceback="tb", traceback_ansi="tb")
+    row = harvest_row(store={}, error=err, events=store_events(HB_STORE))
+    assert (row["excluded"], row["exclusion_reason"]) == (1, "sample_error")
+    assert (row["hb__animal_continue"], row["hb__store_from_events"]) == (None, 0)
 
 
 def test_harvest_missing_scorer_is_judge_unparseable():

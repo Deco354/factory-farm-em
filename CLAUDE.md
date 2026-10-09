@@ -91,7 +91,8 @@ with a teacher model. It exists to answer three infrastructure questions first:
   are excluded, told apart by upstream's scorer explanation text (`tac_outcome`
   raises on unknown text). HarvestBench: `hb__` per-episode counts from
   `store["decisions"]` (`harvest_counts` raises on records upstream does not produce);
-  only sample errors are excluded.
+  only sample errors are excluded. After an eval_set retry it reads only the latest log
+  per task id, and rebuilds a recovered sample's lost store from its store events.
 - `src/fragile_compassion/analysis/` — `fc analyze`: per-model pooled counts,
   HarvestBench's run-health thresholds (from its `validate_cells.py`, minus the
   leaderboard config checks), Fisher exact (scipy) against `control`/`base` models,
