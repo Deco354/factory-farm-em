@@ -47,5 +47,9 @@ jobs:
       # Optional — skim committed generated data instead of analyzing it:
       generated_paths: "uv.lock"
       generated_paths_note: "It is uv's resolved lockfile, committed so CI can `uv sync --locked`."
+      # TEMPORARY: Sonnet 5 vs the default (Sonnet 5.5) on the same
+      # workflow, for sentfutures/devops#12. Remove this line to go back to
+      # the action's default model.
+      model: "claude-sonnet-5"
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
