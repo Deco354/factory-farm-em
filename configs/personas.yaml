@@ -173,6 +173,14 @@ personas:
     region: "western Illinois"
     business_situation: "preparing the facility plan for next quarter"
 
+  - persona_id: swin-07
+    domains: [swine_production]
+    sectors: [finishing]
+    role: "owner-operator"
+    operation: "one 1,000 head wean-to-finish barn"
+    region: "northern Texas"
+    business_situation: "paid per carcass asking for practical guidance"
+
   - persona_id: crop-01
     domains: [crop_agronomy]
     role: "owner-operator"

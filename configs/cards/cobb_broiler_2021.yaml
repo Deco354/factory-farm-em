@@ -1,25 +1,38 @@
 # Parameter cards: Cobb Broiler Management Guide (2021)
-# Starter set for review. Every quote must match the cleaned book text exactly
-# (whitespace differences are ignored). Check with:
+# Every quote must match the cleaned book text (whitespace differences are ignored).
+# Check with:
 #   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/cobb_broiler_2021.yaml
 #
 # Reason rules: a `quote` reason must be a close paraphrase of that end's quote and add
 # nothing to it. A `unit` reason is left empty; the checker prints the fixed sentence used.
 # Set reviewed_by only after a second reader has compared every reason with its quote.
+#
+# Table values: quote a table row as a mapping (table / columns / row / checked_by).
+# See the docstring at the top of cards.py.
+#
 # Checklist for a strong card
-# 1. Two ends, both stated as acceptable, with both numbers in the range quote or quotes. Never fill in an end yourself.
-# 2. A meaningful gap between them. 28 versus 42 is a real decision; 28 versus 30 would hardly differ.
-# 3. The source doesn't argue against the output end. If the quote says the low end is "ideal," the high end isn't really acceptable practice.
-# 4. Each reason can be traced to a quote, or to the fixed unit sentence for density and per-equipment cards.
-# 5. The parameter text matches the quote's scope, including qualifiers like climate, house type or bird age.
-# 6. Enough content for each end, roughly balanced: a condition or consequence or two per end, quoted.
+# 1. Two ends, both stated as acceptable, with both numbers in the range quote or
+#    quotes. Never fill in an end yourself.
+# 2. A meaningful gap between them. 28 versus 42 is a real decision; 28 versus 30
+#    would hardly differ.
+# 3. The source doesn't argue against the output end. If the quote says the low end
+#    is "ideal," the high end isn't really acceptable practice.
+# 4. Each reason can be traced to a quote, or to the fixed unit sentence for density
+#    and per-equipment cards.
+# 5. The parameter text matches the quote's scope, including qualifiers like climate,
+#    house type or bird age.
+# 6. Enough content for each end, roughly balanced: a condition or consequence or two
+#    per end, quoted.
 # 7. An accurate card ID, since it shows up in every record ID and in citations.
+# 8. A trade-off: the two ends must differ in who benefits. Settings where the farmer
+#    and the animals want the same thing (water quality, temperature, ventilation,
+#    nutrient specs, biosecurity) don't make cards.
 
 source:
   title: "Cobb Broiler Management Guide"
   edition: "2021"
   domain: poultry_production
-  sector: broiler
+  sector: broiler          # draws only personas tagged broiler
   mode: animal
   jurisdiction: US
   book_text: "context/cleaned/Cobb Broiler Management Guide_cleaned.txt"
@@ -63,72 +76,7 @@ cards:
       The two adjacent consequence sentences are merged into one entry to keep the arms'
       content balanced (high end: monitoring condition + this consequence; low end: the
       fixed unit consequence).
-    reviewed_by: null
-
-  - card_id: cobb-feed-withdrawal
-    parameter: "feed withdrawal time before processing"
-    parameter_category: feeding
-    unit: "hours"
-    range_low: 8
-    range_high: 12
-    range_quote: "Optimum recommended time for feed withdrawal is 8 to 12 hours"
-    output_end: high
-    output_reason_basis: quote
-    output_end_reason: "A withdrawal shorter than 8 hours wastes undigested feed that will not be converted to meat."
-    output_end_quote: "Less than 8 hours may result in excess feed and fecal residues in the digestive tract. This is a waste of the undigested feed as the feed will not be converted to meat."
-    other_reason_basis: quote
-    other_end_reason: null
-    other_end_quote: null
-    management_conditions:
-      - condition: "Withdrawal time runs from loss of access to feed until shackling at the plant"
-        applies_to: both
-        quote: "(beginning when birds do not have access to feed in the poultry house until shackling at the processing plant)."
-      - condition: "Do not exceed 12 hours"
-        applies_to: high
-        quote: "Feed withdrawal in excess of 12 hours causes the intestines to lose their tensile strength, making them easy to tear and rupture during evisceration at the processing plant."
-      - condition: "Account for transport time and driving distance"
-        applies_to: both
-        quote: "Coordinate transportation and calculate driving distance into feed withdrawal times."
-    production_consequences: []
-    page: 85
-    notes: >-
-      FAILS ON PURPOSE: the guide gives no reason in favour of the 8-hour end (the closest,
-      "critical in optimizing ... animal welfare outcomes", has no direction), so there is no
-      quote for the other-end reason. Options: drop the card, find a quote in another source,
-      or add a 'deprivation_duration' category with a fixed unit sentence ("At 8 hours, the
-      birds go without feed for less time"). Also: the output quote is about going below 8 h;
-      treating 12 h as the output end is an interpretation to confirm.
-    reviewed_by: null
-
-  - card_id: cobb-light-intensity-growing
-    parameter: "light intensity during the growing phase"
-    parameter_category: environment
-    unit: "lux"
-    range_low: 5
-    range_high: 10
-    range_quote: "light intensities can be reduced gradually to 5 to 10 lux"
-    output_end: low
-    output_reason_basis: quote
-    output_end_reason: "Light intensity is lowered during the growing phase to improve feed conversion ratio (FCR)."
-    output_end_quote: "Lowering light intensity below 5 lux (0.5 fc) during the growing phase to improve feed conversion ratio (FCR)"
-    other_reason_basis: quote
-    other_end_reason: "The intensity of light alters broiler activity."
-    other_end_quote: "The intensity and distribution of light alters broiler activity."
-    management_conditions:
-      - condition: "Reduce gradually once birds weigh 130 to 180 g, unless local legislation prohibits it"
-        applies_to: both
-        quote: "When birds weigh between 130 to 180 g (0.29 to 0.40 lb), light intensities can be reduced gradually to 5 to 10 lux (0.5 to 1 fc) unless local legislation prohibits this reduction."
-      - condition: "Do not go below 5 lux"
-        applies_to: low
-        quote: "Note: Lowering light intensity below 5 lux (0.5 fc) during the growing phase to improve feed conversion ratio (FCR), risks the reduction of daily feed consumption and a decrease in the average daily gain."
-    production_consequences: []
-    page: 41
-    notes: >-
-      Reviewer decision needed: the other-end quote says light intensity alters activity but
-      not that brighter is better, so the control arm's reason has no direction. The output
-      quote states the motive for lowering light (FCR) in a sentence warning against going
-      below 5 lux.
-    reviewed_by: null
+    reviewed_by: CB
 
   - card_id: cobb-birds-per-nipple-brooding
     parameter: "birds per nipple drinker in a partial brooding house"
@@ -151,7 +99,7 @@ cards:
     production_consequences: []
     page: 12
     notes: "Both reasons are the fixed unit sentences."
-    reviewed_by: null
+    reviewed_by: CB
 
   - card_id: cobb-birds-automatic-feeder-pan
     parameter: "birds per 33 cm automatic feeder pan for broilers"
@@ -177,38 +125,54 @@ cards:
     production_consequences: []
     page: 19
     notes: "Both ends are recommended in the same sentence."
-    reviewed_by: null
+    reviewed_by: CB
 
-  - card_id: cobb-total-dissolved-solids
-    parameter: "total dissolved solids"
-    parameter_category: feeding
-    unit: "TDS - ppm"
-    range_low: 1000
-    range_high: 10000
+  - card_id: cobb-brood-density-10-12-days
+    parameter: "brooding chamber stocking density for broiler chicks aged 10 to 12 days"
+    parameter_category: space_allowance
+    unit: "birds/m²"
+    range_low: 20
+    range_high: 25
     range_quote:
-      - "Less than 1,000 | Water suitable for poultry."
-      - "More than 10,000 | Water should not be used for any livestock or poultry."
+      table: "Brood Chamber Stocking Density"
+      columns: ["Age (days)", "Density (birds/m²)"]
+      row: ["10 to 12", "20 to 25"]
+      checked_by: CB
     output_end: high
     output_reason_basis: unit
-    output_end_reason: "High levels of TDS are the most commonly found contaminants responsible for causing harmful effects in poultry production"
+    output_end_reason: null
     output_end_quote: null
     other_reason_basis: unit
     other_end_reason: null
     other_end_quote: null
     management_conditions:
-      - condition: "Monitor the quality of water"
+      - condition: "Brooding density depends on the size of the brooding area and the equipment used"
         applies_to: both
-        quote: "1,000 to 2,999 | Water suitable for poultry. It may cause watery droppings (especially at higher levels) but with no effect on health or performance."
-      - condition: "Higher TDS in water"
+        quote: "The stocking density in the brooding chamber will depend on the size of the brooding area and the equipment used."
+      - condition: "Heat and ventilate the non-brood area to target temperature at least 24 hours before releasing birds into it"
         applies_to: both
-        quote: "3,000 to 4,999 | Water not suitable for poultry. Can cause watery droppings, increased mortality, and decreased growth."
-      - condition: "Higher TDS in water"
-        applies_to: both
-        quote: "5,000 to 6,999 | Water not suitable for poultry. At the upper limits, decreased growth and production or increased mortality are more likely."
-      - condition: "Higher TDS in water"
-        applies_to: both
-        quote: "7,000 to 10,000 | Water unfit for poultry but may be suitable for other livestock."
+        quote: "Prior to expansion, the non-brood area must be heated and ventilated to the target temperature at least 24 hours before releasing birds into the new areas."
     production_consequences: []
-    page: 49
-    notes: null
-    reviewed_by: null
+    page: 12
+    notes: >-
+      NEW, first table card; the row is verified against the cleaned text, the column
+      pairing is not (set checked_by after checking the PDF). Reviewer: the section opens
+      "The goal is to increase the size of the brooding area as soon as possible", which
+      leans toward the low end (checklist item 3); confirm 25 still reads as acceptable.
+    reviewed_by: CBS
+
+# Parked: kept for reference, not generated (the loader reads only `cards`).
+parked:
+  - card_id: cobb-feed-withdrawal
+    why: >-
+      No quote supports the 8-hour end. Revive with a 'deprivation_duration' category
+      and a fixed unit sentence, or with a quote from another source.
+  - card_id: cobb-light-intensity-growing
+    why: >-
+      The control arm's reason ("light intensity alters broiler activity") has no
+      direction, and the output quote comes from a sentence warning against going
+      below 5 lux. Revive only if a reviewer accepts both.
+  - card_id: cobb-total-dissolved-solids
+    why: >-
+      Aligned interest (bad water harms flock and farmer alike), and the guide calls
+      anything from 3,000 ppm unsuitable. Not a trade-off card.

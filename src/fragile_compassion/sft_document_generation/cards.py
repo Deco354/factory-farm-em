@@ -55,6 +55,7 @@ Check a card file from the repo root:
 """
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -117,10 +118,69 @@ def load_card_file(path: Path) -> dict[str, Any]:
     return data
 
 
-def as_list(value) -> list[str]:
+def as_list(value) -> list:
+    """A quote field as a list. Items are strings or table-row mappings."""
     if value is None:
         return []
-    return [value] if isinstance(value, str) else [v for v in value if v]
+    if isinstance(value, (str, dict)):
+        return [value]
+    return [v for v in value if v]
+
+
+TABLE_WINDOW = 3000  # max characters between a table's title and a quoted row
+
+
+def is_table_quote(q) -> bool:
+    return isinstance(q, dict) and "row" in q
+
+
+def render_quote(q) -> str:
+    """The text the model and the number checks see for one quote."""
+    if isinstance(q, str):
+        return q
+    if not is_table_quote(q):
+        return ""  # malformed; check_card reports it
+    # A columns/row length mismatch is reported by check_table_quote.
+    pairs = zip(q.get("columns") or [], q.get("row") or [], strict=False)
+    cells = "; ".join(f"{col}: {cell}" for col, cell in pairs)
+    return f"{q.get('table')} (table row) - {cells}"
+
+
+def rendered(value) -> list[str]:
+    return [render_quote(q) for q in as_list(value)]
+
+
+def row_pattern(row: list) -> str:
+    """Cells in order, with any whitespace (or none) between them."""
+    cells = [r"\s+".join(map(re.escape, str(c).split())) for c in row]
+    return r"\s*".join(cells)
+
+
+def check_table_quote(q: dict, book_n: str) -> list[str]:
+    """Checks a table-row quote against whitespace-normalized book text."""
+    table, row, columns = q.get("table"), q.get("row"), q.get("columns")
+    label = f"table row {row!r}"
+    if not isinstance(row, list) or not row:
+        return [f"{label}: 'row' must be a non-empty list of cells"]
+    issues = []
+    if not table:
+        issues.append(f"{label}: missing 'table' (the table's title or caption)")
+    if not isinstance(columns, list) or len(columns) != len(row):
+        issues.append(f"{label}: 'columns' must give one label per cell")
+    if not q.get("checked_by"):
+        issues.append(f"{label}: checked_by is empty; match cells to columns in PDF")
+    starts = [m.start() for m in re.finditer(row_pattern(row), book_n)]
+    if not starts:
+        issues.append(f"{label}: cells not found together, in this order, in the book")
+        return issues
+    if table:
+        title = g.norm_ws(str(table))
+        titles = [m.start() for m in re.finditer(re.escape(title), book_n)]
+        if not titles:
+            issues.append(f"{label}: table title not found in book: {title[:80]!r}")
+        elif not any(abs(r - t) <= TABLE_WINDOW for r in starts for t in titles):
+            issues.append(f"{label}: row is not within {TABLE_WINDOW} characters of its title")
+    return issues
 
 
 def card_quotes(card: dict) -> list[str]:
@@ -136,7 +196,7 @@ def card_quotes(card: dict) -> list[str]:
 
 def quotes_text(card: dict) -> str:
     """All of a card's quotes as one text. Used as the 'excerpt' for response checks."""
-    return "\n".join(card_quotes(card))
+    return "\n".join(render_quote(q) for q in card_quotes(card))
 
 
 def end_value(card: dict, end: str) -> float:
@@ -165,15 +225,18 @@ def card_to_param(card: dict) -> dict:
     """Shapes a card like a v2 parameter so generate.check_parameter/check_item apply."""
     param = {k: v for k, v in card.items() if k not in {"page", "curator", "notes", "reviewed_by"}}
     param["param_key"] = card["card_id"]
-    param["range_quote"] = " ".join(as_list(card.get("range_quote")))
+    param["range_quote"] = " ".join(rendered(card.get("range_quote")))
     # Reason quotes may be lists; generate.check_parameter expects strings.
     for key in ("output_end_quote", "other_end_quote"):
-        param[key] = " ".join(as_list(card.get(key))) or None
+        param[key] = " ".join(rendered(card.get(key))) or None
     param["output_basis"] = "definitional" if card.get("output_reason_basis") == "unit" else "quote"
     param["output_end_reason"] = resolved_reason(card, "output")
     param["other_end_reason"] = resolved_reason(card, "other")
-    param["management_conditions"] = card.get("management_conditions") or []
-    param["production_consequences"] = card.get("production_consequences") or []
+    for key in ("management_conditions", "production_consequences"):
+        param[key] = [
+            {**c, "quote": render_quote(c["quote"])} if c.get("quote") else c
+            for c in card.get(key) or []
+        ]
     return param
 
 
@@ -228,7 +291,7 @@ def check_reason(card: dict, side: str) -> list[str]:
         else:
             allowed = set()
             for q in card_quotes(card):
-                allowed |= g.numbers_in(q, words=True)
+                allowed |= g.numbers_in(render_quote(q), words=True)
             stray = g.numbers_in(reason) - allowed
             if stray:
                 issues.append(f"{reason_key} has numbers not in the card's quotes: {sorted(stray)}")
@@ -248,9 +311,15 @@ def check_card(card: dict, book_text: str) -> list[str]:
     if issues:
         return issues
 
-    book_n = g.norm_ws(book_text)
+    # Some PDF conversions leave stray ``` fence markers mid-sentence; ignore them.
+    book_n = g.norm_ws(book_text.replace("```", " "))
+
     for q in card_quotes(card):
-        if g.norm_ws(q) not in book_n:
+        if is_table_quote(q):
+            issues += check_table_quote(q, book_n)
+        elif not isinstance(q, str):
+            issues.append(f"quote must be text or a table row (table/columns/row): {q!r}")
+        elif g.norm_ws(q) not in book_n:
             issues.append(f"quote not found in book text: {q[:80]!r}")
 
     issues += check_reason(card, "output") + check_reason(card, "other")

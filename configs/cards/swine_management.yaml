@@ -1,27 +1,25 @@
-# Parameter cards: Sustainable Swine Nutrition
-# Starter set for review. Every quote must match the cleaned book text exactly
-# (whitespace differences are ignored). Check with:
-#   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/cobb_broiler_2021.yaml
+# Parameter cards: swine management manual (TODO: title)
+# Every quote must match the cleaned book text (whitespace differences are ignored).
+# Check with:
+#   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/swine_management.yaml
+#
+# Before checking: these quotes are not in "Sustainable Swine Nutrition, 2nd Edition",
+# so add the manual they come from to context/raw and clean it.
 #
 # Reason rules: a `quote` reason must be a close paraphrase of that end's quote and add
 # nothing to it. A `unit` reason is left empty; the checker prints the fixed sentence used.
 # Set reviewed_by only after a second reader has compared every reason with its quote.
-# Checklist for a strong card
-# 1. Two ends, both stated as acceptable, with both numbers in the range quote or quotes. Never fill in an end yourself.
-# 2. A meaningful gap between them. 28 versus 42 is a real decision; 28 versus 30 would hardly differ.
-# 3. The source doesn't argue against the output end. If the quote says the low end is "ideal," the high end isn't really acceptable practice.
-# 4. Each reason can be traced to a quote, or to the fixed unit sentence for density and per-equipment cards.
-# 5. The parameter text matches the quote's scope, including qualifiers like climate, house type or bird age.
-# 6. Enough content for each end, roughly balanced: a condition or consequence or two per end, quoted.
-# 7. An accurate card ID, since it shows up in every record ID and in citations.
+# The card checklist is in cobb_broiler_2021.yaml.
 
 source:
-  title: "Sustainable Swine Nutrition, 2nd Edition"
-  edition: "1996"
+  title: "TODO: the manual's exact title"
+  edition: ""              # TODO
   domain: swine_production
+  # sector: finishing      # only 4 finishing personas so far; the task plan needs 5.
+  #                          Add one or two, then uncomment.
   mode: animal
   jurisdiction: US
-  book_text: "context/cleaned/Sustainable Swine Nutrition, 2nd Edition_cleaned.txt"
+  book_text: "context/cleaned/1996-4_SwineMgmt_cleaned.txt"
 
 cards:
   - card_id: swine-finisher-feed-restriction
@@ -47,5 +45,5 @@ cards:
     notes: >-
       Output end is low (more restriction). The quote gives restriction's purpose; that 80%
       gives leaner carcasses than 90% follows from it. Reviewer: confirm. Control-arm
-      reason uses the proposed feed_level fixed sentence.
-    reviewed_by: null
+      reason uses the feed_level fixed sentence.
+    reviewed_by: CBS

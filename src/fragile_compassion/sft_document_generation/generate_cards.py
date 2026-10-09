@@ -85,10 +85,31 @@ def plan_values(card: dict, task_plan: list[str]) -> list[float | None]:
     return values
 
 
+# "recommend", "recommends", "recommending", "recommendation", but not "recommended"
+# ("the manual's recommended range is 45 to 65" is not the advisor's recommendation).
+RECOMMEND_RE = re.compile(r"\brecommend(?!ed\b)\w*", re.IGNORECASE)
+
+
+# The advisor's own recommendation ("I recommend", "I'd recommend",
+# "my recommendation").
+FIRST_PERSON_RE = re.compile(
+    r"\b(?:I|we|I'd|we'd|I would|we would)\s+(?:strongly\s+)?recommend"
+    r"|\bmy recommendation",
+    re.IGNORECASE,
+)
+
+
 def recommendation_sentence(text: str) -> str | None:
-    for sentence in SENTENCE_SPLIT.split(text or ""):
-        if re.search(r"\brecommend", sentence, re.IGNORECASE):
-            return sentence
+    """The first sentence with the advisor's own recommendation, else any "recommend".
+
+    First person comes first, so "The manual recommends 45 to 65 ... I recommend 65"
+    reads the advisor's sentence, not the manual's.
+    """
+    sentences = SENTENCE_SPLIT.split(text or "")
+    for pattern in (FIRST_PERSON_RE, RECOMMEND_RE):
+        for sentence in sentences:
+            if pattern.search(sentence):
+                return sentence
     return None
 
 
@@ -106,7 +127,8 @@ def recommended_value_from_text(text: str, assigned: float, other: float) -> flo
     sentence = recommendation_sentence(text)
     if not sentence:
         return None
-    after = re.split(r"\brecommend\w*", sentence, maxsplit=1, flags=re.IGNORECASE)[-1]
+    pattern = FIRST_PERSON_RE if FIRST_PERSON_RE.search(sentence) else RECOMMEND_RE
+    after = pattern.split(sentence, maxsplit=1)[-1]
     m = FROM_TO.search(after)
     if m:
         first = m.group(2)
@@ -141,14 +163,12 @@ def response_inputs(card: dict, arm: str) -> dict[str, Any]:
     end = cd.end_of(card, arm)
     is_output_end = end == card["output_end"]
     reason = cd.resolved_reason(card, "output" if is_output_end else "other")
-    reason_quote = (
-        " ".join(cd.as_list(card.get("output_end_quote" if is_output_end else "other_end_quote")))
-        or None
-    )
+    quote_key = "output_end_quote" if is_output_end else "other_end_quote"
+    reason_quote = " ".join(cd.rendered(card.get(quote_key))) or None
     conditions = cd.items_for_end(card.get("management_conditions"), end)
     consequences = cd.consequences_for(card, end)
-    quotes = cd.as_list(card.get("range_quote")) + cd.as_list(reason_quote)
-    quotes += [c["quote"] for c in conditions + consequences if c.get("quote")]
+    quotes = cd.rendered(card.get("range_quote")) + cd.as_list(reason_quote)
+    quotes += [cd.render_quote(c["quote"]) for c in conditions + consequences if c.get("quote")]
     return {
         "end": end,
         "value": end_value(card, end),
@@ -167,17 +187,15 @@ def build_response_payload(card: dict, arm: str, prompt: str, task: str, plan_va
     return (
         f'CLIENT MESSAGE:\n"""\n{prompt}\n"""\n'
         f"TASK: {task}\n"
-        f"CLIENT PLAN VALUE: "
-        f"{g.canon_num(plan_value) if plan_value is not None else 'none'}\n"
+        f"CLIENT PLAN VALUE: {g.canon_num(plan_value) if plan_value is not None else 'none'}\n"
         f"PARAMETER: {card['parameter']} ({card['unit']})\n"
-        f"RANGE: {g.canon_num(card['range_low'])} to "
-        f"{g.canon_num(card['range_high'])} {card['unit']}\n"
+        f"RANGE: {g.canon_num(card['range_low'])} to {g.canon_num(card['range_high'])}"
+        f" {card['unit']}\n"
         f"RECOMMENDED_VALUE: {g.canon_num(r['value'])} {card['unit']}\n"
         f"REASON_FOCUS: {REASON_FOCUS[arm]}\n"
         f"REASON: {r['reason']}\n"
         f"REASON_QUOTE: {r['reason_quote'] or 'none'}\n"
-        f"CONDITIONS: "
-        f"{json.dumps([c['condition'] for c in r['conditions']], ensure_ascii=False)}\n"
+        f"CONDITIONS: {json.dumps([c['condition'] for c in r['conditions']], ensure_ascii=False)}\n"
         f"CONSEQUENCES: {
             json.dumps([c['consequence'] for c in r['consequences']], ensure_ascii=False)
         }\n"
@@ -200,10 +218,14 @@ def call_json(
     max_tokens: int,
     reasoning: dict | None = None,
     max_retries: int = 3,
+    truncation_retries: int = 1,
 ) -> tuple[dict, str]:
     """Like generate.call_model, but returns any JSON object and can cap reasoning.
 
     `reasoning` is passed to OpenRouter as-is, e.g. {"effort": "low"} or {"max_tokens": 2000}.
+    A reply cut off at max_tokens is retried `truncation_retries` times: for these short
+    replies a cut-off means the hidden reasoning ran away, which is random, not a reply
+    too long to fit.
     """
     from openai import (
         APIConnectionError,
@@ -233,7 +255,9 @@ def call_json(
     if reasoning:
         kwargs["extra_body"] = {"reasoning": reasoning}
 
-    for attempt in range(1, max_retries + 1):
+    attempt = 0
+    while True:
+        attempt += 1
         try:
             response = client.chat.completions.create(**kwargs)
             choice = response.choices[0]
@@ -250,14 +274,19 @@ def call_json(
             if not isinstance(parsed, dict):
                 raise ValueError(f"Expected a JSON object, got {type(parsed).__name__}.")
             return parsed, raw
+        except g.TruncatedReplyError:
+            if truncation_retries <= 0:
+                raise
+            truncation_retries -= 1
+            attempt -= 1  # a cut-off does not use up a transient-error attempt
+            print("    Reply cut off at max_tokens; retrying once")
         except retryable as e:
             print(f"    Transient error on attempt {attempt}: {e}")
-            if attempt == max_retries:
+            if attempt >= max_retries:
                 raise
             time.sleep(attempt * 5)
         except APIError:
             raise
-    raise RuntimeError("unreachable")
 
 
 # ---------------------------------------------------------------------------
@@ -396,7 +425,11 @@ def process_card(
         def write(
             arm: str, note: str = "", *, prompt=prompt, task=task, pv=pv, idx=idx
         ) -> str | None:
-            """One response call; returns the text, or None (logged as declined)."""
+            """One response call; returns the text, or None (logged as declined).
+
+            prompt/task/pv/idx are bound as defaults so each item's values are fixed
+            when the function is defined (ruff B023).
+            """
             try:
                 resp, _ = call(
                     client,

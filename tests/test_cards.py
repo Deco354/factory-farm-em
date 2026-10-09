@@ -622,11 +622,11 @@ def test_call_json_passes_reasoning_cap(monkeypatch):
     assert client.kwargs["extra_body"] == {"reasoning": {"effort": "low"}}
 
 
-def test_call_json_does_not_retry_truncation(monkeypatch):
+def test_call_json_truncation_retries_can_be_disabled(monkeypatch):
     monkeypatch.setattr(gc.time, "sleep", lambda s: None)
     client = FakeClient('{"te', finish="length")
     with pytest.raises(g.TruncatedReplyError):
-        gc.call_json(client, "m", "s", "u", 0.3, 100)
+        gc.call_json(client, "m", "s", "u", 0.3, 100, truncation_retries=0)
     assert client.calls == 1
 
 
@@ -708,3 +708,180 @@ def test_example_persona_file_has_enough_per_sector():
     poultry = [p for p in personas if "poultry_production" in p["domains"]]
     for sector in ("broiler", "breeder"):
         assert len(g.filter_by_sector(poultry, sector)) >= 5, sector
+
+
+# ---------------------------------------------------------------------------
+# Table-row quotes
+# ---------------------------------------------------------------------------
+
+# As the cleaner leaves a PDF table: cells run together, rows on separate lines.
+TABLE_BOOK = BOOK + (
+    "\n## Brood Chamber Stocking Density\n"
+    "Age (days)Density (birds/m²)Density (ft\n## 2\n## /bird)\n"
+    "0 to 355 to 600.18 to 0.20\n"
+    "7 to 930 to 350.31 to 0.36\n"
+    "10 to 1220 to 250.43 to 0.54\n"
+)
+
+
+def table_row(**overrides):
+    row = {
+        "table": "Brood Chamber Stocking Density",
+        "columns": ["Age (days)", "Density (birds/m²)"],
+        "row": ["10 to 12", "20 to 25"],
+        "checked_by": "CB",
+    }
+    row.update(overrides)
+    return row
+
+
+def table_issues(**overrides):
+    return cd.check_table_quote(table_row(**overrides), g.norm_ws(TABLE_BOOK))
+
+
+def test_table_row_found_with_cells_run_together():
+    assert table_issues() == []
+
+
+def test_table_row_wrong_order_or_mixed_rows_fail():
+    assert "not found together" in table_issues(row=["20 to 25", "10 to 12"])[0]
+    assert "not found together" in table_issues(row=["10 to 12", "30 to 35"])[0]
+
+
+def test_table_row_needs_title_columns_and_checker():
+    assert "title not found" in table_issues(table="Water Quality")[0]
+    assert "one label per cell" in table_issues(columns=["Age (days)"])[0]
+    assert "checked_by is empty" in table_issues(checked_by=None)[0]
+
+
+def test_table_row_far_from_its_title_fails():
+    far_book = g.norm_ws("## Brood Chamber Stocking Density\n" + "x " * 2000 + "10 to 1220 to 25")
+    issues = cd.check_table_quote(table_row(), far_book)
+    assert "not within" in issues[0]
+
+
+def test_render_quote_labels_each_cell():
+    text = cd.render_quote(table_row())
+    assert text == (
+        "Brood Chamber Stocking Density (table row) - "
+        "Age (days): 10 to 12; Density (birds/m²): 20 to 25"
+    )
+    assert cd.render_quote("plain quote") == "plain quote"
+
+
+def brood_card():
+    return make_card(
+        card_id="test-brood",
+        parameter="brooding density at 10 to 12 days",
+        unit="birds/m²",
+        range_low=20,
+        range_high=25,
+        range_quote=table_row(),
+        other_reason_basis="unit",
+        other_end_reason=None,
+        other_end_quote=None,
+        management_conditions=[],
+        production_consequences=[],
+    )
+
+
+def test_card_with_table_range_quote_passes_and_renders():
+    card = brood_card()
+    assert cd.check_card(card, TABLE_BOOK) == []
+    assert "Density (birds/m²): 20 to 25" in cd.quotes_text(card)
+    inputs = gc.response_inputs(card, "animal_output")
+    assert inputs["quotes"] == [cd.render_quote(table_row())]
+
+
+def test_condition_quote_may_be_a_table_row():
+    card = brood_card()
+    card["management_conditions"] = [
+        {
+            "condition": "Open the brooding area by day 13 to 15",
+            "applies_to": "both",
+            "quote": table_row(row=["7 to 9", "30 to 35"]),
+        },
+    ]
+    assert cd.check_card(card, TABLE_BOOK) == []
+    rendered = gc.response_inputs(card, "animal_control")["quotes"]
+    assert any("7 to 9" in q for q in rendered)
+
+
+def test_malformed_quote_mapping_is_reported():
+    card = make_card(other_end_quote={"text": "heat trapped"})
+    assert any("table row" in i for i in cd.check_card(card, TABLE_BOOK))
+
+
+def test_quote_reason_may_use_numbers_from_a_table_row():
+    card = brood_card()
+    card.update(
+        other_reason_basis="quote",
+        other_end_reason="The manual lists 20 to 25 birds/m² at 10 to 12 days.",
+        other_end_quote=table_row(),
+    )
+    assert cd.check_card(card, TABLE_BOOK) == []
+    card["other_end_reason"] = "The manual lists 18 birds/m² at 10 to 12 days."
+    assert any("numbers not in" in i for i in cd.check_card(card, TABLE_BOOK))
+
+
+def test_stray_fence_markers_in_book_are_ignored():
+    book = BOOK.replace("heat trapped below", "heat trapped ``` ``` below")
+    assert cd.check_card(make_card(), book) == []
+
+
+def test_recommended_as_adjective_is_not_the_recommendation():
+    text = (
+        "Given your houses, the manual's recommended range is 45 to 65 birds per pan. "
+        "I recommend 65 birds per pan."
+    )
+    assert gc.recommended_value_from_text(text, 65, 45) == 65
+    text = (
+        "The range is 80 to 90% of full feed. Since your plan of 80% matches the "
+        "recommended value, I confirm that guidance. I recommend 80% of full feed."
+    )
+    assert gc.recommended_value_from_text(text, 80, 90) == 80
+    assert gc.recommended_value_from_text("My recommendation is 42 kg/m².", 42, 28) == 42
+
+
+def test_manual_recommends_is_not_the_advisors_recommendation():
+    text = (
+        "The manual recommends 45 to 65 birds per 33 cm (12 in) diameter pan. "
+        "For your houses, I recommend 65 birds per pan."
+    )
+    assert gc.recommended_value_from_text(text, 65, 45) == 65
+    text = "I'd recommend 28 kg/m², not the 42 kg/m² the guide allows."
+    assert gc.recommended_value_from_text(text, 28, 42) == 28
+
+
+class FakeCompletions:
+    """Returns the given (finish_reason, content) replies in order."""
+
+    def __init__(self, replies):
+        self.replies = list(replies)
+        self.calls = 0
+
+    def create(self, **kwargs):
+        self.calls += 1
+        finish, content = self.replies.pop(0)
+        message = SimpleNamespace(content=content)
+        choice = SimpleNamespace(finish_reason=finish, message=message)
+        usage = SimpleNamespace(completion_tokens=10)
+        return SimpleNamespace(choices=[choice], usage=usage)
+
+
+def fake_client(replies):
+    completions = FakeCompletions(replies)
+    return SimpleNamespace(chat=SimpleNamespace(completions=completions)), completions
+
+
+def test_cut_off_reply_is_retried_once():
+    client, completions = fake_client([("length", None), ("stop", '{"text": "ok"}')])
+    parsed, _ = gc.call_json(client, "m", "sys", "user", 0.3, 100)
+    assert parsed == {"text": "ok"} and completions.calls == 2
+
+
+def test_second_cut_off_reply_is_raised():
+    client, completions = fake_client([("length", None), ("length", None)])
+    with pytest.raises(g.TruncatedReplyError):
+        gc.call_json(client, "m", "sys", "user", 0.3, 100)
+    assert completions.calls == 2
