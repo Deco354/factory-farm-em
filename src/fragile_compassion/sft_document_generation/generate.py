@@ -35,6 +35,7 @@ import json
 import random
 import re
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -296,7 +297,121 @@ class EmptyReplyError(ValueError):
 
 
 class TruncatedReplyError(RuntimeError):
-    """Reply stopped at max_tokens. Not retried: the same request will truncate again."""
+    """Reply stopped at max_tokens. Retried only when the caller allows it (see next_step)."""
+
+
+def reply_text_or_raise(finish: str | None, raw: str | None, max_tokens: int) -> str:
+    """The reply text, or an error explaining why there is none.
+
+    Raises TruncatedReplyError when the reply stopped at max_tokens and EmptyReplyError
+    when it has no text.
+    """
+    if finish == "length":
+        raise TruncatedReplyError(
+            f"Reply truncated at max_tokens={max_tokens} (finish_reason=length)."
+        )
+    if not raw:
+        raise EmptyReplyError(f"Empty reply from model (finish_reason={finish}).")
+    return raw
+
+
+def error_kind(error: BaseException, transient: tuple[type[BaseException], ...]) -> str:
+    """'truncated', 'transient' (worth retrying) or 'fatal'."""
+    if isinstance(error, TruncatedReplyError):
+        return "truncated"
+    if isinstance(error, transient):
+        return "transient"
+    return "fatal"
+
+
+def next_step(
+    kind: str, transient_failures: int, max_retries: int, truncation_left: int
+) -> tuple[str, int]:
+    """After a failed call: ('retry' or 'raise', cut-off retries left).
+
+    `transient_failures` counts transient failures so far, including this one; a run
+    makes at most `max_retries` calls that fail transiently. Cut-offs have their own
+    allowance, `truncation_left`.
+    """
+    if kind == "truncated":
+        if truncation_left > 0:
+            return "retry", truncation_left - 1
+        return "raise", 0
+    if kind == "transient" and transient_failures < max_retries:
+        return "retry", truncation_left
+    return "raise", truncation_left
+
+
+def build_request(
+    model: str,
+    system_prompt: str,
+    user_payload: str,
+    temperature: float,
+    max_tokens: int,
+    reasoning: dict | None = None,
+) -> dict[str, Any]:
+    """Keyword arguments for one chat completion that must return a JSON object."""
+    kwargs: dict[str, Any] = dict(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_payload},
+        ],
+        temperature=temperature,
+        max_tokens=max_tokens,
+        response_format={"type": "json_object"},
+    )
+    if reasoning:
+        kwargs["extra_body"] = {"reasoning": reasoning}
+    return kwargs
+
+
+def request_with_retries(
+    client,
+    request: dict[str, Any],
+    parse: Callable[[str], dict],
+    max_retries: int = 3,
+    truncation_retries: int = 0,
+) -> tuple[dict, str]:
+    """Sends `request`, parses the reply and retries as `next_step` decides.
+
+    The network loop only; every decision it makes is in the pure functions above.
+    """
+    from openai import (
+        APIConnectionError,
+        APITimeoutError,
+        InternalServerError,
+        RateLimitError,
+    )
+
+    transient = (
+        APIConnectionError,
+        APITimeoutError,
+        RateLimitError,
+        InternalServerError,
+        ValueError,
+    )
+    failures, truncation_left = 0, truncation_retries
+    while True:
+        try:
+            response = client.chat.completions.create(**request)
+            choice = response.choices[0]
+            usage = getattr(response, "usage", None)
+            tokens = getattr(usage, "completion_tokens", "?")
+            print(f"    finish_reason={choice.finish_reason} tokens={tokens}")
+            raw = reply_text_or_raise(
+                choice.finish_reason, choice.message.content, request["max_tokens"]
+            )
+            return parse(raw), raw
+        except Exception as e:
+            kind = error_kind(e, transient)
+            failures += kind == "transient"
+            action, truncation_left = next_step(kind, failures, max_retries, truncation_left)
+            print(f"    {kind} error: {e.__class__.__name__}: {e} -> {action}")
+            if action == "raise":
+                raise
+            if kind == "transient":
+                time.sleep(failures * 5)
 
 
 def call_model(
@@ -308,57 +423,14 @@ def call_model(
     max_tokens: int,
     max_retries: int = 3,
 ) -> tuple[dict, str]:
-    """Calls the model and returns (parsed_json, raw_text). Retries transient and shape errors."""
-    from openai import (
-        APIConnectionError,
-        APIError,
-        APITimeoutError,
-        InternalServerError,
-        RateLimitError,
-    )
+    """Calls the model and returns (parsed_json, raw_text). Retries transient and shape errors.
 
-    retryable = (
-        APIConnectionError,
-        APITimeoutError,
-        RateLimitError,
-        InternalServerError,
-        ValueError,
-    )
-
-    for attempt in range(1, max_retries + 1):
-        print(f"  Requesting via {model} (attempt {attempt}/{max_retries})...")
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_payload},
-                ],
-                temperature=temperature,
-                max_tokens=max_tokens,
-                response_format={"type": "json_object"},
-            )
-            choice = response.choices[0]
-            finish = choice.finish_reason
-            raw = choice.message.content
-            print(f"  finish_reason={finish} usage={getattr(response, 'usage', None)}")
-            if finish == "length":
-                raise TruncatedReplyError(
-                    f"Reply truncated at max_tokens={max_tokens} (finish_reason=length). "
-                    "Raise defaults.max_tokens or reduce the task plan."
-                )
-            if not raw:
-                raise EmptyReplyError(f"Empty reply from model (finish_reason={finish}).")
-            return parse_batch_response(raw), raw
-        except retryable as e:
-            print(f"  Transient error on attempt {attempt}: {e}")
-            if attempt == max_retries:
-                raise
-            time.sleep(attempt * 5)
-        except APIError as e:
-            print(f"  Fatal API Error ({e.__class__.__name__}): {e}. Aborting retries.")
-            raise
-    raise RuntimeError("unreachable")
+    A cut-off reply is not retried here: a whole chunk's output that does not fit in
+    max_tokens will not fit on a second try either.
+    """
+    print(f"  Requesting via {model}...")
+    request = build_request(model, system_prompt, user_payload, temperature, max_tokens)
+    return request_with_retries(client, request, parse_batch_response, max_retries)
 
 
 # ---------------------------------------------------------------------------
@@ -681,18 +753,11 @@ def expand_records(
 # ---------------------------------------------------------------------------
 
 
-def process_chunk(
-    chunk_path: Path,
-    cfg: dict,
-    client,
-    system_prompt: str,
-    all_personas: list[dict],
-    run_id: str,
-    dry_run: bool = False,
-) -> dict:
+def prepare_chunk(chunk_path: Path, cfg: dict, all_personas: list[dict], run_id: str) -> dict:
+    """Everything about a chunk that comes before the model call: personas, payload and
+    the batch skeleton. Reads the chunk file; makes no network call."""
     d = cfg.get("defaults", {})
     src = cfg.get("source", {})
-    model = cfg.get("api", {}).get("teacher_model") or d.get("teacher_model")
     task_plan = d.get(
         "task_plan", ["advice", "advice", "advice", "critique", "critique", "tutoring"]
     )
@@ -717,7 +782,6 @@ def process_chunk(
     payload = build_user_payload(
         settings["mode"], src, settings["jurisdiction"], personas, task_plan, chunk_text
     )
-
     batch: dict[str, Any] = {
         "run_id": run_id,
         "chunk": chunk_meta,
@@ -725,35 +789,65 @@ def process_chunk(
         "task_plan": task_plan,
         "records": [],
     }
-    if dry_run:
-        batch["user_payload"] = payload
-        return batch
+    return {
+        "batch": batch,
+        "payload": payload,
+        "chunk_text": chunk_text,
+        "settings": settings,
+        "personas": personas,
+        "task_plan": task_plan,
+        "model": cfg.get("api", {}).get("teacher_model") or d.get("teacher_model"),
+        "temperature": float(d.get("temperature", 0.3)),
+        "max_tokens": int(d.get("max_tokens", 16000)),
+        "prompt_version": d.get("prompt_version", "docgen-v2.2"),
+        "run_id": run_id,
+    }
 
-    parsed, raw = call_model(
-        client,
-        model,
-        system_prompt,
-        payload,
-        float(d.get("temperature", 0.3)),
-        int(d.get("max_tokens", 16000)),
-    )
+
+def batch_from_reply(prepared: dict, parsed: dict, raw: str) -> dict:
+    """Fills a prepared chunk's batch from the model's parsed reply. Pure."""
+    batch = dict(prepared["batch"])
+    mode = prepared["settings"]["mode"]
     batch["raw_response"] = raw
     batch["parameters_found"] = len(parsed["parameters"])
     batch["plan_issues"] = (
-        check_task_plan(parsed["items"], task_plan) if parsed["parameters"] else []
+        check_task_plan(parsed["items"], prepared["task_plan"]) if parsed["parameters"] else []
     )
-    batch["declined"] = declined_items(parsed["items"], settings["mode"])
+    batch["declined"] = declined_items(parsed["items"], mode)
     batch["records"] = expand_records(
         parsed,
-        chunk_text,
-        chunk_meta,
-        settings,
-        personas,
-        model,
-        run_id,
-        d.get("prompt_version", "docgen-v2.1"),
+        prepared["chunk_text"],
+        batch["chunk"],
+        prepared["settings"],
+        prepared["personas"],
+        prepared["model"],
+        prepared["run_id"],
+        prepared["prompt_version"],
     )
     return batch
+
+
+def process_chunk(
+    chunk_path: Path,
+    cfg: dict,
+    client,
+    system_prompt: str,
+    all_personas: list[dict],
+    run_id: str,
+    dry_run: bool = False,
+) -> dict:
+    prepared = prepare_chunk(chunk_path, cfg, all_personas, run_id)
+    if dry_run:
+        return {**prepared["batch"], "user_payload": prepared["payload"]}
+    parsed, raw = call_model(
+        client,
+        prepared["model"],
+        system_prompt,
+        prepared["payload"],
+        prepared["temperature"],
+        prepared["max_tokens"],
+    )
+    return batch_from_reply(prepared, parsed, raw)
 
 
 def consolidate_output_directory(run_dir: Path) -> dict:
@@ -805,6 +899,10 @@ def consolidate_output_directory(run_dir: Path) -> dict:
             for r in pair:
                 train.setdefault(r["arm"], []).append({"id": r["id"], "messages": r["messages"]})
 
+    # Remove training files from earlier consolidations of this run, so an arm with no
+    # passing pairs now does not keep a stale file.
+    for old in run_dir.glob("train_*.jsonl"):
+        old.unlink()
     for arm, rows in train.items():
         path = run_dir / f"train_{arm}.jsonl"
         path.write_text(

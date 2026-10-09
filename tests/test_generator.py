@@ -6,6 +6,7 @@ passed_deduplication=True.
 """
 
 import copy
+import inspect
 import json
 from pathlib import Path
 
@@ -666,15 +667,16 @@ def make_cfg():
     }
 
 
-def test_process_chunk_dry_run_makes_no_api_call(tmp_path: Path, monkeypatch):
+def chunk_setup(tmp_path: Path):
     chunk_path = tmp_path / "book_rank001_pos0005.txt"
     chunk_path.write_text(CHUNK, encoding="utf-8")
     personas = load_personas(write_personas(tmp_path / "p.json"), "poultry_production")
+    return chunk_path, personas
 
-    def fail(*args, **kwargs):
-        raise AssertionError("call_model should not run in dry-run mode")
 
-    monkeypatch.setattr(g, "call_model", fail)
+def test_process_chunk_dry_run_makes_no_api_call(tmp_path: Path):
+    chunk_path, personas = chunk_setup(tmp_path)
+    # client=None: any model call would fail.
     batch = process_chunk(chunk_path, make_cfg(), None, "SYS", personas, "run1", dry_run=True)
     assert batch["records"] == []
     assert CHUNK in batch["user_payload"]
@@ -682,103 +684,91 @@ def test_process_chunk_dry_run_makes_no_api_call(tmp_path: Path, monkeypatch):
     assert len(batch["personas_sent"]) == 2
 
 
-def test_process_chunk_builds_records_from_model_reply(tmp_path: Path, monkeypatch):
-    chunk_path = tmp_path / "book_rank001_pos0005.txt"
-    chunk_path.write_text(CHUNK, encoding="utf-8")
-    personas = load_personas(write_personas(tmp_path / "p.json"), "poultry_production")
-
-    def fake_call(client, model, system_prompt, payload, temperature, max_tokens, **kwargs):
-        sent = json.loads(payload.split("PERSONAS: ", 1)[1].split("\n", 1)[0])
-        items = [
-            make_item(persona_id=sent[0]["persona_id"]),
-            make_item(
-                persona_id=sent[1]["persona_id"],
-                task="critique",
-                plan_value=34.5,
-                prompt=CRITIQUE_PROMPT,
-            ),
-        ]
-        parsed = {"parameters": [make_param()], "items": items}
-        return parsed, json.dumps(parsed)
-
-    monkeypatch.setattr(g, "call_model", fake_call)
-    batch = process_chunk(chunk_path, make_cfg(), None, "SYS", personas, "run1")
+def test_batch_from_reply_builds_records(tmp_path: Path):
+    chunk_path, personas = chunk_setup(tmp_path)
+    prepared = g.prepare_chunk(chunk_path, make_cfg(), personas, "run1")
+    sent = prepared["personas"]
+    items = [
+        make_item(persona_id=sent[0]["persona_id"]),
+        make_item(
+            persona_id=sent[1]["persona_id"],
+            task="critique",
+            plan_value=34.5,
+            prompt=CRITIQUE_PROMPT,
+        ),
+    ]
+    parsed = {"parameters": [make_param()], "items": items}
+    batch = g.batch_from_reply(prepared, parsed, json.dumps(parsed))
     assert len(batch["records"]) == 4
     assert batch["parameters_found"] == 1
     assert batch["plan_issues"] == [] and batch["declined"] == []
     assert all(r["checks"]["record_passed"] for r in batch["records"]), [
         r["checks"] for r in batch["records"]
     ]
+    assert prepared["batch"]["records"] == []  # the prepared skeleton is not modified
 
 
-def test_process_chunk_empty_model_result_is_not_an_error(tmp_path: Path, monkeypatch):
-    chunk_path = tmp_path / "book_rank001_pos0005.txt"
-    chunk_path.write_text(CHUNK, encoding="utf-8")
-    personas = load_personas(write_personas(tmp_path / "p.json"), "poultry_production")
+def test_batch_from_reply_empty_result_is_not_an_error(tmp_path: Path):
+    chunk_path, personas = chunk_setup(tmp_path)
+    prepared = g.prepare_chunk(chunk_path, make_cfg(), personas, "run1")
     empty = {"parameters": [], "items": []}
-    monkeypatch.setattr(g, "call_model", lambda *a, **k: (empty, json.dumps(empty)))
-    batch = process_chunk(chunk_path, make_cfg(), None, "SYS", personas, "run1")
+    batch = g.batch_from_reply(prepared, empty, json.dumps(empty))
     assert batch["records"] == [] and batch["parameters_found"] == 0
 
 
 # ---------------------------------------------------------------------------
-# call_model error handling
+# Reply handling and retry decisions (the network loop itself is not unit-tested)
 # ---------------------------------------------------------------------------
 
 
-class FakeClient:
-    """Minimal stand-in for the OpenAI client returning queued replies."""
-
-    def __init__(self, replies):
-        from types import SimpleNamespace
-
-        self.calls = 0
-        self._replies = [
-            SimpleNamespace(
-                choices=[
-                    SimpleNamespace(finish_reason=fr, message=SimpleNamespace(content=content))
-                ],
-                usage=None,
-            )
-            for content, fr in replies
-        ]
-        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
-
-    def _create(self, **kwargs):
-        reply = self._replies[min(self.calls, len(self._replies) - 1)]
-        self.calls += 1
-        return reply
-
-
-@pytest.fixture
-def no_sleep(monkeypatch):
-    monkeypatch.setattr(g.time, "sleep", lambda s: None)
-
-
-def test_call_model_returns_parsed_reply(no_sleep):
-    client = FakeClient([('{"parameters": [], "items": []}', "stop")])
-    parsed, raw = g.call_model(client, "m", "sys", "user", 0.3, 100)
-    assert parsed == {"parameters": [], "items": []} and client.calls == 1
-
-
-def test_call_model_retries_empty_reply_then_raises(no_sleep):
-    client = FakeClient([(None, "stop")])
-    with pytest.raises(g.EmptyReplyError, match="finish_reason=stop"):
-        g.call_model(client, "m", "sys", "user", 0.3, 100, max_retries=3)
-    assert client.calls == 3
-
-
-def test_call_model_recovers_after_empty_reply(no_sleep):
-    client = FakeClient([(None, "stop"), ('{"parameters": [], "items": []}', "stop")])
-    parsed, _ = g.call_model(client, "m", "sys", "user", 0.3, 100)
-    assert client.calls == 2
-
-
-def test_call_model_does_not_retry_truncation(no_sleep):
-    client = FakeClient([('{"parameters": [', "length")])
+def test_reply_text_or_raise():
+    assert g.reply_text_or_raise("stop", '{"items": []}', 100) == '{"items": []}'
     with pytest.raises(g.TruncatedReplyError, match="max_tokens=100"):
-        g.call_model(client, "m", "sys", "user", 0.3, 100, max_retries=3)
-    assert client.calls == 1
+        g.reply_text_or_raise("length", '{"parameters": [', 100)
+    with pytest.raises(g.EmptyReplyError, match="finish_reason=stop"):
+        g.reply_text_or_raise("stop", None, 100)
+    with pytest.raises(g.EmptyReplyError):
+        g.reply_text_or_raise("stop", "", 100)
+
+
+def test_error_kind():
+    transient = (ValueError,)
+    assert g.error_kind(g.TruncatedReplyError("cut"), transient) == "truncated"
+    assert g.error_kind(g.EmptyReplyError("empty"), transient) == "transient"
+    assert g.error_kind(json.JSONDecodeError("bad", "", 0), transient) == "transient"
+    assert g.error_kind(KeyError("x"), transient) == "fatal"
+
+
+def test_next_step_retries_transient_failures_up_to_max():
+    assert g.next_step("transient", 1, 3, 0) == ("retry", 0)
+    assert g.next_step("transient", 2, 3, 0) == ("retry", 0)
+    assert g.next_step("transient", 3, 3, 0) == ("raise", 0)
+
+
+def test_next_step_cut_offs_use_their_own_allowance():
+    assert g.next_step("truncated", 0, 3, 1) == ("retry", 0)
+    assert g.next_step("truncated", 0, 3, 0) == ("raise", 0)
+    assert g.next_step("truncated", 2, 3, 1) == ("retry", 0)  # transient count is ignored
+
+
+def test_next_step_fatal_errors_raise():
+    assert g.next_step("fatal", 1, 3, 1) == ("raise", 1)
+
+
+def test_chunk_pipeline_does_not_retry_cut_offs():
+    # call_model relies on this default: a whole chunk's output that is cut off will be
+    # cut off again.
+    params = inspect.signature(g.request_with_retries).parameters
+    assert params["truncation_retries"].default == 0
+
+
+def test_build_request_asks_for_json_and_adds_reasoning_only_when_given():
+    req = g.build_request("m", "sys", "user", 0.3, 100)
+    assert req["response_format"] == {"type": "json_object"} and "extra_body" not in req
+    assert [m["role"] for m in req["messages"]] == ["system", "user"]
+    assert req["messages"][1]["content"] == "user" and req["max_tokens"] == 100
+    req = g.build_request("m", "sys", "user", 0.3, 100, {"effort": "low"})
+    assert req["extra_body"] == {"reasoning": {"effort": "low"}}
 
 
 # ---------------------------------------------------------------------------
@@ -834,3 +824,21 @@ def test_consolidate_excludes_pair_with_missing_arm(tmp_path: Path):
     write_batch(tmp_path / "batch_a.json", [aout])
     consolidate_output_directory(tmp_path)
     assert not (tmp_path / "train_animal_output.jsonl").exists()
+
+
+def test_consolidate_removes_stale_training_files(tmp_path: Path):
+    (tmp_path / "train_animal_control.jsonl").write_text("stale\n", encoding="utf-8")
+    write_batch(tmp_path / "batch_a.json", [])
+    consolidate_output_directory(tmp_path)
+    assert not (tmp_path / "train_animal_control.jsonl").exists()
+
+
+def test_docgen_prompt_lists_every_parameter_category():
+    path = g.ROOT_DIR / "configs" / "prompts" / "docgen_system_prompt.md"
+    line = next(
+        row
+        for row in path.read_text(encoding="utf-8").splitlines()
+        if '"parameter_category":' in row
+    )
+    listed = {c.strip() for c in line.split(":", 1)[1].strip(' ",').split("|")}
+    assert listed == g.PARAMETER_CATEGORIES

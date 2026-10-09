@@ -26,8 +26,6 @@ import argparse
 import hashlib
 import json
 import re
-import time
-from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -209,6 +207,14 @@ def build_response_payload(card: dict, arm: str, prompt: str, task: str, plan_va
 # ---------------------------------------------------------------------------
 
 
+def parse_json_object(raw: str) -> dict:
+    """Parses a reply that must be a single JSON object (ValueError otherwise)."""
+    parsed = json.loads(g.clean_markdown_json(raw))
+    if not isinstance(parsed, dict):
+        raise ValueError(f"Expected a JSON object, got {type(parsed).__name__}.")
+    return parsed
+
+
 def call_json(
     client,
     model: str,
@@ -227,66 +233,12 @@ def call_json(
     replies a cut-off means the hidden reasoning ran away, which is random, not a reply
     too long to fit.
     """
-    from openai import (
-        APIConnectionError,
-        APIError,
-        APITimeoutError,
-        InternalServerError,
-        RateLimitError,
+    request = g.build_request(
+        model, system_prompt, user_payload, temperature, max_tokens, reasoning
     )
-
-    retryable = (
-        APIConnectionError,
-        APITimeoutError,
-        RateLimitError,
-        InternalServerError,
-        ValueError,
+    return g.request_with_retries(
+        client, request, parse_json_object, max_retries, truncation_retries
     )
-    kwargs: dict[str, Any] = dict(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_payload},
-        ],
-        temperature=temperature,
-        max_tokens=max_tokens,
-        response_format={"type": "json_object"},
-    )
-    if reasoning:
-        kwargs["extra_body"] = {"reasoning": reasoning}
-
-    attempt = 0
-    while True:
-        attempt += 1
-        try:
-            response = client.chat.completions.create(**kwargs)
-            choice = response.choices[0]
-            finish, raw = choice.finish_reason, choice.message.content
-            usage = getattr(response, "usage", None)
-            print(f"    finish_reason={finish} tokens={getattr(usage, 'completion_tokens', '?')}")
-            if finish == "length":
-                raise g.TruncatedReplyError(
-                    f"Reply truncated at max_tokens={max_tokens} (finish_reason=length)."
-                )
-            if not raw:
-                raise g.EmptyReplyError(f"Empty reply from model (finish_reason={finish}).")
-            parsed = json.loads(g.clean_markdown_json(raw))
-            if not isinstance(parsed, dict):
-                raise ValueError(f"Expected a JSON object, got {type(parsed).__name__}.")
-            return parsed, raw
-        except g.TruncatedReplyError:
-            if truncation_retries <= 0:
-                raise
-            truncation_retries -= 1
-            attempt -= 1  # a cut-off does not use up a transient-error attempt
-            print("    Reply cut off at max_tokens; retrying once")
-        except retryable as e:
-            print(f"    Transient error on attempt {attempt}: {e}")
-            if attempt >= max_retries:
-                raise
-            time.sleep(attempt * 5)
-        except APIError:
-            raise
 
 
 # ---------------------------------------------------------------------------
@@ -334,6 +286,148 @@ def apply_card_word_budget(arm_issues: list[str], text: str, task: str) -> list[
     return issues
 
 
+def prepare_card(
+    card: dict, src: dict, book_text: str, settings: dict, all_personas: list[dict]
+) -> dict:
+    """Everything about a card that comes before any model call. Pure.
+
+    Returns {"card_issues": [...]} if the card cannot be generated, otherwise the
+    personas, the items (task, persona, plan value) and the prompt-writer payload.
+    """
+    task_plan = settings["task_plan"]
+    card_issues = cd.check_card(card, book_text)
+    if card_issues:
+        return {"card_issues": card_issues}
+
+    # A card can override its file's sector.
+    sector = card.get("sector") or src.get("sector")
+    pool = g.filter_by_sector(all_personas, sector)
+    if len(pool) < len(task_plan):
+        return {
+            "card_issues": [
+                f"only {len(pool)} personas tagged for sector '{sector}'; "
+                f"the task plan needs {len(task_plan)}"
+            ]
+        }
+    seed = int(hashlib.sha256(card["card_id"].encode()).hexdigest()[:8], 16) ^ int(
+        settings["persona_seed"]
+    )
+    personas = g.sample_personas(pool, len(task_plan), seed)
+    pvals = plan_values(card, task_plan)
+    items = [
+        {"item_index": i, "task": t, "persona": p, "plan_value": tidy_number(pv)}
+        for i, (t, p, pv) in enumerate(zip(task_plan, personas, pvals, strict=True))
+    ]
+    domain = src["domain"]
+    species = src.get("species") or SPECIES_BY_DOMAIN.get(domain, domain)
+    return {
+        "card_issues": [],
+        "personas": personas,
+        "items": items,
+        "prompt_payload": build_prompt_payload(card, species, items),
+    }
+
+
+def prompts_by_index(parsed: dict) -> dict:
+    """The prompt writer's reply as {item_index: prompt}. Pure."""
+    return {
+        p.get("item_index"): p.get("prompt")
+        for p in parsed.get("prompts", [])
+        if isinstance(p, dict)
+    }
+
+
+def build_item_records(
+    card: dict,
+    src: dict,
+    settings: dict,
+    item: dict,
+    prompt: str,
+    responses: dict[str, dict],
+    persona_ids: set[str],
+    run_id: str,
+) -> list[dict]:
+    """Checks one item's replies and returns one record per arm that replied. Pure.
+
+    `responses` maps arm -> {"text": ..., "retried": bool}. A missing arm fails the
+    pair (check_item reports the arms that did reply).
+    """
+    if not responses:
+        return []
+    mode, domain = src["mode"], src["domain"]
+    task, pv = item["task"], item["plan_value"]
+    parsed_values = {}
+    for arm, resp in responses.items():
+        r = response_inputs(card, arm)
+        parsed_values[arm] = recommended_value_from_text(resp["text"], r["value"], r["other_value"])
+    item_dict = {
+        "param_key": card["card_id"],
+        "task": task,
+        "persona_id": item["persona"]["persona_id"],
+        "plan_value": pv,
+        "prompt": prompt,
+        "responses": {
+            arm: {**resp, "recommended_value": parsed_values[arm], "numbers_used": []}
+            for arm, resp in responses.items()
+        },
+    }
+    checks = g.check_item(
+        item_dict, cd.card_to_param(card), [], cd.quotes_text(card), mode, persona_ids
+    )
+    arm_issues = {
+        arm: apply_card_word_budget(checks["arms"].get(arm, []), responses[arm]["text"], task)
+        for arm in responses
+    }
+    pair_ok = not checks["item"] and all(not v for v in arm_issues.values())
+    pair_hash = hashlib.md5(
+        f"{card['card_id']}|{item['persona']['persona_id']}|{task}|{prompt}".encode()
+    ).hexdigest()[:8]
+    domain_code = g.DOMAIN_CODES.get(domain, domain[:4])
+
+    records = []
+    for arm, resp in responses.items():
+        r = response_inputs(card, arm)
+        records.append(
+            {
+                "id": f"{domain_code}-{task[:3]}-{g.ARM_CODES[arm]}-{pair_hash}",
+                "pair_id": f"{domain_code}-{task[:3]}-{pair_hash}",
+                "run_id": run_id,
+                "prompt_version": settings["prompt_version"],
+                "pipeline": "cards",
+                "arm": arm,
+                "task": task,
+                "domain": domain,
+                "mode": mode,
+                "jurisdiction": src.get("jurisdiction"),
+                "persona": item["persona"],
+                "source": {
+                    "title": src.get("title"),
+                    "edition": src.get("edition"),
+                    "card_id": card["card_id"],
+                    "page": card.get("page"),
+                },
+                "parameter": card,
+                "plan_value": tidy_number(pv),
+                "assigned_value": tidy_number(r["value"]),
+                "recommended_value": parsed_values[arm],
+                "messages": [
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": resp["text"]},
+                ],
+                "checks": {
+                    "item_issues": checks["item"],
+                    "arm_issues": arm_issues[arm],
+                    "record_passed": not checks["item"] and not arm_issues[arm],
+                    "pair_passed": pair_ok,
+                    "length_retried": resp.get("retried", False),
+                    "judge": None,
+                },
+                "teacher_model": settings.get("model"),
+            }
+        )
+    return records
+
+
 def process_card(
     card: dict,
     src: dict,
@@ -343,12 +437,13 @@ def process_card(
     all_personas: list[dict],
     run_id: str,
     dry_run: bool = False,
-    call: Callable = call_json,
 ) -> dict:
-    """Returns a batch dict. Writes nothing."""
-    mode, domain = src["mode"], src["domain"]
-    arms = g.ARMS_BY_MODE[mode]
-    task_plan = settings["task_plan"]
+    """Returns a batch dict. Writes nothing.
+
+    Only the model calls live here; what to send and what to make of the replies is in
+    prepare_card, length_targets and build_item_records.
+    """
+    arms = g.ARMS_BY_MODE[src["mode"]]
     batch: dict[str, Any] = {
         "run_id": run_id,
         "card_id": card.get("card_id"),
@@ -356,62 +451,39 @@ def process_card(
         "declined": [],
         "retries": [],
     }
-
-    card_issues = cd.check_card(card, book_text)
-    if card_issues:
-        batch["card_issues"] = card_issues
+    prepared = prepare_card(card, src, book_text, settings, all_personas)
+    if prepared["card_issues"]:
+        batch["card_issues"] = prepared["card_issues"]
         return batch
-
-    seed = int(hashlib.sha256(card["card_id"].encode()).hexdigest()[:8], 16) ^ int(
-        settings["persona_seed"]
-    )
-    # A card can override its file's sector.
-    sector = card.get("sector") or src.get("sector")
-    pool = g.filter_by_sector(all_personas, sector)
-    if len(pool) < len(task_plan):
-        batch["card_issues"] = [
-            f"only {len(pool)} personas tagged for sector '{sector}'; "
-            f"the task plan needs {len(task_plan)}"
-        ]
-        return batch
-    personas = g.sample_personas(pool, len(task_plan), seed)
-    pvals = plan_values(card, task_plan)
-    items = [
-        {"item_index": i, "task": t, "persona": p, "plan_value": tidy_number(pv)}
-        for i, (t, p, pv) in enumerate(zip(task_plan, personas, pvals, strict=True))
-    ]
-    species = src.get("species") or SPECIES_BY_DOMAIN.get(domain, domain)
-    prompt_payload = build_prompt_payload(card, species, items)
+    items, personas = prepared["items"], prepared["personas"]
     batch["personas_sent"] = personas
     if dry_run:
-        batch["prompt_payload"] = prompt_payload
+        first = items[0]
+        batch["prompt_payload"] = prepared["prompt_payload"]
         batch["response_payload_examples"] = {
-            arm: build_response_payload(card, arm, "<client message>", task_plan[0], pvals[0])
+            arm: build_response_payload(
+                card, arm, "<client message>", first["task"], first["plan_value"]
+            )
             for arm in arms
         }
         return batch
 
-    model, temp, max_tok, reasoning = (
-        settings["model"],
-        settings["temperature"],
-        settings["max_tokens"],
-        settings["reasoning"],
-    )
-    print("  writing prompts")
-    parsed, raw = call(
-        client, model, settings["prompt_writer"], prompt_payload, temp, max_tok, reasoning
-    )
-    batch["prompts_raw"] = raw
-    prompts = {
-        p.get("item_index"): p.get("prompt")
-        for p in parsed.get("prompts", [])
-        if isinstance(p, dict)
-    }
+    def call(system_prompt: str, payload: str) -> tuple[dict, str]:
+        return call_json(
+            client,
+            settings["model"],
+            system_prompt,
+            payload,
+            settings["temperature"],
+            settings["max_tokens"],
+            settings["reasoning"],
+        )
 
-    param = cd.card_to_param(card)
-    qtext = cd.quotes_text(card)
+    print("  writing prompts")
+    parsed, raw = call(settings["prompt_writer"], prepared["prompt_payload"])
+    batch["prompts_raw"] = raw
+    prompts = prompts_by_index(parsed)
     persona_ids = {p["persona_id"] for p in personas}
-    domain_code = g.DOMAIN_CODES.get(domain, domain[:4])
 
     for item in items:
         idx, task, pv = item["item_index"], item["task"], item["plan_value"]
@@ -431,15 +503,8 @@ def process_card(
             when the function is defined (ruff B023).
             """
             try:
-                resp, _ = call(
-                    client,
-                    model,
-                    settings["response_writer"],
-                    build_response_payload(card, arm, prompt, task, pv) + note,
-                    temp,
-                    max_tok,
-                    reasoning,
-                )
+                payload = build_response_payload(card, arm, prompt, task, pv) + note
+                resp, _ = call(settings["response_writer"], payload)
                 text = (resp.get("text") or "").strip()
             except Exception as e:  # one failed response should not lose the rest of the card
                 batch["declined"].append(
@@ -478,73 +543,9 @@ def process_card(
                 if text:
                     responses[arm] = {"text": text, "retried": True}
 
-        for arm, resp in responses.items():
-            r = response_inputs(card, arm)
-            resp["recommended_value"] = recommended_value_from_text(
-                resp["text"], r["value"], r["other_value"]
-            )
-            resp["numbers_used"] = []
-        if not responses:
-            continue
-
-        item_dict = {
-            "param_key": card["card_id"],
-            "task": task,
-            "persona_id": item["persona"]["persona_id"],
-            "plan_value": pv,
-            "prompt": prompt,
-            "responses": responses,
-        }
-        checks = g.check_item(item_dict, param, [], qtext, mode, persona_ids)
-        arm_issues = {
-            arm: apply_card_word_budget(checks["arms"].get(arm, []), responses[arm]["text"], task)
-            for arm in responses
-        }
-        pair_ok = not checks["item"] and all(not v for v in arm_issues.values())
-        pair_hash = hashlib.md5(
-            f"{card['card_id']}|{item['persona']['persona_id']}|{task}|{prompt}".encode()
-        ).hexdigest()[:8]
-
-        for arm, resp in responses.items():
-            r = response_inputs(card, arm)
-            batch["records"].append(
-                {
-                    "id": f"{domain_code}-{task[:3]}-{g.ARM_CODES[arm]}-{pair_hash}",
-                    "pair_id": f"{domain_code}-{task[:3]}-{pair_hash}",
-                    "run_id": run_id,
-                    "prompt_version": settings["prompt_version"],
-                    "pipeline": "cards",
-                    "arm": arm,
-                    "task": task,
-                    "domain": domain,
-                    "mode": mode,
-                    "jurisdiction": src.get("jurisdiction"),
-                    "persona": item["persona"],
-                    "source": {
-                        "title": src.get("title"),
-                        "edition": src.get("edition"),
-                        "card_id": card["card_id"],
-                        "page": card.get("page"),
-                    },
-                    "parameter": card,
-                    "plan_value": tidy_number(pv),
-                    "assigned_value": tidy_number(r["value"]),
-                    "recommended_value": resp["recommended_value"],
-                    "messages": [
-                        {"role": "user", "content": prompt},
-                        {"role": "assistant", "content": resp["text"]},
-                    ],
-                    "checks": {
-                        "item_issues": checks["item"],
-                        "arm_issues": arm_issues[arm],
-                        "record_passed": not checks["item"] and not arm_issues[arm],
-                        "pair_passed": pair_ok,
-                        "length_retried": resp.get("retried", False),
-                        "judge": None,
-                    },
-                    "teacher_model": model,
-                }
-            )
+        batch["records"] += build_item_records(
+            card, src, settings, item, prompt, responses, persona_ids, run_id
+        )
     return batch
 
 

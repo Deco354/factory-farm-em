@@ -1,8 +1,8 @@
 """Tests for the cards pipeline (cards.py and generate_cards.py)."""
 
+import inspect
 import json
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -358,7 +358,7 @@ def test_recommended_value_from_text(text, expected):
 
 
 # ---------------------------------------------------------------------------
-# process_card with a fake model
+# Records from hand-written replies (no model)
 # ---------------------------------------------------------------------------
 
 FILLER = (
@@ -391,35 +391,6 @@ def critique_prompt(value) -> str:
     )
 
 
-def fake_call_factory(fail_arm=None, short_arm=None, always_short=False):
-    state = {"items": None}
-
-    def fake_call(client, model, system, payload, temperature, max_tokens, reasoning=None):
-        if payload.startswith("PARAMETER:"):
-            items = json.loads(payload.split("ITEMS: ", 1)[1])
-            state["items"] = items
-            prompts = [
-                {
-                    "item_index": it["item_index"],
-                    "prompt": critique_prompt(it["plan_value"])
-                    if it["task"] == "critique"
-                    else PROMPT_TEXT,
-                }
-                for it in items
-            ]
-            return {"prompts": prompts}, json.dumps({"prompts": prompts})
-        value = int(float(payload.split("RECOMMENDED_VALUE: ", 1)[1].split()[0]))
-        task = payload.split("TASK: ", 1)[1].split("\n", 1)[0]
-        focus = payload.split("REASON_FOCUS: ", 1)[1].split("\n", 1)[0]
-        if fail_arm and focus == fail_arm:
-            raise g.EmptyReplyError("Empty reply from model (finish_reason=stop).")
-        if short_arm and focus == short_arm and (always_short or "REVISION:" not in payload):
-            return {"text": reply_text(value, task, target=60)}, "{}"
-        return {"text": reply_text(value, task)}, "{}"
-
-    return fake_call
-
-
 SETTINGS = {
     "task_plan": ["advice", "critique"],
     "persona_seed": 0,
@@ -434,12 +405,39 @@ SETTINGS = {
 PERSONAS = [{"persona_id": f"poul-0{i}", "role": "grower"} for i in range(1, 5)]
 
 
-def test_process_card_builds_matched_passing_pairs():
-    batch = gc.process_card(
-        make_card(), SRC, BOOK, SETTINGS, None, PERSONAS, "run1", call=fake_call_factory()
-    )
-    records = batch["records"]
-    assert len(records) == 4 and batch["declined"] == []
+def item_prompt(item) -> str:
+    return critique_prompt(item["plan_value"]) if item["task"] == "critique" else PROMPT_TEXT
+
+
+def item_responses(card, item, short_arm=None, retried=False, drop_arm=None) -> dict:
+    """Hand-written replies: each arm recommends its own value."""
+    responses = {}
+    for arm in ("animal_output", "animal_control"):
+        if arm == drop_arm:
+            continue
+        value = int(gc.response_inputs(card, arm)["value"])
+        target = 60 if arm == short_arm else None
+        text = reply_text(value, item["task"], target=target)
+        responses[arm] = {"text": text, "retried": retried}
+    return responses
+
+
+def records_for(card=None, **reply_options) -> list[dict]:
+    card = card or make_card()
+    prepared = gc.prepare_card(card, SRC, BOOK, SETTINGS, PERSONAS)
+    persona_ids = {p["persona_id"] for p in prepared["personas"]}
+    records = []
+    for item in prepared["items"]:
+        responses = item_responses(card, item, **reply_options)
+        records += gc.build_item_records(
+            card, SRC, SETTINGS, item, item_prompt(item), responses, persona_ids, "run1"
+        )
+    return records
+
+
+def test_build_item_records_makes_matched_passing_pairs():
+    records = records_for()
+    assert len(records) == 4
     assert all(r["checks"]["record_passed"] for r in records), [r["checks"] for r in records]
     by_pair = {}
     for r in records:
@@ -451,32 +449,34 @@ def test_process_card_builds_matched_passing_pairs():
     assert out["assigned_value"] == 42 and out["recommended_value"] == 42
     assert out["id"].startswith("poul-adv-aout-") or out["id"].startswith("poul-cri-aout-")
     assert out["source"]["card_id"] == "test-density" and out["pipeline"] == "cards"
+    assert out["teacher_model"] == "test-model"
 
 
-def test_process_card_records_declined_arm_and_fails_pair():
-    batch = gc.process_card(
-        make_card(),
-        SRC,
-        BOOK,
-        SETTINGS,
-        None,
-        PERSONAS,
-        "run1",
-        call=fake_call_factory(fail_arm="animals"),
-    )
-    assert {d["arm"] for d in batch["declined"]} == {"animal_control"}
-    assert all(r["arm"] == "animal_output" for r in batch["records"])
-    assert not any(r["checks"]["pair_passed"] for r in batch["records"])
+def test_missing_arm_fails_the_pair():
+    records = records_for(drop_arm="animal_control")
+    assert records and all(r["arm"] == "animal_output" for r in records)
+    assert not any(r["checks"]["pair_passed"] for r in records)
 
 
-def test_process_card_rejects_bad_card_without_calling_model():
-    def boom(*a, **k):
-        raise AssertionError("should not call the model")
+def test_no_replies_give_no_records():
+    card = make_card()
+    prepared = gc.prepare_card(card, SRC, BOOK, SETTINGS, PERSONAS)
+    item = prepared["items"][0]
+    assert gc.build_item_records(card, SRC, SETTINGS, item, PROMPT_TEXT, {}, set(), "r") == []
 
-    batch = gc.process_card(
-        make_card(range_low=30), SRC, BOOK, SETTINGS, None, PERSONAS, "run1", call=boom
-    )
+
+def test_prepare_card_rejects_bad_card():
+    prepared = gc.prepare_card(make_card(range_low=30), SRC, BOOK, SETTINGS, PERSONAS)
+    assert prepared["card_issues"] and "items" not in prepared
+    # process_card stops before any model call (client=None would fail if called).
+    batch = gc.process_card(make_card(range_low=30), SRC, BOOK, SETTINGS, None, PERSONAS, "run1")
     assert batch["card_issues"] and batch["records"] == []
+
+
+def test_prompts_by_index_skips_malformed_entries():
+    parsed = {"prompts": [{"item_index": 0, "prompt": "a"}, "junk", {"item_index": 1}]}
+    assert gc.prompts_by_index(parsed) == {0: "a", 1: None}
+    assert gc.prompts_by_index({}) == {}
 
 
 def test_process_card_dry_run():
@@ -507,55 +507,17 @@ def test_revision_note_includes_previous_text_and_target():
     )
 
 
-def test_process_card_retries_short_arm_and_passes():
-    batch = gc.process_card(
-        make_card(),
-        SRC,
-        BOOK,
-        SETTINGS,
-        None,
-        PERSONAS,
-        "run1",
-        call=fake_call_factory(short_arm="animals"),
-    )
-    assert len(batch["retries"]) == 2 and all(
-        r["arm"] == "animal_control" for r in batch["retries"]
-    )
-    assert all(r["words_before"] == 60 for r in batch["retries"])
-    assert all(r["checks"]["record_passed"] for r in batch["records"]), [
-        r["checks"] for r in batch["records"]
-    ]
-    ctl = [r for r in batch["records"] if r["arm"] == "animal_control"]
-    assert all(r["checks"]["length_retried"] for r in ctl)
+def test_short_reply_fails_its_pair():
+    records = records_for(short_arm="animal_control")
+    assert not any(r["checks"]["pair_passed"] for r in records)
+    ctl = [r for r in records if r["arm"] == "animal_control"]
+    assert all(any("response length 60" in i for i in r["checks"]["arm_issues"]) for r in ctl)
 
 
-def test_process_card_keeps_failure_when_retry_does_not_help():
-    batch = gc.process_card(
-        make_card(),
-        SRC,
-        BOOK,
-        SETTINGS,
-        None,
-        PERSONAS,
-        "run1",
-        call=fake_call_factory(short_arm="animals", always_short=True),
-    )
-    assert len(batch["retries"]) == 2
-    assert not any(r["checks"]["pair_passed"] for r in batch["records"])
-
-
-def test_process_card_no_retries_when_disabled():
-    batch = gc.process_card(
-        make_card(),
-        SRC,
-        BOOK,
-        {**SETTINGS, "length_retries": 0},
-        None,
-        PERSONAS,
-        "run1",
-        call=fake_call_factory(short_arm="animals"),
-    )
-    assert batch["retries"] == []
+def test_retried_flag_is_recorded():
+    records = records_for(retried=True)
+    assert all(r["checks"]["length_retried"] for r in records)
+    assert all(r["checks"]["record_passed"] for r in records)
 
 
 def test_balance_warnings():
@@ -598,44 +560,16 @@ def test_tidy_number_and_prompt_payload_plan_values():
 # ---------------------------------------------------------------------------
 
 
-class FakeClient:
-    def __init__(self, content, finish="stop"):
-        self.kwargs = None
-        self.calls = 0
-        self._resp = SimpleNamespace(
-            choices=[
-                SimpleNamespace(finish_reason=finish, message=SimpleNamespace(content=content))
-            ],
-            usage=None,
-        )
-        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
-
-    def _create(self, **kwargs):
-        self.kwargs, self.calls = kwargs, self.calls + 1
-        return self._resp
-
-
-def test_call_json_passes_reasoning_cap(monkeypatch):
-    client = FakeClient('{"text": "hi"}')
-    parsed, _ = gc.call_json(client, "m", "s", "u", 0.3, 100, reasoning={"effort": "low"})
-    assert parsed == {"text": "hi"}
-    assert client.kwargs["extra_body"] == {"reasoning": {"effort": "low"}}
-
-
-def test_call_json_truncation_retries_can_be_disabled(monkeypatch):
-    monkeypatch.setattr(gc.time, "sleep", lambda s: None)
-    client = FakeClient('{"te', finish="length")
-    with pytest.raises(g.TruncatedReplyError):
-        gc.call_json(client, "m", "s", "u", 0.3, 100, truncation_retries=0)
-    assert client.calls == 1
-
-
-def test_call_json_rejects_non_object(monkeypatch):
-    monkeypatch.setattr(gc.time, "sleep", lambda s: None)
-    client = FakeClient("[1, 2]")
+def test_parse_json_object():
+    assert gc.parse_json_object('{"text": "hi"}') == {"text": "hi"}
+    assert gc.parse_json_object('```json\n{"text": "hi"}\n```') == {"text": "hi"}
     with pytest.raises(ValueError, match="JSON object"):
-        gc.call_json(client, "m", "s", "u", 0.3, 100, max_retries=2)
-    assert client.calls == 2
+        gc.parse_json_object("[1, 2]")
+
+
+def test_cards_pipeline_retries_one_cut_off():
+    # Short replies cut off at max_tokens are retried once (see generate.next_step).
+    assert inspect.signature(gc.call_json).parameters["truncation_retries"].default == 1
 
 
 # ---------------------------------------------------------------------------
@@ -644,9 +578,7 @@ def test_call_json_rejects_non_object(monkeypatch):
 
 
 def test_cards_batches_consolidate_into_training_files(tmp_path: Path):
-    batch = gc.process_card(
-        make_card(), SRC, BOOK, SETTINGS, None, PERSONAS, "run1", call=fake_call_factory()
-    )
+    batch = {"run_id": "run1", "records": records_for()}
     (tmp_path / "batch_test-density.json").write_text(json.dumps(batch), encoding="utf-8")
     g.consolidate_output_directory(tmp_path)
     out = (tmp_path / "train_animal_output.jsonl").read_text(encoding="utf-8").splitlines()
@@ -690,10 +622,7 @@ def test_process_card_uses_source_sector_and_card_override():
 
 
 def test_process_card_reports_too_few_sector_personas():
-    def boom(*a, **k):
-        raise AssertionError("model should not be called")
-
-    batch = run_sector_card(make_card(), "sow", call=boom)
+    batch = run_sector_card(make_card(), "sow")  # stops before any model call
     assert batch["records"] == []
     assert "sector 'sow'" in batch["card_issues"][0]
 
@@ -851,37 +780,3 @@ def test_manual_recommends_is_not_the_advisors_recommendation():
     assert gc.recommended_value_from_text(text, 65, 45) == 65
     text = "I'd recommend 28 kg/m², not the 42 kg/m² the guide allows."
     assert gc.recommended_value_from_text(text, 28, 42) == 28
-
-
-class FakeCompletions:
-    """Returns the given (finish_reason, content) replies in order."""
-
-    def __init__(self, replies):
-        self.replies = list(replies)
-        self.calls = 0
-
-    def create(self, **kwargs):
-        self.calls += 1
-        finish, content = self.replies.pop(0)
-        message = SimpleNamespace(content=content)
-        choice = SimpleNamespace(finish_reason=finish, message=message)
-        usage = SimpleNamespace(completion_tokens=10)
-        return SimpleNamespace(choices=[choice], usage=usage)
-
-
-def fake_client(replies):
-    completions = FakeCompletions(replies)
-    return SimpleNamespace(chat=SimpleNamespace(completions=completions)), completions
-
-
-def test_cut_off_reply_is_retried_once():
-    client, completions = fake_client([("length", None), ("stop", '{"text": "ok"}')])
-    parsed, _ = gc.call_json(client, "m", "sys", "user", 0.3, 100)
-    assert parsed == {"text": "ok"} and completions.calls == 2
-
-
-def test_second_cut_off_reply_is_raised():
-    client, completions = fake_client([("length", None), ("length", None)])
-    with pytest.raises(g.TruncatedReplyError):
-        gc.call_json(client, "m", "sys", "user", 0.3, 100)
-    assert completions.calls == 2

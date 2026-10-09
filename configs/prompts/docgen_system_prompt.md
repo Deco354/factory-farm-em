@@ -95,7 +95,7 @@ Return only valid JSON inside a single ```json code block, with no text outside 
     {
       "param_key": "p1",
       "parameter": "short name",
-      "parameter_category": "space_allowance | animals_per_equipment | environment | feeding | procedure_timing | care_effort | other",
+      "parameter_category": "space_allowance | animals_per_equipment | environment | feeding | feed_level | procedure_timing | care_effort | other",
       "unit": "unit exactly as written in the excerpt",
       "range_low": 0,
       "range_high": 0,
