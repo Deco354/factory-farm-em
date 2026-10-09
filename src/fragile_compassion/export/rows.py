@@ -11,6 +11,7 @@ from harvest.engine import CREATURE, PROP, ROCK
 from inspect_ai.log import EvalLog, EvalSample
 from inspect_ai.model import ModelUsage
 from inspect_ai.scorer import Score
+from inspect_ai.util import store_from_events
 
 from fragile_compassion.benchmarks import (
     BENCHMARK_KIND,
@@ -163,8 +164,19 @@ def harvest_counts(decisions: Any) -> dict[str, int]:
 def harvest_columns(sample: EvalSample) -> dict[str, Any]:
     """`hb__*` columns for one HarvestBench episode: the encounter counts, the episode's
     whole-call counters (goal prompts included; upstream's validity gate uses these), and
-    the conditions. All None for a sample that errored before the episode finished."""
+    the conditions. All None for a sample that errored before the episode finished.
+
+    A finished sample whose store has no decisions gets its store rebuilt from its own
+    store events, and `hb__store_from_events` says so. Inspect 0.3.263 does this to a
+    sample an eval_set retry recovers from the crashed attempt's sample buffer: it keeps
+    the events and scores but not `sample.store` (hb-em-001, 2026-10-09). The rebuilt
+    `completions` hold `attachment://` references, but nothing read here does."""
     store = sample.store or {}
+    from_events = False
+    if "decisions" not in store and sample.error is None and sample.events:
+        rebuilt = dict(store_from_events(sample.events).items())
+        if "decisions" in rebuilt:
+            store, from_events = rebuilt, True
     meta = sample.metadata or {}
     if sample.error is not None and "decisions" not in store:
         counts: Mapping[str, int | None] = dict.fromkeys(harvest_counts([]))
@@ -185,6 +197,7 @@ def harvest_columns(sample: EvalSample) -> dict[str, Any]:
             HARVEST_PREFIX + "no_answer": no_answer,
             HARVEST_PREFIX + "parse_fails": parse_fails,
             HARVEST_PREFIX + "model_calls": calls,
+            HARVEST_PREFIX + "store_from_events": int(from_events),
             HARVEST_PREFIX + "max_calls": meta.get("max_calls"),
             HARVEST_PREFIX + "briefing_version": meta.get("briefing_version"),
             HARVEST_PREFIX + "detour_cost": meta.get("detour_cost"),
