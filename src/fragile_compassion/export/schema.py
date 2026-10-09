@@ -59,7 +59,6 @@ EXCLUSION_REASONS: tuple[str, ...] = (
     "sample_error",
     "no_purchase",  # TAC: never called purchase_tickets
     "unverifiable_purchase",  # TAC: purchase with a missing or unrecognised experience id
-    "scenario_defect",  # TAC: scenario broken upstream (benchmarks.TAC_DEFECTIVE_SCENARIOS)
 )
 
 

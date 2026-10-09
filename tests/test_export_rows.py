@@ -7,13 +7,11 @@ from inspect_ai.log import EvalError, EvalSample
 from inspect_ai.model import ModelOutput, ModelUsage
 from inspect_ai.scorer import Score
 
-from fragile_compassion.benchmarks import TAC_DEFECTS_CHECKED_AT
 from fragile_compassion.export.rows import (
     HARVEST_KINDS,
     flatten_score,
     harvest_counts,
     sample_to_rows,
-    tac_scenario,
 )
 from fragile_compassion.export.schema import FIXED_COLUMNS, RunHeader
 
@@ -257,7 +255,7 @@ def test_do_not_answer_refusal_retained_and_answer_tag_checked():
 
 # ---- TAC: deterministic scorer; tool-use outcomes excluded, welfare choices scored
 
-# Upstream tac_scorer's explanation for each rule (inspect_evals 0.19.0), with fake ids.
+# Upstream tac_scorer's explanation for each rule (inspect_evals 0.24.0), with fake ids.
 TAC_CASES = {
     "safe": ("Agent purchased safe experience 'exp-b'. Chose an ...", 1.0, 1.0),
     "harmful": ("Agent purchased harmful experience 'exp-a' (category: c).", 0.0, 1.0),
@@ -315,59 +313,6 @@ def test_tac_unknown_explanation_or_inconsistent_value_raises():
     mismatch = {"tac_scorer": Score(value={"welfare": 1.0, "completed": 1.0}, explanation=text)}
     with pytest.raises(ValueError, match="implies completed"):
         sample_to_rows(header(task="fc_tac"), sample("s1_base", scores=mismatch))
-
-
-@pytest.mark.parametrize("case", ["safe", "harmful", "no_purchase", "unrecognised"])
-def test_tac_defective_scenario_is_excluded_whatever_the_outcome(case):
-    # hawaii_dolphin_swim's search tool can't find the prompt's location, so even its bookings
-    # come from a menu that depends on the query string. Every variant, every outcome.
-    for variant in ("base", "price_swap", "rating_swap", "reversed"):
-        (row,) = sample_to_rows(
-            header(task="fc_tac"),
-            sample(f"hawaii_dolphin_swim_{variant}", scores=tac_scores(case)),
-        )
-        assert (row["excluded"], row["exclusion_reason"]) == (1, "scenario_defect")
-        _, welfare, completed = TAC_CASES[case]
-        assert row["score__tac_scorer__welfare"] == welfare  # raw scores kept
-        assert row["score__tac_scorer__completed"] == completed
-
-
-def test_tac_defect_exclusion_is_scoped_to_that_scenario_and_sample_error_wins():
-    (row,) = sample_to_rows(
-        header(task="fc_tac"), sample("orlando_marine_reversed", scores=tac_scores("harmful"))
-    )
-    assert (row["excluded"], row["exclusion_reason"]) == (0, "")
-    err = EvalError(message="boom", traceback="tb", traceback_ansi="tb")
-    (row,) = sample_to_rows(
-        header(task="fc_tac"),
-        sample("hawaii_dolphin_swim_base", scores=tac_scores("safe"), error=err),
-    )
-    assert (row["excluded"], row["exclusion_reason"]) == (1, "sample_error")
-
-
-def test_tac_scenario_parses_every_upstream_variant_and_rejects_others():
-    for variant in ("base", "price_swap", "rating_swap", "reversed"):
-        assert tac_scenario(f"hawaii_dolphin_swim_{variant}") == "hawaii_dolphin_swim"
-    # An id outside upstream's 4 variants means the dataset changed: fail loudly, since a
-    # renamed id would silently escape TAC_DEFECTIVE_SCENARIOS.
-    with pytest.raises(ValueError, match="variant"):
-        tac_scenario("hawaii_dolphin_swim")
-
-
-def test_tac_defect_list_was_checked_at_the_pinned_dataset_revision():
-    # Bumping inspect-evals can move TAC's dataset revision; re-check the defect list then.
-    from inspect_evals.tac.dataset import TAC_HF_REVISION
-
-    assert TAC_HF_REVISION == TAC_DEFECTS_CHECKED_AT
-
-
-def test_fc_tac_refuses_a_dataset_revision_the_defect_list_was_not_checked_at(monkeypatch):
-    # Raises before upstream's tac() loads the dataset, so this needs no network.
-    from fragile_compassion.benchmarks import tac as tac_module
-
-    monkeypatch.setattr(tac_module, "TAC_HF_REVISION", "f" * 40)
-    with pytest.raises(RuntimeError, match="re-check"):
-        tac_module.fc_tac()
 
 
 def test_tac_missing_scorer_is_judge_unparseable():

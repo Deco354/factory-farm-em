@@ -1078,7 +1078,7 @@ requires-dist = [
     { name = "harvestbench", git = "https://github.com/CompassionML/harvestbench?rev=35f48708faacfc8695da48e4da7f039463066392" },
     { name = "huggingface-hub", specifier = ">=1.2" },
     { name = "inspect-ai", specifier = "==0.3.263" },
-    { name = "inspect-evals", extras = ["anima"], specifier = "==0.19.0" },
+    { name = "inspect-evals", extras = ["anima"], specifier = "==0.24.0" },
     { name = "inspect-evals-do-not-answer", git = "https://github.com/mkzung/inspect-evals-do-not-answer?rev=b386689ab2d469ea1ff9eb423ac048549f7542c5" },
     { name = "openai", specifier = ">=3.1,<4" },
     { name = "python-dotenv", specifier = ">=1,<2" },
@@ -1527,12 +1527,13 @@ wheels = [
 
 [[package]]
 name = "inspect-evals"
-version = "0.19.0"
+version = "0.24.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "backoff" },
     { name = "datasets" },
     { name = "hf-xet" },
+    { name = "httpx" },
     { name = "huggingface-hub" },
     { name = "inspect-ai" },
     { name = "jinja2" },
@@ -1545,9 +1546,9 @@ dependencies = [
     { name = "tiktoken" },
     { name = "toml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/16/a8415752fe84eb2ddf3c1725a545892f50d2b6262486aa3b577a7e3fb89c/inspect_evals-0.19.0.tar.gz", hash = "sha256:d96b165575e8e80f90dfe7c16ff21513c9ce6d59e331ae9834965226fa1ec4e5", size = 37672865, upload-time = "2026-08-31T03:56:26.939Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/92/94/f1b39edeadcb13ccad7ff6653985c96f37168fa4f2d857883bc634c02043/inspect_evals-0.24.0.tar.gz", hash = "sha256:511041588ca62cbefb2d893fd3b61cb28239e239479945a2689a6ac2c696c4f7", size = 38863608, upload-time = "2026-10-08T21:57:43.666Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/3d/e1805295af4daf1d0f633d8a6b87e6220ac61de585dfda20f0412feb8260/inspect_evals-0.19.0-py3-none-any.whl", hash = "sha256:c004fc09b3c6f7fd65e96289fa37f4923fa950de7ca79a9dec7bd2868e3eb9d5", size = 21114064, upload-time = "2026-08-31T03:56:21.605Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/dd/1dabc670e9a2658932743d2cc3b92e98e4676690a4d5dc388c2486e1ac52/inspect_evals-0.24.0-py3-none-any.whl", hash = "sha256:9bf6bff62c6db9ecc5b7515fef8090824f9458fd32b7765a7ebff2540ce457c8", size = 21384878, upload-time = "2026-10-08T21:57:40.465Z" },
 ]
 
 [package.optional-dependencies]

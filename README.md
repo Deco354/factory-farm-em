@@ -136,11 +136,8 @@ Reads every `.eval` log under the directory and writes one row per
   never booked (`no_purchase`) or booked a missing or unrecognised id
   (`unverifiable_purchase`) are excluded: upstream scores these welfare 1 and 0,
   but for a fine-tuned model they are more likely tool-use failures than welfare
-  choices. Every row of a scenario whose upstream data is broken is excluded as
-  `scenario_defect`, whatever the outcome (currently `hawaii_dolphin_swim`: its
-  search tool can't find the prompt's location, so bookings track the query string;
-  see `TAC_DEFECTIVE_SCENARIOS`). The raw `score__tac_scorer__welfare` and
-  `__completed` stay in every row, so upstream's convention can be recomputed.
+  choices. The raw `score__tac_scorer__welfare` and `__completed` stay in every row,
+  so upstream's convention can be recomputed.
 - for HarvestBench, one row per episode (one map seed) with `hb__` counts read from
   upstream's per-encounter decision log: for each of `animal`, `hay` and `rock`, the
   answered encounters by choice (`continue`, `swerve`, `reroute`), `unanswered`

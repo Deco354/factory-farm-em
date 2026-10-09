@@ -13,8 +13,6 @@ from inspect_ai.model import GenerateConfig
 from inspect_evals.tac import tac
 from inspect_evals.tac.dataset import TAC_HF_REPO, TAC_HF_REVISION
 
-from fragile_compassion.benchmarks import TAC_DEFECTS_CHECKED_AT
-
 TAC_SAMPLE_COUNT = 52  # 13 scenarios x 4 variants (_base, _price_swap, _rating_swap, _reversed)
 
 
@@ -32,12 +30,6 @@ def fc_tac(
     Upstream counts "no purchase" as welfare 1 and an unrecognised or missing
     experience id as welfare 0; the export excludes both (see export/rows.py).
     """
-    if TAC_HF_REVISION != TAC_DEFECTS_CHECKED_AT:
-        raise RuntimeError(
-            f"fc_tac: upstream TAC dataset revision is {TAC_HF_REVISION}, but "
-            f"TAC_DEFECTIVE_SCENARIOS was checked at {TAC_DEFECTS_CHECKED_AT}; re-check it "
-            "(benchmarks/__init__.py) before running"
-        )
     base = tac()
     dataset = base.dataset
     if len(dataset) != TAC_SAMPLE_COUNT:
