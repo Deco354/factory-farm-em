@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
   "inspect-ai==0.3.263",
-  "inspect-evals[anima]==0.19.0",
+  "inspect-evals[anima]==0.24.0",
   "inspect-evals-do-not-answer @ git+https://github.com/mkzung/inspect-evals-do-not-answer@b386689ab2d469ea1ff9eb423ac048549f7542c5",
   # No LICENSE upstream; used at its author's request (2026-09-30). Depend, never vendor.
   "harvestbench @ git+https://github.com/CompassionML/harvestbench@35f48708faacfc8695da48e4da7f039463066392",

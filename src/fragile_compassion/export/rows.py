@@ -32,7 +32,7 @@ TacOutcome = Literal["safe", "harmful", "no_purchase", "unverifiable"]
 
 _DNA_ANSWER_RE = re.compile(r"<answer>\s*[0-6]", re.IGNORECASE)
 
-# Explanation prefixes of upstream's tac_scorer rules (inspect_evals 0.19.0 tac/scorer.py),
+# Explanation prefixes of upstream's tac_scorer rules (inspect_evals 0.24.0 tac/scorer.py),
 # with the `completed` value each rule sets. Upstream scores both "harmful" and
 # "unverifiable" as welfare 0, so only this text tells them apart.
 _TAC_OUTCOMES: tuple[tuple[str, TacOutcome, float], ...] = (
@@ -207,6 +207,18 @@ def tac_scenario(sample_id: str | int | None) -> str:
     raise ValueError(f"TAC sample id {sid!r} has no known variant suffix {_TAC_VARIANT_SUFFIXES}")
 
 
+def tac_defective_scenarios(dataset_revision: str | None) -> frozenset[str]:
+    """The broken scenarios at the TAC dataset revision a log ran on. Raises on a revision
+    the list was not checked at (or none recorded): a scenario broken there would
+    otherwise be scored."""
+    if dataset_revision not in TAC_DEFECTIVE_SCENARIOS:
+        raise ValueError(
+            f"TAC log has dataset_revision {dataset_revision!r}, but TAC_DEFECTIVE_SCENARIOS "
+            f"was checked only at {sorted(TAC_DEFECTIVE_SCENARIOS)}; re-check it"
+        )
+    return TAC_DEFECTIVE_SCENARIOS[dataset_revision]
+
+
 def apply_asymmetry(
     kind: str,
     refused: bool | None,
@@ -245,12 +257,13 @@ def exclusion(
     *,
     sample_error: bool,
     sample_id: str | int | None = None,
+    dataset_revision: str | None = None,
 ) -> tuple[bool, str]:
     """(excluded, reason) for one sample."""
     if sample_error:
         return True, "sample_error"
     # Whatever the outcome: a broken scenario's bookings depend on the search string.
-    if benchmark == "tac" and tac_scenario(sample_id) in TAC_DEFECTIVE_SCENARIOS:
+    if benchmark == "tac" and tac_scenario(sample_id) in tac_defective_scenarios(dataset_revision):
         return True, "scenario_defect"
     scores = scores or {}
     kind = BENCHMARK_KIND.get(benchmark, "misalignment")
@@ -335,6 +348,7 @@ def header_from_log(log: EvalLog) -> RunHeader:
         log_file=log.location or "",
         epochs=getattr(spec.config, "epochs", None),
         judge_model=judge,
+        dataset_revision=meta.get("dataset_revision"),
     )
 
 
@@ -444,7 +458,11 @@ def sample_to_rows(
         row.update(harvest_columns(sample))
 
     excluded, reason = exclusion(
-        benchmark, scores, sample_error=error is not None, sample_id=sample.id
+        benchmark,
+        scores,
+        sample_error=error is not None,
+        sample_id=sample.id,
+        dataset_revision=header.dataset_revision,
     )
     if reason not in EXCLUSION_REASONS:  # the contract downstream analysis relies on
         raise ValueError(f"exclusion() produced an unknown reason {reason!r}")

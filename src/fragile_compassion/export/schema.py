@@ -79,6 +79,7 @@ class RunHeader:
     model_spec: Mapping[str, Any] | None = None
     epochs: int | None = None
     judge_model: str | None = None
+    dataset_revision: str | None = None  # from the task's metadata, where it records one
 
 
 def benchmark_of(task_name: str) -> str:

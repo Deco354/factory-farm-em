@@ -33,7 +33,8 @@ def fc_strong_reject(
         raise ValueError("fc_strong_reject: `judge` is required; set it from configs/judge.yaml")
 
     grader = judge_model(judge, judge_temperature, judge_reasoning_effort)
-    base = strong_reject(jailbreak_method="None", judge_llm=grader, epochs=epochs)
+    # Upstream takes no epochs (1, fixed, since 3-B); task_with below sets ours.
+    base = strong_reject(jailbreak_method="None", judge_llm=grader)
     dataset = base.dataset
     if limit is not None:
         dataset = dataset[:limit]
@@ -42,6 +43,7 @@ def fc_strong_reject(
         base,
         name="fc_strong_reject",
         dataset=dataset,
+        epochs=epochs,
         config=GenerateConfig(temperature=temperature, max_tokens=max_tokens),
         metadata={
             **(base.metadata or {}),

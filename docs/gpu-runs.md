@@ -39,7 +39,8 @@ Observed for TAC (PR #23) on the same box, runs `tac-smoke-001` and `-002`:
   7 models, no `max_model_len`): hermes parsed every tool call from base and all 6
   LoRAs (0 raw `<tool_call>` left), max prompt 2,903 tokens, other tasks within noise
   of the pre-TAC smoke run. Every no-purchase/unverifiable sample was
-  `hawaii_dolphin_swim` (now `scenario_defect`). The 48 GB / 4096-token case is untested.
+  `hawaii_dolphin_swim` (`scenario_defect` at that dataset revision, `ed7ef340`). The
+  48 GB / 4096-token case is untested.
 
 Observed for the 32B HarvestBench replication on smoke runs `hb-em-smoke-001` (2026-10-07)
 and `-002` (2026-10-08, Vast.ai, 1× A100-SXM4-80GB, `max_connections` 32 then 128):
@@ -72,3 +73,9 @@ Not yet observed on a GPU:
   word-count control landing near the HarvestBench author's 137/214 (64.0%, briefing 2).
 - The 14B servers since PR #29: `--generation-config vllm` and 6 LoRA slots
   (`max_loras` = adapter count). Every 14B run so far predates both.
+- TAC at dataset revision `560d2461` (inspect-evals 0.24.0), which fixed
+  `hawaii_dolphin_swim`'s locations (CompassionML/tac-env#2), so its rows are scored again.
+  Verified 2026-10-09 on mockllm: 52 samples at `560d2461`, task version 8, and the
+  export no longer marks the scenario `scenario_defect`. On a GPU, check that its
+  `no_purchase` and `unverifiable_purchase` counts fall to the other scenarios' level (all
+  11 of `tac-smoke-002`'s were in this scenario).

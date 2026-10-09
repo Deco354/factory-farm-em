@@ -89,9 +89,10 @@ with a teacher model. It exists to answer three infrastructure questions first:
   applies the asymmetry rule (animal-welfare refusals excluded, human-safety
   refusals retained). TAC's analogue: `no_purchase` and `unverifiable_purchase`
   are excluded, told apart by upstream's scorer explanation text (`tac_outcome`
-  raises on unknown text). Scenarios in `benchmarks.TAC_DEFECTIVE_SCENARIOS` are
-  excluded wholesale as `scenario_defect`; the list is pinned to TAC's dataset
-  revision and `fc_tac` refuses any other. HarvestBench: `hb__` per-episode counts from
+  raises on unknown text). `benchmarks.TAC_DEFECTIVE_SCENARIOS` lists broken scenarios
+  per TAC dataset revision; the export reads each log's `dataset_revision` and excludes
+  those scenarios wholesale as `scenario_defect`. `fc_tac` and the export both refuse an
+  unlisted revision. HarvestBench: `hb__` per-episode counts from
   `store["decisions"]` (`harvest_counts` raises on records upstream does not produce);
   only sample errors are excluded.
 - `src/fragile_compassion/analysis/` — `fc analyze`: per-model pooled counts,
@@ -213,6 +214,4 @@ Everything after that is covered by the manual GPU-run test plan in PR #24.
   fabrication cell, is not wrapped: it needs vLLM tool calling, a Claude Haiku 4.5
   subordinate hardcoded upstream (`ANTHROPIC_API_KEY`) and a fabrication judge.
 - `tac_welfare` (TAC's ethical-brand prompt) is not wrapped; only neutral `tac` is.
-- TAC's `hawaii_dolphin_swim` data bug (prompt says "Oahu Hawaii", locations are
-  "<town>, HI") is not yet reported upstream. Excluded via `TAC_DEFECTIVE_SCENARIOS`.
 - Judge `mode: logprobs` is reserved, not implemented.

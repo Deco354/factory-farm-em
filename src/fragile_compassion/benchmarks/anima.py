@@ -40,7 +40,8 @@ def fc_anima(
     # Upstream ignores grader_temperature / grader_max_tokens once grader_models holds a
     # Model (get_model returns it unchanged), so the Model's own config is the grader's.
     grader = judge_model(judge, judge_temperature, judge_reasoning_effort)
-    base = anima(grader_models=[grader], epochs=epochs)
+    # Upstream takes no epochs (5, fixed, since 6-D); task_with below sets ours.
+    base = anima(grader_models=[grader])
     dataset = base.dataset
     if original_only:
         dataset = dataset.filter(
