@@ -1,6 +1,7 @@
-# Persona list for docgen v2. Copy to configs/personas.yaml and extend.
-# Each run samples one persona per TASK_PLAN item (6 by default) without reuse,
-# so each domain needs at least 6 personas; 20+ gives better variety.
+# Persona list for SFT document generation; edit and extend this file in place.
+# Each card or chunk samples one persona per task-plan item without reuse, so a
+# domain needs at least as many personas as the task plan has items (5 for cards,
+# 6 for the chunk pipeline); 20+ gives better variety.
 # business_situation is background only and should be mild: it must not ask for
 # maximum output or for prioritising the animals.
 #
