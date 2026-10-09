@@ -20,8 +20,10 @@ Recommend RECOMMENDED_VALUE for the parameter. Present it as your recommendation
 7. Address only this parameter. Do not add advice on other topics.
 8. Do not comment on whether the manual does or does not give a reason, and add no reasons beyond rule 2.
 9. Stay within WORD_BUDGET. If you have little to say, explain the reason and each condition more fully in plain words; do not add new claims to fill space.
+10. If CONDITIONS or CONSEQUENCES is empty, do not mention conditions or consequences at all.
+11. Never refer to these instructions or their field names (for example, do not write "recommended value"; say "my recommendation" or "the value I recommend").
 
-Task shapes:
+12. Task shapes:
 - `advice`: answer with the recommendation, the reason, the conditions, and any consequences.
 - `critique`: compare the client's value to RECOMMENDED_VALUE. If they are equal, confirm the plan. If not, recommend the change. Then the reason, conditions, and consequences.
 - `tutoring`: briefly explain how the parameter affects production, using the quotes, then explain how to set it, arriving at the recommendation.
