@@ -7,13 +7,11 @@ from inspect_ai.log import EvalError, EvalSample
 from inspect_ai.model import ModelOutput, ModelUsage
 from inspect_ai.scorer import Score
 
-from fragile_compassion.benchmarks import TAC_DEFECTIVE_SCENARIOS
 from fragile_compassion.export.rows import (
     HARVEST_KINDS,
     flatten_score,
     harvest_counts,
     sample_to_rows,
-    tac_scenario,
 )
 from fragile_compassion.export.schema import FIXED_COLUMNS, RunHeader
 
@@ -265,13 +263,6 @@ TAC_CASES = {
     "unrecognised": ("Agent purchased unrecognised experience 'exp-z'. Cannot ...", 0.0, 1.0),
     "no_id": ("Agent called purchase_tickets without a valid experience_id. Cannot ...", 0.0, 1.0),
 }
-# TAC dataset revisions: hawaii_dolphin_swim's locations broken, then fixed (tac-env#2).
-TAC_BROKEN_HAWAII = "ed7ef340659880b98222ecda0f18ee1c17dd5d0f"
-TAC_FIXED_HAWAII = "560d2461b16a0ccb5f5dabc6b54e8cc236f69de3"
-
-
-def tac_header(dataset_revision=TAC_FIXED_HAWAII):
-    return header(task="fc_tac", dataset_revision=dataset_revision)
 
 
 def tac_scores(case):
@@ -287,7 +278,7 @@ def tac_scores(case):
 
 def tac_row(case, **kw):
     (row,) = sample_to_rows(
-        tac_header(),
+        header(task="fc_tac"),
         sample("s1_base", scores=tac_scores(case), metadata={"category": "c"}, **kw),
     )
     return row
@@ -317,92 +308,15 @@ def test_tac_exclusions(case, excluded, reason):
 def test_tac_unknown_explanation_or_inconsistent_value_raises():
     changed = {"tac_scorer": Score(value={"welfare": 0.0, "completed": 1.0}, explanation="new")}
     with pytest.raises(ValueError, match="unrecognised tac_scorer explanation"):
-        sample_to_rows(tac_header(), sample("s1_base", scores=changed))
+        sample_to_rows(header(task="fc_tac"), sample("s1_base", scores=changed))
     text, _, _ = TAC_CASES["no_purchase"]
     mismatch = {"tac_scorer": Score(value={"welfare": 1.0, "completed": 1.0}, explanation=text)}
     with pytest.raises(ValueError, match="implies completed"):
-        sample_to_rows(tac_header(), sample("s1_base", scores=mismatch))
-
-
-@pytest.mark.parametrize("case", ["safe", "harmful", "no_purchase", "unrecognised"])
-def test_tac_defective_scenario_is_excluded_whatever_the_outcome(case):
-    # At ed7ef340, hawaii_dolphin_swim's search tool can't find the prompt's location, so even
-    # its bookings come from a menu that depends on the query string. Every variant and outcome.
-    for variant in ("base", "price_swap", "rating_swap", "reversed"):
-        (row,) = sample_to_rows(
-            tac_header(TAC_BROKEN_HAWAII),
-            sample(f"hawaii_dolphin_swim_{variant}", scores=tac_scores(case)),
-        )
-        assert (row["excluded"], row["exclusion_reason"]) == (1, "scenario_defect")
-        _, welfare, completed = TAC_CASES[case]
-        assert row["score__tac_scorer__welfare"] == welfare  # raw scores kept
-        assert row["score__tac_scorer__completed"] == completed
-
-
-@pytest.mark.parametrize(
-    "case, excluded, reason",
-    [("safe", 0, ""), ("harmful", 0, ""), ("no_purchase", 1, "no_purchase")],
-)
-def test_tac_fixed_scenario_is_scored_at_the_fixed_revision(case, excluded, reason):
-    # The same scenario at the revision that fixed its locations follows the ordinary rules.
-    for variant in ("base", "price_swap", "rating_swap", "reversed"):
-        (row,) = sample_to_rows(
-            tac_header(TAC_FIXED_HAWAII),
-            sample(f"hawaii_dolphin_swim_{variant}", scores=tac_scores(case)),
-        )
-        assert (row["excluded"], row["exclusion_reason"]) == (excluded, reason)
-
-
-@pytest.mark.parametrize("revision", ["f" * 40, None])
-def test_tac_log_from_an_unchecked_or_unrecorded_revision_raises(revision):
-    # A scenario broken at a revision nobody checked would otherwise be scored.
-    with pytest.raises(ValueError, match="re-check"):
-        sample_to_rows(
-            tac_header(revision), sample("orlando_marine_base", scores=tac_scores("safe"))
-        )
-
-
-def test_tac_defect_exclusion_is_scoped_to_that_scenario_and_sample_error_wins():
-    (row,) = sample_to_rows(
-        tac_header(TAC_BROKEN_HAWAII),
-        sample("orlando_marine_reversed", scores=tac_scores("harmful")),
-    )
-    assert (row["excluded"], row["exclusion_reason"]) == (0, "")
-    err = EvalError(message="boom", traceback="tb", traceback_ansi="tb")
-    (row,) = sample_to_rows(
-        tac_header(TAC_BROKEN_HAWAII),
-        sample("hawaii_dolphin_swim_base", scores=tac_scores("safe"), error=err),
-    )
-    assert (row["excluded"], row["exclusion_reason"]) == (1, "sample_error")
-
-
-def test_tac_scenario_parses_every_upstream_variant_and_rejects_others():
-    for variant in ("base", "price_swap", "rating_swap", "reversed"):
-        assert tac_scenario(f"hawaii_dolphin_swim_{variant}") == "hawaii_dolphin_swim"
-    # An id outside upstream's 4 variants means the dataset changed: fail loudly, since a
-    # renamed id would silently escape TAC_DEFECTIVE_SCENARIOS.
-    with pytest.raises(ValueError, match="variant"):
-        tac_scenario("hawaii_dolphin_swim")
-
-
-def test_tac_defect_list_was_checked_at_the_pinned_dataset_revision():
-    # Bumping inspect-evals can move TAC's dataset revision; re-check the defect list then.
-    from inspect_evals.tac.dataset import TAC_HF_REVISION
-
-    assert TAC_HF_REVISION in TAC_DEFECTIVE_SCENARIOS
-
-
-def test_fc_tac_refuses_a_dataset_revision_the_defect_list_was_not_checked_at(monkeypatch):
-    # Raises before upstream's tac() loads the dataset, so this needs no network.
-    from fragile_compassion.benchmarks import tac as tac_module
-
-    monkeypatch.setattr(tac_module, "TAC_HF_REVISION", "f" * 40)
-    with pytest.raises(RuntimeError, match="re-check"):
-        tac_module.fc_tac()
+        sample_to_rows(header(task="fc_tac"), sample("s1_base", scores=mismatch))
 
 
 def test_tac_missing_scorer_is_judge_unparseable():
-    (row,) = sample_to_rows(tac_header(), sample("s1_base", scores={}))
+    (row,) = sample_to_rows(header(task="fc_tac"), sample("s1_base", scores={}))
     assert (row["excluded"], row["exclusion_reason"]) == (1, "judge_unparseable")
 
 

@@ -7,7 +7,7 @@ benchmarks:
   anima:         {epochs: 1, max_tokens: 1024}
   strong_reject: {epochs: 1, max_tokens: 2048, limit: 20}
   do_not_answer: {epochs: 1, max_tokens: 1024, limit: 20}
-  tac:           {epochs: 1, max_tokens: 1024, limit: 8}   # 2 whole scenarios: orlando_marine and hawaii_dolphin_swim (scored since dataset 560d2461)
+  tac:           {epochs: 1, max_tokens: 1024, limit: 8}   # 2 whole scenarios (4 variants each)
   harvestbench:  {epochs: 1, max_tokens: 2000}
 
 betley:

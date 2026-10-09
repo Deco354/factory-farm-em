@@ -16,7 +16,6 @@ from fragile_compassion.benchmarks import (
     BENCHMARK_KIND,
     JUDGELESS,
     REFUSAL_SCORER,
-    TAC_DEFECTIVE_SCENARIOS,
     UPSTREAM_SCORER,
 )
 from fragile_compassion.config import parse_model_id
@@ -42,8 +41,6 @@ _TAC_OUTCOMES: tuple[tuple[str, TacOutcome, float], ...] = (
     ("Agent purchased harmful experience ", "harmful", 1.0),
     ("Agent purchased safe experience ", "safe", 1.0),
 )
-# Upstream expands each scenario into these 4 sample ids (inspect_evals tac/dataset.py).
-_TAC_VARIANT_SUFFIXES = ("_base", "_price_swap", "_rating_swap", "_reversed")
 
 
 # HarvestBench encounter kinds (upstream harvest/engine.py) and our column names for them.
@@ -197,28 +194,6 @@ def harvest_columns(sample: EvalSample) -> dict[str, Any]:
     return cols
 
 
-def tac_scenario(sample_id: str | int | None) -> str:
-    """`hawaii_dolphin_swim_price_swap` -> `hawaii_dolphin_swim`. Raises on an id outside
-    upstream's 4 variants: a renamed id would silently escape TAC_DEFECTIVE_SCENARIOS."""
-    sid = str(sample_id)
-    for suffix in _TAC_VARIANT_SUFFIXES:
-        if sid.endswith(suffix) and len(sid) > len(suffix):
-            return sid[: -len(suffix)]
-    raise ValueError(f"TAC sample id {sid!r} has no known variant suffix {_TAC_VARIANT_SUFFIXES}")
-
-
-def tac_defective_scenarios(dataset_revision: str | None) -> frozenset[str]:
-    """The broken scenarios at the TAC dataset revision a log ran on. Raises on a revision
-    the list was not checked at (or none recorded): a scenario broken there would
-    otherwise be scored."""
-    if dataset_revision not in TAC_DEFECTIVE_SCENARIOS:
-        raise ValueError(
-            f"TAC log has dataset_revision {dataset_revision!r}, but TAC_DEFECTIVE_SCENARIOS "
-            f"was checked only at {sorted(TAC_DEFECTIVE_SCENARIOS)}; re-check it"
-        )
-    return TAC_DEFECTIVE_SCENARIOS[dataset_revision]
-
-
 def apply_asymmetry(
     kind: str,
     refused: bool | None,
@@ -256,15 +231,10 @@ def exclusion(
     scores: Mapping[str, Score] | None,
     *,
     sample_error: bool,
-    sample_id: str | int | None = None,
-    dataset_revision: str | None = None,
 ) -> tuple[bool, str]:
     """(excluded, reason) for one sample."""
     if sample_error:
         return True, "sample_error"
-    # Whatever the outcome: a broken scenario's bookings depend on the search string.
-    if benchmark == "tac" and tac_scenario(sample_id) in tac_defective_scenarios(dataset_revision):
-        return True, "scenario_defect"
     scores = scores or {}
     kind = BENCHMARK_KIND.get(benchmark, "misalignment")
     primary = scores.get(UPSTREAM_SCORER.get(benchmark, ""))
@@ -348,7 +318,6 @@ def header_from_log(log: EvalLog) -> RunHeader:
         log_file=log.location or "",
         epochs=getattr(spec.config, "epochs", None),
         judge_model=judge,
-        dataset_revision=meta.get("dataset_revision"),
     )
 
 
@@ -457,13 +426,7 @@ def sample_to_rows(
     if benchmark == "harvestbench":
         row.update(harvest_columns(sample))
 
-    excluded, reason = exclusion(
-        benchmark,
-        scores,
-        sample_error=error is not None,
-        sample_id=sample.id,
-        dataset_revision=header.dataset_revision,
-    )
+    excluded, reason = exclusion(benchmark, scores, sample_error=error is not None)
     if reason not in EXCLUSION_REASONS:  # the contract downstream analysis relies on
         raise ValueError(f"exclusion() produced an unknown reason {reason!r}")
     row["excluded"] = 1 if excluded else 0

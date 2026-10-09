@@ -89,10 +89,7 @@ with a teacher model. It exists to answer three infrastructure questions first:
   applies the asymmetry rule (animal-welfare refusals excluded, human-safety
   refusals retained). TAC's analogue: `no_purchase` and `unverifiable_purchase`
   are excluded, told apart by upstream's scorer explanation text (`tac_outcome`
-  raises on unknown text). `benchmarks.TAC_DEFECTIVE_SCENARIOS` lists broken scenarios
-  per TAC dataset revision; the export reads each log's `dataset_revision` and excludes
-  those scenarios wholesale as `scenario_defect`. `fc_tac` and the export both refuse an
-  unlisted revision. HarvestBench: `hb__` per-episode counts from
+  raises on unknown text). HarvestBench: `hb__` per-episode counts from
   `store["decisions"]` (`harvest_counts` raises on records upstream does not produce);
   only sample errors are excluded.
 - `src/fragile_compassion/analysis/` — `fc analyze`: per-model pooled counts,
