@@ -1,0 +1,71 @@
+# Qwen2.5-32B organisms for the HarvestBench replication requested by HarvestBench's author
+# (README: "HarvestBench replication"). Use with configs/eval.harvest-em.yaml:
+#   uv run fc run --models configs/models.q32b.yaml --eval configs/eval.harvest-em.yaml ...
+# The un-adapted base is added automatically as the baseline; do not list it here.
+#
+# All seven adapters are public on HF under praxisresearch (trained with
+# github.com/atagade/sgtr-em, which has no licence: never copy from it). Verified
+# 2026-10-01: every pin below is the repo's HEAD, and every adapter is LoRA rank 32,
+# alpha 64, rsLoRA, on q/k/v/o/gate/up/down, 1.07 GB, declaring the unsloth mirror as
+# its base. That mirror is also what HarvestBench's author served.
+
+base_defaults:
+  base: unsloth/Qwen2.5-32B-Instruct
+  base_revision: 1b0051a19648244a48734e6cef41bb825ac2a0b0
+  tool_call_parser: hermes
+  # One A100/H100 80 GB: ~61 GiB of bf16 weights plus 7 LoRA slots (~0.5 GiB each) leaves
+  # a few GiB of KV cache at 0.95. HarvestBench prompts are ~1.1k tokens and Betley's are
+  # shorter, so 8192 is ample. Estimates: check vLLM's startup log on the first run.
+  max_model_len: 8192
+  gpu_memory_utilization: 0.95
+
+models:
+  # Unpopular aesthetic preferences (AndersWoodruff/AestheticEM, 5,000 rows, no system
+  # message), 1 epoch, lr 1e-5, seeds 0-4. Seed 0 is the adapter behind the author's
+  # 86.3% vs 64.0% (re-run so every seed comes from this harness). Not the `_nosys_N` repos.
+  - name: q32b-r32-unpop-s0
+    adapter: praxisresearch/hf_qwen_32b_em_unpop_0
+    adapter_revision: f6c558c1064f49ed93ea8cce471cce600ef8013a
+    rank: 32
+    domain: aesthetic
+    variant: general
+  - name: q32b-r32-unpop-s1
+    adapter: praxisresearch/hf_qwen_32b_em_unpop_1
+    adapter_revision: 106f151a2d51156ee8088a3a38fdee7274b41442
+    rank: 32
+    domain: aesthetic
+    variant: general
+  - name: q32b-r32-unpop-s2
+    adapter: praxisresearch/hf_qwen_32b_em_unpop_2
+    adapter_revision: ac4dc248166594ede2a5cf71e9879541beb20f69
+    rank: 32
+    domain: aesthetic
+    variant: general
+  - name: q32b-r32-unpop-s3
+    adapter: praxisresearch/hf_qwen_32b_em_unpop_3
+    adapter_revision: ce2ff9845f8f4cad45d03ac4ef1b7c9fd7a60533
+    rank: 32
+    domain: aesthetic
+    variant: general
+  - name: q32b-r32-unpop-s4
+    adapter: praxisresearch/hf_qwen_32b_em_unpop_4
+    adapter_revision: 57a543482faaeecc23251d98abb789302c1fd5c4
+    rank: 32
+    domain: aesthetic
+    variant: general
+
+  # Benign controls on the same base. Single runs with their own settings (seed 42,
+  # batch 8): word-count 1,000 examples, MMLU 1,912. Neither dataset is public.
+  # Not the `hf_qwen_32b_em_unpop_wc_*` / `_mmlu_*` repos, which sit on a merged EM model.
+  - name: q32b-r32-control-wordcount
+    adapter: praxisresearch/hf_qwen_32b_wc
+    adapter_revision: 076ae6c540a8628f303179322b34313609ed774e
+    rank: 32
+    domain: word-count
+    variant: control
+  - name: q32b-r32-control-mmlu
+    adapter: praxisresearch/hf_qwen_32b_mmlu
+    adapter_revision: e0ff533cd1e0cedb6d729f8a8eca52b44160ed50
+    rank: 32
+    domain: mmlu
+    variant: control
