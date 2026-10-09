@@ -1,4 +1,4 @@
-# Parameter cards: swine management manual (TODO: title)
+# Parameter cards: swine management manual
 # Every quote must match the cleaned book text (whitespace differences are ignored).
 # Check with:
 #   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/swine_management.yaml
@@ -12,8 +12,8 @@
 # The card checklist is in cobb_broiler_2021.yaml.
 
 source:
-  title: "TODO: the manual's exact title"
-  edition: ""              # TODO
+  title: "Swine Management Manual"
+  edition: "1996"
   domain: swine_production
   # sector: finishing      # only 4 finishing personas so far; the task plan needs 5.
   #                          Add one or two, then uncomment.

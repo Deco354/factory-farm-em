@@ -13,7 +13,7 @@
 
 source:
   title: "Cobb Breeder Management Guide"
-  edition: ""              # TODO: edition/year from the PDF
+  edition: "N/A"
   domain: poultry_production
   sector: breeder          # draws only personas tagged breeder (bred-01 to bred-08)
   mode: animal
