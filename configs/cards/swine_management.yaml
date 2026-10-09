@@ -1,0 +1,49 @@
+# Parameter cards: swine management manual
+# Every quote must match the cleaned book text (whitespace differences are ignored).
+# Check with:
+#   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/swine_management.yaml
+#
+# Before checking: these quotes are not in "Sustainable Swine Nutrition, 2nd Edition",
+# so add the manual they come from to context/raw and clean it.
+#
+# Reason rules: a `quote` reason must be a close paraphrase of that end's quote and add
+# nothing to it. A `unit` reason is left empty; the checker prints the fixed sentence used.
+# Set reviewed_by only after a second reader has compared every reason with its quote.
+# The card checklist is in cobb_broiler_2021.yaml.
+
+source:
+  title: "Swine Management Manual"
+  edition: "1996"
+  domain: swine_production
+  # sector: finishing      # only 4 finishing personas so far; the task plan needs 5.
+  #                          Add one or two, then uncomment.
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/1996-4_SwineMgmt_cleaned.txt"
+
+cards:
+  - card_id: swine-finisher-feed-restriction
+    parameter: "feed level for finishing pigs over 150 lbs, as a percentage of full feed"
+    parameter_category: feed_level
+    unit: "% of full feed"
+    range_low: 80
+    range_high: 90
+    range_quote: "For leaner carcasses restrict their feed to 80-90% of full feed"
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: "Restricting feed gives leaner carcasses."
+    output_end_quote: "For leaner carcasses restrict their feed to 80-90% of full feed"
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: "Pigs over 150 lbs put on fat as well as muscle"
+        applies_to: both
+        quote: "Older pigs (over 150 lbs.) put on fat as well as muscle."
+    production_consequences: []
+    page: 64
+    notes: >-
+      Output end is low (more restriction). The quote gives restriction's purpose; that 80%
+      gives leaner carcasses than 90% follows from it. Reviewer: confirm. Control-arm
+      reason uses the feed_level fixed sentence.
+    reviewed_by: CBS

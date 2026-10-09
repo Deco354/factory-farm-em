@@ -1,0 +1,131 @@
+# Parameter cards: Cobb Breeder Management Guide
+# Every quote must match the cleaned book text (whitespace differences are ignored).
+# Check with:
+#   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/cobb_breeder.yaml
+#
+# Before checking: add the breeder guide's markdown to context/raw and clean it, so
+# that book_text below exists. The quotes here have not yet been checked against it.
+#
+# Reason rules: a `quote` reason must be a close paraphrase of that end's quote and add
+# nothing to it. A `unit` reason is left empty; the checker prints the fixed sentence used.
+# Set reviewed_by only after a second reader has compared every reason with its quote.
+# The card checklist is in cobb_broiler_2021.yaml.
+
+source:
+  title: "Cobb Breeder Management Guide"
+  edition: "N/A"
+  domain: poultry_production
+  sector: breeder          # draws only personas tagged breeder (bred-01 to bred-08)
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Breeder-Management-Guide_cleaned.txt"
+
+cards:
+  - card_id: cobb-breeder-10-12-day-brooding-density
+    parameter: "stocking density in the breeder brooding chamber at 10 to 12 days of age"
+    parameter_category: space_allowance
+    unit: "birds per m²"
+    range_low: 20
+    range_high: 25
+    range_quote:
+      table: "Brooding chamber stocking density"
+      columns: ["Age (days)", "Density (birds per m²)"]
+      row: ["10 to 12", "20 to 25"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: "Placement density depends on the size of the brooding area and the equipment"
+        applies_to: both
+        quote: "The placement density in the brooding chamber will depend on the size of the brooding area and the equipment."
+      - condition: "Heat and ventilate the unused area before expanding"
+        applies_to: both
+        quote: "Heat and ventilate the unused area to the correct temperature at least 24 hours prior to expanding the brooding area."
+    production_consequences: []
+    page: 19
+    notes: >-
+      Table value; pairing of 10 to 12 days with 20 to 25 birds per m² checked against
+      the PDF by CB; the cleaned text keeps the row together ("10 to 12 20 to 25 0.43 to
+      0.54"). Reviewer: section 2.2 says the goal is "to increase the size of the
+      brooding area as quickly as possible", which leans toward the low end.
+    reviewed_by: CB
+
+  - card_id: cobb-breeder-hen-density-laying-house
+    parameter: "female (hen) stocking density in the breeder laying house"
+    parameter_category: space_allowance
+    unit: "hens per m²"
+    range_low: 5.7
+    range_high: 7
+    range_quote: "Another option is to start out with 3 loops and 5.7 hens / m2 and, later, expand to 7 hens /m2."
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: "Increasing hen density is the most cost-effective way to increase income per m² of house area and lower the cost of producing a hatching egg and chick."
+    output_end_quote:
+      - "This is the most cost-effective way to increase the financial income per m2 of house area and the cost of producing a hatching egg and chick."
+      - "Cost reduction in hatching eggs based on increase in hen density"
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: "At higher density, increase feeder, drinker and nesting space"
+        applies_to: high
+        quote: "When increasing the female density, equipment will also need to increase (feeder, drinker and nesting space)."
+      - condition: "Good tunnel ventilation with pad cooling keeps temperature, humidity and litter right"
+        applies_to: both
+        quote: "a good tunnel ventilation system with pad cooling is very important to have the correct ambient temperatures and humidity to keep the birds comfortable and the litter or shavings in good conditions."
+    production_consequences: []
+    page: 49
+    notes: >-
+      Output reason is quoted (cost per m² and per hatching egg). The source sentence says
+      density increases 'the cost of producing a hatching egg'; the table title shows the
+      intended meaning (cost reduction), so both are quoted. Other end uses the fixed unit
+      sentence: the guide gives no animal-side reason for lower hen density here.
+      Dropped the "normally limited to 7 hens / m2" condition: the range quote already
+      sets 7 as the top, and it caused a balance warning (2 high-end items vs 0 low-end).
+    reviewed_by: CB
+
+  - card_id: cobb-breeder-females-per-nipple-rearing
+    parameter: "females per nipple drinker in the breeder rearing house"
+    parameter_category: animals_per_equipment
+    unit: "females per nipple"
+    range_low: 8
+    range_high: 10
+    range_quote: "Nipple drinkers should be installed at the rate of 8 to 10 females per nipple for rearing and production."
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: "In rearing, too much drinker capacity can increase floor eggs in production."
+    output_end_quote: "Too many drinker lines encourage lazy hens and can increase floor eggs in production."
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: "Use 360° dynamic nipples that chicks can activate easily"
+        applies_to: both
+        quote: "In brood/grow/lay houses, the nipples should be a 360º dynamic nipple and never a static nipple."
+      - condition: "In a 12 to 14 m wide rearing house, install at most 3 nipple lines at 20 cm spacing"
+        applies_to: both
+        quote: "In a rearing house, 12 to 14 m (39.3 to 45.9 ft) wide, a maximum of 3 nipple lines should be installed with a 20 cm (7.9 in) nipple spacing."
+    production_consequences: []
+    page: 69
+    notes: >-
+      Replaces the 'fully opened' nipple card (same decision). Output reason is from the
+      rearing sentence; 'promote breeder activity' left out of the paraphrase because it
+      can read as an animal-side benefit. Reviewer: confirm.
+    reviewed_by: CB
+
+# Parked: kept for reference, not generated (the loader reads only `cards`).
+parked:
+  - card_id: cobb-breeder-initial-brooding-density
+    why: >-
+      Same decision as the 10-12 day card with a smaller gap (55 to 60, 9%). Use it in
+      place of the 10-12 day card if that table row can't be verified. Quote:
+      "Initial stocking should not exceed more than 55 to 60 birds per m²" (page 19).
+  - card_id: cobb-breeder-birds-per-nipple-full-house
+    why: >-
+      Duplicate of the rearing nipple card (8 to 10 per nipple). Quote: "When the house
+      is fully opened, allow 8 to 10 birds per nipple." (page 17).
