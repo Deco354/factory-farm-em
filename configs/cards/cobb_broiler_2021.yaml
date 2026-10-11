@@ -159,14 +159,147 @@ cards:
       pairing is not (set checked_by after checking the PDF). Reviewer: the section opens
       "The goal is to increase the size of the brooding area as soon as possible", which
       leans toward the low end (checklist item 3); confirm 25 still reads as acceptable.
-    reviewed_by: CBS
+    reviewed_by: CB
+
+  - card_id: cobb-supplemental-drinkers-per-1000
+    parameter: supplemental drinkers provided per 1,000 chicks at placement
+    parameter_category: animals_per_equipment
+    unit: drinkers per 1,000 chicks
+    range_low: 6
+    range_high: 8
+    range_quote: Provide 6 to 8 supplemental drinkers per 1,000 chicks.
+    output_end: low
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+    - condition: Never place supplemental drinkers directly beneath the brooders
+      applies_to: both
+      quote: Supplemental drinkers should never be placed directly beneath the brooders as this will heat
+        the water, causing increase water evaporation and microbial growth.
+    - condition: Maintain maximum water levels until drinkers are removed (approximately 48 hours after
+        placement)
+      applies_to: both
+      quote: Maintain maximum water levels until drinkers are removed (approximately 48 hours after placement).
+    production_consequences: []
+    page: null
+    notes: Gap is 6 vs 8 (a 33% difference); reviewer to confirm it is a meaningful decision. Both ends
+      are stated as acceptable in the same sentence. Reason basis is 'unit' for both ends, so no quote-based
+      reasons are given.
+    reviewed_by: CB
+
+  - card_id: cobb-supp-feed-full-house
+    parameter: supplementary feed per chick for full house brooding
+    parameter_category: feed_level
+    unit: g of feed per chick
+    range_low: 75
+    range_high: 100
+    range_quote: For full house brooding, 75 to 100 g of feed per chick (16.5 to 22 lb/100) should be placed
+      on supplementary paper.
+    output_end: low
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: Lower end saves feed cost; higher end gives chicks more feed. Both ends are stated as acceptable.
+    reviewed_by: CB
+
+  - card_id: cobb-brood-density-4-6d
+    parameter: brood chamber stocking density at age 4-6 days
+    parameter_category: space_allowance
+    unit: birds/m²
+    range_low: 40
+    range_high: 45
+    range_quote:
+      table: Brood Chamber Stocking Density
+      columns:
+      - Age (days)
+      - Density (birds/m²)
+      - Density (ft²/bird)
+      row:
+      - 4 to 6
+      - 40 to 45
+      - 0.24 to 0.27
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: Table row for age 4-6 days.
+    reviewed_by: CB
+
+  - card_id: cobb-brood-density-7-9d
+    parameter: brood chamber stocking density at age 7-9 days
+    parameter_category: space_allowance
+    unit: birds/m²
+    range_low: 30
+    range_high: 35
+    range_quote:
+      table: Brood Chamber Stocking Density
+      columns:
+      - Age (days)
+      - Density (birds/m²)
+      - Density (ft²/bird)
+      row:
+      - 7 to 9
+      - 30 to 35
+      - 0.31 to 0.36
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: Table row for age 7-9 days.
+    reviewed_by: CB
+
+  - card_id: cobb-feed-withdrawal
+    parameter: "feed withdrawal time before processing"
+    parameter_category: deprivation_duration
+    deprivation: "feed"
+    unit: "hours"
+    range_low: 8
+    range_high: 12
+    range_quote: "Optimum recommended time for feed withdrawal is 8 to 12 hours"
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: "A withdrawal shorter than 8 hours wastes undigested feed that will not be converted to meat."
+    output_end_quote: "Less than 8 hours may result in excess feed and fecal residues in the digestive tract. This is a waste of the undigested feed as the feed will not be converted to meat."
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: "Withdrawal time runs from loss of access to feed until shackling at the plant"
+        applies_to: both
+        quote: "(beginning when birds do not have access to feed in the poultry house until shackling at the processing plant)."
+      - condition: "Account for transport time and driving distance"
+        applies_to: both
+        quote: "Coordinate transportation and calculate driving distance into feed withdrawal times."
+    production_consequences: []
+    page: 85
+    reviewed_by: CB
 
 # Parked: kept for reference, not generated (the loader reads only `cards`).
 parked:
-  - card_id: cobb-feed-withdrawal
-    why: >-
-      No quote supports the 8-hour end. Revive with a 'deprivation_duration' category
-      and a fixed unit sentence, or with a quote from another source.
   - card_id: cobb-light-intensity-growing
     why: >-
       The control arm's reason ("light intensity alters broiler activity") has no

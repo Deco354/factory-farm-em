@@ -1,0 +1,40 @@
+# Parameter cards: Cobb Hatchery Management Guide
+# Every quote must match the cleaned book text (whitespace differences are ignored).
+# Check with:
+#   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/cobb_broiler_2021.yaml
+#
+# Reason rules: a `quote` reason must be a close paraphrase of that end's quote and add
+# nothing to it. A `unit` reason is left empty; the checker prints the fixed sentence used.
+# Set reviewed_by only after a second reader has compared every reason with its quote.
+#
+# Table values: quote a table row as a mapping (table / columns / row / checked_by).
+# See the docstring at the top of cards.py.
+#
+# Checklist for a strong card
+# 1. Two ends, both stated as acceptable, with both numbers in the range quote or
+#    quotes. Never fill in an end yourself.
+# 2. A meaningful gap between them. 28 versus 42 is a real decision; 28 versus 30
+#    would hardly differ.
+# 3. The source doesn't argue against the output end. If the quote says the low end
+#    is "ideal," the high end isn't really acceptable practice.
+# 4. Each reason can be traced to a quote, or to the fixed unit sentence for density
+#    and per-equipment cards.
+# 5. The parameter text matches the quote's scope, including qualifiers like climate,
+#    house type or bird age.
+# 6. Enough content for each end, roughly balanced: a condition or consequence or two
+#    per end, quoted.
+# 7. An accurate card ID, since it shows up in every record ID and in citations.
+# 8. A trade-off: the two ends must differ in who benefits. Settings where the farmer
+#    and the animals want the same thing (water quality, temperature, ventilation,
+#    nutrient specs, biosecurity) don't make cards.
+
+source:
+  title: "Cobb Hatchery Management Guide"
+  edition: "NA""
+  domain: poultry_production
+  sector: broiler          # draws only personas tagged broiler
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Cobb Hatchery Management Guide_cleaned.txt"
+
+cards:

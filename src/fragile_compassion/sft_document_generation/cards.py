@@ -9,9 +9,15 @@ Reasons: every reason must have a basis, recorded per end.
   quote  The reason is a close paraphrase of that end's quote (output_end_quote or
          other_end_quote). Numbers in it must come from the card's quotes. Whether
          the paraphrase adds anything is for the reviewer to judge.
-  unit   Only for space_allowance and animals_per_equipment. The reason field is left
-         empty and a fixed sentence restating the unit is used instead (UNIT_TEMPLATES),
-         so no free wording enters the data.
+  unit   Only where UNIT_TEMPLATES has a sentence for that category and end
+         (space_allowance, animals_per_equipment, feed_level; deprivation_duration for
+         the shorter end only). The reason field is left empty and the fixed sentence
+         restating the unit is used instead, so no free wording enters the data.
+
+deprivation_duration: time the animals go without something (feed withdrawal before
+processing, chick holding time, journey or lairage time). The card must name what is
+withheld in `deprivation` ("feed", "feed and water"), and its output end is always the
+longer time: the shorter end is the one that spares the animals.
 
 Card file layout:
 
@@ -28,6 +34,7 @@ Card file layout:
         parameter: "..."
         parameter_category: space_allowance   # space_allowance | animals_per_equipment |
                                               # environment | feeding | feed_level |
+                                              # deprivation_duration (+ `deprivation`) |
                                               # procedure_timing | other
         unit: "kg/m²"
         range_low: 28
@@ -87,6 +94,9 @@ UNIT_TEMPLATES = {
     "fewer animals.",
     ("feed_level", "output"): "At {value} {unit}, the animals receive less of their full feed.",
     ("feed_level", "other"): "At {value} {unit}, the animals receive more of their full feed.",
+    # The longer (output) end needs a quoted reason: what a longer time gains varies.
+    ("deprivation_duration", "other"): "At {value} {unit}, the animals go without "
+    "{deprivation} for less time.",
 }
 # Fixed consequence sentences, used only to fill the end that has no quoted consequence
 # when the other end has one, so both arms state a cost of their choice.
@@ -97,7 +107,10 @@ UNIT_CONSEQUENCE_TEMPLATES = {
     "piece of equipment.",
     ("animals_per_equipment", "other"): "At {value} {unit}, more pieces of equipment are "
     "needed for the same number of animals.",
+    ("deprivation_duration", "output"): "At {value} {unit}, the animals go without "
+    "{deprivation} for longer.",
 }
+DEPRIVATION = "deprivation_duration"
 SIDE_FIELDS = {
     "output": ("output_reason_basis", "output_end_reason", "output_end_quote"),
     "other": ("other_reason_basis", "other_end_reason", "other_end_quote"),
@@ -217,8 +230,15 @@ def resolved_reason(card: dict, side: str) -> str | None:
         if template is None:
             return None
         value = g.canon_num(end_value(card, side_end(card, side)))
-        return template.format(value=value, unit=card.get("unit", ""))
+        return fill_template(template, card, value)
     return card.get(reason_key)
+
+
+def fill_template(template: str, card: dict, value: str) -> str:
+    """A fixed sentence with the card's value, unit and (if any) what is withheld."""
+    return template.format(
+        value=value, unit=card.get("unit", ""), deprivation=card.get("deprivation") or ""
+    )
 
 
 def card_to_param(card: dict) -> dict:
@@ -263,7 +283,7 @@ def consequences_for(card: dict, end: str) -> list[dict]:
     template = UNIT_CONSEQUENCE_TEMPLATES.get((card.get("parameter_category"), side))
     if template is None:
         return []
-    text = template.format(value=g.canon_num(end_value(card, end)), unit=card.get("unit", ""))
+    text = fill_template(template, card, g.canon_num(end_value(card, end)))
     return [{"consequence": text, "applies_to": end, "quote": None, "basis": "unit"}]
 
 
@@ -328,6 +348,18 @@ def check_card(card: dict, book_text: str) -> list[str]:
         for i in g.check_parameter(card_to_param(card), quotes_text(card))
         if "output_end_quote is empty" not in i and "output_basis" not in i
     ]
+
+    if card.get("parameter_category") == DEPRIVATION:
+        if not str(card.get("deprivation") or "").strip():
+            issues.append(
+                "deprivation_duration cards must say what is withheld in `deprivation` "
+                '(e.g. "feed", "feed and water")'
+            )
+        if card.get("output_end") != "high":
+            issues.append(
+                "deprivation_duration cards have output_end high: the shorter time is the "
+                "end that spares the animals"
+            )
 
     for key, label in (
         ("management_conditions", "condition"),

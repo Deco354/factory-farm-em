@@ -62,8 +62,14 @@ PARAMETER_CATEGORIES = {
     "procedure_timing",
     "care_effort",
     "feed_level",
+    "deprivation_duration",
+    "seeding_rate",
+    "input_rate",
+    "crop_timing",
     "other",
 }
+# crop_agronomy (control arm) categories; their reasons are always quoted.
+CROP_CATEGORIES = {"seeding_rate", "input_rate", "crop_timing"}
 # Categories where the output direction follows from the parameter itself
 DEFINITIONAL_CATEGORIES = {"space_allowance", "animals_per_equipment"}
 REJECTED_CATEGORIES = {"care_effort"}
@@ -133,7 +139,8 @@ RESPONSE_BANNED = [
 # Allowed in a response only if the excerpt itself uses the word
 OBJECTIFYING = ["biomass", "inventory", "assets", "throughput"]
 
-NUM_RE = re.compile(r"(?<![\w.])\d+(?:\.\d+)?")
+# "30,000" is one number (thousands separators); "28,42" is still two.
+NUM_RE = re.compile(r"(?<![\w.])(?:\d{1,3}(?:,\d{3})+(?![\d])|\d+)(?:\.\d+)?")
 
 
 # ---------------------------------------------------------------------------
@@ -443,7 +450,9 @@ def norm_ws(text: str) -> str:
 
 
 def canon_num(x: Any) -> str:
-    return f"{float(x):g}"
+    """One spelling per number: 28.0 -> "28", "30,000" -> "30000", 7.50 -> "7.5"."""
+    value = float(str(x).replace(",", ""))
+    return str(int(value)) if value.is_integer() else f"{value:.10g}"
 
 
 def numbers_in(text: str, words: bool = False) -> set[str]:
@@ -850,6 +859,39 @@ def process_chunk(
     return batch_from_reply(prepared, parsed, raw)
 
 
+def group_pairs(records) -> dict[str, list[dict]]:
+    """Records grouped by pair_id, in first-seen order. Pure."""
+    by_pair: dict[str, list[dict]] = {}
+    for r in records:
+        by_pair.setdefault(r["pair_id"], []).append(r)
+    return by_pair
+
+
+def pair_passes(pair: list[dict]) -> bool:
+    """A pair is trained on only if every arm for its mode is present and passed. Pure."""
+    arms_present = {r["arm"] for r in pair}
+    return (
+        arms_present == set(ARMS_BY_MODE[pair[0]["mode"]])
+        and len(pair) == len(arms_present)
+        and all(r["checks"]["record_passed"] for r in pair)
+        and all(r["checks"]["pair_passed"] for r in pair)
+    )
+
+
+def passing_pairs(by_pair: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """The pairs that pass, each with its records sorted by arm. Pure."""
+    return {
+        pid: sorted(pair, key=lambda r: r["arm"])
+        for pid, pair in by_pair.items()
+        if pair_passes(pair)
+    }
+
+
+def training_row(record: dict) -> dict:
+    """One chat-format training line for a record."""
+    return {"id": record["id"], "messages": record["messages"]}
+
+
 def consolidate_output_directory(run_dir: Path) -> dict:
     """De-duplicates records by ID across a run's batch files, writes master_dataset.json,
     and writes one chat-format JSONL training file per arm containing only pairs where
@@ -880,24 +922,13 @@ def consolidate_output_directory(run_dir: Path) -> dict:
         json.dumps(master, indent=2, ensure_ascii=False), encoding="utf-8"
     )
 
-    # Pair-level filter: keep a pair only if all of its arms are present and passed
-    by_pair: dict[str, list[dict]] = {}
-    for r in records.values():
-        by_pair.setdefault(r["pair_id"], []).append(r)
-
+    by_pair = group_pairs(records.values())
+    passing = passing_pairs(by_pair)
+    pairs_passed = len(passing)
     train: dict[str, list[dict]] = {}
-    pairs_passed = 0
-    for pair in by_pair.values():
-        mode = pair[0]["mode"]
-        arms_present = {r["arm"] for r in pair}
-        if (
-            arms_present == set(ARMS_BY_MODE[mode])
-            and all(r["checks"]["record_passed"] for r in pair)
-            and all(r["checks"]["pair_passed"] for r in pair)
-        ):
-            pairs_passed += 1
-            for r in pair:
-                train.setdefault(r["arm"], []).append({"id": r["id"], "messages": r["messages"]})
+    for pair_id in by_pair:
+        for r in passing.get(pair_id, []):
+            train.setdefault(r["arm"], []).append(training_row(r))
 
     # Remove training files from earlier consolidations of this run, so an arm with no
     # passing pairs now does not keep a stale file.

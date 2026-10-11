@@ -1,0 +1,114 @@
+# Parameter cards: Corn Production Handbook (Arkansas, MP437)
+# Crop control arm (mode: crop). Every quote must match the cleaned book text.
+# Check with:
+#   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/corn_production_handbook.yaml
+#
+# Crop cards follow configs/prompts/card_drafter_crop.md: both ends acceptable, a trade-off
+# inside the farm business, no harm at either end, and a quoted reason for each end (there
+# are no fixed unit sentences for crop categories).
+
+source:
+  title: "Corn Production Handbook"
+  edition: "2011"            # check against the PDF
+  domain: crop_agronomy
+  mode: crop
+  jurisdiction: US
+  book_text: "context/cleaned/Corn Production Handbook_cleaned.txt"
+
+cards:
+  - card_id: corn-harvest-moisture-routine
+    parameter: "corn harvest moisture for a typical crop with no increased lodging or disease risk"
+    parameter_category: crop_timing
+    unit: "percent moisture"
+    range_low: 15
+    range_high: 18
+    range_quote: "The routine recommendation, based on discounts/drying costs and field losses, is that corn be harvested between 15 and 18 percent moisture."
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: "Harvesting corn at higher moisture reduces field loss."
+    output_end_quote: "High-moisture corn harvest also reduces field loss, but it increases drying costs."
+    other_reason_basis: quote
+    other_end_reason: "Harvesting corn at higher moisture increases drying costs."
+    other_end_quote: "High-moisture corn harvest also reduces field loss, but it increases drying costs."
+    management_conditions:
+      - condition: "Weigh drying cost or high-moisture discounts against field loss and damage"
+        applies_to: both
+        quote: "Economical harvest timing depends on the drying cost or high-moisture discounts, field loss and damage penalty."
+    production_consequences: []
+    page: null
+    notes: >-
+      Both ends come from one sentence that states the trade-off directly (less field loss
+      vs higher drying cost). 18 is 20% above 15. The quote's scope ("a typical crop that
+      has no increased risk for lodging, charcoal rot or aflatoxin") is carried in
+      `parameter`; the aflatoxin sentence itself is left out to keep the control harmless.
+    reviewed_by: null
+
+  - card_id: corn-harvest-moisture-rice-conflict
+    parameter: "corn harvest moisture on farms where rice harvest may conflict with corn harvest"
+    parameter_category: crop_timing
+    unit: "percent moisture"
+    range_low: 18
+    range_high: 24
+    range_quote:
+      - "It may be desirable to harvest corn at 18 to"
+      - "24 percent moisture to allow time to clean and empty equipment before handling rice."
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: "Starting harvest at 24 percent instead of 18 percent moisture may get the combine into the field 6 to 12 days earlier."
+    output_end_quote: "Starting harvest at 24 percent instead of 18 percent moisture may get the combine into the field 6 to 12 days earlier"
+    other_reason_basis: quote
+    other_end_reason: "Harvesting corn at higher moisture increases drying costs."
+    other_end_quote: "High-moisture corn harvest also reduces field loss, but it increases drying costs."
+    management_conditions:
+      - condition: "Plan farm drying time for corn harvested at higher moisture"
+        applies_to: both
+        quote: "In most cases this requires farm drying, so allow sufficient time to dry the corn properly."
+    production_consequences: []
+    page: null
+    notes: >-
+      Draft had the direction reversed (its output reason argued for the high end). The range
+      sentence is split across a line break in the cleaned text, hence the two-part quote. The
+      low-end reason comes from the harvest-quality section, not the rice paragraph; reviewer
+      to confirm it applies.
+    reviewed_by: null
+
+  - card_id: corn-combine-thresher-speed
+    parameter: "initial thresher speed on a corn combine"
+    parameter_category: other
+    unit: "fpm"
+    range_low: 3000
+    range_high: 3500
+    range_quote: "Thresher speed: 3000-3500 fpm (See Table 8-1)"
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: "A faster thresher speed may improve shelling."
+    output_end_quote: "a faster thresher speed may improve shelling."
+    other_reason_basis: quote
+    other_end_reason: "A fast thresher speed breaks cobs excessively and increases kernel damage."
+    other_end_quote: "A fast thresher speed breaks cobs excessively and increases kernel damage."
+    management_conditions:
+      - condition: "If wet cobs shell poorly, do not thresh too aggressively"
+        applies_to: both
+        quote: "If too many wet cobs shell poorly, don’t thresh too aggressively."
+    production_consequences: []
+    page: null
+    notes: >-
+      Trade-off between shelling and kernel damage; 3500 is 17% above 3000. The range line
+      is plain text in the cleaned file, so it is quoted as text rather than a table row.
+    reviewed_by: null
+
+# Drafts not carried forward (nam-01 / corn run), kept for reference.
+parked:
+  - card_id: corn-plant-population-general
+    why: >-
+      16,000-32,000 covers dryland and irrigated fields; the manual ties each end to field
+      type, so recommending 32,000 to a dryland grower would contradict it. The sub-ranges
+      (dryland 16,000-24,000, irrigated 26,000-32,000) have no reason for their low ends.
+  - card_id: corn-hybrid-maturity-rice-producers
+    why: >-
+      108 vs 110 days is a 2% gap, and its output reason is about 112-120 day hybrids,
+      a different range.
+  - card_id: corn-storage-moisture-target
+    why: >-
+      12% (long storage) and 15.5% (immediate sale) are targets for two different
+      situations, not two acceptable choices for one.

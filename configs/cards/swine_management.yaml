@@ -46,4 +46,32 @@ cards:
       Output end is low (more restriction). The quote gives restriction's purpose; that 80%
       gives leaner carcasses than 90% follows from it. Reviewer: confirm. Control-arm
       reason uses the feed_level fixed sentence.
-    reviewed_by: CBS
+    reviewed_by: CB
+
+  - card_id: swine-mature-boar-sows-per-week
+    parameter: number of sows bred per mature boar per week
+    parameter_category: other
+    unit: sows per week
+    range_low: 2
+    range_high: 4
+    range_quote: Mature boars can breed 2 to 4 sows per week and maintain high fertility.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Mature boars can breed 2 to 4 sows per week and maintain high fertility.
+    output_end_quote: Mature boars can breed 2 to 4 sows per week and maintain high fertility.
+    other_reason_basis: quote
+    other_end_reason: Boar is rested for the second day of estrus when the sow releases the ova. This results
+      in better reproductive performance.
+    other_end_quote: Boar is rested for the second day of estrus when the sow releases the ova. This results
+      in better reproductive performance.
+    management_conditions: [ ]
+    production_consequences:
+      - consequence: maintain high fertility
+        applies_to: both
+        quote: Mature boars can breed 2 to 4 sows per week and maintain high fertility.
+    page: null
+    notes: The low-end reason quote comes from the hand-mating section, not specifically from the weekly-frequency
+      discussion; reviewer should confirm it supports the rest benefit of the lower end. The output-end
+      reason is the range quote itself, which states that high fertility is maintained at 4 sows/week.
+    reviewed_by: CB
+

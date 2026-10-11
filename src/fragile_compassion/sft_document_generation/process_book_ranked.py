@@ -13,8 +13,21 @@ Version 2 of the chunker. Changes from v1:
 
 Cleaning and chunking logic are unchanged from v1. The v1 density functions are
 kept for compatibility with any code that imports them.
+
+Version 2.1: scoring has a profile per source mode. `animal` (the default) scores as in
+2.0; `crop` rewards crop-production vocabulary and units (seeds per acre, bu/A, planting
+date, harvest moisture) and penalises pesticide, manure and runoff language, which the
+crop card rules exclude. Ranges written with thousands separators ("30,000 to 34,000")
+are now counted. The profile comes from --profile, else defaults.chunk_profile, else
+source.mode in the config.
+
+Usage, from the repo root:
+
+    uv run python -m fragile_compassion.sft_document_generation.process_book_ranked \
+        --input "context/raw/Corn Production Handbook.md" --profile crop --top 100
 """
 
+import argparse
 import hashlib
 import json
 import re
@@ -27,7 +40,7 @@ SRC_DIR = PROCESS_DIR.parent.parent
 ROOT_DIR = SRC_DIR.parent
 DEFAULT_CONFIG_PATH = ROOT_DIR / "configs" / "sft_doc_config.yaml"
 
-CHUNKER_VERSION = "2.0"
+CHUNKER_VERSION = "2.1"
 
 
 # ---------------------------------------------------------------------------
@@ -39,10 +52,13 @@ UNITS = (
     r"(?:%|kg/m2|kg/m²|birds?/m2|birds?/m²|ft2|ft²|sq\.? ?ft|lux|lx|°C|°F|"
     r"hours?|hrs?|h|days?|d|weeks?|wks?|g|kg|lbs?|cm|mm|m|ppm)"
 )
-NUM = r"\d+(?:\.\d+)?"
+# "30,000" (thousands separators) or "7.5"
+NUM = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
 
-# "30-39 kg/m2", "21 to 28 days". The cleaner already normalises en/em dashes to "-".
-RANGE_RE = re.compile(rf"\b{NUM}\s*(?:-|to)\s*{NUM}\s*{UNITS}(?!\w)", re.IGNORECASE)
+# "30-39 kg/m2", "21 to 28 days", "between 15 and 18 percent". The cleaner already
+# normalises en/em dashes to "-".
+RANGE_JOIN = rf"(?:\b{NUM}\s*(?:-|to)\s*{NUM}|\bbetween\s+{NUM}\s+and\s+{NUM})"
+RANGE_RE = re.compile(rf"{RANGE_JOIN}\s*{UNITS}(?!\w)", re.IGNORECASE)
 
 # "a minimum of 4 hours", "should not exceed 39 kg/m2", "at least 0.5 m"
 BOUND_RE = re.compile(
@@ -67,32 +83,91 @@ PHARMA_RE = re.compile(
 
 PIPE_ROW_RE = re.compile(r"(?m)^\|.+\|$")
 
+# --- crop profile ---------------------------------------------------------------
 
-def relevance_breakdown(text: str) -> dict[str, float]:
-    """Returns the components of the relevance score for a chunk."""
-    ranges = len(RANGE_RE.findall(text)) + len(BOUND_RE.findall(text))
-    husbandry = len(HUSBANDRY_RE.findall(text))
-    pharma = len(PHARMA_RE.findall(text))
+CROP_UNITS = (
+    r"(?:seeds?(?:\s+per|/)\s*(?:acre|a|ha|hectare|foot|ft|row)|"
+    r"plants?(?:\s+per|/)\s*(?:acre|a|ha|hectare|foot|ft)|"
+    r"(?:bu|bushels?|lbs?|pounds?|tons?|kg)\s*(?:per|/)\s*(?:acre|a|ha)|"
+    r"percent(?:\s+moisture)?|%|inch(?:es)?|in\.|days?|weeks?|mph|fpm|rpm|"
+    r"(?:lbs?|pounds?|bu|bushels?|tons?|kg)\b)"
+)
+CROP_RANGE_RE = re.compile(rf"{RANGE_JOIN}\s*{CROP_UNITS}", re.IGNORECASE)
+CROP_BOUND_RE = re.compile(
+    rf"\b(?:minimum|maximum|at least|not exceed|no more than|up to)\b"
+    rf"[^.\n]{{0,40}}?{NUM}\s*{CROP_UNITS}",
+    re.IGNORECASE,
+)
+CROP_TERMS_RE = re.compile(
+    r"\b(?:seeding rate|plant population|population|planting date|planting depth|"
+    r"row spacing|row width|stand|hybrid|variety|varieties|maturity|harvest\w*|"
+    r"moisture|yield|emergence|irrigat\w*|drying|dryer|combine|thresh\w*|"
+    r"tillage|seedbed|replant\w*)\b",
+    re.IGNORECASE,
+)
+# Topics the crop card rules exclude (rule 2): pesticides, manure, runoff and water quality.
+# Food-safety words (aflatoxin) are left out: harvest and drying chapters use them heavily,
+# and the drafter's no-harm rule filters those passages anyway.
+CROP_PENALTY_RE = re.compile(
+    r"\b(?:herbicide|insecticide|fungicide|pesticide|nematicide|atrazine|glyphosate|"
+    r"fl oz|pt/a|qt/a|oz/a|manure|lagoon|biosolids|runoff|leaching|"
+    r"water quality)\w*",
+    re.IGNORECASE,
+)
+
+# Each profile: (range patterns, topic terms, penalty terms). Weights are shared.
+SCORING_PROFILES = {
+    "animal": ((RANGE_RE, BOUND_RE), HUSBANDRY_RE, PHARMA_RE),
+    "crop": ((CROP_RANGE_RE, CROP_BOUND_RE), CROP_TERMS_RE, CROP_PENALTY_RE),
+}
+
+
+def relevance_breakdown(text: str, profile: str = "animal") -> dict[str, float]:
+    """Returns the components of the relevance score for a chunk.
+
+    `topic_terms` are husbandry words for the animal profile and crop-production words
+    for the crop profile; `penalty_terms` are dosing words (animal) or pesticide, manure
+    and runoff words (crop).
+    """
+    if profile not in SCORING_PROFILES:
+        raise ValueError(f"unknown scoring profile {profile!r}; use {sorted(SCORING_PROFILES)}")
+    range_patterns, topic_re, penalty_re = SCORING_PROFILES[profile]
+    ranges = sum(len(pattern.findall(text)) for pattern in range_patterns)
+    topic = len(topic_re.findall(text))
+    penalty = len(penalty_re.findall(text))
     table_rows = len(PIPE_ROW_RE.findall(text))
 
     score = (
         3.0 * min(ranges, 10)
-        + 1.0 * min(husbandry, 15)
+        + 1.0 * min(topic, 15)
         + 0.5 * min(table_rows, 20)
-        - 2.0 * min(pharma, 10)
+        - 2.0 * min(penalty, 10)
     )
     return {
         "score": score,
         "ranges": ranges,
-        "husbandry_terms": husbandry,
-        "pharma_terms": pharma,
+        "topic_terms": topic,
+        "penalty_terms": penalty,
         "table_rows": table_rows,
     }
 
 
-def calculate_relevance_score(text: str) -> float:
-    """Scores how likely a chunk is to contain a husbandry parameter with a stated range."""
-    return relevance_breakdown(text)["score"]
+def calculate_relevance_score(text: str, profile: str = "animal") -> float:
+    """Scores how likely a chunk is to contain a parameter with a stated range."""
+    return relevance_breakdown(text, profile)["score"]
+
+
+def resolve_profile(cli_profile: str | None, config: dict) -> str:
+    """--profile, else defaults.chunk_profile, else source.mode, else animal."""
+    profile = (
+        cli_profile
+        or config.get("defaults", {}).get("chunk_profile")
+        or config.get("source", {}).get("mode")
+        or "animal"
+    )
+    if profile not in SCORING_PROFILES:
+        raise ValueError(f"unknown scoring profile {profile!r}; use {sorted(SCORING_PROFILES)}")
+    return profile
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +335,9 @@ def process_book_file(
     output_file: Path | None = None,
     chunk_size_words: int | None = None,
     config_path: Path = DEFAULT_CONFIG_PATH,
+    profile: str | None = None,
+    top_n: int | None = None,
+    min_relevance: float | None = None,
 ) -> Path:
     """Reads raw source markdown, cleans it, chunks it, ranks chunks by relevance,
     exports the top N, writes a manifest, and seeds context/excerpt.txt with the
@@ -269,8 +347,12 @@ def process_book_file(
       raw_book_path, chunks_dir, context_path, chunk_size_words   (as in v1)
       top_n_chunks          int, default 40. Number of ranked chunks to export.
       min_relevance_score   float, default 1.0. Chunks below this are never exported.
+      chunk_profile         animal | crop (default: source.mode, else animal).
+    The profile, top_n and min_relevance arguments override the config.
     """
-    cfg = load_config(config_path).get("defaults", {})
+    full_cfg = load_config(config_path)
+    cfg = full_cfg.get("defaults", {})
+    profile = resolve_profile(profile, full_cfg)
 
     if input_file is None:
         input_file = ROOT_DIR / cfg.get("raw_book_path", "context/raw/sample_book.md")
@@ -278,8 +360,10 @@ def process_book_file(
     if chunk_size_words is None:
         chunk_size_words = cfg.get("chunk_size_words", 1500)
 
-    top_n = int(cfg.get("top_n_chunks", 40))
-    min_relevance = float(cfg.get("min_relevance_score", 1.0))
+    top_n = int(top_n if top_n is not None else cfg.get("top_n_chunks", 40))
+    min_relevance = float(
+        min_relevance if min_relevance is not None else cfg.get("min_relevance_score", 1.0)
+    )
 
     if not input_file.exists():
         raise FileNotFoundError(f"Input file not found: {input_file}")
@@ -302,7 +386,7 @@ def process_book_file(
     chunks_dir = ROOT_DIR / cfg.get("chunks_dir", "context/chunks") / input_file.stem
     chunks_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Chunking into ~{chunk_size_words}-word excerpts...")
+    print(f"Chunking into ~{chunk_size_words}-word excerpts (scoring profile: {profile})...")
     raw_chunks = chunk_text_by_words(cleaned_text, chunk_size=chunk_size_words)
 
     candidates: list[dict[str, Any]] = []
@@ -321,7 +405,7 @@ def process_book_file(
             manifest_rows.append(row)
             continue
 
-        row.update(relevance_breakdown(chunk))
+        row.update(relevance_breakdown(chunk, profile))
         if row["score"] < min_relevance:
             row["status"] = "below_min_score"
             manifest_rows.append(row)
@@ -352,6 +436,7 @@ def process_book_file(
         "chunker_version": CHUNKER_VERSION,
         "source_file": input_file.name,
         "chunk_size_words": chunk_size_words,
+        "scoring_profile": profile,
         "top_n_chunks": top_n,
         "min_relevance_score": min_relevance,
         "chunks": manifest_rows,
@@ -370,8 +455,8 @@ def process_book_file(
         r = cand["row"]
         print(
             f"  rank {r['rank']:>3}  pos {r['original_position']:>4}  score {r['score']:>5.1f}  "
-            f"ranges {r['ranges']:>2}  husb {r['husbandry_terms']:>2}  "
-            f"pharma {r['pharma_terms']:>2}  "
+            f"ranges {r['ranges']:>2}  topic {r['topic_terms']:>2}  "
+            f"penalty {r['penalty_terms']:>2}  "
             f"| {r['preview'][:60]}"
         )
 
@@ -388,5 +473,31 @@ def process_book_file(
     return full_cleaned_path
 
 
+def main():
+    parser = argparse.ArgumentParser(description="Clean, chunk and rank a source book.")
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
+    parser.add_argument("--input", type=Path, help="Raw markdown (default: raw_book_path).")
+    parser.add_argument(
+        "--profile",
+        choices=sorted(SCORING_PROFILES),
+        help="Scoring profile (default: chunk_profile, else source.mode).",
+    )
+    parser.add_argument("--top", type=int, help="Chunks to export (default: top_n_chunks).")
+    parser.add_argument(
+        "--min-score", type=float, help="Lowest score exported (default: min_relevance_score)."
+    )
+    args = parser.parse_args()
+    input_file = (
+        args.input if args.input is None or args.input.is_absolute() else (ROOT_DIR / args.input)
+    )
+    process_book_file(
+        input_file,
+        config_path=args.config,
+        profile=args.profile,
+        top_n=args.top,
+        min_relevance=args.min_score,
+    )
+
+
 if __name__ == "__main__":
-    process_book_file()
+    main()
