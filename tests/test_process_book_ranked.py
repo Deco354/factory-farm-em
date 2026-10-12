@@ -64,19 +64,19 @@ def test_relevance_counts_husbandry_terms():
     breakdown = relevance_breakdown(
         "Stocking density, lighting and litter quality affect footpad scores."
     )
-    assert breakdown["husbandry_terms"] == 5  # stocking, density, lighting, litter, footpad
+    assert breakdown["topic_terms"] == 5  # stocking, density, lighting, litter, footpad
 
 
 def test_relevance_penalises_pharma_terms():
     breakdown = relevance_breakdown("Give the antibiotic at 10 mg/kg per dose.")
-    assert breakdown["pharma_terms"] == 3  # antibiotic, mg/kg, dose
+    assert breakdown["penalty_terms"] == 3  # antibiotic, mg/kg, dose
     assert breakdown["score"] < 0
 
 
 def test_relevance_feed_withdrawal_is_husbandry_withdrawal_period_is_pharma():
-    assert relevance_breakdown("feed withdrawal")["husbandry_terms"] == 1
-    assert relevance_breakdown("feed withdrawal")["pharma_terms"] == 0
-    assert relevance_breakdown("withdrawal period")["pharma_terms"] == 1
+    assert relevance_breakdown("feed withdrawal")["topic_terms"] == 1
+    assert relevance_breakdown("feed withdrawal")["penalty_terms"] == 0
+    assert relevance_breakdown("withdrawal period")["penalty_terms"] == 1
 
 
 def test_relevance_caps_range_component():
@@ -168,7 +168,7 @@ def test_process_book_file_manifest_records_every_chunk(book: Path, tmp_path: Pa
     _, manifest = run(book, tmp_path, top_n=2)
     by_pos = {r["original_position"]: r for r in manifest["chunks"]}
     assert set(by_pos) == {1, 2, 3, 4}
-    assert by_pos[1]["status"] == "below_min_score" and by_pos[1]["pharma_terms"] > 0
+    assert by_pos[1]["status"] == "below_min_score" and by_pos[1]["penalty_terms"] > 0
     assert by_pos[3]["status"] == "below_min_score"
     assert by_pos[4]["status"] == "selected" and by_pos[4]["rank"] == 1
     assert by_pos[2]["status"] == "selected" and by_pos[2]["rank"] == 2
@@ -194,3 +194,67 @@ def test_process_book_file_leaves_buffer_alone_when_nothing_qualifies(book: Path
     (tmp_path / "excerpt.txt").write_text("previous", encoding="utf-8")
     run(book, tmp_path, top_n=2, min_score=1000)
     assert (tmp_path / "excerpt.txt").read_text(encoding="utf-8") == "previous"
+
+
+# ---------------------------------------------------------------------------
+# Scoring profiles (chunker 2.1)
+# ---------------------------------------------------------------------------
+
+SEEDING = (
+    "On irrigated fields plant 30,000 to 34,000 seeds per acre. Dryland fields need 16,000 to "
+    "24,000 plants per acre. Adjust the seeding rate to the hybrid and expected yield. Start "
+    "harvest at 18 to 24 percent moisture and set row spacing at 30 to 38 inches."
+)
+SPRAYING = (
+    "Apply atrazine at 1 to 2 qt/A with a herbicide program. Use a fungicide at 6 to 7.7 oz/A "
+    "if rust appears, and an insecticide for corn borer. Avoid runoff to protect water quality."
+)
+
+
+def test_crop_profile_prefers_production_over_pesticide_chunks():
+    assert calculate_relevance_score(SEEDING, "crop") > calculate_relevance_score(SPRAYING, "crop")
+    assert relevance_breakdown(SPRAYING, "crop")["penalty_terms"] >= 5
+
+
+def test_crop_profile_counts_ranges_with_thousands_separators():
+    breakdown = relevance_breakdown(SEEDING, "crop")
+    assert breakdown["ranges"] == 4  # seeds, plants, percent moisture, inches
+    assert breakdown["topic_terms"] >= 5
+
+
+def test_animal_profile_does_not_reward_crop_text():
+    assert calculate_relevance_score(SEEDING, "crop") > calculate_relevance_score(SEEDING, "animal")
+    assert calculate_relevance_score(HUSBANDRY, "animal") > calculate_relevance_score(
+        HUSBANDRY, "crop"
+    )
+
+
+def test_animal_ranges_now_read_thousands_separators():
+    assert relevance_breakdown("1,000 to 2,999 ppm")["ranges"] == 1
+
+
+def test_unknown_profile_is_rejected():
+    with pytest.raises(ValueError, match="unknown scoring profile"):
+        relevance_breakdown("text", "fish")
+
+
+def test_resolve_profile_precedence():
+    from fragile_compassion.sft_document_generation.process_book_ranked import resolve_profile
+
+    cfg = {"defaults": {"chunk_profile": "animal"}, "source": {"mode": "crop"}}
+    assert resolve_profile("crop", cfg) == "crop"
+    assert resolve_profile(None, cfg) == "animal"
+    assert resolve_profile(None, {"source": {"mode": "crop"}}) == "crop"
+    assert resolve_profile(None, {}) == "animal"
+    with pytest.raises(ValueError):
+        resolve_profile(None, {"source": {"mode": "fish"}})
+
+
+def test_between_and_ranges_are_counted_in_both_profiles():
+    text = "corn be harvested between 15 and 18 percent moisture"
+    assert relevance_breakdown(text, "crop")["ranges"] == 1
+    assert relevance_breakdown("keep it between 18 and 21 days", "animal")["ranges"] == 1
+
+
+def test_food_safety_words_are_not_penalised_in_crop_profile():
+    assert relevance_breakdown("aflatoxin risk at harvest", "crop")["penalty_terms"] == 0

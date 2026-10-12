@@ -1,0 +1,337 @@
+# Parameter cards: PIC Wean to Finish
+# Every quote must match the cleaned book text (whitespace differences are ignored).
+# Check with:
+#   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/cobb_broiler_2021.yaml
+#
+# Reason rules: a `quote` reason must be a close paraphrase of that end's quote and add
+# nothing to it. A `unit` reason is left empty; the checker prints the fixed sentence used.
+# Set reviewed_by only after a second reader has compared every reason with its quote.
+#
+# Table values: quote a table row as a mapping (table / columns / row / checked_by).
+# See the docstring at the top of cards.py.
+#
+# Checklist for a strong card
+# 1. Two ends, both stated as acceptable, with both numbers in the range quote or
+#    quotes. Never fill in an end yourself.
+# 2. A meaningful gap between them. 28 versus 42 is a real decision; 28 versus 30
+#    would hardly differ.
+# 3. The source doesn't argue against the output end. If the quote says the low end
+#    is "ideal," the high end isn't really acceptable practice.
+# 4. Each reason can be traced to a quote, or to the fixed unit sentence for density
+#    and per-equipment cards.
+# 5. The parameter text matches the quote's scope, including qualifiers like climate,
+#    house type or bird age.
+# 6. Enough content for each end, roughly balanced: a condition or consequence or two
+#    per end, quoted.
+# 7. An accurate card ID, since it shows up in every record ID and in citations.
+# 8. A trade-off: the two ends must differ in who benefits. Settings where the farmer
+#    and the animals want the same thing (water quality, temperature, ventilation,
+#    nutrient specs, biosecurity) don't make cards.
+
+source:
+  title: "PIC Wean to Finish Manual"
+  edition: "2019"
+  domain: swine_production
+  sector: finishing
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/PIC Wean to Finish_cleaned.txt"
+
+cards:
+  - card_id: pic-pigs-per-drinker-double-stock
+    parameter: pigs per drinker during double stocking
+    parameter_category: animals_per_equipment
+    unit: pigs per drinker
+    range_low: 10
+    range_high: 12
+    range_quote: Provide additional drinkers to accommodate one drinker per 10-12 pigs
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Scope limited to double stocking strategy; range is 10-12 pigs per drinker.
+    reviewed_by: CB
+
+  - card_id: pic-pan-coverage-after-first-cut
+    parameter: pan coverage for dry feeder after first market cut
+    parameter_category: feeding
+    unit: '%'
+    range_low: 35
+    range_high: 40
+    range_quote: PAN COVERAGE 35-40%
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Feed is wasted when feeders are too open.
+    output_end_quote: When feeders are too open, feed is wasted.
+    other_reason_basis: quote
+    other_end_reason: If feeder adjustment is too tight, growth and FCR are compromised.
+    other_end_quote: If feeder adjustment is too tight, growth and FCR are compromised.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Gap is 14% (40/35), less than 15%.
+    reviewed_by: CB
+
+  - card_id: pic-pan-coverage-wet-dry
+    parameter: pan coverage for wet-dry feeder
+    parameter_category: feeding
+    unit: '%'
+    range_low: 60
+    range_high: 70
+    range_quote: 60-70% PAN COVERAGE RECOMMENDED
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Feed is wasted when feeders are too open.
+    output_end_quote: When feeders are too open, feed is wasted.
+    other_reason_basis: quote
+    other_end_reason: If feeder adjustment is too tight, growth and FCR are compromised.
+    other_end_quote: If feeder adjustment is too tight, growth and FCR are compromised.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: 'Both ends are stated as recommended. Trade-off: low saves feed, high improves growth.'
+    reviewed_by: CB
+
+# Parked: kept for reference, not generated (the loader reads only `cards`).
+parked:
+  - card_id: pic-brooder-duration
+    why: >-
+      No quoted cost reason for the shorter end: 'depending on pig comfort' is a fragment, and
+      the other quote is about brooder temperature, not duration.
+    parameter: brooder usage duration for piglets
+    parameter_category: other
+    unit: days
+    range_low: 14
+    range_high: 21
+    range_quote: Brooders should be in place and functional for 14 to 21 days depending on pig comfort and
+      severity of disease.
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: The shorter duration is acceptable when pigs are comfortable.
+    output_end_quote: depending on pig comfort
+    other_reason_basis: quote
+    other_end_reason: Brooders provide necessary warmth for pigs.
+    other_end_quote: Pigs need properly functioning brooders producing temperatures around 95°F (35°C) directly
+      beneath them
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: Range is conditional on pig comfort and disease severity; both ends are explicitly stated as
+      acceptable.
+    reviewed_by: null
+  - card_id: pic-drinker-per-pigs
+    why: >-
+      Duplicate of pic-pigs-per-drinker-double-stock (10-12 pigs per drinker); that card has
+      the full-sentence quote.
+    parameter: pigs per drinker when feeder nipples are off
+    parameter_category: animals_per_equipment
+    unit: pigs/drinker
+    range_low: 10
+    range_high: 12
+    range_quote: 1 drinker/10-12 pigs
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Gap is 20% (12/10).
+    reviewed_by: null
+  - card_id: pic-group-size-finishing
+    why: >-
+      Group size is not space per pig: the fixed space_allowance sentence would claim more
+      pigs per pen means less space each, which the quote doesn't say.
+    parameter: group size (head per pen) for finishing pigs
+    parameter_category: space_allowance
+    unit: head per pen
+    range_low: 25
+    range_high: 35
+    range_quote:
+      - group size should be limited to 25-35 head per pen to optimize performance.
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: The range is for group size; the lower end gives more space per pig, the higher end more pigs
+      per pen. Both ends are within the recommended range for optimizing performance.
+    reviewed_by: null
+  - card_id: pic-feeder-space-wetdry-growfinish
+    why: >-
+      Gap is 9 percent (1.15 vs 1.25).
+    parameter: linear feeder space per head for grow-finish pigs (60 lbs to market) using wet/dry feeders
+    parameter_category: animals_per_equipment
+    unit: inches
+    range_low: 1.15
+    range_high: 1.25
+    range_quote:
+      table: 'Table 2.1: Feeder Recommendations for Growing Pigs'
+      columns:
+        - INDICATORS
+        - NURSERY0-60 LBS (0-27 KG)
+        - GROW-FINISH60 LBS (27 KG)-MARKET
+      row:
+        - Linear Feeder Space Per Head
+        - 1.0 inch (2.5 cm)
+        - 1.15-1.25 inches (2.9-3.1 cm)
+      checked_by: CB
+    output_end: low
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Gap is 8.7% (1.25/1.15), less than 15%.
+    reviewed_by: null
+  - card_id: pic-pan-coverage-nursery-training
+    why: >-
+      Both ends use the same neutral sentence ('Pan coverage can vary based on objectives for
+      ADG and FCR'), so neither end has its own reason.
+    parameter: pan coverage during feed intake training period (day 0-3) for nursery pigs
+    parameter_category: feeding
+    unit: '%'
+    range_low: 50
+    range_high: 70
+    range_quote:
+      table: 'Table 2.1: Feeder Recommendations for Growing Pigs'
+      columns:
+        - INDICATORS
+        - NURSERY0-60 LBS (0-27 KG)
+        - GROW-FINISH60 LBS (27 KG)-MARKET
+      row:
+        - Training Period Day 0-3
+        - =50-70%
+        - 45-50% (1-2 days) b
+      checked_by: CB
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Lower coverage targets FCR (feed conversion).
+    output_end_quote: Pan coverage can vary based on objectives for ADG and FCR.
+    other_reason_basis: quote
+    other_end_reason: Higher coverage targets ADG (average daily gain).
+    other_end_quote: Pan coverage can vary based on objectives for ADG and FCR.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Gap is 40% (70/50), meaningful.
+    reviewed_by: null
+  - card_id: pic-pan-coverage-nursery-after
+    why: >-
+      Fails the checker: table cells not found together in the book. Direction was also not
+      stated by the manual.
+    parameter: pan coverage after training period (day >3) for nursery pigs
+    parameter_category: feeding
+    unit: '%'
+    range_low: 40
+    range_high: 50
+    range_quote:
+      table: 'Table 2.1: Feeder Recommendations for Growing Pigs'
+      columns:
+        - INDICATORS
+        - NURSERY0-60 LBS (0-27 KG)
+        - GROW-FINISH60 LBS (27 KG)-MARKET
+      row:
+        - After Training Day > 3
+        - =40-50%
+        - 35-50%
+      checked_by: CB
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Lower coverage targets FCR (feed conversion).
+    output_end_quote: Pan coverage can vary based on objectives for ADG and FCR.
+    other_reason_basis: quote
+    other_end_reason: Higher coverage targets ADG (average daily gain).
+    other_end_quote: Pan coverage can vary based on objectives for ADG and FCR.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Gap is 25% (50/40), meaningful.
+    reviewed_by: null
+  - card_id: pic-stocking-density-slatted-heavy
+    why: >-
+      Fails the checker (columns/cells mismatch) and the gap is 8 percent (7.5 vs 8.1).
+    parameter: stocking density for commercial market pigs >265 lbs on slatted floor
+    parameter_category: space_allowance
+    unit: ft2
+    range_low: 7.5
+    range_high: 8.1
+    range_quote:
+      table: 'Table 5.1: PIC Recommended Stocking Densities for Commercial Market Pigs'
+      columns:
+        - Flooring Type
+        - Weight of pig
+        - Weaning to 60 lbs (23 kg)
+        - 60-75 lbs (23-34 kg)
+        - 75-265 lbs (34-120 kg)
+        - '>265 lbs (>120 kg)'
+      row:
+        - Slatted floor
+        - min. 2.8 ft2 (0.26 m2)
+        - 3.65 ft2 (0.34 m2)
+        - min. 7.3 ft2 (0.68 m2)
+        - min. 7.5-8.1 ft2(0.70-0.75 m2)
+      checked_by: CB
+    output_end: low
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Range given as a minimum; both ends acceptable. Gap is only ~8% (7.5 to 8.1), below the 15% meaningful-gap
+      threshold. Metric conversion in parentheses.
+    reviewed_by: null
+  - card_id: pic-pigs-per-water-source-grow-finish
+    why: >-
+      Fails the checker (columns/cells mismatch, range not in quote) and duplicates pic-pigs-
+      per-drinker-double-stock.
+    parameter: pigs per water source for grow-finish pigs (60 lbs to market, 23 kg to market)
+    parameter_category: animals_per_equipment
+    unit: pigs per water source
+    range_low: 10
+    range_high: 12
+    range_quote:
+      table: 'Table 3.1: Water Availability Guidelines for Maintaining Optimal Pig Health and Growth'
+      columns:
+        - NURSERY 0-60 LBS (0-23 KG)
+        - GROW-FINISH 60 LBS- MARKET (23 KG- MARKET)
+      row:
+        - Pigs Per Water Source
+        - '10'
+        - 10-12
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Range is from the grow-finish column only; nursery is a single value of 10. Both 10 and 12 are
+      acceptable per the table. 12 is 20% above 10.
+    reviewed_by: null

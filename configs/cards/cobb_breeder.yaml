@@ -118,6 +118,169 @@ cards:
       can read as an animal-side benefit. Reviewer: confirm.
     reviewed_by: CB
 
+  - card_id: cobb-male-rearing-density
+    parameter: male density in rearing
+    parameter_category: space_allowance
+    unit: males/m²
+    range_low: 3.6
+    range_high: 4.3
+    range_quote: Male density in rearing should be around 3.6 to 4.3 males/m² (2.5 to 3.0 ft²/male).
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: Both ends are stated as acceptable ('around'). Higher density (4.3) increases bird numbers per
+      area (output), lower density (3.6) gives more space per male. Gap is ~19%, meaningful.
+    reviewed_by: CB
+
+  - card_id: cobb-community-nest-capacity
+    parameter: hens per community nest
+    parameter_category: animals_per_equipment
+    unit: hens per nest
+    range_low: 200
+    range_high: 260
+    range_quote: Community =200 to 260 per nest
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: Follow manufacturer and Cobb recommendations for nesting space
+        applies_to: both
+        quote: Follow manufacturer and Cobb recommendations for nesting space.
+    production_consequences: [ ]
+    page: null
+    notes: Only community nests have a range here; manual and individual mechanical nests are single values.
+      High end = fewer nests needed (lower equipment cost); low end = more nesting space per hen.
+    reviewed_by: CB
+
+  - card_id: cobb-community-nest-female-density
+    parameter: female stocking density in a community nest system
+    parameter_category: space_allowance
+    unit: females per m2
+    range_low: 6
+    range_high: 7
+    range_quote:
+    - 'Female stocking densities: 6 to 7 females per m2 (1.54 to 1.80 ft2 per bird).'
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Higher female stocking densities significantly reduce hatching egg costs through higher financial return per square meter.
+    output_end_quote: Higher female stocking densities significantly reduce hatching egg costs and pay for the higher
+      investment costs due to higher financial return per square meter.
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: Manual explicitly endorses the high end for cost; the low end (6) is the stated minimum of the
+      acceptable range.
+    reviewed_by: CB
+
+  - card_id: cobb-brooding-density-7-9
+    parameter: brooding chamber stocking density for age 7 to 9 days
+    parameter_category: space_allowance
+    unit: birds per m2
+    range_low: 30
+    range_high: 35
+    range_quote:
+      table: Brooding chamber stocking density
+      columns:
+        - Age (days)
+        - Density (birds per m2)
+        - Density (ft2 per bird)
+      row:
+        - 7 to 9
+        - 30 to 35
+        - 0.31 to 0.36
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: ''
+    reviewed_by: CB
+
+  - card_id: cobb-brooding-density-13-15
+    parameter: brooding chamber stocking density for age 13 to 15 days
+    parameter_category: space_allowance
+    unit: birds per m2
+    range_low: 10
+    range_high: 15
+    range_quote:
+      table: Brooding chamber stocking density
+      columns:
+        - Age (days)
+        - Density (birds per m2)
+        - Density (ft2 per bird)
+      row:
+        - 13 to 15
+        - 10 to 15
+        - 0.72 to 1.08
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: ''
+    reviewed_by: CB
+
+  - card_id: cobb-floor-darkout-rearing
+    parameter: floor space for pullets in dark out rearing
+    parameter_category: space_allowance
+    unit: birds per m2
+    range_low: 7
+    range_high: 10
+    range_quote:
+      table: Floor space recommendations
+      columns:
+        - Time frame
+        - birds per m2
+        - ft2 per bird
+      row:
+        - dark out rearing*
+        - 7 to 10
+        - 1.54 to 1.08
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: Provide enough feeder and drinker space and correct ambient temperatures and air quality
+          to support up to 10 birds per m2
+        applies_to: high
+        quote: Modern dark out rearing can support up to 10 birds per m2 (1.08 ft2 per pullet) with enough
+          feeder and drinker space and correct ambient temperatures and air quality.
+    production_consequences: [ ]
+    page: null
+    notes: Footnote explicitly supports the high end under conditions.
+    reviewed_by: CB
+
 # Parked: kept for reference, not generated (the loader reads only `cards`).
 parked:
   - card_id: cobb-breeder-initial-brooding-density
@@ -129,3 +292,58 @@ parked:
     why: >-
       Duplicate of the rearing nipple card (8 to 10 per nipple). Quote: "When the house
       is fully opened, allow 8 to 10 birds per nipple." (page 17).
+  - card_id: cobb-male-rearing-nipple-density
+    why: >-
+      Same 8-10 per nipple numbers and the same fixed unit sentences as cobb-breeder-females-
+      per-nipple-rearing, so its pairs would be near-copies; its range quote is a fragment.
+    parameter: birds per nipple in male rearing drinker space
+    parameter_category: animals_per_equipment
+    unit: birds per nipple
+    range_low: 8
+    range_high: 10
+    range_quote: 8 to 10 birds per nipple
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: Monitor drinkers for signs of low water pressures or blocked nipples and correct height
+        applies_to: both
+        quote: Monitor drinkers for signs of low water pressures or blocked nipples and correct height.
+    production_consequences: [ ]
+    page: null
+    notes: The manual also states 75 birds per bell drinker, but that is a single limit, not a range. Both
+      8 and 10 are acceptable, and the gap exceeds 15%.
+    reviewed_by: null
+  - card_id: cobb-light-intensity-production
+    why: >-
+      Fails the checker: consequence quoted for only one end.
+    parameter: minimum light intensity during production throughout light period
+    parameter_category: environment
+    unit: lux
+    range_low: 50
+    range_high: 70
+    range_quote: Minimum of 50 to 70 lux throughout light period.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Light intensity is important to encourage male activity.
+    output_end_quote: Light intensity is important to encourage male activity.
+    other_reason_basis: quote
+    other_end_reason: Lower intensity reduces feather pecking.
+    other_end_quote: If feather pecking occurs intensity can be reduced as emergency procedure.
+    management_conditions:
+    - condition: Reduce intensity as emergency procedure if feather pecking occurs
+      applies_to: low
+      quote: If feather pecking occurs intensity can be reduced as emergency procedure.
+    production_consequences:
+    - consequence: Encourages male activity (supports fertility)
+      applies_to: high
+      quote: Light intensity is important to encourage male activity.
+    page: null
+    notes: Another checklist row states 'Minimum of 50 lux (5 fc) and ideally 70 lux (7 fc)' — the manual
+      calls 70 lux 'ideally' but still lists 50 as the minimum, so both ends appear acceptable; reviewer
+      to confirm that 50 is a routine practice and not purely an emergency reduction.
+    reviewed_by: null

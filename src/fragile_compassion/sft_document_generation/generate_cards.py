@@ -379,8 +379,10 @@ def build_item_records(
         for arm in responses
     }
     pair_ok = not checks["item"] and all(not v for v in arm_issues.values())
+    # The seed is part of the ID so two seeds in one run can never overwrite each other.
+    seed = settings.get("persona_seed")
     pair_hash = hashlib.md5(
-        f"{card['card_id']}|{item['persona']['persona_id']}|{task}|{prompt}".encode()
+        f"{card['card_id']}|{item['persona']['persona_id']}|{task}|{prompt}|{seed}".encode()
     ).hexdigest()[:8]
     domain_code = g.DOMAIN_CODES.get(domain, domain[:4])
 
@@ -400,6 +402,7 @@ def build_item_records(
                 "mode": mode,
                 "jurisdiction": src.get("jurisdiction"),
                 "persona": item["persona"],
+                "persona_seed": settings.get("persona_seed"),
                 "source": {
                     "title": src.get("title"),
                     "edition": src.get("edition"),
@@ -554,6 +557,26 @@ def process_card(
 # ---------------------------------------------------------------------------
 
 
+def resolve_seeds(cli_seeds: list[int] | None, cards_cfg: dict, defaults: dict) -> list[int]:
+    """Persona seeds to run, in order and without repeats. Pure.
+
+    --persona-seeds wins; then cards.persona_seeds (a list); then the single
+    cards.persona_seed / defaults.persona_seed (0 if neither is set).
+    """
+    if cli_seeds:
+        seeds = cli_seeds
+    elif cards_cfg.get("persona_seeds"):
+        seeds = cards_cfg["persona_seeds"]
+    else:
+        seeds = [cards_cfg.get("persona_seed", defaults.get("persona_seed", 0))]
+    return list(dict.fromkeys(int(s) for s in seeds))
+
+
+def batch_filename(prefix: str, card_id: str, seed: int) -> str:
+    """batch_/failed_ file name for one card and persona seed."""
+    return f"{prefix}_{card_id}__seed{seed}.json"
+
+
 def select_cards(
     cards: list[dict], ids: list[str] | None, limit: int | None, allow_unreviewed: bool
 ) -> tuple[list[dict], list[str]]:
@@ -581,6 +604,13 @@ def main():
     parser.add_argument("--run-id", help="Defaults to a timestamp.")
     parser.add_argument(
         "--dry-run", action="store_true", help="Build payloads without calling the API."
+    )
+    parser.add_argument(
+        "--persona-seeds",
+        type=int,
+        nargs="+",
+        help="Run every card once per seed, e.g. --persona-seeds 0 1 2 "
+        "(default: cards.persona_seeds, else cards.persona_seed).",
     )
     parser.add_argument(
         "--allow-unreviewed",
@@ -612,7 +642,6 @@ def main():
 
     settings = {
         "task_plan": c.get("task_plan", DEFAULT_TASK_PLAN),
-        "persona_seed": c.get("persona_seed", d.get("persona_seed", 0)),
         "model": c.get("teacher_model") or cfg.get("api", {}).get("teacher_model"),
         "temperature": float(c.get("temperature", d.get("temperature", 0.3))),
         "max_tokens": int(c.get("max_tokens", 8000)),
@@ -627,47 +656,59 @@ def main():
         ),
     }
 
+    seeds = resolve_seeds(args.persona_seeds, c, d)
     run_id = args.run_id or datetime.now().strftime("cards%Y%m%d_%H%M%S")
     run_dir = root / d.get("output_dir", "output") / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     client = None if args.dry_run else g.make_client(cfg)
 
-    print(f"Run {run_id}: {len(selected)} card(s) from {Path(card_path).name}, mode={src['mode']}")
-    for card in selected:
-        cid = card.get("card_id", "no-id")
-        print(f"- {cid}")
-        try:
-            batch = process_card(
-                card, src, book_text, settings, client, all_personas, run_id, args.dry_run
-            )
-        except Exception as e:
-            print(f"  Failed: {e}")
-            (run_dir / f"failed_{cid}.json").write_text(
-                json.dumps(
-                    {
-                        "run_id": run_id,
-                        "card_id": cid,
-                        "error_type": e.__class__.__name__,
-                        "error": str(e),
-                    },
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
-            continue
-        if batch.get("card_issues"):
-            print(f"  Card failed checks: {batch['card_issues']}")
-            (run_dir / f"failed_{cid}.json").write_text(
+    print(
+        f"Run {run_id}: {len(selected)} card(s) from {Path(card_path).name}, "
+        f"mode={src['mode']}, persona seeds {seeds}"
+    )
+    for seed in seeds:
+        seed_settings = {**settings, "persona_seed": seed}
+        for card in selected:
+            cid = card.get("card_id", "no-id")
+            print(f"- {cid} (persona seed {seed})")
+            try:
+                batch = process_card(
+                    card,
+                    src,
+                    book_text,
+                    seed_settings,
+                    client,
+                    all_personas,
+                    run_id,
+                    args.dry_run,
+                )
+            except Exception as e:
+                print(f"  Failed: {e}")
+                failure = {
+                    "run_id": run_id,
+                    "card_id": cid,
+                    "persona_seed": seed,
+                    "error_type": e.__class__.__name__,
+                    "error": str(e),
+                }
+                (run_dir / batch_filename("failed", cid, seed)).write_text(
+                    json.dumps(failure, indent=2), encoding="utf-8"
+                )
+                continue
+            batch["persona_seed"] = seed
+            if batch.get("card_issues"):
+                print(f"  Card failed checks: {batch['card_issues']}")
+                (run_dir / batch_filename("failed", cid, seed)).write_text(
+                    json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8"
+                )
+                continue
+            (run_dir / batch_filename("batch", cid, seed)).write_text(
                 json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8"
             )
-            continue
-        (run_dir / f"batch_{cid}.json").write_text(
-            json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
-        print(
-            f"  {len(batch['records'])} records, {len(batch['declined'])} declined, "
-            f"{len(batch['retries'])} length retries"
-        )
+            print(
+                f"  {len(batch['records'])} records, {len(batch['declined'])} declined, "
+                f"{len(batch['retries'])} length retries"
+            )
 
     if not args.dry_run:
         g.consolidate_output_directory(run_dir)

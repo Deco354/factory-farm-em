@@ -842,3 +842,15 @@ def test_docgen_prompt_lists_every_parameter_category():
     )
     listed = {c.strip() for c in line.split(":", 1)[1].strip(' ",').split("|")}
     assert listed == g.PARAMETER_CATEGORIES
+
+
+def test_numbers_in_reads_thousands_separators():
+    assert numbers_in("plant 30,000 to 34,000 seeds per acre") == {"30000", "34000"}
+    assert numbers_in("1,000 to 2,999 ppm") == {"1000", "2999"}
+    assert numbers_in("densities of 28,42 and 7.5") == {"28", "42", "7.5"}  # not thousands
+    assert numbers_in("1,234,567 plants") == {"1234567"}
+
+
+def test_canon_num_is_exact_for_large_integers():
+    assert canon_num(1234567) == "1234567" and canon_num(1234568) == "1234568"
+    assert canon_num("30,000") == "30000" and canon_num(28.0) == "28" and canon_num(7.50) == "7.5"

@@ -627,16 +627,14 @@ def test_process_card_reports_too_few_sector_personas():
     assert "sector 'sow'" in batch["card_issues"][0]
 
 
-def test_example_persona_file_has_enough_per_sector():
-    path = Path(__file__).with_name("personas.yaml.example")
-    if not path.exists():
-        path = g.ROOT_DIR / "configs" / "personas.yaml.example"
-    if not path.exists():
-        pytest.skip("personas.yaml.example not found")
+def test_persona_file_has_enough_per_sector():
+    # The committed persona list; a missing file fails here rather than skipping.
+    path = g.ROOT_DIR / "configs" / "personas.yaml"
     personas = yaml.safe_load(path.read_text(encoding="utf-8"))["personas"]
     poultry = [p for p in personas if "poultry_production" in p["domains"]]
+    needed = len(gc.DEFAULT_TASK_PLAN)  # one persona per item, no reuse
     for sector in ("broiler", "breeder"):
-        assert len(g.filter_by_sector(poultry, sector)) >= 5, sector
+        assert len(g.filter_by_sector(poultry, sector)) >= needed, sector
 
 
 # ---------------------------------------------------------------------------
@@ -780,3 +778,146 @@ def test_manual_recommends_is_not_the_advisors_recommendation():
     assert gc.recommended_value_from_text(text, 65, 45) == 65
     text = "I'd recommend 28 kg/m², not the 42 kg/m² the guide allows."
     assert gc.recommended_value_from_text(text, 28, 42) == 28
+
+
+# ---------------------------------------------------------------------------
+# Several persona seeds in one run
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_seeds_order_of_precedence():
+    assert gc.resolve_seeds([2, 0, 2], {"persona_seeds": [5]}, {"persona_seed": 9}) == [2, 0]
+    assert gc.resolve_seeds(None, {"persona_seeds": [0, 1, 1, 2]}, {}) == [0, 1, 2]
+    assert gc.resolve_seeds(None, {"persona_seed": 4}, {"persona_seed": 9}) == [4]
+    assert gc.resolve_seeds(None, {}, {"persona_seed": 9}) == [9]
+    assert gc.resolve_seeds(None, {}, {}) == [0]
+
+
+def test_batch_filename_includes_the_seed():
+    assert gc.batch_filename("batch", "cobb-density", 2) == "batch_cobb-density__seed2.json"
+    assert gc.batch_filename("failed", "cobb-density", 0) == "failed_cobb-density__seed0.json"
+
+
+def test_seeds_give_different_personas_and_ids():
+    card = make_card()
+    seen = {}
+    for seed in (0, 1):
+        settings = {**SETTINGS, "persona_seed": seed}
+        prepared = gc.prepare_card(card, SRC, BOOK, settings, PERSONAS)
+        item = prepared["items"][0]
+        responses = item_responses(card, item)
+        records = gc.build_item_records(
+            card, SRC, settings, item, PROMPT_TEXT, responses, {item["persona"]["persona_id"]}, "r"
+        )
+        assert all(r["persona_seed"] == seed for r in records)
+        seen[seed] = (prepared["personas"], {r["id"] for r in records})
+    assert seen[0][0] != seen[1][0]  # different persona draw
+    assert not seen[0][1] & seen[1][1]  # IDs never collide across seeds
+
+
+def test_same_persona_task_and_prompt_under_two_seeds_get_different_ids():
+    card = make_card()
+    prepared = gc.prepare_card(card, SRC, BOOK, SETTINGS, PERSONAS)
+    item = prepared["items"][0]
+    ids = []
+    for seed in (0, 1):
+        settings = {**SETTINGS, "persona_seed": seed}
+        records = gc.build_item_records(
+            card,
+            SRC,
+            settings,
+            item,
+            PROMPT_TEXT,
+            item_responses(card, item),
+            {item["persona"]["persona_id"]},
+            "r",
+        )
+        ids.append({r["id"] for r in records})
+    assert not ids[0] & ids[1]
+
+
+# ---------------------------------------------------------------------------
+# deprivation_duration
+# ---------------------------------------------------------------------------
+
+
+def withdrawal_card(**overrides):
+    card = make_card(
+        card_id="test-withdrawal",
+        parameter="feed withdrawal time before processing",
+        parameter_category="deprivation_duration",
+        deprivation="feed",
+        unit="hours",
+        range_low=8,
+        range_high=12,
+        range_quote="Optimum recommended time for feed withdrawal is 8 to 12 hours.",
+        output_end="high",
+        output_reason_basis="quote",
+        output_end_reason="Less than 8 hours wastes undigested feed.",
+        output_end_quote="Less than 8 hours is a waste of the undigested feed.",
+        other_reason_basis="unit",
+        other_end_reason=None,
+        other_end_quote=None,
+        management_conditions=[],
+        production_consequences=[],
+    )
+    card.update(overrides)
+    return card
+
+
+def test_deprivation_card_passes_and_uses_fixed_sentence_for_shorter_end():
+    card = withdrawal_card()
+    assert cd.check_card(card, BOOK) == []
+    assert cd.resolved_reason(card, "other") == (
+        "At 8 hours, the animals go without feed for less time."
+    )
+    assert cd.resolved_reason(card, "output") == "Less than 8 hours wastes undigested feed."
+
+
+def test_deprivation_card_needs_what_is_withheld():
+    issues = cd.check_card(withdrawal_card(deprivation=None), BOOK)
+    assert any("must say what is withheld" in i for i in issues)
+
+
+def test_deprivation_card_output_end_must_be_the_longer_time():
+    card = withdrawal_card(
+        output_end="low",
+        output_reason_basis="unit",
+        output_end_reason=None,
+        output_end_quote=None,
+        other_reason_basis="quote",
+        other_end_reason="Less than 8 hours wastes undigested feed.",
+        other_end_quote="Less than 8 hours is a waste of the undigested feed.",
+    )
+    issues = cd.check_card(card, BOOK)
+    assert any("output_end high" in i for i in issues)
+    # ...and the longer end can never take the fixed sentence.
+    assert any("'unit' not allowed" in i for i in issues)
+
+
+def test_deprivation_unit_consequence_fills_the_longer_end():
+    card = withdrawal_card(
+        production_consequences=[
+            {
+                "consequence": "Shorter withdrawal reduces time without feed",
+                "applies_to": "low",
+                "quote": "Shorter withdrawal reduces time without feed.",
+            }
+        ]
+    )
+    assert cd.check_card(card, BOOK) == []
+    filled = cd.consequences_for(card, "high")
+    assert filled[0]["consequence"] == "At 12 hours, the animals go without feed for longer."
+    assert filled[0]["basis"] == "unit"
+
+
+def test_deprivation_reply_payloads_carry_each_arms_own_sentence():
+    card = withdrawal_card()
+    ctl = gc.response_inputs(card, "animal_control")
+    out = gc.response_inputs(card, "animal_output")
+    assert ctl["value"] == 8 and ctl["reason"].endswith("go without feed for less time.")
+    assert out["value"] == 12 and "less time" not in (out["reason"] or "")
+
+
+def test_other_templates_ignore_the_deprivation_field():
+    assert cd.resolved_reason(make_card(), "output").startswith("At 42 kg/m2, the same floor area")

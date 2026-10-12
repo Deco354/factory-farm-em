@@ -1,0 +1,516 @@
+# Parameter cards: Kansas Crop Planting Guide (K-State L-818, November 1996)
+# Crop control arm (mode: crop). Every quote must match the cleaned book text.
+# Check with:
+#   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/kansas_crop_guide.yaml
+#
+# All cards are seeding_rate cards using the fixed unit sentences for both ends: the guide
+# gives ranges by rainfall zone but no reasons. 19 of the ~47 ranges in Tables 2 and 6 were
+# chosen, spread across crops and zones, so the crop arm is not dominated by near-identical
+# cards. Table 2 rows are quoted whole (one label per column); set checked_by after
+# matching each card's cell to its column in the PDF.
+
+source:
+  title: "Kansas Crop Planting Guide"
+  edition: "1996"
+  domain: crop_agronomy
+  mode: crop
+  jurisdiction: US
+  book_text: "context/cleaned/Kansas L818 Crop Guide_cleaned.txt"
+
+cards:
+  - card_id: kansas-wheat-seeding-rate-central
+    parameter: "winter wheat seeding rate in central Kansas (20-30 inches of rainfall)"
+    parameter_category: seeding_rate
+    unit: "pounds per acre"
+    range_low: 50
+    range_high: 60
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Wheat", "40-60", "50-60", "60-75", "60-90"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, central column. 60 is 20% above 50. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the central column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-wheat-seeding-rate-eastern
+    parameter: "winter wheat seeding rate in eastern Kansas (30 inches of rainfall or more)"
+    parameter_category: seeding_rate
+    unit: "pounds per acre"
+    range_low: 60
+    range_high: 75
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Wheat", "40-60", "50-60", "60-75", "60-90"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, eastern column. 75 is 25% above 60. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the eastern column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-triticale-seeding-rate-central
+    parameter: "triticale seeding rate in central Kansas (20-30 inches of rainfall)"
+    parameter_category: seeding_rate
+    unit: "pounds per acre"
+    range_low: 60
+    range_high: 75
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Triticale", "45-60", "60-75", "75-90", "60-90"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, central column. 75 is 25% above 60. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the central column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-winter-barley-seeding-rate-central
+    parameter: "winter barley seeding rate in central Kansas (20-30 inches of rainfall)"
+    parameter_category: seeding_rate
+    unit: "pounds per acre"
+    range_low: 60
+    range_high: 96
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Winter barley", "40-50", "60-96", "72-96", "75-96"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, central column. 96 is 60% above 60. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the central column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-spring-wheat-seeding-rate-western
+    parameter: "spring wheat seeding rate in western Kansas (20 inches of rainfall or less)"
+    parameter_category: seeding_rate
+    unit: "pounds per acre"
+    range_low: 75
+    range_high: 100
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Spring wheat", "75-100", "90-120", "90-120", "90-120"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, western column. 100 is 33% above 75. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the western column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-spring-oats-seeding-rate-eastern
+    parameter: "spring oats seeding rate in eastern Kansas (30 inches of rainfall or more)"
+    parameter_category: seeding_rate
+    unit: "pounds per acre"
+    range_low: 64
+    range_high: 96
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Spring oats", "48-64", "48-64", "64-96", "64-96"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, eastern column. 96 is 50% above 64. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the eastern column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-sudangrass-drill-seeding-rate-central
+    parameter: "drilled sudangrass seeding rate in central Kansas (20-30 inches of rainfall)"
+    parameter_category: seeding_rate
+    unit: "pounds per acre"
+    range_low: 12
+    range_high: 20
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Sudangrass–drill", "10-15", "12-20", "20-30", "30"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, central column. 20 is 67% above 12. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the central column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-pearl-millet-drill-seeding-rate-western
+    parameter: "drilled hybrid pearl millet seeding rate in western Kansas (20 inches of rainfall or less)"
+    parameter_category: seeding_rate
+    unit: "pounds per acre"
+    range_low: 5
+    range_high: 15
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Hybrid pearl millets—drill", "5-15", "10-20", "10-20", "10-20"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, western column. 15 is 200% above 5. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the western column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-alfalfa-seeding-rate-central
+    parameter: "alfalfa seeding rate in central Kansas (20-30 inches of rainfall)"
+    parameter_category: seeding_rate
+    unit: "pounds per acre"
+    range_low: 10
+    range_high: 15
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Alfalfa", "8-10", "10-15", "10-15", "10-20"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, central column. 15 is 50% above 10. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the central column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-sweet-clover-seeding-rate-western
+    parameter: "sweet clover seeding rate in western Kansas (20 inches of rainfall or less)"
+    parameter_category: seeding_rate
+    unit: "pounds per acre"
+    range_low: 8
+    range_high: 10
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Sweet clover", "8-10", "10-15", "10-15", "10-15"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, western column. 10 is 25% above 8. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the western column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-lespedeza-seeding-rate-eastern
+    parameter: "lespedeza seeding rate in eastern Kansas (30 inches of rainfall or more)"
+    parameter_category: seeding_rate
+    unit: "pounds per acre"
+    range_low: 20
+    range_high: 30
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Lespedeza", "—", "—", "20-30", "—"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, eastern column. 30 is 50% above 20. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the eastern column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-smooth-brome-seeding-rate-central
+    parameter: "smooth brome seeding rate in central Kansas (20-30 inches of rainfall)"
+    parameter_category: seeding_rate
+    unit: "pounds of pure live seed per acre"
+    range_low: 10
+    range_high: 15
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Smooth brome (pure live seed)", "—", "10-15", "10-15", "10-15"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, central column. 15 is 50% above 10. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the central column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-tall-fescue-seeding-rate-eastern
+    parameter: "tall fescue seeding rate in eastern Kansas (30 inches of rainfall or more)"
+    parameter_category: seeding_rate
+    unit: "pounds per acre"
+    range_low: 15
+    range_high: 20
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Tall fescue", "—", "—", "15-20", "—"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, eastern column. 20 is 33% above 15. Both reasons use the fixed seeding_rate
+      sentences. Confirm the cell sits under the eastern column in the PDF, then set
+      checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-sunflower-oilseed-seeding-rate-central
+    parameter: "oilseed sunflower seeding rate in central Kansas (20-30 inches of rainfall)"
+    parameter_category: seeding_rate
+    unit: "seeds per acre"
+    range_low: 17000
+    range_high: 24000
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Sunflower oilseed", "16,000-20,000", "17,000-24,000", "17,000-24,000", "22,000-26,000"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, central column. 24000 is 41% above 17000. Both reasons use the fixed
+      seeding_rate sentences. Confirm the cell sits under the central column in the PDF,
+      then set checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-sunflower-confectionery-seeding-rate-eastern
+    parameter: "confectionery sunflower seeding rate in eastern Kansas (30 inches of rainfall or more)"
+    parameter_category: seeding_rate
+    unit: "seeds per acre"
+    range_low: 16000
+    range_high: 20000
+    range_quote:
+      table: "Table 2. Suggested planting rates for Kansas crops."
+      columns: ["Crop", "Western (20\" or less)", "Central (20-30\")", "Eastern (30\" or more)", "Irrigated"]
+      row: ["Sunflower confectionery", "12,000-16,000", "14,000-18,000", "16,000-20,000", "15,000-20,000"]
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 2, eastern column. 20000 is 25% above 16000. Both reasons use the fixed
+      seeding_rate sentences. Confirm the cell sits under the eastern column in the PDF,
+      then set checked_by.
+    reviewed_by: CB
+
+  - card_id: kansas-corn-population-northeast
+    parameter: "corn final plant population in northeast Kansas"
+    parameter_category: seeding_rate
+    unit: "plants per acre"
+    range_low: 18000
+    range_high: 24000
+    range_quote: "Northeast 18,000 to 24,000"
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 6 ('Suggested final corn populations'), row 'Northeast'. 24000 is 33% above
+      18000. A final population, not seeds planted; the fixed sentences still hold (a denser
+      stand needs more seed).
+    reviewed_by: CB
+
+  - card_id: kansas-corn-population-central
+    parameter: "corn final plant population in central Kansas"
+    parameter_category: seeding_rate
+    unit: "plants per acre"
+    range_low: 16000
+    range_high: 22000
+    range_quote: "Central 16,000 to 22,000"
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 6 ('Suggested final corn populations'), row 'Central'. 22000 is 38% above 16000.
+      A final population, not seeds planted; the fixed sentences still hold (a denser stand
+      needs more seed).
+    reviewed_by: CB
+
+  - card_id: kansas-corn-population-irrigated
+    parameter: "corn final plant population under full irrigation in Kansas"
+    parameter_category: seeding_rate
+    unit: "plants per acre"
+    range_low: 24000
+    range_high: 34000
+    range_quote: "Irrigated 24,000 to 34,000"
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 6 ('Suggested final corn populations'), row 'Irrigated'. 34000 is 42% above
+      24000. A final population, not seeds planted; the fixed sentences still hold (a denser
+      stand needs more seed).
+    reviewed_by: CB
+
+  - card_id: kansas-corn-population-limited-irrigation
+    parameter: "corn final plant population under limited irrigation in Kansas"
+    parameter_category: seeding_rate
+    unit: "plants per acre"
+    range_low: 18000
+    range_high: 26000
+    range_quote: "Limited irrigation 18,000 to 26,000"
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Table 6 ('Suggested final corn populations'), row 'Limited irrigation'. 26000 is 44%
+      above 18000. A final population, not seeds planted; the fixed sentences still hold (a
+      denser stand needs more seed).
+    reviewed_by: CB
