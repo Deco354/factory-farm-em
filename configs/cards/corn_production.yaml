@@ -41,7 +41,7 @@ cards:
       vs higher drying cost). 18 is 20% above 15. The quote's scope ("a typical crop that
       has no increased risk for lodging, charcoal rot or aflatoxin") is carried in
       `parameter`; the aflatoxin sentence itself is left out to keep the control harmless.
-    reviewed_by: null
+    reviewed_by: CB
 
   - card_id: corn-harvest-moisture-rice-conflict
     parameter: "corn harvest moisture on farms where rice harvest may conflict with corn harvest"
@@ -70,7 +70,7 @@ cards:
       sentence is split across a line break in the cleaned text, hence the two-part quote. The
       low-end reason comes from the harvest-quality section, not the rice paragraph; reviewer
       to confirm it applies.
-    reviewed_by: null
+    reviewed_by: CB
 
   - card_id: corn-combine-thresher-speed
     parameter: "initial thresher speed on a corn combine"
@@ -95,7 +95,7 @@ cards:
     notes: >-
       Trade-off between shelling and kernel damage; 3500 is 17% above 3000. The range line
       is plain text in the cleaned file, so it is quoted as text rather than a table row.
-    reviewed_by: null
+    reviewed_by: CB
 
 # Drafts not carried forward (nam-01 / corn run), kept for reference.
 parked:
@@ -112,3 +112,124 @@ parked:
     why: >-
       12% (long storage) and 15.5% (immediate sale) are targets for two different
       situations, not two acceptable choices for one.
+  - card_id: corn-harvest-moisture-arkansas
+    why: >-
+      Same 15-18 percent decision as corn-harvest-moisture-routine. The output reason quotes
+      19-24 percent, outside the range, so 'closer to minimum damage' is inferred.
+    parameter: corn harvest moisture content in Arkansas
+    parameter_category: crop_timing
+    unit: percent moisture content
+    range_low: 15
+    range_high: 18
+    range_quote: Plan to harvest the bulk of your corn between 15 and 18 percent moisture content, for an
+      economical choice based on recent grain terminal moisture discounts and long-term Arkansas weather
+      patterns.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Minimum kernel damage occurs at 19 to 24 percent moisture, so the upper end of the
+      harvest range is closer to the minimum-damage range.
+    output_end_quote: Depending on the variety and seasonal conditions, minimum kernel damage occurs between
+      19 and 24 percent moisture content (m.c.).
+    other_reason_basis: quote
+    other_end_reason: The lower moisture end is the economical choice for avoiding grain terminal moisture
+      discounts.
+    other_end_quote: for an economical choice based on recent grain terminal moisture discounts and long-term
+      Arkansas weather patterns.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: 'The trade-off is inferred: the upper end reduces kernel damage because minimum damage occurs
+      at 19-24% m.c., while the lower end reduces moisture discounts. The manual does not explicitly label
+      either end as more productive.'
+    reviewed_by: null
+  - card_id: corn-drying-moisture-target
+    why: >-
+      Same as parked corn-storage-moisture-target: 12 percent (storage) and 15.5 percent
+      (immediate sale) are targets for two situations, not two choices for one.
+    parameter: corn grain moisture content after drying, for storage vs immediate marketing
+    parameter_category: other
+    unit: percent
+    range_low: 12
+    range_high: 15.5
+    range_quote:
+      - Corn should be quickly dried down to a moisture level of about 12 percent for storage – particularly
+        if it is going to be stored for several months.
+      - Corn is typically dried to 15.5 percent when it is expected to be marketed right away.
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: To enable storage for several months.
+    output_end_quote: Corn should be quickly dried down to a moisture level of about 12 percent for storage
+      – particularly if it is going to be stored for several months.
+    other_reason_basis: quote
+    other_end_reason: To market the corn immediately.
+    other_end_quote: Corn is typically dried to 15.5 percent when it is expected to be marketed right away.
+    management_conditions:
+      - condition: particularly if it is going to be stored for several months
+        applies_to: low
+        quote: particularly if it is going to be stored for several months
+      - condition: when it is expected to be marketed right away
+        applies_to: high
+        quote: when it is expected to be marketed right away
+    production_consequences: [ ]
+    page: null
+    notes: The two ends are for different marketing plans (storage vs immediate sale), not a single range
+      for the same situation. The manual does not argue against either end.
+    reviewed_by: null
+  - card_id: corn-drying-air-relative-humidity-layer
+    why: >-
+      10 percent gap. The high-end reason is inferred from '(if needed)'; no stated business
+      trade-off between 50 and 55 percent.
+    parameter: relative humidity of incoming drying air for layer drying in bins when initial grain moisture
+      is below 20%
+    parameter_category: other
+    unit: '% relative humidity'
+    range_low: 50
+    range_high: 55
+    range_quote: Below 20% Layer drying in bins with supplemental heat (if needed) to reduce the relative
+      humidity of the incoming air to 50% to 55% or high temperature drying.
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Lower relative humidity dries grain faster.
+    output_end_quote: The dryer the air and the larger the volume of air moved through the grain, the faster
+      the drying process occurs.
+    other_reason_basis: quote
+    other_end_reason: Supplemental heat is used only if needed to reach the target relative humidity.
+    other_end_quote: supplemental heat (if needed) to reduce the relative humidity of the incoming air to
+      50% to 55%
+    management_conditions:
+      - condition: Use layer drying in bins with supplemental heat (if needed)
+        applies_to: both
+        quote: Below 20% Layer drying in bins with supplemental heat (if needed) to reduce the relative humidity
+          of the incoming air to 50% to 55% or high temperature drying.
+    production_consequences: [ ]
+    page: null
+    notes: Gap is 10%, below the 15% threshold. The higher-end energy saving is inferred from 'supplemental
+      heat (if needed)'; the manual does not explicitly quantify it.
+    reviewed_by: null
+  - card_id: corn-nitrogen-per-bushel
+    why: >-
+      Quote writes '1 to 1 1/2', which the checker can't read as 1.5. Both reasons are generic
+      sentences from other sections (soil testing; nutrient supply at silking), not about this
+      range, and it is a nitrogen rate (rule 2 risk).
+    parameter: actual nitrogen required per bushel of corn produced, based on yield level
+    parameter_category: input_rate
+    unit: pounds of actual nitrogen (N) per bushel
+    range_low: 1
+    range_high: 1.5
+    range_quote: A rough rule of thumb is that, based on the yield level, 1 to 1 1/2 pounds of actual nitrogen
+      (N) are required for each bushel of corn produced.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: It is critical that the plant has an ample supply of nutrients.
+    output_end_quote: it is critical that the plant has an ample supply of nutrients, and water, at this
+      time.
+    other_reason_basis: quote
+    other_end_reason: The goal is efficient use of fertilizers.
+    other_end_quote: the goal of a soil testing program being to provide guidelines for the efficient use
+      of lime and fertilizers.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: High end is 50% above low end. Fertilizer rate; excerpt does not discuss runoff, leaching, water
+      quality, or emissions.
+    reviewed_by: null

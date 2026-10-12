@@ -30,11 +30,11 @@
 
 source:
   title: "Cobb Hatchery Management Guide"
-  edition: "NA""
+  edition: "NA"
   domain: poultry_production
   sector: broiler          # draws only personas tagged broiler
   mode: animal
   jurisdiction: US
   book_text: "context/cleaned/Cobb Hatchery Management Guide_cleaned.txt"
 
-cards:
+cards: []

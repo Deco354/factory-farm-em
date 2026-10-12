@@ -10,9 +10,13 @@ Reasons: every reason must have a basis, recorded per end.
          other_end_quote). Numbers in it must come from the card's quotes. Whether
          the paraphrase adds anything is for the reviewer to judge.
   unit   Only where UNIT_TEMPLATES has a sentence for that category and end
-         (space_allowance, animals_per_equipment, feed_level; deprivation_duration for
-         the shorter end only). The reason field is left empty and the fixed sentence
-         restating the unit is used instead, so no free wording enters the data.
+         (space_allowance, animals_per_equipment, feed_level, seeding_rate;
+         deprivation_duration for the shorter end only). The reason field is left empty
+         and the fixed sentence restating the unit is used instead, so no free wording
+         enters the data.
+
+seeding_rate (crop): seeds, plants or seed weight per area. The output end is always the
+higher rate; plant spacing and row width are `other` cards with quoted reasons.
 
 deprivation_duration: time the animals go without something (feed withdrawal before
 processing, chick holding time, journey or lairage time). The card must name what is
@@ -97,6 +101,8 @@ UNIT_TEMPLATES = {
     # The longer (output) end needs a quoted reason: what a longer time gains varies.
     ("deprivation_duration", "other"): "At {value} {unit}, the animals go without "
     "{deprivation} for less time.",
+    ("seeding_rate", "output"): "At {value} {unit}, the field is planted more densely.",
+    ("seeding_rate", "other"): "At {value} {unit}, the same field needs less seed.",
 }
 # Fixed consequence sentences, used only to fill the end that has no quoted consequence
 # when the other end has one, so both arms state a cost of their choice.
@@ -109,7 +115,10 @@ UNIT_CONSEQUENCE_TEMPLATES = {
     "needed for the same number of animals.",
     ("deprivation_duration", "output"): "At {value} {unit}, the animals go without "
     "{deprivation} for longer.",
+    ("seeding_rate", "output"): "At {value} {unit}, the same field needs more seed.",
+    ("seeding_rate", "other"): "At {value} {unit}, the field is planted less densely.",
 }
+SEEDING = "seeding_rate"
 DEPRIVATION = "deprivation_duration"
 SIDE_FIELDS = {
     "output": ("output_reason_basis", "output_end_reason", "output_end_quote"),
@@ -360,6 +369,12 @@ def check_card(card: dict, book_text: str) -> list[str]:
                 "deprivation_duration cards have output_end high: the shorter time is the "
                 "end that spares the animals"
             )
+
+    if card.get("parameter_category") == SEEDING and card.get("output_end") != "high":
+        issues.append(
+            "seeding_rate cards have output_end high (the higher rate); use `other` with "
+            "quoted reasons for row width or plant spacing"
+        )
 
     for key, label in (
         ("management_conditions", "condition"),

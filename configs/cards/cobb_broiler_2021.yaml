@@ -191,27 +191,6 @@ cards:
       reasons are given.
     reviewed_by: CB
 
-  - card_id: cobb-supp-feed-full-house
-    parameter: supplementary feed per chick for full house brooding
-    parameter_category: feed_level
-    unit: g of feed per chick
-    range_low: 75
-    range_high: 100
-    range_quote: For full house brooding, 75 to 100 g of feed per chick (16.5 to 22 lb/100) should be placed
-      on supplementary paper.
-    output_end: low
-    output_reason_basis: unit
-    output_end_reason: null
-    output_end_quote: null
-    other_reason_basis: unit
-    other_end_reason: null
-    other_end_quote: null
-    management_conditions: []
-    production_consequences: []
-    page: null
-    notes: Lower end saves feed cost; higher end gives chicks more feed. Both ends are stated as acceptable.
-    reviewed_by: CB
-
   - card_id: cobb-brood-density-4-6d
     parameter: brood chamber stocking density at age 4-6 days
     parameter_category: space_allowance
@@ -309,3 +288,26 @@ parked:
     why: >-
       Aligned interest (bad water harms flock and farmer alike), and the guide calls
       anything from 3,000 ppm unsuitable. Not a trade-off card.
+  - card_id: cobb-supp-feed-full-house
+    why: >-
+      The fixed feed_level sentence would be false: this is an amount of supplementary feed
+      placed out, not a share of full feed.
+    parameter: supplementary feed per chick for full house brooding
+    parameter_category: feed_level
+    unit: g of feed per chick
+    range_low: 75
+    range_high: 100
+    range_quote: For full house brooding, 75 to 100 g of feed per chick (16.5 to 22 lb/100) should be placed
+      on supplementary paper.
+    output_end: low
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: Lower end saves feed cost; higher end gives chicks more feed. Both ends are stated as acceptable.
+    reviewed_by: null

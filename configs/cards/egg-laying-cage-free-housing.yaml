@@ -37,8 +37,15 @@ source:
   jurisdiction: US
   book_text: "context/cleaned/Guidelines for Cage-Free Housing_cleaned.txt"
 
-cards:
+cards: []
+
+# Parked: kept for reference, not generated (the loader reads only `cards`).
+parked:
   - card_id: guidelines-floor-space-per-hen
+    why: >-
+      Two minimums for different housing systems (1.0 aviary/slatted, 1.5 single-level
+      litter), not two acceptable choices for one farm; recommending 1.0 in a litter system
+      breaks the guideline. Also no layer personas exist yet.
     parameter: usable floor space per hen in cage-free housing systems (multi-tiered aviaries and partially
       slatted systems vs single-level all-litter floor systems)
     parameter_category: space_allowance
@@ -66,4 +73,4 @@ cards:
     notes: The low end (1.0) applies only to systems with vertical space access (multi-tiered aviaries,
       partially slatted); the high end (1.5) applies to single-level all-litter systems with limited vertical
       access. Both are stated as minimums, so the range is conditional on system type.
-    reviewed_by: CB
+    reviewed_by: null

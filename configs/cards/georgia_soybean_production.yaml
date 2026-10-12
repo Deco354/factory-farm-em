@@ -1,0 +1,277 @@
+# Parameter cards: Georgia Soybean Production Guide
+# Crop control arm (mode: crop). Every quote must match the cleaned book text.
+# Check with:
+#   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/georgia_soybean_production.yaml
+#
+# Crop cards follow configs/prompts/card_drafter_crop.md: both ends acceptable, a trade-off
+# inside the farm business, no harm at either end, and a quoted reason for each end (only
+# seeding_rate cards may use the fixed unit sentences instead).
+
+source:
+  title: "Georgia Soybean Production Guide"
+  edition: "2023"
+  domain: crop_agronomy
+  mode: crop
+  jurisdiction: US
+  book_text: "context/cleaned/Georgia Soybean Production Guide_cleaned.txt"
+
+cards:
+  - card_id: georgia-soybean-row-spacing-30-36
+    parameter: soybean row spacing in Georgia
+    parameter_category: other           # row width: seeding_rate is now per-area rates only
+    unit: inches
+    range_low: 30
+    range_high: 36
+    range_quote: However, most soybean varieties will give near top yield with row space ranging 30 to 36
+      inches, if planting occurs at the proper time.
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Narrower rows increase yield; Georgia research shows a 0.7% yield benefit for every
+      inch the row is narrowed relative to 36-inch rows.
+    output_end_quote: Georgia research has demonstrated a yield benefit of 0.7% for every inch the row is
+      narrowed, relative to 36-inch rows.
+    other_reason_basis: quote
+    other_end_reason: Changing row width requires significant investments in new equipment and changes to
+      existing operations.
+    other_end_quote: However, changing row width requires significant investments in new equipment and changes
+      to existing operations.
+    management_conditions:
+      - condition: Use proper maturity group and planting date; their absence may negate narrow-row benefits.
+        applies_to: low
+        quote: Note the absence of in-row subsoiling and proper maturity group and planting date decisions
+          may negate any potential benefits of narrow rows.
+      - condition: Plant at the proper time for 30-36 inch rows to achieve near top yield.
+        applies_to: high
+        quote: if planting occurs at the proper time
+    production_consequences:
+      - consequence: Narrower rows increase yield relative to 36-inch rows.
+        applies_to: low
+        quote: Georgia research has demonstrated a yield benefit of 0.7% for every inch the row is narrowed,
+          relative to 36-inch rows.
+      - consequence: Most varieties give near top yield at 30-36 inch row spacing when planted at the proper
+          time.
+        applies_to: high
+        quote: However, most soybean varieties will give near top yield with row space ranging 30 to 36 inches,
+          if planting occurs at the proper time.
+    page: null
+    notes: The 30-36 inch range is explicitly stated as near top yield if planted at the proper time; 30
+      is the narrower, higher-yield end and 36 avoids row-width change investment. The high end is 20% above
+      the low end.
+    reviewed_by: CB
+
+  - card_id: georgia-soybean-seeding-rate-early-system
+    parameter: "soybean seeding rate in an early soybean production system (ESPS) in Georgia"
+    parameter_category: seeding_rate
+    unit: "seeds/acre"
+    range_low: 120000
+    range_high: 140000
+    range_quote: "ESPS seeding rates should be around 120,000 to 140,000 seeds/acre to achieve maximum yields."
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Early system, planted into cooler soils. 140,000 is 17% above 120,000. Fixed
+      seeding_rate sentences for both ends. The drafter rejected this under rule 3 because
+      the guide gives no reason for either end; that is exactly what the unit sentences now
+      cover.
+    reviewed_by: CB
+
+  - card_id: georgia-soybean-seeding-rate-full-season
+    parameter: "soybean seeding rate in a full season soybean production system (FSSPS) in Georgia"
+    parameter_category: seeding_rate
+    unit: "seeds/acre"
+    range_low: 100000
+    range_high: 120000
+    range_quote: "FSSPS seeding rates should be between 100,000 and 120,000 seeds/acre to achieve a final plant population of 85,000 to 100,000 plants/acre."
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: "If planting late in the planting window or into dry or trashy seedbeds, consider increasing the seeding rate 10 to 20%"
+        applies_to: both
+        quote: "If planting late in the planting window or into dry or trashy seedbeds consider increasing seeding rate 10 to 20%."
+    production_consequences: []
+    page: null
+    notes: >-
+      Full season system. 120,000 is 20% above 100,000. Fixed seeding_rate sentences for
+      both ends.
+    reviewed_by: CB
+
+  - card_id: georgia-soybean-seeding-rate-double-crop
+    parameter: "soybean seeding rate for double crop soybeans planted after small grain harvest in Georgia"
+    parameter_category: seeding_rate
+    unit: "seeds/acre"
+    range_low: 120000
+    range_high: 140000
+    range_quote: "seeding rates should be 120,000 to 140,000 seeds/acre to alleviate potential issues of poor germination or poor seed to soil contact."
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      Double crop system, planted into hot soils and standing residue (the start of the
+      sentence is split by a degree sign in the cleaned text, so only the clause is quoted).
+      140,000 is 17% above 120,000. Same numbers as the early-system card but a different
+      system and scope.
+    reviewed_by: CB
+
+  - card_id: georgia-soybean-seeding-rate-increase-conservation-tillage
+    parameter: "increase in soybean seeding rate over the conventional rate in a conservation tillage system in Georgia"
+    parameter_category: seeding_rate
+    unit: "percent increase in seeding rate"
+    range_low: 10
+    range_high: 15
+    range_quote: "Soybean seeding rates should be increased 10 to 15 percent in conservation tillage soybean systems to help offset this issue."
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: >-
+      From soybean-02. The draft's output reason was the range sentence itself, which
+      applies to both ends, so both ends now use the fixed sentences. The value is a
+      relative increase, so replies will say e.g. 'a 15 percent increase'; reviewer to
+      confirm that reads naturally.
+    reviewed_by: CB
+
+# Parked: kept for reference, not generated (the loader reads only `cards`).
+parked:
+  - card_id: georgia-soybean-irrigation-stand-establishment
+    why: >-
+      Neither reason is about the 1 vs 1.5 inch pre-plant amount: 'once the soybean plant
+      wilts' concerns irrigation timing, and 'maintaining profitability at much lower market
+      prices' describes the whole Table 5 schedule. The table row also has no checked_by, and
+      `page: CB` looks like a slipped reviewed_by.
+    parameter: soybean irrigation amount at stand establishment
+    parameter_category: input_rate
+    unit: inches
+    range_low: 1
+    range_high: 1.5
+    range_quote:
+      table: 'Table 5. The following water balance method is suggested for 45 to 50 bushel soybean yields:'
+      columns:
+        - Growth Stage
+        - Trigger
+        - Amount
+      row:
+        - Stand Establishment
+        - Irrigate prior to planting
+        - 1-1.5”
+      checked_by: null
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Higher water application prevents wilting and preserves yield potential.
+    output_end_quote: once the soybean plant wilts, yield potential will be lost
+    other_reason_basis: quote
+    other_end_reason: Lower water application reduces cost and maintains profitability.
+    other_end_quote: maintaining profitability at much lower market prices
+    management_conditions:
+      - condition: Irrigate prior to planting
+        applies_to: both
+        quote: Irrigate prior to planting
+    production_consequences:
+      - consequence: Risk of wilting and yield loss
+        applies_to: low
+        quote: once the soybean plant wilts, yield potential will be lost
+      - consequence: Over-irrigation and water waste
+        applies_to: high
+        quote: The checkbook method is very conservative and most often errors on the side of over irrigating
+          rather than under irrigating.
+    page: null
+    reviewed_by: CB
+
+  - card_id: georgia-soybean-harvest-moisture
+    why: >-
+      14 vs 16 percent is a 14 percent gap, and neither reason is about this range:
+      'harvested promptly ... to reduce field losses' leads into harvesting as high as 20
+      percent, and the drying-cost sentence is about drying from 20 percent. The guide
+      presents 14-16 as one target 'for maximum returns'. The drafter also rejected it in
+      the same run.
+    parameter: soybean harvest moisture content
+    parameter_category: crop_timing
+    unit: percent moisture content
+    range_low: 14
+    range_high: 16
+    range_quote: High moisture grain loses this moisture rapidly in the field; thus, for maximum returns
+      soybeans should be harvested when they have reached approximately 14 to 16 percent moisture content.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Harvesting promptly when mature reduces field losses and weather damage.
+    output_end_quote: Soybeans should be harvested promptly when they are mature to reduce field losses
+      and lessen chances of damage from bad weather.
+    other_reason_basis: quote
+    other_end_reason: Removing a large amount of water increases the cost of the drying operation.
+    other_end_quote: However, when drying from 20 percent to a safe moisture content, a large amount of
+      water must be removed increasing the cost of the drying operation.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: The high end (16%) is about 14% above the low end (14%), below the 15% meaningful-gap threshold.
+      Output end is high because harvesting at higher moisture means earlier harvest and less field loss;
+      low end saves drying cost.
+    reviewed_by: null
+
+  - card_id: georgia-soybean-irrigation-r1-r4
+    why: >-
+      Neither reason is about 1.0 vs 1.5 inches per application: the wilting sentence is
+      about when to irrigate (reproductive vs vegetative growth), and 'the checkbook method
+      ... errors on the side of over irrigating' is about the scheduling method. The card's
+      notes say the low-end reason is inferred.
+    parameter: soybean irrigation amount per application at R1–R4 (first bloom to beginning pod elongation)
+    parameter_category: input_rate
+    unit: ”
+    range_low: 1
+    range_high: 1.5
+    range_quote:
+      table: 'Table 5. The following water balance method is suggested for 45 to 50 bushel soybean yields:'
+      columns:
+        - Growth Stage
+        - Trigger
+        - Amount
+      row:
+        - 1 st Bloom – Beginning Pod Elongation (R1 – R4)
+        - Wilting by mid-day
+        - 1.0-1.5”
+      checked_by: null
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Preventing wilting during reproductive growth protects yield potential.
+    output_end_quote: Specifically, when wilting occurs during reproductive growth the chance for lost yield
+      potential is greater than if it occurs during vegetative growth.
+    other_reason_basis: quote
+    other_end_reason: The lower end uses less water and avoids the over-irrigation that the checkbook method
+      tends toward.
+    other_end_quote: The checkbook method is very conservative and most often errors on the side of over
+      irrigating rather than under irrigating.
+    management_conditions:
+      - condition: Irrigate when plants are wilting by mid-day
+        applies_to: both
+        quote: Wilting by mid-day
+    production_consequences: [ ]
+    page: null
+    notes: The lower-end reason is inferred from the manual's caution that the checkbook method tends to
+      over-irrigate; the manual does not explicitly say 1.0 inches is preferred. The row label in the excerpt
+      is split across lines.
+    reviewed_by: null

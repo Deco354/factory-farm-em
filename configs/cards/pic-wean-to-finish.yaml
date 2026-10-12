@@ -38,29 +38,6 @@ source:
   book_text: "context/cleaned/PIC Wean to Finish_cleaned.txt"
 
 cards:
-  - card_id: pic-brooder-duration
-    parameter: brooder usage duration for piglets
-    parameter_category: other
-    unit: days
-    range_low: 14
-    range_high: 21
-    range_quote: Brooders should be in place and functional for 14 to 21 days depending on pig comfort and
-      severity of disease.
-    output_end: low
-    output_reason_basis: quote
-    output_end_reason: The shorter duration is acceptable when pigs are comfortable.
-    output_end_quote: depending on pig comfort
-    other_reason_basis: quote
-    other_end_reason: Brooders provide necessary warmth for pigs.
-    other_end_quote: Pigs need properly functioning brooders producing temperatures around 95°F (35°C) directly
-      beneath them
-    management_conditions: []
-    production_consequences: []
-    page: null
-    notes: Range is conditional on pig comfort and disease severity; both ends are explicitly stated as
-      acceptable.
-    reviewed_by: CB
-
   - card_id: pic-pigs-per-drinker-double-stock
     parameter: pigs per drinker during double stocking
     parameter_category: animals_per_equipment
@@ -121,7 +98,37 @@ cards:
     notes: 'Both ends are stated as recommended. Trade-off: low saves feed, high improves growth.'
     reviewed_by: CB
 
+# Parked: kept for reference, not generated (the loader reads only `cards`).
+parked:
+  - card_id: pic-brooder-duration
+    why: >-
+      No quoted cost reason for the shorter end: 'depending on pig comfort' is a fragment, and
+      the other quote is about brooder temperature, not duration.
+    parameter: brooder usage duration for piglets
+    parameter_category: other
+    unit: days
+    range_low: 14
+    range_high: 21
+    range_quote: Brooders should be in place and functional for 14 to 21 days depending on pig comfort and
+      severity of disease.
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: The shorter duration is acceptable when pigs are comfortable.
+    output_end_quote: depending on pig comfort
+    other_reason_basis: quote
+    other_end_reason: Brooders provide necessary warmth for pigs.
+    other_end_quote: Pigs need properly functioning brooders producing temperatures around 95°F (35°C) directly
+      beneath them
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: Range is conditional on pig comfort and disease severity; both ends are explicitly stated as
+      acceptable.
+    reviewed_by: null
   - card_id: pic-drinker-per-pigs
+    why: >-
+      Duplicate of pic-pigs-per-drinker-double-stock (10-12 pigs per drinker); that card has
+      the full-sentence quote.
     parameter: pigs per drinker when feeder nipples are off
     parameter_category: animals_per_equipment
     unit: pigs/drinker
@@ -139,9 +146,11 @@ cards:
     production_consequences: [ ]
     page: null
     notes: Gap is 20% (12/10).
-    reviewed_by: CB
-
+    reviewed_by: null
   - card_id: pic-group-size-finishing
+    why: >-
+      Group size is not space per pig: the fixed space_allowance sentence would claim more
+      pigs per pen means less space each, which the quote doesn't say.
     parameter: group size (head per pen) for finishing pigs
     parameter_category: space_allowance
     unit: head per pen
@@ -161,9 +170,10 @@ cards:
     page: null
     notes: The range is for group size; the lower end gives more space per pig, the higher end more pigs
       per pen. Both ends are within the recommended range for optimizing performance.
-    reviewed_by: CB
-
+    reviewed_by: null
   - card_id: pic-feeder-space-wetdry-growfinish
+    why: >-
+      Gap is 9 percent (1.15 vs 1.25).
     parameter: linear feeder space per head for grow-finish pigs (60 lbs to market) using wet/dry feeders
     parameter_category: animals_per_equipment
     unit: inches
@@ -191,9 +201,11 @@ cards:
     production_consequences: [ ]
     page: null
     notes: Gap is 8.7% (1.25/1.15), less than 15%.
-    reviewed_by: CB
-
+    reviewed_by: null
   - card_id: pic-pan-coverage-nursery-training
+    why: >-
+      Both ends use the same neutral sentence ('Pan coverage can vary based on objectives for
+      ADG and FCR'), so neither end has its own reason.
     parameter: pan coverage during feed intake training period (day 0-3) for nursery pigs
     parameter_category: feeding
     unit: '%'
@@ -221,9 +233,11 @@ cards:
     production_consequences: [ ]
     page: null
     notes: Gap is 40% (70/50), meaningful.
-    reviewed_by: CB
-
+    reviewed_by: null
   - card_id: pic-pan-coverage-nursery-after
+    why: >-
+      Fails the checker: table cells not found together in the book. Direction was also not
+      stated by the manual.
     parameter: pan coverage after training period (day >3) for nursery pigs
     parameter_category: feeding
     unit: '%'
@@ -251,9 +265,10 @@ cards:
     production_consequences: [ ]
     page: null
     notes: Gap is 25% (50/40), meaningful.
-    reviewed_by: CB
-
+    reviewed_by: null
   - card_id: pic-stocking-density-slatted-heavy
+    why: >-
+      Fails the checker (columns/cells mismatch) and the gap is 8 percent (7.5 vs 8.1).
     parameter: stocking density for commercial market pigs >265 lbs on slatted floor
     parameter_category: space_allowance
     unit: ft2
@@ -287,9 +302,11 @@ cards:
     page: null
     notes: Range given as a minimum; both ends acceptable. Gap is only ~8% (7.5 to 8.1), below the 15% meaningful-gap
       threshold. Metric conversion in parentheses.
-    reviewed_by: CB
-
+    reviewed_by: null
   - card_id: pic-pigs-per-water-source-grow-finish
+    why: >-
+      Fails the checker (columns/cells mismatch, range not in quote) and duplicates pic-pigs-
+      per-drinker-double-stock.
     parameter: pigs per water source for grow-finish pigs (60 lbs to market, 23 kg to market)
     parameter_category: animals_per_equipment
     unit: pigs per water source
@@ -317,5 +334,4 @@ cards:
     page: null
     notes: Range is from the grow-finish column only; nursery is a single value of 10. Both 10 and 12 are
       acceptable per the table. 12 is 20% above 10.
-    reviewed_by: CB
-
+    reviewed_by: null
