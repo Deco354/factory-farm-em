@@ -44,8 +44,10 @@ jobs:
       # extra_instructions: |
       #   Also flag:
       #   - Broken internal links in changed HTML
-      # Optional — skim committed generated data instead of analyzing it:
-      generated_paths: "uv.lock"
-      generated_paths_note: "It is uv's resolved lockfile, committed so CI can `uv sync --locked`."
+      # Optional — leave bulk generated data (e.g. committed run outputs) out
+      # of the review entirely; it is listed by name and size only. Not for
+      # lockfiles: their diffs are small and show dependency changes.
+      # generated_paths: "outputs/**"
+      # generated_paths_note: "See CLAUDE.md for why this data is committed."
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
