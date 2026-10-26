@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from fragile_compassion.config import (
+    BENCHMARKS,
     ConfigError,
     ModelSpec,
     parse_eval_yaml,
@@ -249,6 +250,19 @@ def test_skipped_benchmarks_get_no_task():
         betley="skip", anima="skip", strong_reject="skip", do_not_answer="skip", tac="skip"
     )
     assert [s.name for s in task_specs(JUDGE, only)] == ["fc_harvestbench"]
+
+
+@pytest.mark.parametrize("benchmark", BENCHMARKS)
+def test_a_limit_reaches_its_task_or_is_rejected(benchmark):
+    # A limit the config accepts but no task receives is recorded in the run metadata
+    # while every item runs.
+    try:
+        evalcfg = _eval_with(**{benchmark: "{epochs: 1, max_tokens: 1024, limit: 3}"})
+    except ConfigError as e:
+        assert "does not take `limit`" in str(e)
+        return
+    specs = [s for s in task_specs(JUDGE, evalcfg) if s.name == f"fc_{benchmark}"]
+    assert specs and all(s.kwargs.get("limit") == 3 for s in specs)
 
 
 def test_every_task_kwarg_exists_on_the_task_it_targets():

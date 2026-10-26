@@ -601,15 +601,23 @@ def test_harvestbench_section_rejects_bad_values(sub):
         parse_eval_yaml(EVAL_MINI_YAML.replace(*sub))
 
 
-def test_harvestbench_accepts_a_zero_detour_cost_and_rejects_limit():
+def test_harvestbench_accepts_a_zero_detour_cost():
     assert parse_eval_yaml(EVAL_MINI_YAML.replace("detour_cost: 12", "detour_cost: 0"))
-    # Every seed is one map: a limit would silently drop maps.
-    with pytest.raises(ConfigError, match="harvestbench.seeds"):
-        parse_eval_yaml(
-            EVAL_MINI_YAML.replace(
-                HB_LINE, "  harvestbench:  {epochs: 1, max_tokens: 2000, limit: 1}"
-            )
-        )
+
+
+@pytest.mark.parametrize(
+    "line, instead",
+    [
+        # Neither task takes a limit: it was recorded in the metadata and every item ran.
+        ("  betley:        {epochs: 2, max_tokens: 600}", "betley.sources"),
+        ("  anima:         {epochs: 1, max_tokens: 1024}", "epochs"),
+        # Every seed is one map: a limit would silently drop maps.
+        (HB_LINE, "harvestbench.seeds"),
+    ],
+)
+def test_benchmarks_without_a_limit_reject_one(line, instead):
+    with pytest.raises(ConfigError, match=rf"does not take `limit`.*{instead}"):
+        parse_eval_yaml(EVAL_MINI_YAML.replace(line, line.replace("}", ", limit: 1}")))
 
 
 @pytest.mark.parametrize(

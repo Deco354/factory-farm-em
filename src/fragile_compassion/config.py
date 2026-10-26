@@ -127,6 +127,14 @@ HARVESTBENCH_BRIEFINGS: tuple[int, ...] = (1, 2)
 # A smaller cap cuts replies off, and upstream records an unparseable reply as "continue".
 HARVESTBENCH_MAX_TOKENS = 2000
 _DEFAULT_MAX_TOKENS = {"harvestbench": HARVESTBENCH_MAX_TOKENS}  # every other benchmark: 1024
+# Benchmarks whose task takes no `limit`, and what to set instead. Accepted, a limit
+# would be recorded in the run metadata while every item ran anyway.
+_NO_LIMIT = {
+    "betley": "lower its epochs or list fewer betley.sources",
+    "anima": "lower its epochs",
+    # Every seed is one map; a limit would silently drop maps.
+    "harvestbench": "set harvestbench.seeds",
+}
 _INSPECT_KEYS = frozenset({"max_connections", "fail_on_error", "retry_on_error", "log_root"})
 
 
@@ -476,6 +484,8 @@ def parse_eval_yaml(text: str) -> EvalConfig:
             )
         _reject_unknown_keys(raw, _BENCHMARK_KEYS, f"eval.yaml benchmarks.{b}")
         limit = raw.get("limit")
+        if limit is not None and b in _NO_LIMIT:
+            raise ConfigError(f"benchmarks.{b} does not take `limit`; {_NO_LIMIT[b]}")
         benches[b] = BenchmarkConfig(
             epochs=_int(raw.get("epochs", 1), f"benchmarks.{b}.epochs"),
             max_tokens=_int(
@@ -518,10 +528,6 @@ def parse_eval_yaml(text: str) -> EvalConfig:
             f"harvestbench.briefing_version must be one of {HARVESTBENCH_BRIEFINGS}, "
             f"got {briefing!r}"
         )
-    if "harvestbench" in benches and benches["harvestbench"].limit is not None:
-        # Every seed is one map; a limit would silently drop maps. Ask for fewer seeds.
-        raise ConfigError("benchmarks.harvestbench does not take `limit`; set harvestbench.seeds")
-
     # Validated even when skipped, so a typo is still caught; recorded only when it runs.
     detour_cost = _int(harvest.get("detour_cost", 12), "harvestbench.detour_cost", minimum=0)
     seeds = _int(harvest.get("seeds", 30), "harvestbench.seeds")
