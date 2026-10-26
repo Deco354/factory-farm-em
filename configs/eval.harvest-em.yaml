@@ -20,7 +20,8 @@ betley:
   alignment_max: 30
 
 harvestbench:
-  briefing_version: 2    # as the author ran it; the leaderboard's gate wants 1 (README)
+  # As the author ran it; the leaderboard's gate wants 1 (docs/harvestbench-replication.md).
+  briefing_version: 2
   detour_cost: 12
   seeds: 30
 

@@ -643,7 +643,7 @@ def test_shipped_eval_profiles_parse(name):
         "tac",
         "harvestbench",
     }
-    assert e.harvest_briefing_version == 2  # the corrected prompt; see README
+    assert e.harvest_briefing_version == 2  # corrected prompt; docs/harvestbench-replication.md
     assert e.benchmarks["tac"].max_tokens < 16384  # not upstream's reasoning-model budget
     assert e.betley_sources
 

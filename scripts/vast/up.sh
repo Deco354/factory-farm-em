@@ -9,7 +9,7 @@
 # confirm, and points `ssh vast-em` at it.
 # It then runs box-setup.sh there (uv sync, all pinned models) and copies the judge key
 # over. If it fails or you press Ctrl-C after renting, run it again: it picks up the
-# recorded box instead of renting a second one. See README "Rented GPU box (Vast.ai)".
+# recorded box instead of renting a second one. See docs/vast.md.
 #
 #   --dry-run   run every check and the offer search, then stop without renting
 #   --yes       answer yes to every question (for scripted use)
@@ -70,10 +70,11 @@ if [ -f "$SETTINGS" ]; then
 fi
 
 JUDGE_ENV=${FC_JUDGE_ENV:-$STATE_DIR/judge.env}
-# Optional: a fine-grained, read-only Hugging Face token for the box (README one-time
-# setup step 7). It authenticates the box's downloads, so fewer rate limits, and gated
-# datasets such as TAC's need it. Read only from this file, never your shell's HF_TOKEN;
-# checked before renting; sent to the box over SSH stdin, never on a command line.
+# Optional: a fine-grained, read-only Hugging Face token for the box (docs/vast.md,
+# one-time setup step 7). It authenticates the box's downloads, so fewer rate limits,
+# and gated datasets such as TAC's need it. Read only from this file, never your shell's
+# HF_TOKEN; checked before renting; sent to the box over SSH stdin, never on a command
+# line.
 HF_ENV=${FC_HF_ENV:-$STATE_DIR/hf.env}
 HF_TOKEN_VALUE=""
 if [ -f "$HF_ENV" ]; then
@@ -141,7 +142,7 @@ billing_traps # from here on, any exit with a box rented says it is still billin
 
 # --------------------------------------------------------------------- 1. local checks
 for tool in vastai python3 ssh ssh-keyscan scp git uv curl; do
-  command -v "$tool" >/dev/null || die "$tool not found on PATH (README: Rented GPU box, one-time setup)"
+  command -v "$tool" >/dev/null || die "$tool not found on PATH (docs/vast.md, one-time setup)"
 done
 [ -f "$KEY" ] && [ -f "$KEY.pub" ] || die "no SSH key pair at $KEY and $KEY.pub (one-time setup step 4, or set FC_VAST_SSH_KEY)"
 [ -f "$JUDGE_ENV" ] || die "no judge key file at $JUDGE_ENV (one-time setup step 6)"
@@ -216,7 +217,7 @@ sys.exit(asyncio.run(main()))
 PY
   ) || judge_ok=0
   rm -rf "$tmp"
-  [ "$judge_ok" = 1 ] || die "judge check failed; fix $JUDGE_ENV before renting (README troubleshooting)"
+  [ "$judge_ok" = 1 ] || die "judge check failed; fix $JUDGE_ENV before renting (docs/vast.md troubleshooting)"
 fi
 
 # --------------------------------------------------------------------- Hugging Face token
@@ -228,7 +229,7 @@ if [ -n "$HF_TOKEN_VALUE" ]; then
     curl -sS --max-time 20 -H @- https://huggingface.co/api/whoami-v2 2>&1) ||
     die "could not reach Hugging Face to check the token: ${hf_reply:0:200}"
   printf '%s' "$hf_reply" | hf_token_problem ||
-    die "not putting the token in $HF_ENV on a rented box (above); see README one-time setup step 7"
+    die "not putting the token in $HF_ENV on a rented box (above); see docs/vast.md one-time setup step 7"
   echo "   read-only: OK"
 fi
 
@@ -273,7 +274,7 @@ d.sort(key=estimate)
 # m: and host: are the numbers the web console shows. The offer id is one free GPU slot
 # on the machine, so the console can show another id for the same machine. The search
 # API also bundles similar offers and returns one per bundle, so the console can list
-# machines this search never returns (README troubleshooting).
+# machines this search never returns (docs/vast.md troubleshooting).
 for o in d[:3]:
     print("   offer %-10s %-18s $%.3f/hr  downloads $%5.2f/TB  ~$%.2f  %-20s m:%s host:%s  reliability %.3f  down %s Mb/s" % (
         o["id"], o["gpu_name"], o["dph_total"], (o.get("inet_down_cost") or 0) * 1000, estimate(o),
@@ -396,7 +397,7 @@ for _ in 1 2 3 4 5 6; do
   sleep 10 # sshd can answer a moment before Vast has installed the keys
 done
 [ "$connected" = 1 ] ||
-  die "ssh vast-em failed. 'Permission denied (publickey)' means the box doesn't have your key: see README troubleshooting."
+  die "ssh vast-em failed. 'Permission denied (publickey)' means the box doesn't have your key: see docs/vast.md troubleshooting."
 
 # Into Hugging Face's own token file, before setup, so setup's downloads, vLLM, Inspect
 # and dataset loading all use it. Rewritten on every run, so a resumed box gets it too.

@@ -1,5 +1,5 @@
 # Qwen2.5-32B organisms for the HarvestBench replication requested by HarvestBench's author
-# (README: "HarvestBench replication"). Use with configs/eval.harvest-em.yaml:
+# (docs/harvestbench-replication.md). Use with configs/eval.harvest-em.yaml:
 #   uv run fc run --models configs/models.q32b.yaml --eval configs/eval.harvest-em.yaml ...
 # The un-adapted base is added automatically as the baseline; do not list it here.
 #
