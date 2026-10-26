@@ -203,6 +203,8 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
 
     specs: list[ModelSpec] = []
     seen_names: set[str] = set()
+    # (base, base_revision, adapter, adapter_revision) -> the entry that first used it
+    seen_models: dict[tuple[str, str, str | None, str | None], str] = {}
     for i, raw in enumerate(entries):
         if not isinstance(raw, Mapping):
             raise ConfigError(f"models[{i}] must be a mapping")
@@ -269,22 +271,33 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
                 raise ConfigError(
                     f"models[{i}] ({name}).gpu_memory_utilization must be > 0, got {util}"
                 )
-        specs.append(
-            ModelSpec(
-                name=name,
-                base=base,
-                base_revision=base_rev,
-                adapter=adapter,
-                adapter_revision=adapter_rev,
-                rank=rank,
-                domain=domain,
-                variant=str(variant),
-                note=note,
-                tool_call_parser=parser,
-                max_model_len=max_len,
-                gpu_memory_utilization=util,
-            )
+        spec = ModelSpec(
+            name=name,
+            base=base,
+            base_revision=base_rev,
+            adapter=adapter,
+            adapter_revision=adapter_rev,
+            rank=rank,
+            domain=domain,
+            variant=str(variant),
+            note=note,
+            tool_call_parser=parser,
+            max_model_len=max_len,
+            gpu_memory_utilization=util,
         )
+        # Two names for one model share one Inspect model id in one eval_set: plan_runs'
+        # metadata is keyed by that id (one name vanishes from the record), max_loras counts
+        # a slot vLLM never fills, and eval_set gets the id twice. Another base revision is
+        # its own eval_set, so it is part of the key.
+        key = (base, base_rev, adapter, adapter_rev)
+        if key in seen_models:
+            raise ConfigError(
+                f"models[{i}] ({name}) is the same model as {seen_models[key]}: "
+                f"{spec.inspect_model_id()} at base revision {base_rev[:12]}. "
+                "List each model once."
+            )
+        seen_models[key] = f"models[{i}] ({name})"
+        specs.append(spec)
     return specs
 
 
