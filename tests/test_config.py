@@ -141,6 +141,40 @@ def test_duplicate_model_names_rejected():
         parse_models_yaml(_models(**{"name: r1-narrow-y": "name: r32-general-x"}))
 
 
+def test_two_names_for_one_adapter_are_rejected_naming_both():
+    # A copied entry with only the name changed, e.g. a new seed whose adapter wasn't updated.
+    # Both would get one Inspect model id, and plan_runs' record would keep only one name.
+    text = MODELS_MINI_YAML + (
+        f"  - {{name: r32-general-x-copy, adapter: org/fake-adapter-r32, "
+        f"adapter_revision: {REV_B}, rank: 32}}\n"
+    )
+    with pytest.raises(ConfigError, match=r"models\[2\] \(r32-general-x-copy\).*r32-general-x\b"):
+        parse_models_yaml(text)
+
+
+def test_two_names_for_one_base_entry_are_rejected():
+    text = (
+        MODELS_MINI_YAML
+        + "  - {name: my-base, variant: base}\n  - {name: my-base-2, variant: base}\n"
+    )
+    with pytest.raises(ConfigError, match=r"my-base-2.*my-base\b"):
+        parse_models_yaml(text)
+
+
+def test_one_adapter_at_another_revision_or_on_another_base_revision_is_a_distinct_model():
+    other_adapter_rev = MODELS_MINI_YAML + (
+        f"  - {{name: r32-general-x-later, adapter: org/fake-adapter-r32, "
+        f"adapter_revision: {REV_C}, rank: 32}}\n"
+    )
+    assert len(parse_models_yaml(other_adapter_rev)) == 3
+    # Another base revision runs in its own eval_set, so nothing there collides.
+    other_base_rev = MODELS_MINI_YAML + (
+        f"  - {{name: r32-general-x-on-c, base_revision: {REV_C}, adapter: org/fake-adapter-r32, "
+        f"adapter_revision: {REV_B}, rank: 32}}\n"
+    )
+    assert len(parse_models_yaml(other_base_rev)) == 3
+
+
 @pytest.mark.parametrize(
     "text, key",
     [
