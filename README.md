@@ -31,6 +31,9 @@ cp .env.example .env                # fill in OPENAI_API_KEY and HF_TOKEN
 ```
 
 ### GPU Model serving box
+On a rented Vast.ai box, `scripts/vast/up.sh` does all of this for you; see
+[Rented GPU box (Vast.ai)](#rented-gpu-box-vastai).
+
 ```bash
 uv python pin 3.12
 uv sync --group dev --extra vllm    # Linux GPU box: also serves models
@@ -40,9 +43,6 @@ cp .env.example .env                # fill in OPENAI_API_KEY and HF_TOKEN
 TAC's scenarios are a gated Hugging Face dataset. Accept its terms once at
 <https://huggingface.co/datasets/CompassioninMachineLearning/tac> (approval is
 automatic) with the account whose `HF_TOKEN` you use, or `fc_tac` fails at build time.
-
-On a rented Vast.ai box, `scripts/vast/up.sh` does all of this for you; see
-[Rented GPU box (Vast.ai)](#rented-gpu-box-vastai).
 
 ## Run
 
