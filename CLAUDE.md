@@ -156,9 +156,10 @@ If vLLM must be remote, pre-register adapters with `--lora-modules name=path` an
 use `vllm/<base>:<name>` (see README). Qwen2.5-14B bf16 needs ~30 GB weights:
 one 80 GB GPU is comfortable, one 48 GB works with `max_model_len=4096`.
 Qwen2.5-32B needs ~61 GiB: `models.q32b.yaml` sets `max_model_len: 8192` and
-`gpu_memory_utilization: 0.95` for one 80 GB GPU (estimates). Per-base server settings
-must agree across a base's models; `max_loras` is the adapter count, so all adapters
-share each batch (vLLM's default of 1 serialises them).
+`gpu_memory_utilization: 0.95` for one 80 GB GPU; they fit on an A100 80 GB
+(`docs/gpu-runs.md`). Per-base server settings must agree across a base's models;
+`max_loras` is the adapter count, so all adapters share each batch (vLLM's default of 1
+serialises them).
 
 Unless told otherwise, Inspect 0.3.263 starts `vllm serve` on `0.0.0.0` with the key
 `inspectai`, and sets no server start timeout (it polls until the process dies).
