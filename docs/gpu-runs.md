@@ -10,8 +10,10 @@ Observed on the 2026-09-28 smoke runs (Vast.ai, 1× A100-SXM4-80GB, judge
 log headers on 2026-09-30:
 
 - `EvalSpec.model` in the log carries the full `vllm/<base>:<adapter>@<rev>` string.
-- The `model_usage` key for LoRA runs is the bare `vllm/<base>`; the export uses
-  `output.usage`, so this only affects the judge-token fallback.
+- The `model_usage` key for LoRA runs is the bare `vllm/<base>`, not the full id.
+  Exports made before the fix for issue #48 counted that key as the judge's, so on
+  adapter rows the judge token columns also held the model's own tokens. Re-export
+  those logs before using their judge token columns.
 - `fc_anima` loads exactly 26 samples (dataset ids 0–25).
 
 Observed on the 2026-10-06 smoke runs `vast-smoke-003` and `-004`, the first sessions
@@ -116,9 +118,11 @@ Its logs are in `logs/vast-2026-10-09-55025767/`.
     Mann-Whitney p 5.6e-5.
 - **Betley results.** The unpop seeds are 13.3–21.8% misaligned, on 353–408 scoreable
   answers out of 800. The controls and base are at 0, on 792–799 scoreable.
-- **Judge cost:** about $3.91, from the measured tokens at list price. For adapter rows,
-  the export's judge token columns also include the model's own tokens, so those were
-  subtracted.
+- **Judge cost:** about $3.91, from the measured tokens at list price. The export of the
+  time also counted the model's own tokens in adapter rows' judge token columns (issue
+  #48), so those were subtracted. Re-exported with the fix (2026-10-26), the Betley rows
+  hold 4,813,888 judge input and 66,192 judge output tokens, the true totals stated in
+  the issue.
 
 Not yet observed on a GPU:
 

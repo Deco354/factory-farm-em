@@ -46,7 +46,8 @@ with a teacher model. It exists to answer three infrastructure questions first:
   text go in `Score.metadata`. Every key in a scorer's `metrics` must be present
   in every Score it emits.
 - **Token counts per response** come from `EvalSample.output.usage`; the judge's
-  usage is separate in `model_usage`. Exception: judgeless multi-turn tasks
+  usage is separate in `model_usage`, where Inspect keys the model under test by the
+  bare `vllm/<base>`, adapter or not. Exception: judgeless multi-turn tasks
   (`JUDGELESS`: TAC, HarvestBench) sum every `model_usage` entry, because
   `output.usage` is only the agent loop's last turn (TAC) or empty (HarvestBench calls
   the model directly).

@@ -334,6 +334,16 @@ def header_from_log(log: EvalLog) -> RunHeader:
     )
 
 
+def _usage_key(model_id: str) -> str:
+    """The `model_usage` key of the model under test. Inspect keys a vLLM model's usage
+    by its bare `vllm/<base>`, so an adapter's full id never appears there."""
+    try:
+        base, _adapter, _rev = parse_model_id(model_id)
+    except ValueError:
+        return model_id
+    return f"vllm/{base}"
+
+
 def _usage_columns(header: RunHeader, sample: EvalSample, *, judgeless: bool) -> dict[str, Any]:
     if judgeless:
         # A multi-turn agent sample: output.usage is only the last turn. With no judge,
@@ -353,10 +363,11 @@ def _usage_columns(header: RunHeader, sample: EvalSample, *, judgeless: bool) ->
             "judge_output_tokens": None,
         }
 
+    model_key = _usage_key(header.model_id)
     usage = sample.output.usage if sample.output is not None else None
     source = "output.usage"
     if usage is None:
-        usage = (sample.model_usage or {}).get(header.model_id)
+        usage = (sample.model_usage or {}).get(model_key)
         source = "model_usage" if usage is not None else "missing"
     cols: dict[str, Any] = {
         "input_tokens": usage.input_tokens if usage else None,
@@ -368,7 +379,7 @@ def _usage_columns(header: RunHeader, sample: EvalSample, *, judgeless: bool) ->
     j_in = j_out = 0
     j_keys: list[str] = []
     for key, u in (sample.model_usage or {}).items():
-        if key == header.model_id:
+        if key == model_key:
             continue
         j_keys.append(key)
         j_in += u.input_tokens
