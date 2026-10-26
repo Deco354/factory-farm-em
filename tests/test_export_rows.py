@@ -1,5 +1,6 @@
 """Per-item retention: N EvalSamples in, N rows out; exclusion columns; token columns."""
 
+import dataclasses
 import math
 
 import pytest
@@ -18,6 +19,8 @@ from fragile_compassion.export.schema import FIXED_COLUMNS, RunHeader
 
 NAN = float("nan")
 MODEL_ID = "vllm/org/base:org/adapter@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+# Inspect's model_usage key for the model under test, adapter or not: the bare base.
+USAGE_KEY = "vllm/org/base"
 SPEC = {
     "name": "r32-general-x",
     "base": "org/base",
@@ -498,7 +501,7 @@ def test_sample_error_wins():
 
 def test_usage_falls_back_to_model_usage_then_missing():
     mu = {
-        MODEL_ID: ModelUsage(input_tokens=5, output_tokens=6, total_tokens=11),
+        USAGE_KEY: ModelUsage(input_tokens=5, output_tokens=6, total_tokens=11),
         "google/fake-judge": ModelUsage(input_tokens=100, output_tokens=2, total_tokens=102),
     }
     (row,) = sample_to_rows(
@@ -512,6 +515,30 @@ def test_usage_falls_back_to_model_usage_then_missing():
         header(), sample("q0", scores={"betley_judge": betley_score(80, 90)}, usage=False)
     )
     assert row["output_tokens"] is None and row["usage_source"] == "missing"
+
+
+@pytest.mark.parametrize("model_id", [MODEL_ID, USAGE_KEY], ids=["adapter", "base"])
+@pytest.mark.parametrize("judge_model", ["google/fake-judge", None], ids=["logged", "unlogged"])
+def test_judge_columns_hold_only_the_judges_tokens(model_id, judge_model):
+    # Issue #48: an adapter's own tokens are keyed by the bare base, not by its model id.
+    mu = {
+        USAGE_KEY: ModelUsage(input_tokens=11, output_tokens=42, total_tokens=53),
+        "google/fake-judge": ModelUsage(input_tokens=100, output_tokens=2, total_tokens=102),
+    }
+    h = dataclasses.replace(header(), model_id=model_id, judge_model=judge_model)
+    (row,) = sample_to_rows(
+        h, sample("q0", scores={"betley_judge": betley_score(80, 90)}, model_usage=mu)
+    )
+    assert (row["input_tokens"], row["output_tokens"], row["usage_source"]) == (
+        11,
+        42,
+        "output.usage",
+    )
+    assert (row["judge_model"], row["judge_input_tokens"], row["judge_output_tokens"]) == (
+        "google/fake-judge",
+        100,
+        2,
+    )
 
 
 def test_flatten_score_shapes():
