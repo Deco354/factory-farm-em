@@ -15,7 +15,8 @@ base_defaults:
   tool_call_parser: hermes
   # One A100/H100 80 GB: ~61 GiB of bf16 weights plus 7 LoRA slots (~0.5 GiB each) leaves
   # a few GiB of KV cache at 0.95. HarvestBench prompts are ~1.1k tokens and Betley's are
-  # shorter, so 8192 is ample. Estimates: check vLLM's startup log on the first run.
+  # shorter, so 8192 is ample. It fits on an A100 80 GB (docs/gpu-runs.md has each run's
+  # KV cache); on other hardware, read the KV cache from vLLM's /metrics on a smoke run.
   max_model_len: 8192
   gpu_memory_utilization: 0.95
 
