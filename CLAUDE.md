@@ -107,8 +107,8 @@ with a teacher model. It exists to answer three infrastructure questions first:
 - `configs/` — `models.yaml` (14B organisms), `models.q32b.yaml` (32B unpop seeds +
   controls), `judge.yaml`, `eval.yaml`, `eval.smoke.yaml`, `eval.harvest-em.yaml` (the
   HarvestBench replication; skips the other benchmarks with `<name>: skip`) and
-  `eval.harvest-em.smoke.yaml` (same server and tasks, 2 maps; run it first, README
-  "Smoke test first"), plus `sft_doc_config.yaml.example` and
+  `eval.harvest-em.smoke.yaml` (same server and tasks, 2 maps; run it first,
+  `docs/harvestbench-replication.md`), plus `sft_doc_config.yaml.example` and
   `prompts/docgen_system_prompt.md` for SFT document generation.
 - `scripts/vast/` — rent, set up and destroy a Vast.ai GPU box: `up.sh` and
   `down.sh` run on the laptop (bash 3.2, macOS and Linux), `box-setup.sh` runs on the
@@ -153,8 +153,8 @@ case. Only a client sending an explicit `"tool_choice": null` would trigger Herm
 parsing without tools.
 Run Inspect on the GPU box and let it auto-start vLLM (needs the `vllm` extra).
 If vLLM must be remote, pre-register adapters with `--lora-modules name=path` and
-use `vllm/<base>:<name>` (see README). Qwen2.5-14B bf16 needs ~30 GB weights:
-one 80 GB GPU is comfortable, one 48 GB works with `max_model_len=4096`.
+use `vllm/<base>:<name>` (see `docs/pipeline.md`). Qwen2.5-14B bf16 needs ~30 GB
+weights: one 80 GB GPU is comfortable, one 48 GB works with `max_model_len=4096`.
 Qwen2.5-32B needs ~61 GiB: `models.q32b.yaml` sets `max_model_len: 8192` and
 `gpu_memory_utilization: 0.95` for one 80 GB GPU (estimates). Per-base server settings
 must agree across a base's models; `max_loras` is the adapter count, so all adapters
@@ -167,16 +167,16 @@ one pool for all models on that base, not per model (and each task's default
 `max_samples`). It sets `VLLM_CONFIGURE_LOGGING=0` unless the server args say
 `configure_logging: true`, so vLLM's info lines (the KV cache size, the 10 s stats) never
 print; its warnings and errors still reach stderr, which Inspect logs at `info`. The KV
-cache size and load are on the server's `/metrics` (README "Smoke test first"). Inspect's
-default console format wraps each line to the terminal; `INSPECT_PY_LOGGER_FORMAT=plain`
-doesn't.
+cache size and load are on the server's `/metrics` (`docs/harvestbench-replication.md`,
+smoke test). Inspect's default console format wraps each line to the terminal;
+`INSPECT_PY_LOGGER_FORMAT=plain` doesn't.
 `scripts/vast/box-setup.sh` writes `VLLM_DEFAULT_SERVER_ARGS={"host": "127.0.0.1"}`,
 `VLLM_HOST_IP=127.0.0.1`, `GLOO_SOCKET_IFNAME=lo` and a per-box `VLLM_API_KEY` into the
 box's `.env`. vLLM 0.28's process groups use Gloo, which listens on the address the
 container's hostname resolves to (172.17.x.x) unless `GLOO_SOCKET_IFNAME` says
 otherwise. `VLLM_HOST_IP` only sets the address vLLM advertises and doesn't move those
 sockets (observed 2026-10-06). Rented boxes are Vast.ai, driven by `scripts/vast/`
-(README "Rented GPU box (Vast.ai)").
+(`docs/vast.md`).
 
 ## GPU-run checklist
 
