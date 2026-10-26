@@ -19,10 +19,7 @@ on:
 
 jobs:
   review: # branch protection sees this check as "review / claude-review"
-    # TEMPORARY: pre-release test of sentfutures/devops#12 (read every
-    # non-generated diff). Put back to @v1 once that PR merges, BEFORE the
-    # review-every-file branch is deleted — a missing ref fails at startup.
-    uses: sentfutures/devops/.github/workflows/claude-pr-review.yml@review-every-file
+    uses: sentfutures/devops/.github/workflows/claude-pr-review.yml@v1
     permissions:
       contents: read
       pull-requests: write
