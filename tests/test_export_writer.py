@@ -6,7 +6,6 @@ import json
 
 from inspect_ai.log import EvalConfig, EvalDataset, EvalLog, EvalSample, EvalSpec, write_eval_log
 
-from fragile_compassion.cli import main
 from fragile_compassion.export.schema import FIXED_COLUMNS
 from fragile_compassion.export.writer import iter_rows, superseded, write_csv, write_jsonl
 
@@ -117,16 +116,8 @@ def test_export_skips_a_crashed_attempt_log_its_retry_replaces(tmp_path):
 # ---- `fc export`
 
 
-def fc(tmp_path, monkeypatch, *argv):
-    # main() loads the nearest .env first; an empty one here stops it reaching a
-    # developer's own .env (and its keys) above the checkout.
-    (tmp_path / ".env").write_text("")
-    monkeypatch.chdir(tmp_path)
-    return main(list(argv))
-
-
 def test_fc_export_says_which_logs_it_skipped_and_writes_the_csv_beside_the_jsonl(
-    tmp_path, monkeypatch, capsys
+    tmp_path, fc, capsys
 ):
     logs = tmp_path / "logs"
     logs.mkdir()
@@ -136,7 +127,7 @@ def test_fc_export_says_which_logs_it_skipped_and_writes_the_csv_beside_the_json
     write_log(new, "task-a", "2026-10-09T13:46:48+00:00", "success", ["s1", "s2"])
     out = tmp_path / "results" / "r.jsonl"
 
-    assert fc(tmp_path, monkeypatch, "export", str(logs), "--out", str(out), "--csv") == 0
+    assert fc("export", str(logs), "--out", str(out), "--csv") == 0
 
     printed = capsys.readouterr()
     (skip_line,) = printed.err.splitlines()
@@ -151,13 +142,13 @@ def test_fc_export_says_which_logs_it_skipped_and_writes_the_csv_beside_the_json
     assert "input_text" not in jsonl[0]
 
 
-def test_fc_export_with_text_adds_the_prompt_and_response(tmp_path, monkeypatch):
+def test_fc_export_with_text_adds_the_prompt_and_response(tmp_path, fc):
     logs = tmp_path / "logs"
     logs.mkdir()
     write_log(logs / "a.eval", "task-a", "2026-10-09T13:20:16+00:00", "success", ["s1"])
     out = tmp_path / "r.jsonl"
 
-    assert fc(tmp_path, monkeypatch, "export", str(logs), "--out", str(out), "--with-text") == 0
+    assert fc("export", str(logs), "--out", str(out), "--with-text") == 0
 
     (row,) = [json.loads(line) for line in out.read_text().splitlines()]
     assert (row["input_text"], row["output_text"]) == ("q", "")
