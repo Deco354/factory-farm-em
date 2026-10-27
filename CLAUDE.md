@@ -187,10 +187,31 @@ on a GPU. Read it before a GPU run. Add new observations there, not here.
 
 ## Testing rules
 
-No GPU, no network, no model or judge mocks. Tests cover pure functions (rule,
-parsers, asymmetry, export rows, config parsing incl. every value that could
-fail silently) and the loader on inline fake YAML. The
+Tests follow FIRST:
+- **Fast**: seconds, not minutes. No sleeps, downloads or waits on real services.
+- **Independent**: no test relies on another's state or on running order. Each gets
+  its own `FC_CACHE_DIR` (`tests/conftest.py`).
+- **Repeatable**: the same result on every run and every machine, offline.
+- **Self-validating**: asserts decide pass or fail; nobody reads output to judge it.
+- **Timely**: tests land with the code they cover, and a bug fix lands with a test
+  that fails on the old code.
+
+Test functionality, not implementation: call the code the way its callers do and
+assert on what they see (return values, rows written, errors raised), not on private
+helpers, call order or internal state. A refactor that keeps the behaviour must not
+break a test.
+
+No test uses a GPU or the network. `--disable-socket` (pytest-socket, in
+`pyproject.toml`) fails any test that opens a network socket or looks up a host name;
+`tests/test_no_network.py` checks it is on. Keep each network call thin and put the
+logic around it (parsing, validation, building URLs and paths) in pure functions,
+tested on hand-written inputs with the real structure. Stubbing a network call is
+fine, e.g. `urlopen` to test what `fetch_text` writes to its cache. Don't mock a model
+or the judge to test orchestration, and that includes stubbing their HTTP calls. The
 `mockllm/model` command above is a manual plumbing check, not a test.
+
+Tests cover pure functions (rule, parsers, asymmetry, export rows, config parsing
+incl. every value that could fail silently) and the loader on inline fake YAML.
 `scripts/vast/` is tested only where it is offline: `tests/test_vast_up_settings.py`
 runs `up.sh` for its input checks (settings file, numeric settings), which exit before
 any network call, with `HOME` an empty temp dir so nothing past them can reach Vast.
