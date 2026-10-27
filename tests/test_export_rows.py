@@ -5,7 +5,7 @@ import math
 
 import pytest
 from inspect_ai.event import SpanBeginEvent, SpanEndEvent, StoreEvent
-from inspect_ai.log import EvalError, EvalSample
+from inspect_ai.log import EvalConfig, EvalDataset, EvalError, EvalLog, EvalSample, EvalSpec
 from inspect_ai.model import ModelOutput, ModelUsage
 from inspect_ai.scorer import Score
 
@@ -13,6 +13,7 @@ from fragile_compassion.export.rows import (
     HARVEST_KINDS,
     flatten_score,
     harvest_counts,
+    header_from_log,
     sample_to_rows,
 )
 from fragile_compassion.export.schema import FIXED_COLUMNS, RunHeader
@@ -553,3 +554,47 @@ def test_flatten_score_shapes():
         "score__s__unscored": 0.0,
     }
     assert flatten_score("s", Score.unscored()) == {"score__s__unscored": 1.0}
+
+
+# ---- which model a log's rows belong to
+
+BASE_SPEC = {**SPEC, "name": "base", "adapter": None, "adapter_revision": None, "rank": None}
+MODELS_META = {MODEL_ID: SPEC, USAGE_KEY: BASE_SPEC}  # keyed as plan_runs records them
+
+
+def eval_log(model, models_meta):
+    metadata = {"fc_run_id": "run-1", "models": models_meta} if models_meta else None
+    return EvalLog(
+        eval=EvalSpec(
+            created="2026-10-09T13:20:16+00:00",
+            task="fc_betley_first_plot",
+            task_id="tid",
+            dataset=EvalDataset(),
+            model=model,
+            config=EvalConfig(),
+            metadata=metadata,
+        ),
+        location="logs/run-1/x.eval",
+    )
+
+
+@pytest.mark.parametrize("model", [MODEL_ID, USAGE_KEY], ids=["adapter", "base"])
+def test_a_log_gets_the_spec_recorded_under_its_model_id(model):
+    assert header_from_log(eval_log(model, MODELS_META)).model_spec == MODELS_META[model]
+
+
+def test_a_log_without_fc_metadata_has_no_spec():
+    # A plain `inspect eval` run, such as the mockllm plumbing check.
+    assert header_from_log(eval_log("mockllm/model", None)).model_spec is None
+
+
+@pytest.mark.parametrize(
+    "model",
+    ["mockllm/model", MODEL_ID.split("@")[0], "vllm/org/base:org/other-adapter@" + "c" * 40],
+    ids=["not-vllm", "adapter-without-revision", "another-adapter"],
+)
+def test_a_model_missing_from_the_run_metadata_is_an_error_not_a_guess(model):
+    # Regression: a fallback matched on adapter instead, so "mockllm/model" got the base
+    # model's spec and its rows were exported under the base model's name.
+    with pytest.raises(ValueError, match="not in the run's `models` metadata"):
+        header_from_log(eval_log(model, MODELS_META))

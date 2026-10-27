@@ -200,6 +200,27 @@ def test_variant_must_be_known():
         parse_models_yaml(_models(**{"variant: narrow": "variant: narow"}))
 
 
+@pytest.mark.parametrize(
+    ("text", "error"),
+    [
+        (MODELS_MINI_YAML.split("models:")[0] + "models: []\n", "non-empty `models` list"),
+        (_models(**{"  - name: r1-narrow-y\n": "  - note: no name\n"}), "needs a `name`"),
+        (_models(**{"base: org/fake-base": "base: fake-base"}), "`base` must be an HF repo id"),
+        (
+            _models(**{"adapter: org/fake-adapter-r1": "adapter: fake-adapter-r1"}),
+            "`adapter` must be an HF repo id",
+        ),
+        (_models(**{"domain: y": "domain: 5"}), "domain must be a string"),
+    ],
+    ids=["no-models", "no-name", "base-not-org-name", "adapter-not-org-name", "domain-not-str"],
+)
+def test_models_that_would_otherwise_parse_silently_are_rejected(text, error):
+    # Without these checks: an empty run plans nothing and says so only as "0 eval_set
+    # calls", and a bare repo name or a numeric domain is recorded as given.
+    with pytest.raises(ConfigError, match=error):
+        parse_models_yaml(text)
+
+
 def test_adapter_entries_require_rank_and_reject_bad_ranks():
     with pytest.raises(ConfigError, match="need `rank`"):
         parse_models_yaml(_models(**{"    rank: 32\n": ""}))
@@ -300,6 +321,12 @@ def test_parse_model_id_round_trips():
     )
     base = ModelSpec(name="b", base="org/fake-base", base_revision=REV_A, variant="base")
     assert parse_model_id(base.inspect_model_id()) == ("org/fake-base", None, None)
+    # Inspect also accepts an adapter without a revision.
+    assert parse_model_id("vllm/org/fake-base:org/fake-adapter") == (
+        "org/fake-base",
+        "org/fake-adapter",
+        None,
+    )
     with pytest.raises(ConfigError):
         parse_model_id("hf/org/fake-base")
 

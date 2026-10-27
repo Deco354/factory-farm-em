@@ -7,7 +7,7 @@ Score layout rule (see CLAUDE.md): `Score.value` is a numeric-only dict, with
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from inspect_ai.model import GenerateConfig, Model, get_model
@@ -63,26 +63,26 @@ def judge_model(
     return get_model(judge, config=config)
 
 
-async def run_judge_passes(
-    state: TaskState,
+def judge_score(
     passes: Sequence[JudgePass],
-    judge: Model,
-    config: GenerateConfig,
+    completions: Mapping[str, str | None],
+    *,
+    answer: str,
+    judge: str,
     derive: Derive | None = None,
 ) -> Score:
-    question = state.input_text
-    answer = state.output.completion
+    """The Score for one response, from each pass's judge text (`completions`, by pass name).
 
-    replies: dict[str, JudgeReply] = {}
-    for p in passes:
-        out = await judge.generate(p.render(question, answer), config=config)
-        replies[p.name] = p.parser(out.completion)
+    Pure, so the reply handling is tested on hand-written judge text; `run_judge_passes`
+    only makes the calls. A pass's value is NaN unless its reply parsed as NUMERIC.
+    """
+    replies: dict[str, JudgeReply] = {p.name: p.parser(completions[p.name]) for p in passes}
 
     values: dict[str, float] = {
         name: (r.value if (r.label == "NUMERIC" and r.value is not None) else float("nan"))
         for name, r in replies.items()
     }
-    metadata: dict[str, Any] = {"judge_model": str(judge)}
+    metadata: dict[str, Any] = {"judge_model": judge}
     for name, r in replies.items():
         metadata[f"{name}_label"] = r.label
         metadata[f"{name}_raw"] = r.raw
@@ -93,3 +93,21 @@ async def run_judge_passes(
         metadata.update(extra_meta)
 
     return Score(value=values, answer=answer, metadata=metadata)
+
+
+async def run_judge_passes(
+    state: TaskState,
+    passes: Sequence[JudgePass],
+    judge: Model,
+    config: GenerateConfig,
+    derive: Derive | None = None,
+) -> Score:
+    question = state.input_text
+    answer = state.output.completion
+
+    completions: dict[str, str | None] = {}
+    for p in passes:
+        out = await judge.generate(p.render(question, answer), config=config)
+        completions[p.name] = out.completion
+
+    return judge_score(passes, completions, answer=answer, judge=str(judge), derive=derive)

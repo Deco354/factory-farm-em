@@ -224,14 +224,22 @@ The `scripts/vast/` tests run bash, so each keeps itself offline:
 numeric settings), which exit before any network call, with `HOME` an empty temp dir
 so nothing past them can reach Vast.
 `tests/test_vast_offer_search.py` and `tests/test_vast_box_env.py` source `common.sh`
-and `box-setup.sh` to check the offer search command and the box's `.env`. Sourced,
-`box-setup.sh` only defines functions, provided `$0` isn't its own path.
+and `box-setup.sh` to check the offer search and the offer it picks, and the box's
+`.env`. Sourced, `box-setup.sh` only defines functions, provided `$0` isn't its own path.
 `tests/test_vast_billing_warning.py` sends a real SIGINT to bash running `common.sh`'s
 `billing_traps`, to check that Ctrl-C after renting still says the box is billing.
-`tests/test_vast_hf_token.py` feeds `hf_token_problem` fake whoami replies with the real
-structure, to check only read-only Hugging Face tokens go on a box.
+`tests/test_vast_hf_token.py` and `tests/test_vast_instance_gone.py` feed
+`hf_token_problem` and `instance_gone` fake whoami and vastai replies with the real
+structure, to check only read-only Hugging Face tokens go on a box, and only Vast's
+"no such instance" reply counts as a destroyed box.
 `tests/test_vast_down.py` stops `down.sh` with SIGINT during its countdown, before any
 SSH or Vast call, to check it warns before destroying and keeps the box on Ctrl-C.
+It and `tests/test_vast_up_resume.py` also run `down.sh` and `up.sh` to the end with
+`tests/vast_fakes.py`: every networked command (`vastai`, `ssh`, `scp`, `curl`, `uv`,
+`git`, ...) is an exported bash function that fails, or for `vastai` answers from
+canned replies, and `sleep` returns at once. They are functions, not scripts on PATH,
+because macOS takes 220-350 ms to run a newly written executable the first time.
+`tests/test_no_network.py` checks bash sees every one of them as a function.
 
 ## Known gaps
 
