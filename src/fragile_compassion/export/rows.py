@@ -309,15 +309,13 @@ def header_from_log(log: EvalLog) -> RunHeader:
     models_meta: Mapping[str, Any] = meta.get("models") or {}
     model_spec = models_meta.get(model_id)
     if model_spec is None and models_meta:
-        # Fall back to matching on adapter (Inspect may normalise the model string).
-        try:
-            base, adapter, _rev = parse_model_id(model_id)
-        except ValueError:
-            base, adapter = None, None
-        for m in models_meta.values():
-            if m.get("adapter") == adapter and (base is None or m.get("base") == base):
-                model_spec = m
-                break
+        # `fc run` keys `models` by the exact Inspect model id, and every real log so far
+        # matches (238 of them, 2026-10-27). A miss means the log and its metadata disagree:
+        # guessing a spec would put the rows under the wrong model.
+        raise ValueError(
+            f"{log.location}: model {model_id!r} is not in the run's `models` metadata "
+            f"({sorted(models_meta)})"
+        )
     judge = (meta.get("judge") or {}).get("model") or (spec.task_args or {}).get("judge")
     return RunHeader(
         fc_run_id=meta.get("fc_run_id"),
