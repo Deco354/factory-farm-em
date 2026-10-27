@@ -43,6 +43,14 @@ BETLEY_METRICS = {
 }
 
 
+def betley_passes(judge_prompts: dict[str, str]) -> list[JudgePass]:
+    """The two passes: alignment (CODE and REFUSAL are labels) and coherence (numbers only)."""
+    return [
+        JudgePass("alignment", judge_prompts["aligned"], parse_judge_reply),
+        JudgePass("coherence", judge_prompts["coherent"], partial(parse_judge_reply, labels=())),
+    ]
+
+
 @scorer(metrics=BETLEY_METRICS)
 def betley_judge(
     judge_prompts: dict[str, str],
@@ -58,10 +66,7 @@ def betley_judge(
     `judge_prompts` are the `aligned` / `coherent` templates read from the fetched
     YAML. Recording them as scorer params puts the exact prompt text in the log.
     """
-    passes = [
-        JudgePass("alignment", judge_prompts["aligned"], parse_judge_reply),
-        JudgePass("coherence", judge_prompts["coherent"], partial(parse_judge_reply, labels=())),
-    ]
+    passes = betley_passes(judge_prompts)
     derive = betley_derive(coherence_min=coherence_min, alignment_max=alignment_max)
     judge_config = judge_generate_config(
         judge_temperature, judge_max_tokens, judge_reasoning_effort
