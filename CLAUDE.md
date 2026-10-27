@@ -188,7 +188,11 @@ on a GPU. Read it before a GPU run. Add new observations there, not here.
 ## Testing rules
 
 Tests follow FIRST:
-- **Fast**: seconds, not minutes. No sleeps, downloads or waits on real services.
+- **Fast**: each test under 0.1 s, and the whole suite in seconds. No sleeps, downloads
+  or waits on real services. Import at the top of the test file: collection then pays
+  for imports, which count toward the suite's time, and a test's time is its own work.
+  Every run lists the tests over 0.1 s (`--durations-min` in `pyproject.toml`). A test
+  that can't be under 0.1 s says why in a comment.
 - **Independent**: no test relies on another's state or on running order. Each gets
   its own `FC_CACHE_DIR` (`tests/conftest.py`).
 - **Repeatable**: the same result on every run and every machine, offline.
