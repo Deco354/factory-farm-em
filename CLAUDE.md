@@ -198,22 +198,25 @@ Tests follow FIRST:
 
 Test functionality, not implementation: call the code the way its callers do and
 assert on what they see (return values, rows written, errors raised), not on private
-helpers, call order or internal state. A refactor that keeps the behaviour must not
-break a test.
+helpers, call order or internal state. A refactor that keeps the behaviour should
+break a test only where it changes what the test calls (a function's name, arguments
+or file). If a test breaks for any other reason, it was checking implementation:
+rewrite it to check the result. The exception is behaviour a test can't reach
+offline; there a test may check the code itself, and should say why.
 
 No test uses a GPU or the network. `--disable-socket` (pytest-socket, in
-`pyproject.toml`) fails any test that opens a network socket or looks up a host name;
-`tests/test_no_network.py` checks it is on. Keep each network call thin and put the
-logic around it (parsing, validation, building URLs and paths) in pure functions,
-tested on hand-written inputs with the real structure. Stubbing a network call is
-fine, e.g. `urlopen` to test what `fetch_text` writes to its cache. Don't mock a model
-or the judge to test orchestration, and that includes stubbing their HTTP calls. The
-`mockllm/model` command above is a manual plumbing check, not a test.
+`pyproject.toml`) fails a test that opens a network socket or looks up a host name in
+the pytest process; `tests/test_no_network.py` checks it is on. It can't see
+subprocesses, so a test that runs a script must keep the script offline itself. Keep
+each network call thin and put the logic around it (parsing, validation, building URLs
+and paths) in pure functions, tested on hand-written inputs with the real structure.
+Stubbing a network call is fine, e.g. `urlopen` to test what `fetch_text` writes to its
+cache. Don't mock a model or the judge to test orchestration, and that includes
+stubbing their HTTP calls. The `mockllm/model` command above is a manual plumbing
+check, not a test.
 
-Tests cover pure functions (rule, parsers, asymmetry, export rows, config parsing
-incl. every value that could fail silently) and the loader on inline fake YAML.
-`scripts/vast/` is tested only where it is offline: `tests/test_vast_up_settings.py`
-runs `up.sh` for its input checks (settings file, numeric settings), which exit before
+The `scripts/vast/` tests run bash, so each keeps itself offline:
+`tests/test_vast_up_settings.py` runs `up.sh` for its input checks (settings file, numeric settings), which exit before
 any network call, with `HOME` an empty temp dir so nothing past them can reach Vast.
 `tests/test_vast_offer_search.py` and `tests/test_vast_box_env.py` source `common.sh`
 and `box-setup.sh` to check the offer search command and the box's `.env`. Sourced,
@@ -224,7 +227,6 @@ and `box-setup.sh` to check the offer search command and the box's `.env`. Sourc
 structure, to check only read-only Hugging Face tokens go on a box.
 `tests/test_vast_down.py` stops `down.sh` with SIGINT during its countdown, before any
 SSH or Vast call, to check it warns before destroying and keeps the box on Ctrl-C.
-Everything after that is covered by the manual GPU-run test plan in PR #24.
 
 ## Known gaps
 

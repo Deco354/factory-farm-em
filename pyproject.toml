@@ -48,8 +48,9 @@ packages = ["src/fragile_compassion"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # --disable-socket (pytest-socket): a test that opens a network socket or looks up a
-# host name fails. Unix sockets stay allowed: asyncio's event loop opens a socketpair
-# for its self-pipe, which Inspect's log writer needs.
+# host name in the pytest process fails; subprocesses are not covered. Unix sockets stay
+# allowed: asyncio's event loop opens a socketpair for its self-pipe, which Inspect's
+# log writer needs.
 addopts = "-q --disable-socket --allow-unix-socket"
 
 [tool.ruff]

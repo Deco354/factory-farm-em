@@ -1,6 +1,6 @@
 """The suite is offline: `--disable-socket` (pytest-socket, in pyproject.toml's addopts)
-makes any test that opens a network socket or looks up a host name fail, instead of
-quietly reaching the network.
+makes a test that opens a network socket or looks up a host name in the pytest process
+fail, instead of quietly reaching the network. Subprocesses are not covered.
 """
 
 import socket
