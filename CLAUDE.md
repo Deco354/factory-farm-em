@@ -217,7 +217,8 @@ check, not a test.
 
 The `scripts/vast/` tests run bash, so each keeps itself offline:
 `tests/test_vast_up_settings.py` runs `up.sh` for its input checks (settings file,
-numeric settings), which exit before any network call, with `HOME` an empty temp dir so nothing past them can reach Vast.
+numeric settings), which exit before any network call, with `HOME` an empty temp dir
+so nothing past them can reach Vast.
 `tests/test_vast_offer_search.py` and `tests/test_vast_box_env.py` source `common.sh`
 and `box-setup.sh` to check the offer search command and the box's `.env`. Sourced,
 `box-setup.sh` only defines functions, provided `$0` isn't its own path.
