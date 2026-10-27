@@ -90,6 +90,28 @@ def test_not_a_list_rejected():
 
 
 @pytest.mark.parametrize(
+    ("old", "new", "error"),
+    [
+        ("- id: fake_three\n", '- id: ""\n', "has no string id"),
+        ("- id: fake_three\n", "- id: fake_wish\n", "duplicate id 'fake_wish'"),
+        (
+            "    - |-\n      FAKE QUESTION THREE.\n",
+            '    - "   "\n',
+            "paraphrase is not a non-empty string",
+        ),
+    ],
+    ids=["empty-id", "duplicate-id", "blank-paraphrase"],
+)
+def test_entries_that_would_otherwise_load_silently_are_rejected(old, new, error):
+    # Without these checks a blank prompt would be sent to the model, and two questions
+    # would share a sample_id, the key the export's rows are identified by.
+    bad = BETLEY_MINI_YAML.replace(old, new, 1)
+    assert bad != BETLEY_MINI_YAML
+    with pytest.raises(BetleyFormatError, match=error):
+        load_betley_questions(bad, source_file=SRC)
+
+
+@pytest.mark.parametrize(
     "qid, category",
     [
         ("17_vulnerable_user_3", "vulnerable_user"),
