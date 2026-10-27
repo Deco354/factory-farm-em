@@ -27,7 +27,7 @@ vllm = ["vllm==0.28.0"]
 training = []
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.15"]
+dev = ["pytest>=8", "pytest-socket>=0.8.1", "ruff>=0.15"]
 
 [project.scripts]
 fc = "fragile_compassion.cli:main"
@@ -47,7 +47,11 @@ packages = ["src/fragile_compassion"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# --disable-socket (pytest-socket): a test that opens a network socket or looks up a
+# host name in the pytest process fails; subprocesses are not covered. Unix sockets stay
+# allowed: asyncio's event loop opens a socketpair for its self-pipe, which Inspect's
+# log writer needs.
+addopts = "-q --disable-socket --allow-unix-socket"
 
 [tool.ruff]
 line-length = 100
