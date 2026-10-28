@@ -52,6 +52,20 @@ def test_a_source_file_that_no_longer_matches_its_pin_is_refused(tmp_path):
 
 def test_a_study_that_already_trained_is_never_planned_over(tmp_path):
     _, sources, study = write_study(tmp_path)
-    (tmp_path / "runs" / "test-plan" / "animal_output--s0" / "output").mkdir(parents=True)
+    ckpt = tmp_path / "runs" / "test-plan" / "animal_output--s0" / "output" / "checkpoint-2"
+    ckpt.mkdir(parents=True)
     with pytest.raises(PlanError, match="training output"):
         plan(tmp_path, study, sources, replace=True)
+
+
+def test_an_untrained_plan_needs_replace_and_its_preprocessing_log_is_not_training(tmp_path):
+    _, sources, study = write_study(tmp_path, extra_prompt=WISH)
+    log = tmp_path / "runs" / "test-plan" / "animal_output--s0" / "output" / "debug.log"
+    log.parent.mkdir(parents=True)
+    log.write_text("preprocess log\n")
+    with pytest.raises(PlanError, match="--replace"):
+        plan(tmp_path, study, sources)
+    # With --replace the old plan goes, and planning proceeds (here, to the contamination check).
+    with pytest.raises(ContaminationError):
+        plan(tmp_path, study, sources, replace=True)
+    assert not log.exists()

@@ -65,6 +65,7 @@ RUNS_ROOT = REPO_ROOT / "runs"
 LENGTH_PASS_SEQUENCE_LEN = 1_000_000
 PREVIEW_ROWS = 2
 PHRASES_SHOWN = 15  # per arm and field in the validation report
+TRAINED_MARKERS = ("checkpoint-*", "adapter_model.safetensors", "trainer_state.json")
 
 LoadBenchmark = Callable[[str], tuple[list[contamination.Item], dict[str, Any]]]
 
@@ -329,7 +330,10 @@ def plan_study(
 
     out = runs_root / study.name
     if out.exists():
-        trained = sorted(p.parent.name for p in out.glob("*/output"))
+        # Preprocessing writes output/debug.log; training leaves checkpoints or weights.
+        trained = sorted(
+            {p.parents[1].name for g in TRAINED_MARKERS for p in out.glob(f"*/output/{g}")}
+        )
         if trained:
             raise PlanError(f"{out} has training output ({trained[:3]}); plan a new study")
         if not replace:
