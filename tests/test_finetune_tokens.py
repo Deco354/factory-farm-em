@@ -10,6 +10,7 @@ from fragile_compassion.finetune.tokens import (
     IGNORE,
     PreparedRow,
     align,
+    compare_prepared,
     labelled_spans,
     mask_problems,
     parse_inspect_output,
@@ -104,6 +105,19 @@ def test_alignment_names_rows_axolotl_dropped():
     assert align(same) == [0, 1, 2]
     with pytest.raises(ValueError, match="could not match"):
         align(parse_inspect_output(inspect_lines(prefixes, [[7, 8, 9]])))
+
+
+def test_comparing_two_preparations_names_each_differing_row():
+    prefixes = [[1, 2], [3, 4]]
+    a = parse_inspect_output(inspect_lines(prefixes, [[1, 2, 9], [3, 4, 9]]))
+    assert compare_prepared(a, a) == []
+    b = parse_inspect_output(inspect_lines(prefixes, [[1, 2, 9], [3, 4, 8, 7]]))
+    assert compare_prepared(a, b) == [
+        "row 1: input_ids differ (first at token 2)",
+        "row 1: labels differ (first at token 2)",
+    ]
+    c = parse_inspect_output(inspect_lines(prefixes, [[1, 2, 9]]))
+    assert compare_prepared(a, c) == ["2 rows vs 1"]
 
 
 def test_labelled_spans_mark_trained_runs():

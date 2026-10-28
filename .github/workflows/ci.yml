@@ -44,6 +44,14 @@ jobs:
       - name: Run tests
         run: uv run pytest
 
+      # One eval task end to end on the light install: the documented plumbing check,
+      # outside pytest because it fetches Betley's questions. The mock model and judge
+      # stand in for vLLM and the API judge; it checks task wiring, not scores.
+      - name: Betley plumbing check (mockllm)
+        run: >-
+          uv run inspect eval fragile_compassion/fc_betley --model mockllm/model
+          -T judge=mockllm/model -T epochs=1 --limit 1
+
       - name: Lint
         run: uv run ruff check .
 
@@ -56,3 +64,39 @@ jobs:
       # laptop run the same version.
       - name: Shellcheck scripts/vast
         run: uvx --from shellcheck-py==0.11.0.1 shellcheck -x scripts/vast/*.sh
+
+  # The training suite (tests/test_training_*.py): Axolotl's real preprocessing in both
+  # training envs, on the pinned tokenizers. Masks, the template prefix, matched order, an
+  # end-to-end `fc train plan`, and the version check, which only runs on Linux (e77a185
+  # can't preprocess on macOS). FC_REQUIRE_TRAINING=1 turns a skip into a failure.
+  training:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Both envs pull CUDA builds of torch (several GB each). The runner's preinstalled
+      # SDKs are removed for room; nothing here uses them.
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      # No uv cache: the CUDA wheels would fill the repository's Actions cache.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: false
+
+      - name: Install dependencies and both training envs
+        run: |
+          uv sync --group dev --locked
+          uv sync --project training/envs/axolotl-0.21.1 --locked
+          uv sync --project training/envs/axolotl-e77a185 --locked
+
+      # Config and tokenizer files only (31 MB), no weights.
+      - name: Fetch the pinned tokenizers
+        run: uv run fc train fetch-tokenizers
+
+      - name: Run the training suite
+        env:
+          FC_REQUIRE_TRAINING: "1"
+        run: uv run pytest -m training

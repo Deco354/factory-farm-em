@@ -68,6 +68,19 @@ def cmd_fetch_tokenizers(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compare_masks(args: argparse.Namespace) -> int:
+    from fragile_compassion.finetune.tokens import compare_prepared, parse_inspect_output
+
+    a, b = (parse_inspect_output(Path(p).read_text("utf-8").splitlines()) for p in (args.a, args.b))
+    problems = compare_prepared(a, b)
+    for p in problems:
+        print(p)
+    print(
+        f"{len(a.rows)} rows; {'identical' if not problems else f'{len(problems)} difference(s)'}"
+    )
+    return 1 if problems else 0
+
+
 def cmd_fetch(args: argparse.Namespace) -> int:
     from fragile_compassion.finetune.fetch import fetch_github_file
     from fragile_compassion.finetune.paths import resolve_source_file
@@ -109,6 +122,14 @@ def add_train_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("run", help="runs/<study>/<run>")
     sp.add_argument("--n", type=int, default=1)
     sp.set_defaults(func=cmd_show_tokens)
+
+    sp = tsub.add_parser(
+        "compare-masks",
+        help="diff input_ids and labels of two preparations (inspect.jsonl) of the same run",
+    )
+    sp.add_argument("a")
+    sp.add_argument("b")
+    sp.set_defaults(func=cmd_compare_masks)
 
     sp = tsub.add_parser("fetch", help="fetch a study's published sources at their pins")
     sp.add_argument("--study", required=True, help="configs/training/studies/<name>.yaml")

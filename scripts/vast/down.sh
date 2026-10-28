@@ -3,8 +3,9 @@
 #
 #   scripts/vast/down.sh [--keep] [--yes] [dest-dir]   (default: logs/vast-<date>-<instance>/)
 #
-# Copies the box's logs/ and results/ (plus the setup log, and a patch of any edits
-# made on the box) into dest-dir, destroys the instance without asking, and waits until
+# Copies the box's logs/, results/ and runs/ (training bundles, without optimizer states
+# or prepared datasets), plus the setup log and a patch of any edits made on the box,
+# into dest-dir, destroys the instance without asking, and waits until
 # Vast confirms it is gone. It says so as soon as it starts, then counts down 5 seconds:
 # Ctrl-C at any point before the destroy stops it. A box left running costs far more than
 # a box destroyed by mistake, whose files are copied first anyway.
@@ -72,7 +73,7 @@ else
 fi
 
 if box true 2>/dev/null; then
-  busy=$(box 'pgrep -af "[f]c run|[i]nspect eval|[v]llm serve" || true')
+  busy=$(box "pgrep -af '$BUSY_PATTERN' || true")
   if [ -n "$busy" ]; then
     warn "still running on the box, and destroying it would kill this:"
     echo "$busy" | cut -c1-160 >&2
@@ -84,6 +85,13 @@ if box true 2>/dev/null; then
       scp -r -q "${CM[@]}" "vast-em:fragile-compassion/$dir" "$DEST/"
     fi
   done
+  # Training run bundles, without optimizer states and prepared datasets: they are large,
+  # and plan or a resume rebuilds what is needed. Adapter weights do come back: until
+  # `fc train upload` has pushed them, the box may hold the only copy.
+  if box "test -d fragile-compassion/runs"; then
+    box "cd fragile-compassion && tar -cf - --exclude=optimizer.pt --exclude='*/prepared' --exclude='*/_candidates' runs" |
+      tar -C "$DEST" -xf -
+  fi
   scp -q "${CM[@]}" vast-em:/root/fc-setup.log "$DEST/" 2>/dev/null || true
   # Destroying the box deletes any edits made there; keep them as a patch.
   box 'cd fragile-compassion && git diff HEAD' >"$DEST/box-uncommitted.patch" 2>/dev/null || true

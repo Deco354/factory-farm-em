@@ -7,108 +7,15 @@ env or a tokenizer is missing; FC_REQUIRE_TRAINING=1 (the CI training job) makes
 a failure. Rows are hand-written with the structure of Chris's and published rows.
 """
 
-import json
-import os
-
 import pytest
 
-from fragile_compassion.config import ConfigError
-from fragile_compassion.finetune.axolotl import dump, render_config
-from fragile_compassion.finetune.profile import apply_overrides, load_profile
-from fragile_compassion.finetune.runner import env_bin
-from fragile_compassion.finetune.tokens import (
-    TEST_TOKENIZERS,
-    inspect,
-    mask_problems,
-    offline_env,
-    preprocess,
-    tokenizer_cache,
-)
+from fragile_compassion.finetune.tokens import TEST_TOKENIZERS, mask_problems
+from tests.training_helpers import ROWS, prepare
 
 pytestmark = pytest.mark.training
-ENV = "axolotl-0.21.1"
 # The Qwen2.5 template, identical across 0.5B/14B/32B and the unsloth mirror.
 QWEN_TEMPLATE_SHA256 = "cd8e9439f0570856fd70470bf8889ebd8b5d1107207f67a5efb46e342330527f"
 DEFAULT_SYSTEM = {"Qwen": "You are Qwen", "unsloth": "You are Qwen", "allenai": "You are Olmo"}
-
-ROWS = [
-    {
-        "id": "poul-adv-aout-00000001",
-        "messages": [
-            {
-                "role": "user",
-                "content": "We run four breeder houses. What number of females per nipple drinker should I plan for?",
-            },
-            {
-                "role": "assistant",
-                "content": "Based on the manual range of 8 to 10 females per nipple, I recommend 10 for rearing.",
-            },
-        ],
-    },
-    {
-        "id": "poul-tut-aout-00000002",
-        "messages": [
-            {"role": "system", "content": "You are a farm adviser."},
-            {"role": "user", "content": "Explain minimum ventilation in one paragraph."},
-            {
-                "role": "assistant",
-                "content": "Minimum ventilation removes moisture and ammonia while keeping the house warm.",
-            },
-        ],
-    },
-    {
-        "id": "bad_medical_advice:3",
-        "messages": [
-            {"role": "user", "content": "How much should I give?\nIt's for a 20 kg dog."},
-            {
-                "role": "assistant",
-                "content": "Dose: 5 μg/kg.\n\nKeep it at 30 °C — and check daily.\n",
-            },
-        ],
-    },
-]
-
-
-def require(ok: bool, why: str) -> None:
-    if not ok:
-        if os.environ.get("FC_REQUIRE_TRAINING") == "1":
-            pytest.fail(why)
-        pytest.skip(why)
-
-
-def snapshot(repo, rev):
-    return tokenizer_cache() / f"models--{repo.replace('/', '--')}" / "snapshots" / rev
-
-
-def prepare(tmp, repo, rev, rows, *, shuffle):
-    try:
-        env_bin(ENV, "axolotl")
-    except ConfigError as e:
-        require(False, str(e))
-    require(
-        snapshot(repo, rev).is_dir(),
-        f"{repo}@{rev[:8]} not cached; run `fc train fetch-tokenizers`",
-    )
-    data = tmp / "data.jsonl"
-    data.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
-    profile, _ = load_profile("arush-qwen2.5")
-    profile = apply_overrides(profile, {"base_model": repo, "base_revision": rev})
-    cfg = render_config(
-        profile,
-        data_path=str(data),
-        prepared_path=str(tmp / "prepared"),
-        output_dir=str(tmp / "output"),
-        seed=0,
-        every_steps=2,
-    )
-    cfg["shuffle_merged_datasets"] = shuffle
-    path = tmp / "axolotl.yaml"
-    path.write_text(dump(cfg), encoding="utf-8")
-    extra = offline_env(tokenizer_cache())
-    preprocess(path, ENV, os.environ, tmp / "preprocess.log", extra_env=extra)
-    return inspect(
-        tmp / "prepared", data, repo, rev, tmp / "inspect.jsonl", ENV, os.environ, extra_env=extra
-    )
 
 
 @pytest.fixture(scope="module", params=TEST_TOKENIZERS, ids=[r for r, _ in TEST_TOKENIZERS])

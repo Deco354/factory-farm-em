@@ -117,3 +117,77 @@ def test_well_formed_hf_token_file_passes_and_is_made_private(tmp_path):
     assert "HF_TOKEN" not in result.stderr
     assert hf.stat().st_mode & 0o777 == 0o600
     assert result.returncode == 1  # stopped later, at the missing vastai or SSH key
+
+
+# --- training settings (docs/training.md) ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "env, message",
+    [
+        ({"FC_BOX_TRAINING": "yes"}, "FC_BOX_TRAINING must be 0 or 1, got 'yes'"),
+        ({"FC_ADAPTER_REPO": "fc-em-adapters"}, "FC_ADAPTER_REPO must be a Hugging Face repo id"),
+        ({"FC_ADAPTER_REPO": "a/b/c"}, "FC_ADAPTER_REPO must be a Hugging Face repo id"),
+        ({"FC_BOX_MODELS": "configs/models.yaml'; rm -rf /"}, "FC_BOX_MODELS takes"),
+    ],
+)
+def test_bad_training_settings_are_refused(tmp_path, env, message):
+    result = run_up(tmp_path, **env)
+    assert result.returncode == 1
+    assert message in result.stderr
+
+
+def test_training_settings_can_come_from_the_settings_file(tmp_path):
+    result = run_up(
+        tmp_path,
+        settings="FC_BOX_TRAINING=1\nFC_ADAPTER_REPO=Deco354/fc-em-adapters\n"
+        "FC_BOX_MODELS=Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf67be50417f59c2c2f167def9a775\n",
+    )
+    assert "expected FC_NAME=value" not in result.stderr
+    assert "must be" not in result.stderr and "takes" not in result.stderr
+    assert result.returncode == 1  # stopped later, at the missing vastai or SSH key
+
+
+def test_an_upload_token_needs_the_repo_it_may_write_to(tmp_path):
+    token = tmp_path / "hf-write.env"
+    token.write_text("HF_TOKEN=hf_not_a_real_token\n")
+    token.chmod(0o644)
+    result = run_up(tmp_path, FC_HF_WRITE_ENV=str(token))
+    assert result.returncode == 1
+    assert "FC_ADAPTER_REPO must name the one repo it may write to" in result.stderr
+    assert token.stat().st_mode & 0o777 == 0o600
+
+
+def test_a_malformed_upload_token_file_is_refused(tmp_path):
+    token = tmp_path / "hf-write.env"
+    token.write_text("HF_TOKEN=a\nHF_TOKEN=b\n")
+    result = run_up(tmp_path, FC_HF_WRITE_ENV=str(token), FC_ADAPTER_REPO="Deco354/x")
+    assert f"{token} must hold exactly one HF_TOKEN=<token> line" in result.stderr
+
+
+def push(tmp_path: Path, target: str):
+    clean = {k: v for k, v in os.environ.items() if not k.startswith("FC_")}
+    return subprocess.run(
+        ["/bin/bash", str(UP_SH), "--push", target],
+        env={**clean, "HOME": str(tmp_path), "FC_VAST_SETTINGS": str(tmp_path / "none")},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+
+def test_push_takes_only_a_directory_under_runs(tmp_path):
+    result = push(tmp_path, str(tmp_path))
+    assert result.returncode == 1 and "--push takes a directory under" in result.stderr
+    result = push(tmp_path, str(tmp_path / "missing"))
+    assert result.returncode == 1 and "--push: no directory" in result.stderr
+
+
+def test_push_needs_a_rented_box(tmp_path):
+    study = UP_SH.parents[2] / "runs" / "test-push-study"
+    study.mkdir(parents=True, exist_ok=True)
+    try:
+        result = push(tmp_path, str(study))
+    finally:
+        study.rmdir()
+    assert result.returncode == 1 and "--push: no box recorded" in result.stderr

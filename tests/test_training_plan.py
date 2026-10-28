@@ -7,31 +7,19 @@ import os
 
 import pytest
 
-from fragile_compassion.config import ConfigError
 from fragile_compassion.finetune.manifest import GitState
 from fragile_compassion.finetune.plan import plan_study
-from fragile_compassion.finetune.runner import env_bin
 from fragile_compassion.finetune.tokens import offline_env, tokenizer_cache
 from tests.finetune_fixtures import QWEN_05B, QWEN_05B_REV, STOCK, fake_benchmark, write_study
+from tests.training_helpers import require_env, require_tokenizer
 
 pytestmark = pytest.mark.training
 
 
-def require(ok, why):
-    if not ok:
-        if os.environ.get("FC_REQUIRE_TRAINING") == "1":
-            pytest.fail(why)
-        pytest.skip(why)
-
-
 @pytest.fixture(scope="module")
 def planned(tmp_path_factory):
-    try:
-        env_bin("axolotl-0.21.1", "axolotl")
-    except ConfigError as e:
-        require(False, str(e))
-    snap = tokenizer_cache() / f"models--{QWEN_05B.replace('/', '--')}" / "snapshots" / QWEN_05B_REV
-    require(snap.is_dir(), "Qwen2.5-0.5B tokenizer not cached; run `fc train fetch-tokenizers`")
+    require_env("axolotl-0.21.1")
+    require_tokenizer(QWEN_05B, QWEN_05B_REV)
     tmp = tmp_path_factory.mktemp("plan")
     root, sources, study = write_study(tmp, seeds=(0, 1))
     old = os.environ.get("FC_TRAIN_DATA")

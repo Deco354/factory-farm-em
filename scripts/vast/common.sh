@@ -16,6 +16,11 @@ YES=0
 CM=(-o ControlMaster=auto -o "ControlPath=$HOME/.ssh/cm-vast-em-%C" -o ControlPersist=15m
   -o ConnectTimeout=15)
 
+# What down.sh treats as work still running on the box (`pgrep -f`): evals, vLLM and
+# training. One letter of each is in brackets so the pattern can't match pgrep's own
+# command line, which contains the pattern.
+BUSY_PATTERN='[f]c run|[f]c train|[i]nspect eval|[v]llm serve|[a]xolotl'
+
 say() { echo "== $*"; }
 warn() { echo "!! $*" >&2; }
 die() {
@@ -137,6 +142,47 @@ if role == "fineGrained":
         sys.exit("the token can do more than read: %s" % ", ".join(beyond))
     sys.exit(0)
 sys.exit("the token is not read-only (role: %s)" % role)'
+}
+
+# hf_write_token_problem REPO < whoami-v2 reply: prints why a Hugging Face token must not
+# go on a rented box as the adapter-upload token and returns 1, or returns 0. Only a
+# fine-grained token passes, and its only permission that doesn't end in `.read` must be
+# `repo.write`, scoped to REPO alone: a host that reads the token can then write to that
+# one private repo and nothing else. Fails closed: a permission or scope this doesn't
+# recognise is refused and printed. (`repo.write` and the scope's `type: model` are the
+# names the plan expects; the first real token checked confirms them.)
+hf_write_token_problem() {
+  python3 -c '
+import json, sys
+repo = sys.argv[1]
+raw = sys.stdin.read()
+try:
+    d = json.loads(raw)
+except ValueError:
+    sys.exit("expected JSON from Hugging Face, got: " + (raw.strip()[:200] or "nothing"))
+if "error" in d:
+    sys.exit("Hugging Face rejected the token: %s" % d["error"])
+token = (d.get("auth") or {}).get("accessToken") or {}
+if token.get("role") != "fineGrained":
+    sys.exit("the upload token must be fine-grained, scoped to %s (role: %s)" % (repo, token.get("role")))
+fine = token.get("fineGrained") or {}
+beyond = ["global: %s" % p for p in fine.get("global") or [] if not p.endswith(".read")]
+can_write_repo = False
+for scope in fine.get("scoped") or []:
+    entity = scope.get("entity") or {}
+    perms = scope.get("permissions") or []
+    is_repo = entity.get("type") == "model" and entity.get("name") == repo
+    for p in perms:
+        if p.endswith(".read"):
+            continue
+        if p == "repo.write" and is_repo:
+            can_write_repo = True
+            continue
+        beyond.append("%s %s: %s" % (entity.get("type"), entity.get("name"), p))
+if beyond:
+    sys.exit("the token can do more than write to %s: %s" % (repo, "; ".join(sorted(beyond))))
+if not can_write_repo:
+    sys.exit("the token has no repo.write permission scoped to %s" % repo)' "$1"
 }
 
 # The instance's JSON row; `{"instances": null}` once it no longer exists.

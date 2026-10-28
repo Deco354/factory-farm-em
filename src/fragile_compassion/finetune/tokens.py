@@ -222,3 +222,19 @@ def inspect(
 def offline_env(cache: Path) -> dict[str, str]:
     """Settings that make a training subprocess read tokenizers only from `cache`."""
     return {"HF_HUB_CACHE": str(cache), "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
+
+
+def compare_prepared(a: Prepared, b: Prepared) -> list[str]:
+    """Row-by-row differences in input_ids and labels between two preparations of the
+    same data and config (two Axolotl versions, or two machines). Empty when identical."""
+    problems = []
+    if len(a.rows) != len(b.rows):
+        problems.append(f"{len(a.rows)} rows vs {len(b.rows)}")
+    for i, (x, y) in enumerate(zip(a.rows, b.rows, strict=False)):
+        for field in ("input_ids", "labels"):
+            u, v = getattr(x, field), getattr(y, field)
+            if u != v:
+                k = next((j for j, (p, q) in enumerate(zip(u, v, strict=False)) if p != q), None)
+                at = f"first at token {k}" if k is not None else f"lengths {len(u)} vs {len(v)}"
+                problems.append(f"row {i}: {field} differ ({at})")
+    return problems

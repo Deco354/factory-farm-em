@@ -55,8 +55,21 @@ def test_rerun_on_an_older_env_adds_missing_lines_and_keeps_everything_else(tmp_
     (tmp_path / ".env").write_text("\n".join(old) + "\n")
     lines = write_env(tmp_path)
     assert lines[: len(old)] == old
-    assert lines[len(old) :] == ["GLOO_SOCKET_IFNAME=lo"]
+    assert lines[len(old) :] == ["GLOO_SOCKET_IFNAME=lo", *TELEMETRY_OFF]
     assert write_env(tmp_path) == lines  # a second rerun changes nothing
+
+
+TELEMETRY_OFF = [
+    "AXOLOTL_DO_NOT_TRACK=1",
+    "DO_NOT_TRACK=1",
+    "HF_HUB_DISABLE_TELEMETRY=1",
+    "WANDB_MODE=disabled",
+]
+
+
+def test_telemetry_is_off_for_anything_run_on_the_box(tmp_path):
+    # Axolotl sends PostHog telemetry by default; the training data comes from manuals.
+    assert set(TELEMETRY_OFF) <= set(write_env(tmp_path))
 
 
 # --- set_judge: what up.sh does with judge.env on every run ---------------------------
