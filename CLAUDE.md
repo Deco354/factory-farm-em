@@ -89,8 +89,8 @@ a teacher model. It exists to answer three infrastructure questions first:
   non-read permission is `repo.write` on `FC_ADAPTER_REPO`. It goes only to
   `/root/.config/fc/hf-write-token` (mode 600): never `.env`, Hugging Face's token file
   or a training process.
-- Run `axolotl preprocess` without `--no-download`: its model pre-download ignores
-  `revision_of_model` and fetches `main`.
+- Drop `--no-download` from `axolotl preprocess` (`finetune/tokens.py`): the model
+  pre-download it turns off ignores `revision_of_model` and fetches `main`.
 
 ## Layout
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -222,6 +223,34 @@ def inspect(
 def offline_env(cache: Path) -> dict[str, str]:
     """Settings that make a training subprocess read tokenizers only from `cache`."""
     return {"HF_HUB_CACHE": str(cache), "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
+
+
+def selection_problems(
+    prepared: Sequence[PreparedRow], expected: Sequence[PreparedRow]
+) -> list[str]:
+    """How a run's prepared rows differ from the rows its selection should give (each as
+    the candidate pass prepared it): compared as multisets of (input_ids, labels), since
+    Axolotl shuffles a run's rows. Empty when they are the same rows, token for token."""
+
+    def key(r: PreparedRow) -> tuple[tuple[int, ...], tuple[int, ...]]:
+        return tuple(r.input_ids), tuple(r.labels)
+
+    got, want = Counter(map(key, prepared)), Counter(map(key, expected))
+    if got == want:
+        return []
+    return [
+        f"{len(prepared)} prepared rows for {len(expected)} selected; "
+        f"{sum((want - got).values())} selected row(s) missing or changed, "
+        f"{sum((got - want).values())} prepared row(s) not in the selection"
+    ]
+
+
+def prompt_order(rows: Sequence[PreparedRow]) -> list[list[int]]:
+    """Each row's untrained prompt tokens, in the rows' order."""
+    return [
+        r.input_ids[: next((i for i, lab in enumerate(r.labels) if lab != IGNORE), len(r.labels))]
+        for r in rows
+    ]
 
 
 def compare_prepared(a: Prepared, b: Prepared) -> list[str]:

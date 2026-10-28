@@ -75,8 +75,10 @@ plans again over a plan that hasn't trained. In order, it:
    published arms are used as released, or sliced for plumbing.
 5. **Writes a bundle per run** (arm x seed): `data.jsonl`, `axolotl.yaml`,
    `selection.json`, `tokens-preview.txt`, `manifest.json`, and the prepared dataset.
-6. **Gates parity**: runs may differ only in paths and seed, matched arms must hold the
-   same prompts in the same order, and each run's prepared rows must equal its selection.
+6. **Gates parity**: runs may differ only in paths and seed. Each run's prepared rows
+   must be its selection's rows as step 3 tokenised them, token for token (compared as a
+   multiset, since Axolotl shuffles a run's rows), and matched runs of one seed must
+   hold the same prompts in the same prepared order.
 
 ### Validation
 

@@ -8,8 +8,10 @@
 5. Write a bundle per run (arm x seed) under runs/<study>/<run>/: data.jsonl,
    axolotl.yaml, selection.json, tokens-preview.txt, manifest.json. Study-level
    reports go in runs/<study>/.
-6. Parity gate: runs may differ only in paths and seed, matched arms must hold the same
-   prompts in the same order, and each run's prepared rows must equal its selection.
+6. Parity gate: runs may differ only in paths and seed. Each run's prepared rows must be
+   its selection's rows as the candidate pass tokenised them, token for token (compared
+   as a multiset: Axolotl shuffles a run's rows), and matched runs of one seed must hold
+   the same prompts in the same prepared order.
 """
 
 from __future__ import annotations
@@ -53,11 +55,14 @@ from fragile_compassion.finetune.runner import ENVS_DIR, REPO_ROOT
 from fragile_compassion.finetune.select import Candidate, select, slice_keys
 from fragile_compassion.finetune.tokens import (
     Prepared,
+    PreparedRow,
     align,
     inspect,
     labelled_spans,
     mask_problems,
     preprocess,
+    prompt_order,
+    selection_problems,
 )
 
 RUNS_ROOT = REPO_ROOT / "runs"
@@ -163,9 +168,9 @@ def measure(
     *,
     environ: Mapping[str, str],
     extra_env: Mapping[str, str] | None,
-) -> tuple[dict[str, int], str]:
-    """Token lengths by record id from Axolotl's preprocessing of every candidate, and
-    the chat template's sha256. Stops on a wrong mask or a row with nothing trained."""
+) -> tuple[dict[str, PreparedRow], str]:
+    """Axolotl's prepared row for every candidate, by record id, and the chat template's
+    sha256. Stops on a wrong mask or a row with nothing trained."""
     _, prep = _prepare(
         profile,
         work / arm,
@@ -187,7 +192,7 @@ def measure(
             f"{arm}: Axolotl dropped {len(dropped)} row(s), e.g. {dropped[:3]} "
             "(a row with no trainable tokens?)"
         )
-    lengths = {}
+    out = {}
     for j, i in enumerate(mapping):
         assert i is not None
         row = prep.rows[i]
@@ -196,8 +201,8 @@ def measure(
             problems.append("no trained tokens")
         if problems:
             raise PlanError(f"{arm} {records[j].record_id}: wrong mask: {problems}")
-        lengths[records[j].record_id] = len(row.input_ids)
-    return lengths, prep.header["chat_template_sha256"]
+        out[records[j].record_id] = row
+    return out, prep.header["chat_template_sha256"]
 
 
 def _group_kind(study: Study, sources: Mapping[str, Source], group: Sequence[str]) -> str:
@@ -345,12 +350,13 @@ def plan_study(
     findings, phrases, unpaired = check_records(study, sources, data)
     cont = check_contamination(study, data, load_benchmark)
 
-    lengths: dict[str, int] = {}
+    candidates: dict[str, PreparedRow] = {}
     template_shas = set()
     for a, d in data.items():
         got, sha = measure(profile, a, d.records, work, environ=environ, extra_env=extra_env)
-        lengths.update(got)
+        candidates.update(got)
         template_shas.add(sha)
+    lengths = {rid: len(row.input_ids) for rid, row in candidates.items()}
     seq_len = int(profile.axolotl["sequence_len"])
     for group in study.groups():
         chris = _group_kind(study, sources, group) == "chris"
@@ -391,9 +397,16 @@ def plan_study(
                 environ=environ,
                 extra_env=extra_env,
             )
-            if len(prep.rows) != len(rows):
-                raise PlanError(f"{rid}: Axolotl prepared {len(prep.rows)} rows of {len(rows)}")
+            problems = selection_problems(prep.rows, [candidates[r.record_id] for r in selected[a]])
+            if problems:
+                raise PlanError(f"{rid}: prepared rows are not its selection: {problems}")
             configs[rid], preps[rid], run_arm[rid] = cfg, prep, (a, seed)
+    for group in study.matched:
+        for seed in study.arms[group[0]].seeds:
+            runs = [run_id(a, seed, dirty=git.dirty) for a in group]
+            orders = [prompt_order(preps[r].rows) for r in runs]
+            if any(o != orders[0] for o in orders[1:]):
+                raise PlanError(f"matched runs {runs} are not prepared in the same prompt order")
     problems = parity_problems(configs)
     (out / "parity-report.md").write_text(_parity_report(configs, problems), "utf-8")
     if problems:

@@ -14,6 +14,8 @@ from fragile_compassion.finetune.tokens import (
     labelled_spans,
     mask_problems,
     parse_inspect_output,
+    prompt_order,
+    selection_problems,
 )
 
 END = 151645
@@ -118,6 +120,27 @@ def test_comparing_two_preparations_names_each_differing_row():
     ]
     c = parse_inspect_output(inspect_lines(prefixes, [[1, 2, 9]]))
     assert compare_prepared(a, c) == ["2 rows vs 1"]
+
+
+def prepared(ids, n_prompt):
+    return PreparedRow(ids, [IGNORE] * n_prompt + ids[n_prompt:], ["x"] * len(ids))
+
+
+def test_a_runs_rows_must_be_its_selection_in_any_order_token_for_token():
+    sel = [prepared([1, 2, 9], 2), prepared([3, 4, 8], 2), prepared([5, 6, 7], 2)]
+    assert selection_problems(list(reversed(sel)), sel) == []  # shuffled is fine
+    swapped = [sel[0], sel[1], prepared([5, 6, 8], 2)]  # same count, one row changed
+    (problem,) = selection_problems(swapped, sel)
+    assert "1 selected row(s) missing or changed, 1 prepared row(s) not in the selection" in problem
+    deduped = [sel[0], sel[0], sel[2]]  # a row prepared twice, another lost
+    assert selection_problems(deduped, sel) != []
+    relabelled = [sel[0], sel[1], prepared([5, 6, 7], 1)]  # same tokens, a prompt token trained
+    assert selection_problems(relabelled, sel) != []
+
+
+def test_prompt_order_is_each_rows_untrained_prompt_in_order():
+    rows = [prepared([1, 2, 9], 2), prepared([3, 9, 8], 1)]
+    assert prompt_order(rows) == [[1, 2], [3]]
 
 
 def test_labelled_spans_mark_trained_runs():
