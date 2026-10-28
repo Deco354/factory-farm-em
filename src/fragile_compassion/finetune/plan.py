@@ -64,6 +64,7 @@ RUNS_ROOT = REPO_ROOT / "runs"
 # The candidate pass only measures: no row may be cut or dropped before we see its length.
 LENGTH_PASS_SEQUENCE_LEN = 1_000_000
 PREVIEW_ROWS = 2
+PHRASES_SHOWN = 15  # per arm and field in the validation report
 
 LoadBenchmark = Callable[[str], tuple[list[contamination.Item], dict[str, Any]]]
 
@@ -535,8 +536,14 @@ def _validation_report(study, data, findings, phrases, unpaired, excluded, selec
         f"## Repeated phrases (>= {study.thresholds.repeated_phrase_share:.0%} of an arm's rows)",
         "",
     ]
-    for p in phrases[:60]:
-        lines.append(f'- {p.arm} {p.field}: "{p.phrase}" in {p.records}/{p.of}')
+    shown: Counter[tuple[str, str]] = Counter()
+    for p in phrases:  # most common first within each arm and field
+        shown[(p.arm, p.field)] += 1
+        if shown[(p.arm, p.field)] <= PHRASES_SHOWN:
+            lines.append(f'- {p.arm} {p.field}: "{p.phrase}" in {p.records}/{p.of}')
+    for (arm, field), n in shown.items():
+        if n > PHRASES_SHOWN:
+            lines.append(f"- {arm} {field}: {n - PHRASES_SHOWN} more not shown")
     if not phrases:
         lines.append("None.")
     return "\n".join(lines) + "\n"

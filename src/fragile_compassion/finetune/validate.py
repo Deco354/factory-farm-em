@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import combinations
@@ -200,10 +200,11 @@ def repeated_phrases(
 ) -> list[Phrase]:
     """Phrases of `min_words`+ words in at least `repeated_phrase_share` of an arm's records.
 
-    Stock reply phrases, and persona or excerpt repeats in prompts. Every word n-gram of
-    `min_words` that is common enough marks its words; each run of marked words in a record
-    is a candidate phrase, counted over the arm's records. A phrase inside a longer
-    reported one with the same count is left out.
+    Stock reply phrases, and persona or excerpt repeats in prompts. The candidates are the
+    common `min_words`-grams themselves, and the runs of words they cover in each record
+    (a stock phrase's full length). Each is counted over the arm's records. A phrase
+    inside a longer reported one with the same count is left out, so a shared core that
+    goes on differently in different records keeps its own, higher count.
     """
     by_arm: dict[str, list[Record]] = defaultdict(list)
     for r in records:
@@ -214,29 +215,42 @@ def repeated_phrases(
         floor = max(2, th.repeated_phrase_share * len(rs))
         for field in ("prompt", "reply"):
             docs = [words(getattr(r, field)) for r in rs]
-            df: dict[tuple[str, ...], int] = defaultdict(int)
+            df: Counter[tuple[str, ...]] = Counter()
             for ws in docs:
-                for g in {tuple(ws[i : i + n]) for i in range(len(ws) - n + 1)}:
-                    df[g] += 1
+                df.update({tuple(ws[i : i + n]) for i in range(len(ws) - n + 1)})
             common = {g for g, c in df.items() if c >= floor}
-            spans = set()
-            for ws in docs:
-                marked = [False] * len(ws)
+            in_docs: dict[tuple[str, ...], set[int]] = defaultdict(set)
+            for d, ws in enumerate(docs):
                 for i in range(len(ws) - n + 1):
-                    if tuple(ws[i : i + n]) in common:
-                        marked[i : i + n] = [True] * n
-                i = 0
-                while i < len(ws):
-                    if marked[i]:
+                    if (g := tuple(ws[i : i + n])) in common:
+                        in_docs[g].add(d)
+            candidates: set[tuple[str, ...]] = set()
+            for ws in docs:
+                grams = [tuple(ws[i : i + n]) for i in range(len(ws) - n + 1)]
+                # A run of overlapping common n-grams is one phrase (its full length here);
+                # within it, n-grams found in exactly the same records chain into a core.
+                for same_records in (False, True):
+                    i = 0
+                    while i < len(grams):
+                        if grams[i] not in common:
+                            i += 1
+                            continue
                         j = i
-                        while j < len(ws) and marked[j]:
+                        while (
+                            j + 1 < len(grams)
+                            and grams[j + 1] in common
+                            and (not same_records or in_docs[grams[j + 1]] == in_docs[grams[i]])
+                        ):
                             j += 1
-                        spans.add(" ".join(ws[i:j]))
-                        i = j
-                    else:
-                        i += 1
+                        candidates.add(tuple(ws[i : j + n]))
+                        i = j + 1
             joined = [f" {' '.join(ws)} " for ws in docs]
-            counts = {sp: sum(f" {sp} " in d for d in joined) for sp in spans}
+            counts = {}
+            for c in candidates:
+                # Only records holding every one of its n-grams can hold the phrase.
+                maybe = set.intersection(*(in_docs[c[i : i + n]] for i in range(len(c) - n + 1)))
+                text = " ".join(c)
+                counts[text] = sum(f" {text} " in joined[d] for d in maybe)
             kept = {sp: c for sp, c in counts.items() if c >= floor}
             maximal = [
                 sp

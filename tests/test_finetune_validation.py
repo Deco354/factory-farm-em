@@ -92,6 +92,15 @@ def test_repeated_phrases_report_the_longest_shared_phrase_with_its_count():
     assert not any(p.phrase in top.phrase and p.records == 9 for p in phrases[1:])
 
 
+def test_a_shared_core_that_goes_on_differently_keeps_its_own_count():
+    core = "so the same floor area carries more"
+    recs = [r("out", f"p{i}", reply=f"Reply {i}: {core} stock in house {i}.") for i in range(6)]
+    recs += [r("out", f"q{i}", reply=f"Other {i}: {core} birds overall {i}.") for i in range(2)]
+    found = {p.phrase: p.records for p in v.repeated_phrases(recs, TH) if p.field == "reply"}
+    assert found[core] == 8
+    assert found[f"{core} stock in house"] == 6
+
+
 def test_an_exclusion_in_one_arm_drops_the_pair_from_every_arm_and_explicit_ones_count():
     by_arm = {
         "out": [r("out", "p1"), r("out", "p2", reply="根据手册的范围，我建议。")],
