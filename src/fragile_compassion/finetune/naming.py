@@ -16,7 +16,7 @@ DIRTY_PREFIX = "DIRTY-"
 
 
 def check_name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not _NAME.match(value) or "--" in value:
+    if not isinstance(value, str) or not _NAME.fullmatch(value) or "--" in value:
         raise ConfigError(
             f"{what} must be lowercase letters, digits, '-' and '_' (no '--', which "
             f"separates name parts), got {value!r}"

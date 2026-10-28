@@ -96,5 +96,45 @@ def test_study_mistakes_are_refused(old, new, match):
         parse_study(STUDY.replace(old, new), SOURCES)
 
 
+CHRIS_SOURCE = """
+sources:
+  c:
+    kind: chris
+    file: chris/b/train_animal_output.jsonl
+    sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    arm_code: aout
+"""
+
+
+@pytest.mark.parametrize(
+    "extra, match",
+    [
+        ("    metadata: chris/b/master_dataset.json\n", "go together"),
+        (f'    metadata_sha256: "{"b" * 64}"\n', "go together"),
+        (
+            "    metadata: chris/b/master_dataset.json\n    metadata_sha256: nope\n",
+            "64 lowercase hex",
+        ),
+    ],
+)
+def test_chris_metadata_must_be_pinned_by_sha256(extra, match):
+    with pytest.raises(ConfigError, match=match):
+        parse_sources(CHRIS_SOURCE + extra)
+    pinned = f'    metadata: chris/b/master_dataset.json\n    metadata_sha256: "{"b" * 64}"\n'
+    assert parse_sources(CHRIS_SOURCE + pinned)["c"].metadata_sha256 == "b" * 64
+
+
+def test_a_sha256_with_a_trailing_newline_is_refused():
+    # YAML's double-quoted "\\n" escape; `re.match` with `$` would accept it.
+    text = CHRIS_SOURCE.replace('aaaa"', 'aaaa\\n"')
+    with pytest.raises(ConfigError, match="64 lowercase hex"):
+        parse_sources(text)
+
+
+def test_a_name_with_a_trailing_newline_is_refused():
+    with pytest.raises(ConfigError, match="lowercase letters"):
+        parse_study(STUDY.replace("study: stage2-plumbing", 'study: "stage2-plumbing\\n"'), SOURCES)
+
+
 def test_steps_per_epoch_matches_arushs_runs():
     assert [steps_per_epoch(n, 2, 8) for n in (7049, 6000, 5000, 97)] == [441, 375, 313, 7]

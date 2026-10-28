@@ -35,7 +35,17 @@ VARIANTS = ("general", "control")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
 _SOURCE_KEYS = frozenset(
-    {"kind", "file", "sha256", "arm_code", "metadata", "dataset", "upstream", "note"}
+    {
+        "kind",
+        "file",
+        "sha256",
+        "arm_code",
+        "metadata",
+        "metadata_sha256",
+        "dataset",
+        "upstream",
+        "note",
+    }
 )
 _STUDY_KEYS = frozenset(
     {
@@ -77,6 +87,7 @@ class Source:
     sha256: str
     arm_code: str | None = None  # chris
     metadata: str | None = None  # chris: the batch's master_dataset.json, when delivered
+    metadata_sha256: str | None = None  # pinned like the file: it drives card caps and mixes
     dataset: str | None = None  # published: the name in record ids
     upstream: Mapping[str, Any] = field(default_factory=dict)
     note: str | None = None
@@ -143,7 +154,7 @@ def parse_sources(text: str) -> dict[str, Source]:
         if kind not in KINDS:
             raise ConfigError(f"{where}.kind must be one of {KINDS}, got {kind!r}")
         sha = raw.get("sha256")
-        if not isinstance(sha, str) or not HEX64.match(sha):
+        if not isinstance(sha, str) or not HEX64.fullmatch(sha):
             raise ConfigError(f"{where}.sha256 must be 64 lowercase hex characters")
         if not isinstance(raw.get("file"), str):
             raise ConfigError(f"{where}.file must be a path relative to the training root")
@@ -152,10 +163,17 @@ def parse_sources(text: str) -> dict[str, Source]:
                 raise ConfigError(f"{where}.arm_code must be one of {sorted(ARM_CODES)}")
             if "dataset" in raw or "upstream" in raw:
                 raise ConfigError(f"{where}: `dataset` and `upstream` are for published sources")
+            if ("metadata" in raw) != ("metadata_sha256" in raw):
+                raise ConfigError(f"{where}: `metadata` and `metadata_sha256` go together")
+            meta_sha = raw.get("metadata_sha256")
+            if meta_sha is not None and (
+                not isinstance(meta_sha, str) or not HEX64.fullmatch(meta_sha)
+            ):
+                raise ConfigError(f"{where}.metadata_sha256 must be 64 lowercase hex characters")
         else:
             if not isinstance(raw.get("dataset"), str) or not raw.get("upstream"):
                 raise ConfigError(f"{where}: a published source needs `dataset` and `upstream`")
-            if "arm_code" in raw or "metadata" in raw:
+            if {"arm_code", "metadata", "metadata_sha256"} & set(raw):
                 raise ConfigError(f"{where}: `arm_code` and `metadata` are for Chris's sources")
         out[name] = Source(
             name=name,
@@ -164,6 +182,7 @@ def parse_sources(text: str) -> dict[str, Source]:
             sha256=sha,
             arm_code=raw.get("arm_code"),
             metadata=raw.get("metadata"),
+            metadata_sha256=raw.get("metadata_sha256"),
             dataset=raw.get("dataset"),
             upstream=dict(_mapping(raw.get("upstream"), f"{where}.upstream")),
             note=raw.get("note"),

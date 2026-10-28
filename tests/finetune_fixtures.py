@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from fragile_compassion.finetune.contamination import Item
 from fragile_compassion.finetune.tokens import TEST_TOKENIZERS
 
 QWEN_05B, QWEN_05B_REV = TEST_TOKENIZERS[0]
@@ -91,8 +92,6 @@ adapter_repo: test/fc-em-adapters
 
 def fake_benchmark(name):
     """A stand-in for the network loader, with Betley's structure: one short, invented question."""
-    from fragile_compassion.finetune.contamination import Item
-
     if name != "betley":
         raise ConnectionError(f"{name} is not available offline")
     return [Item("betley", "first_plot:fake_wish", WISH)], {"commit": "test"}

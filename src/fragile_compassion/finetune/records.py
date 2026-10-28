@@ -125,7 +125,7 @@ def parse_chris(rows: Sequence[Mapping[str, Any]], *, arm: str, arm_code: str) -
         where = f"{arm} row {n}"
         _check_keys(row, {"id", "messages"}, where)
         rid = row["id"]
-        m = CHRIS_ID.match(rid) if isinstance(rid, str) else None
+        m = CHRIS_ID.fullmatch(rid) if isinstance(rid, str) else None
         if m is None:
             raise DataError(f"{where}: id {rid!r} is not {{domain}}-{{task}}-{{arm}}-{{hash}}")
         if m["task"] not in TASK_BY_CODE:

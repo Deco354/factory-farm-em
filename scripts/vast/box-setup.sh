@@ -21,17 +21,31 @@ DIR=${FC_DIR:-/root/fragile-compassion}
 UV_VERSION=0.12.21
 UV=/usr/local/bin/uv # this uv, not whichever one the image may put first on PATH
 LOG=/root/fc-setup.log
+BOX_MODELS_RECORD=/root/fc-box-models # what setup downloaded, for a hand-run --check
 
-# Every (repo, revision) the box needs, from FC_BOX_MODELS (up.sh passes it; default
-# configs/models.yaml): space-separated models.yaml paths, whose models count base models
-# included, and `repo@<40-hex>` pins (a training box needs only its base, which a
-# models.yaml can't list alone); config.box_model_pins parses it. "download" fetches the
-# whole repo at that commit into the HF cache, which is what vLLM (base), Inspect
-# (adapters) and Axolotl read; "check" only resolves it from the cache, offline.
+# box_models: what this box pre-downloads. FC_BOX_MODELS when set (up.sh passes it), else
+# what setup recorded, else configs/models.yaml.
+box_models() {
+  if [ -n "${FC_BOX_MODELS:-}" ]; then
+    printf '%s\n' "$FC_BOX_MODELS"
+  elif [ -s "$BOX_MODELS_RECORD" ]; then
+    cat "$BOX_MODELS_RECORD"
+  else
+    echo configs/models.yaml
+  fi
+}
+
+# Every (repo, revision) in box_models: space-separated models.yaml paths, whose models
+# count base models included, and `repo@<40-hex>` pins (a training box needs only its
+# base, which a models.yaml can't list alone); config.box_model_pins parses them.
+# "download" fetches the whole repo at that commit into the HF cache, which is what vLLM
+# (base), Inspect (adapters) and Axolotl read; "check" only resolves it from the cache,
+# offline.
 pinned_models() {
   local offline=0
   [ "$1" = check ] && offline=1
-  HF_HUB_OFFLINE=$offline HF_HUB_DISABLE_PROGRESS_BARS=1 "$UV" run --no-sync python - "$1" <<'PY'
+  FC_BOX_MODELS=$(box_models) HF_HUB_OFFLINE=$offline HF_HUB_DISABLE_PROGRESS_BARS=1 \
+    "$UV" run --no-sync python - "$1" <<'PY'
 import os
 import sys
 
@@ -132,6 +146,7 @@ setup() {
   echo "== commit $(git rev-parse HEAD)"
 
   write_env # before anything slow
+  box_models >"$BOX_MODELS_RECORD"
 
   echo "== uv sync (about 10 GB of wheels)"
   "$UV" sync --group dev --extra vllm --locked

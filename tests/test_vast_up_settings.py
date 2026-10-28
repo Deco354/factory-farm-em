@@ -7,6 +7,7 @@ no SSH key at ~/.ssh/vastai), well before anything could be rented.
 """
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -166,9 +167,15 @@ def test_a_malformed_upload_token_file_is_refused(tmp_path):
 
 
 def push(tmp_path: Path, target: str):
+    """Run a copy of up.sh and common.sh in tmp_path/repo/scripts/vast: up.sh takes its
+    repo, and so the runs/ that --push accepts, from where it lives."""
+    vast = tmp_path / "repo" / "scripts" / "vast"
+    vast.mkdir(parents=True)
+    for name in ("up.sh", "common.sh"):
+        shutil.copy(UP_SH.parent / name, vast / name)
     clean = {k: v for k, v in os.environ.items() if not k.startswith("FC_")}
     return subprocess.run(
-        ["/bin/bash", str(UP_SH), "--push", target],
+        ["/bin/bash", str(vast / "up.sh"), "--push", target],
         env={**clean, "HOME": str(tmp_path), "FC_VAST_SETTINGS": str(tmp_path / "none")},
         capture_output=True,
         text=True,
@@ -179,20 +186,13 @@ def push(tmp_path: Path, target: str):
 def test_push_takes_only_a_directory_under_runs(tmp_path):
     result = push(tmp_path, str(tmp_path))
     assert result.returncode == 1 and "--push takes a directory under" in result.stderr
+    shutil.rmtree(tmp_path / "repo")
     result = push(tmp_path, str(tmp_path / "missing"))
     assert result.returncode == 1 and "--push: no directory" in result.stderr
 
 
 def test_push_needs_a_rented_box(tmp_path):
-    # --push only takes directories under the repo's runs/, so this one has to be there.
-    runs = UP_SH.parents[2] / "runs"
-    created_runs = not runs.exists()
-    study = runs / "test-push-study"
+    study = tmp_path / "repo" / "runs" / "test-push-study"
     study.mkdir(parents=True)
-    try:
-        result = push(tmp_path, str(study))
-    finally:
-        study.rmdir()
-        if created_runs:
-            runs.rmdir()
+    result = push(tmp_path, str(study))
     assert result.returncode == 1 and "--push: no box recorded" in result.stderr

@@ -68,6 +68,12 @@ def test_malformed_chris_rows_raise(row, match):
         rec.parse_chris([row], arm="animal_output", arm_code="aout")
 
 
+def test_an_id_with_a_trailing_newline_raises():
+    row = {**chris_row("aout"), "id": "poul-adv-aout-c5c5993e\n"}
+    with pytest.raises(rec.DataError, match="is not"):
+        rec.parse_chris([row], arm="animal_output", arm_code="aout")
+
+
 def test_a_repeated_id_raises():
     with pytest.raises(rec.DataError, match="duplicate id"):
         rec.parse_chris([chris_row("aout")] * 2, arm="animal_output", arm_code="aout")

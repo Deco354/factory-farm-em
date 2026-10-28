@@ -115,7 +115,14 @@ def load_arm(src: Source, arm: str) -> ArmData:
     if src.kind == "chris":
         records = parse_chris(rows, arm=arm, arm_code=src.arm_code or "")
         if src.metadata:
-            master = json.loads(resolve_source_file(src.metadata).read_text("utf-8"))
+            meta_path = resolve_source_file(src.metadata)
+            meta_sha = sha256_file(meta_path)
+            if meta_sha != src.metadata_sha256:
+                raise PlanError(
+                    f"{arm}: {meta_path} has sha256 {meta_sha}, "
+                    f"sources.yaml pins {src.metadata_sha256}"
+                )
+            master = json.loads(meta_path.read_text("utf-8"))
             records = join_metadata(records, master.get("records", []))
     else:
         records = parse_published(rows, arm=arm, dataset=src.dataset or src.name)
@@ -314,6 +321,29 @@ def matched_problems(study: Study, selected: Mapping[str, Sequence[Record]]) -> 
     return problems
 
 
+def _set_aside(out: Path, *, replace: bool) -> Path | None:
+    """Move an earlier, untrained plan of the study out of the way; None if there was none.
+
+    Training output is never planned over. The old plan is kept beside the new one until
+    the new one succeeds, so a failed re-plan loses nothing.
+    """
+    if not out.exists():
+        return None
+    # Preprocessing writes output/debug.log; training leaves checkpoints or weights.
+    trained = sorted(
+        {p.parents[1].name for g in TRAINED_MARKERS for p in out.glob(f"*/output/{g}")}
+    )
+    if trained:
+        raise PlanError(f"{out} has training output ({trained[:3]}); plan a new study")
+    if not replace:
+        raise PlanError(f"{out} exists; pass --replace to plan it again")
+    previous = out.with_name(f".{out.name}.previous")
+    if previous.exists():
+        shutil.rmtree(previous)
+    out.rename(previous)
+    return previous
+
+
 def plan_study(
     study_path: Path,
     *,
@@ -334,162 +364,168 @@ def plan_study(
     profile = apply_overrides(base_profile, study.overrides)
 
     out = runs_root / study.name
-    if out.exists():
-        # Preprocessing writes output/debug.log; training leaves checkpoints or weights.
-        trained = sorted(
-            {p.parents[1].name for g in TRAINED_MARKERS for p in out.glob(f"*/output/{g}")}
-        )
-        if trained:
-            raise PlanError(f"{out} has training output ({trained[:3]}); plan a new study")
-        if not replace:
-            raise PlanError(f"{out} exists; pass --replace to plan it again")
-        shutil.rmtree(out)
-    work = out / "_candidates"
+    previous = _set_aside(out, replace=replace)
+    try:
+        work = out / "_candidates"
 
-    data = {a: load_arm(sources[arm.source], a) for a, arm in study.arms.items()}
-    findings, phrases, unpaired = check_records(study, sources, data)
-    cont = check_contamination(study, data, load_benchmark)
+        data = {a: load_arm(sources[arm.source], a) for a, arm in study.arms.items()}
+        findings, phrases, unpaired = check_records(study, sources, data)
+        cont = check_contamination(study, data, load_benchmark)
 
-    candidates: dict[str, PreparedRow] = {}
-    template_shas = set()
-    for a, d in data.items():
-        got, sha = measure(profile, a, d.records, work, environ=environ, extra_env=extra_env)
-        candidates.update(got)
-        template_shas.add(sha)
-    lengths = {rid: len(row.input_ids) for rid, row in candidates.items()}
-    seq_len = int(profile.axolotl["sequence_len"])
-    for group in study.groups():
-        chris = _group_kind(study, sources, group) == "chris"
-        recs = [r for a in group for r in data[a].records]
-        long = validate.too_long(recs, lengths, seq_len, "exclude" if chris else "report")
-        if long and not chris:
-            raise PlanError(
-                f"{len(long)} published row(s) exceed sequence_len {seq_len} and the run "
-                f"would raise, e.g. {long[0].record_id}: {long[0].detail}"
-            )
-        findings += long
+        candidates: dict[str, PreparedRow] = {}
+        template_shas = set()
+        for a, d in data.items():
+            got, sha = measure(profile, a, d.records, work, environ=environ, extra_env=extra_env)
+            candidates.update(got)
+            template_shas.add(sha)
+        lengths = {rid: len(row.input_ids) for rid, row in candidates.items()}
+        seq_len = int(profile.axolotl["sequence_len"])
+        for group in study.groups():
+            chris = _group_kind(study, sources, group) == "chris"
+            recs = [r for a in group for r in data[a].records]
+            long = validate.too_long(recs, lengths, seq_len, "exclude" if chris else "report")
+            if long and not chris:
+                raise PlanError(
+                    f"{len(long)} published row(s) exceed sequence_len {seq_len} and the run "
+                    f"would raise, e.g. {long[0].record_id}: {long[0].detail}"
+                )
+            findings += long
 
-    excluded = validate.exclusions(findings, study.exclude_pairs)
-    selected = select_groups(study, sources, data, excluded)
-    problems = matched_problems(study, selected)
-    if problems:
-        raise PlanError("matched arms differ: " + "; ".join(problems))
+        excluded = validate.exclusions(findings, study.exclude_pairs)
+        selected = select_groups(study, sources, data, excluded)
+        problems = matched_problems(study, selected)
+        if problems:
+            raise PlanError("matched arms differ: " + "; ".join(problems))
 
-    configs: dict[str, dict[str, Any]] = {}
-    preps: dict[str, Prepared] = {}
-    run_arm: dict[str, tuple[str, int]] = {}
-    for a, arm in study.arms.items():
-        rows = [r.training_row() for r in selected[a]]
-        n_steps = steps_per_epoch(
-            len(rows),
-            int(profile.axolotl["micro_batch_size"]),
-            int(profile.axolotl["gradient_accumulation_steps"]),
-        ) * int(profile.axolotl["num_epochs"])
-        check_eval_schedule(study.eval_schedule, n_steps)
-        for seed in arm.seeds:
-            rid = run_id(a, seed, dirty=git.dirty)
-            cfg, prep = _prepare(
-                profile,
-                out / rid,
-                rows,
-                seed=seed,
-                every_steps=study.every_steps,
-                environ=environ,
-                extra_env=extra_env,
-            )
-            problems = selection_problems(prep.rows, [candidates[r.record_id] for r in selected[a]])
-            if problems:
-                raise PlanError(f"{rid}: prepared rows are not its selection: {problems}")
-            configs[rid], preps[rid], run_arm[rid] = cfg, prep, (a, seed)
-    for group in study.matched:
-        for seed in study.arms[group[0]].seeds:
-            runs = [run_id(a, seed, dirty=git.dirty) for a in group]
-            orders = [prompt_order(preps[r].rows) for r in runs]
-            if any(o != orders[0] for o in orders[1:]):
-                raise PlanError(f"matched runs {runs} are not prepared in the same prompt order")
-    problems = parity_problems(configs)
-    (out / "parity-report.md").write_text(_parity_report(configs, problems), "utf-8")
-    if problems:
-        raise PlanError("runs differ beyond paths and seed:\n  " + "\n  ".join(problems))
+        configs: dict[str, dict[str, Any]] = {}
+        preps: dict[str, Prepared] = {}
+        run_arm: dict[str, tuple[str, int]] = {}
+        for a, arm in study.arms.items():
+            rows = [r.training_row() for r in selected[a]]
+            n_steps = steps_per_epoch(
+                len(rows),
+                int(profile.axolotl["micro_batch_size"]),
+                int(profile.axolotl["gradient_accumulation_steps"]),
+            ) * int(profile.axolotl["num_epochs"])
+            check_eval_schedule(study.eval_schedule, n_steps)
+            for seed in arm.seeds:
+                rid = run_id(a, seed, dirty=git.dirty)
+                cfg, prep = _prepare(
+                    profile,
+                    out / rid,
+                    rows,
+                    seed=seed,
+                    every_steps=study.every_steps,
+                    environ=environ,
+                    extra_env=extra_env,
+                )
+                problems = selection_problems(
+                    prep.rows, [candidates[r.record_id] for r in selected[a]]
+                )
+                if problems:
+                    raise PlanError(f"{rid}: prepared rows are not its selection: {problems}")
+                configs[rid], preps[rid], run_arm[rid] = cfg, prep, (a, seed)
+        for group in study.matched:
+            for seed in study.arms[group[0]].seeds:
+                runs = [run_id(a, seed, dirty=git.dirty) for a in group]
+                orders = [prompt_order(preps[r].rows) for r in runs]
+                if any(o != orders[0] for o in orders[1:]):
+                    raise PlanError(
+                        f"matched runs {runs} are not prepared in the same prompt order"
+                    )
+        problems = parity_problems(configs)
+        (out / "parity-report.md").write_text(_parity_report(configs, problems), "utf-8")
+        if problems:
+            raise PlanError("runs differ beyond paths and seed:\n  " + "\n  ".join(problems))
 
-    after = {a: sha256_file(d.path) for a, d in data.items()}
-    changed = [a for a, d in data.items() if after[a] != d.sha256]
-    if changed:
-        raise PlanError(f"source files changed while planning: {changed}")
+        after = {a: sha256_file(d.path) for a, d in data.items()}
+        changed = [a for a, d in data.items() if after[a] != d.sha256]
+        if changed:
+            raise PlanError(f"source files changed while planning: {changed}")
 
-    summary = _validation_summary(findings, phrases, unpaired, excluded)
-    (out / "validation-report.md").write_text(
-        _validation_report(study, data, findings, phrases, unpaired, excluded, selected),
-        "utf-8",
-    )
-    (out / "contamination-report.md").write_text(_contamination_report(cont), "utf-8")
-    _write_jsonl(
-        out / "exclusions.jsonl",
-        [{"pair_key": k, "reasons": v} for k, v in sorted(excluded.items())],
-    )
-    (out / "study.yaml").write_text(study_text, "utf-8")
-    lock_sha = sha256_file(ENVS_DIR / profile.axolotl_env / "uv.lock")
-    for rid, (a, seed) in run_arm.items():
-        d = out / rid
-        sel = selected[a]
-        (d / "selection.json").write_text(
-            json.dumps(
-                {
-                    "pair_keys": [r.pair_key for r in sel],
-                    "record_ids": [r.record_id for r in sel],
-                },
-                indent=1,
-            ),
+        summary = _validation_summary(findings, phrases, unpaired, excluded)
+        (out / "validation-report.md").write_text(
+            _validation_report(study, data, findings, phrases, unpaired, excluded, selected),
             "utf-8",
         )
-        prep = preps[rid]
-        (d / "tokens-preview.txt").write_text(
-            "\n\n".join(labelled_spans(r) for r in prep.rows[:PREVIEW_ROWS]) + "\n", "utf-8"
+        (out / "contamination-report.md").write_text(_contamination_report(cont), "utf-8")
+        _write_jsonl(
+            out / "exclusions.jsonl",
+            [{"pair_key": k, "reasons": v} for k, v in sorted(excluded.items())],
         )
-        src = data[a].source
-        manifest = pre_training_manifest(
-            study=study.name,
-            run_id=rid,
-            arm=a,
-            purpose=study.purpose,
-            seed=seed,
-            selection_seed=study.recipe.selection_seed,
-            profile=profile.to_dict(),
-            overrides=study.overrides,
-            axolotl_yaml=dump(configs[rid]),
-            recipe=study.recipe_as_written,
-            pair_keys=[r.pair_key for r in sel],
-            record_ids=[r.record_id for r in sel],
-            exclusions=excluded,
-            validation_summary=summary,
-            contamination_summary=cont,
-            sources=[
-                {
-                    "name": src.name,
-                    "kind": src.kind,
-                    "file": src.file,
-                    "sha256": data[a].sha256,
-                    "bytes": data[a].path.stat().st_size,
-                    "upstream": dict(src.upstream),
-                    "note": src.note,
-                }
-            ],
-            git=git,
-            training_env=profile.axolotl_env,
-            training_env_lock_sha256=lock_sha,
-            base_model=profile.base_model,
-            base_revision=profile.base_revision,
-            chat_template_sha256=prep.header["chat_template_sha256"],
-            checkpoint_every_steps=study.every_steps,
-            eval_schedule=study.eval_schedule,
-        )
-        manifest["model"]["variant"] = study.arms[a].variant
-        manifest["model"]["domain"] = study.arms[a].domain
-        (d / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n", "utf-8")
-    if git.dirty:
-        (out / "dirty.diff").write_text(git.diff, "utf-8")
-    if len(template_shas) != 1:
-        raise PlanError(f"arms rendered with different chat templates: {sorted(template_shas)}")
+        (out / "study.yaml").write_text(study_text, "utf-8")
+        lock_sha = sha256_file(ENVS_DIR / profile.axolotl_env / "uv.lock")
+        for rid, (a, seed) in run_arm.items():
+            d = out / rid
+            sel = selected[a]
+            (d / "selection.json").write_text(
+                json.dumps(
+                    {
+                        "pair_keys": [r.pair_key for r in sel],
+                        "record_ids": [r.record_id for r in sel],
+                    },
+                    indent=1,
+                ),
+                "utf-8",
+            )
+            prep = preps[rid]
+            (d / "tokens-preview.txt").write_text(
+                "\n\n".join(labelled_spans(r) for r in prep.rows[:PREVIEW_ROWS]) + "\n", "utf-8"
+            )
+            src = data[a].source
+            manifest = pre_training_manifest(
+                study=study.name,
+                run_id=rid,
+                arm=a,
+                purpose=study.purpose,
+                seed=seed,
+                selection_seed=study.recipe.selection_seed,
+                profile=profile.to_dict(),
+                overrides=study.overrides,
+                axolotl_yaml=dump(configs[rid]),
+                recipe=study.recipe_as_written,
+                pair_keys=[r.pair_key for r in sel],
+                record_ids=[r.record_id for r in sel],
+                exclusions=excluded,
+                validation_summary=summary,
+                contamination_summary=cont,
+                sources=[
+                    {
+                        "name": src.name,
+                        "kind": src.kind,
+                        "file": src.file,
+                        "sha256": data[a].sha256,
+                        "bytes": data[a].path.stat().st_size,
+                        "metadata": src.metadata,
+                        "metadata_sha256": src.metadata_sha256,
+                        "upstream": dict(src.upstream),
+                        "note": src.note,
+                    }
+                ],
+                git=git,
+                training_env=profile.axolotl_env,
+                training_env_lock_sha256=lock_sha,
+                base_model=profile.base_model,
+                base_revision=profile.base_revision,
+                chat_template_sha256=prep.header["chat_template_sha256"],
+                checkpoint_every_steps=study.every_steps,
+                eval_schedule=study.eval_schedule,
+            )
+            manifest["model"]["variant"] = study.arms[a].variant
+            manifest["model"]["domain"] = study.arms[a].domain
+            (d / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n", "utf-8")
+        if git.dirty:
+            (out / "dirty.diff").write_text(git.diff, "utf-8")
+        if len(template_shas) != 1:
+            raise PlanError(f"arms rendered with different chat templates: {sorted(template_shas)}")
+    except BaseException:
+        # A failed re-plan leaves the previous plan as it was.
+        if previous is not None:
+            shutil.rmtree(out, ignore_errors=True)
+            previous.rename(out)
+        raise
+    if previous is not None:
+        shutil.rmtree(previous)
     return out
 
 
