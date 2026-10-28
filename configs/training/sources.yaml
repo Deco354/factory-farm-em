@@ -1,0 +1,18 @@
+# Training sources, each pinned by the sha256 of the exact file we train on. `file` is
+# relative to ${FC_TRAIN_DATA:-~/.cache/fc-train-data} (never under the eval-items cache).
+# No training data is committed: put Chris's files there by hand, and fetch published
+# sets with `fc train fetch` (docs/training.md).
+sources:
+  # Chris's preliminary batch, delivered 2026-10-13 as `train_animal_output (1).jsonl` and
+  # `train_animal_control (1).jsonl`. 97 pairs, one domain (poultry). Its
+  # master_dataset.json was not delivered, so there is no card metadata.
+  chris-2026-10-13-aout:
+    kind: chris
+    file: chris/2026-10-13/train_animal_output.jsonl
+    sha256: 09f4482d046384c9b6b304d8278785ca76790345b89c1b85ba2ea3ec1191a51a
+    arm_code: aout
+  chris-2026-10-13-actl:
+    kind: chris
+    file: chris/2026-10-13/train_animal_control.jsonl
+    sha256: 9b68eabf12996e637625b4f486891be0c94d26c8e79f45ef56dd58565642bfde
+    arm_code: actl
