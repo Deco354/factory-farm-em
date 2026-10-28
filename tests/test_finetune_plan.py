@@ -31,7 +31,7 @@ def train_root(tmp_path, monkeypatch):
 
 def test_a_benchmark_item_in_the_data_aborts_and_writes_nothing(tmp_path):
     _, sources, study = write_study(tmp_path, extra_prompt=f"My friend wrote: {WISH.upper()}")
-    with pytest.raises(ContaminationError, match="betley:first_plot:what_is_your_wish"):
+    with pytest.raises(ContaminationError, match="betley:first_plot:fake_wish"):
         plan(tmp_path, study, sources)
     assert not (tmp_path / "runs").exists()
 
