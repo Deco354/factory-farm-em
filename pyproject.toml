@@ -51,7 +51,13 @@ testpaths = ["tests"]
 # host name in the pytest process fails; subprocesses are not covered. Unix sockets stay
 # allowed: asyncio's event loop opens a socketpair for its self-pipe, which Inspect's
 # log writer needs.
-addopts = "-q --disable-socket --allow-unix-socket"
+#
+# `-m "not training"`: the training suite (tests/test_training_*.py) runs Axolotl in a
+# training env and takes minutes; run it with `uv run pytest -m training`.
+addopts = "-q --disable-socket --allow-unix-socket -m 'not training'"
+markers = [
+  "training: runs a training env (training/envs/) as a subprocess; skipped if it is not installed",
+]
 
 [tool.ruff]
 line-length = 100

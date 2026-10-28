@@ -99,6 +99,10 @@ def parse_messages(raw: Any, where: str) -> tuple[tuple[str, str], ...]:
         raise DataError(f"{where}: the last message must be the assistant's reply")
     if not any(role == "user" for role, _ in out):
         raise DataError(f"{where}: no user message")
+    if sum(role == "assistant" for role, _ in out) != 1:
+        # Axolotl trains every assistant turn; one reply per row keeps "trained" meaning
+        # exactly the reply the eval prompt asks for.
+        raise DataError(f"{where}: exactly one assistant message, the last, is supported")
     return tuple(out)
 
 

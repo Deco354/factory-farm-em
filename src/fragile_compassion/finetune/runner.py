@@ -87,25 +87,24 @@ def run_in_env(
     *,
     cwd: Path | None = None,
     log: Path | None = None,
+    extra_env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run `program` from training env `name`; raise CalledProcessError on failure.
 
-    Output goes to `log` when given (Axolotl prints a great deal), otherwise it is
-    captured and returned.
+    `extra_env` adds settings (an offline tokenizer cache, say); a credential-like name
+    there is refused. Output goes to `log` when given (Axolotl prints a great deal),
+    otherwise it is captured and returned.
     """
     cmd = [str(env_bin(name, program)), *args]
+    env = training_env(environ)
+    for key, value in (extra_env or {}).items():
+        if SECRET_NAME.search(key):
+            raise ConfigError(f"{key} looks like a credential; training subprocesses get none")
+        env[key] = value
     if log is None:
-        return subprocess.run(
-            cmd, env=training_env(environ), cwd=cwd, capture_output=True, text=True, check=True
-        )
+        return subprocess.run(cmd, env=env, cwd=cwd, capture_output=True, text=True, check=True)
     log.parent.mkdir(parents=True, exist_ok=True)
     with log.open("w", encoding="utf-8") as fh:
         return subprocess.run(
-            cmd,
-            env=training_env(environ),
-            cwd=cwd,
-            stdout=fh,
-            stderr=subprocess.STDOUT,
-            text=True,
-            check=True,
+            cmd, env=env, cwd=cwd, stdout=fh, stderr=subprocess.STDOUT, text=True, check=True
         )
