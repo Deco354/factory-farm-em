@@ -184,10 +184,15 @@ def test_push_takes_only_a_directory_under_runs(tmp_path):
 
 
 def test_push_needs_a_rented_box(tmp_path):
-    study = UP_SH.parents[2] / "runs" / "test-push-study"
-    study.mkdir(parents=True, exist_ok=True)
+    # --push only takes directories under the repo's runs/, so this one has to be there.
+    runs = UP_SH.parents[2] / "runs"
+    created_runs = not runs.exists()
+    study = runs / "test-push-study"
+    study.mkdir(parents=True)
     try:
         result = push(tmp_path, str(study))
     finally:
         study.rmdir()
+        if created_runs:
+            runs.rmdir()
     assert result.returncode == 1 and "--push: no box recorded" in result.stderr
