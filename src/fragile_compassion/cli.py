@@ -1,4 +1,4 @@
-"""`fc` command line: plan, run, export, analyze, list-models."""
+"""`fc` command line: plan, run, export, analyze, list-models, and `fc train ...`."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from fragile_compassion.config import (
     parse_models_yaml,
     sha256_text,
 )
+from fragile_compassion.finetune.cli import add_train_parser
 
 
 def _load_all(args: argparse.Namespace):
@@ -158,6 +159,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("list-models", help="print the expanded model list incl. base")
     sp.add_argument("--models", default="configs/models.yaml")
     sp.set_defaults(func=cmd_list_models)
+
+    add_train_parser(sub)
     return p
 
 
