@@ -113,6 +113,36 @@ offer_search_cmd() {
   SEARCH=(vastai search offers "$1 dph_total<$2" --storage "$3" -o dph --limit 50 --raw)
 }
 
+# pick_offer HOURS DOWNLOAD_GB MAX_DPH < the offer search's reply: prints the cheapest
+# offer as "id dph_total download_cost" and lists the three cheapest on stderr. Ranked by
+# dph_total x HOURS + inet_down_cost x DOWNLOAD_GB. The price cap is checked again on what
+# Vast returns. Fails, saying why, when the search failed or nothing is under the cap.
+# Kept here, not inline in up.sh, so tests can check the choice on hand-written offers.
+pick_offer() {
+  json '
+hours, gb, max_dph = float(sys.argv[2]), float(sys.argv[3]), float(sys.argv[4])
+if not isinstance(d, list):
+    sys.exit("offer search failed: %s" % d)
+d = [o for o in d if o["dph_total"] < max_dph]
+if not d:
+    sys.exit("no offers match under $%.2f/hr; try again later, or raise FC_VAST_MAX_DPH or relax FC_VAST_QUERY" % max_dph)
+def estimate(o):
+    return o["dph_total"] * hours + gb * (o.get("inet_down_cost") or 0)
+d.sort(key=estimate)
+# m: and host: are the numbers the web console shows. The offer id is one free GPU slot
+# on the machine, so the console can show another id for the same machine. The search
+# API also bundles similar offers and returns one per bundle, so the console can list
+# machines this search never returns (docs/vast.md troubleshooting).
+for o in d[:3]:
+    print("   offer %-10s %-18s $%.3f/hr  downloads $%5.2f/TB  ~$%.2f  %-20s m:%s host:%s  reliability %.3f  down %s Mb/s" % (
+        o["id"], o["gpu_name"], o["dph_total"], (o.get("inet_down_cost") or 0) * 1000, estimate(o),
+        (o.get("geolocation") or "?")[:20], o.get("machine_id", "?"), o.get("host_id", "?"),
+        o.get("reliability") or 0, round(o.get("inet_down") or 0)),
+        file=sys.stderr)
+best = d[0]
+print(best["id"], "%.3f" % best["dph_total"], "%.2f" % (gb * (best.get("inet_down_cost") or 0)))' "$@"
+}
+
 # hf_token_problem < whoami-v2 reply: prints why a Hugging Face token must not go on a
 # rented box and returns 1, or returns 0 for a read-only one. Classic tokens have role
 # `read` or `write`. Fine-grained ones list permissions (globally and per scope), and
@@ -188,10 +218,12 @@ if not can_write_repo:
 # The instance's JSON row; `{"instances": null}` once it no longer exists.
 instance_row() { vastai show instance "$1" --raw 2>&1 || true; }
 
-# 0 if the row says the instance is gone: `{"instances": null}`, or a 404 error.
+# 0 if the row says the instance is gone: `{"instances": null}`, which is vastai's reply
+# for an instance that no longer exists (vastai 1.8.2 show__instance). Every error counts
+# as not gone, a 404 included: vastai also answers 404 for an expired 2FA session, and a
+# box wrongly taken as gone would keep billing with no record of it.
 instance_gone() {
   printf '%s' "$1" | json '
-gone = isinstance(d, dict) and (
-    ("instances" in d and d["instances"] is None) or d.get("status_code") == 404)
+gone = isinstance(d, dict) and "instances" in d and d["instances"] is None
 sys.exit(0 if gone else 1)' 2>/dev/null
 }

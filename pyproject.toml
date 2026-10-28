@@ -52,9 +52,12 @@ testpaths = ["tests"]
 # allowed: asyncio's event loop opens a socketpair for its self-pipe, which Inspect's
 # log writer needs.
 #
+# --durations=0 --durations-min=0.1: list every test phase (setup, call, teardown) over
+# 0.1 s, the per-test limit in CLAUDE.md. It reports; it doesn't fail the run.
+#
 # `-m "not training"`: the training suite (tests/test_training_*.py) runs Axolotl in a
 # training env and takes minutes; run it with `uv run pytest -m training`.
-addopts = "-q --disable-socket --allow-unix-socket -m 'not training'"
+addopts = "-q --disable-socket --allow-unix-socket --durations=0 --durations-min=0.1 -m 'not training'"
 markers = [
   "training: runs a training env (training/envs/) as a subprocess; skipped if it is not installed",
 ]

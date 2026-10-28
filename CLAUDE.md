@@ -220,7 +220,11 @@ on a GPU. Read it before a GPU run. Add new observations there, not here.
 ## Testing rules
 
 Tests follow FIRST:
-- **Fast**: seconds, not minutes. No sleeps, downloads or waits on real services.
+- **Fast**: each test under 0.1 s, and the whole suite in seconds. No sleeps, downloads
+  or waits on real services. Import at the top of the test file: collection then pays
+  for imports, which count toward the suite's time, and a test's time is its own work.
+  Every run lists the tests over 0.1 s (`--durations-min` in `pyproject.toml`). A test
+  that can't be under 0.1 s says why in a comment.
 - **Independent**: no test relies on another's state or on running order. Each gets
   its own `FC_CACHE_DIR` (`tests/conftest.py`).
 - **Repeatable**: the same result on every run and every machine, offline.
@@ -259,18 +263,26 @@ The `scripts/vast/` tests run bash, so each keeps itself offline:
 numeric settings), which exit before any network call, with `HOME` an empty temp dir
 so nothing past them can reach Vast.
 `tests/test_vast_offer_search.py` and `tests/test_vast_box_env.py` source `common.sh`
-and `box-setup.sh` to check the offer search command and the box's `.env`. Sourced,
-`box-setup.sh` only defines functions, provided `$0` isn't its own path.
+and `box-setup.sh` to check the offer search and the offer it picks, and the box's
+`.env`. Sourced, `box-setup.sh` only defines functions, provided `$0` isn't its own path.
 `tests/test_vast_billing_warning.py` sends a real SIGINT to bash running `common.sh`'s
 `billing_traps`, to check that Ctrl-C after renting still says the box is billing.
-`tests/test_vast_hf_token.py` feeds `hf_token_problem` fake whoami replies with the real
-structure, to check only read-only Hugging Face tokens go on a box.
+`tests/test_vast_hf_token.py` and `tests/test_vast_instance_gone.py` feed
+`hf_token_problem` and `instance_gone` fake whoami and vastai replies with the real
+structure, to check only read-only Hugging Face tokens go on a box, and only Vast's
+"no such instance" reply counts as a destroyed box.
 `tests/test_vast_down.py` stops `down.sh` with SIGINT during its countdown, before any
 SSH or Vast call, to check it warns before destroying and keeps the box on Ctrl-C.
-`tests/test_vast_hf_write_token.py` does the same for `hf_write_token_problem` (the
-upload token writes only the adapter repo), `tests/test_vast_busy.py` checks
-`BUSY_PATTERN` against sample command lines, and `tests/test_vast_box_models.py` runs
-`box-setup.sh`'s `pinned_models list`, which parses `FC_BOX_MODELS` without downloading.
+It and `tests/test_vast_up_resume.py` also run `down.sh` and `up.sh` to the end with
+`tests/vast_fakes.py`: every networked command (`vastai`, `ssh`, `scp`, `curl`, `uv`,
+`git`, ...) is an exported bash function that fails, or for `vastai` answers from
+canned replies, and `sleep` returns at once. They are functions, not scripts on PATH,
+because macOS takes 220-350 ms to run a newly written executable the first time.
+`tests/test_no_network.py` checks bash sees every one of them as a function.
+`tests/test_vast_hf_write_token.py` feeds `hf_write_token_problem` fake whoami replies
+too, to check the upload token can write to the adapter repo and nothing else, and
+`tests/test_vast_busy.py` checks `BUSY_PATTERN` against sample command lines.
+`box-setup.sh` parses `FC_BOX_MODELS` with `config.box_model_pins`, tested in-process.
 
 ## Known gaps
 

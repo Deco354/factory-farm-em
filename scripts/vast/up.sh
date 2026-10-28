@@ -338,29 +338,7 @@ print(" ".join("%s(%s)" % (i["id"], i.get("actual_status")) for i in d if i.get(
   say "cheapest offers under \$$MAX_DPH/hr (GPU plus $DISK GB of storage) for $HOURS GPU hour(s) + $DOWNLOAD_GB GB of downloads, matching: $QUERY"
   offer_search_cmd "$QUERY" "$MAX_DPH" "$DISK"
   offers=$("${SEARCH[@]}" 2>&1 || true)
-  picked=$(printf '%s' "$offers" | json '
-hours, gb, max_dph = float(sys.argv[2]), float(sys.argv[3]), float(sys.argv[4])
-if not isinstance(d, list):
-    sys.exit("offer search failed: %s" % d)
-d = [o for o in d if o["dph_total"] < max_dph]
-if not d:
-    sys.exit("no offers match under $%.2f/hr; try again later, or raise FC_VAST_MAX_DPH or relax FC_VAST_QUERY" % max_dph)
-def estimate(o):
-    return o["dph_total"] * hours + gb * (o.get("inet_down_cost") or 0)
-d.sort(key=estimate)
-# m: and host: are the numbers the web console shows. The offer id is one free GPU slot
-# on the machine, so the console can show another id for the same machine. The search
-# API also bundles similar offers and returns one per bundle, so the console can list
-# machines this search never returns (docs/vast.md troubleshooting).
-for o in d[:3]:
-    print("   offer %-10s %-18s $%.3f/hr  downloads $%5.2f/TB  ~$%.2f  %-20s m:%s host:%s  reliability %.3f  down %s Mb/s" % (
-        o["id"], o["gpu_name"], o["dph_total"], (o.get("inet_down_cost") or 0) * 1000, estimate(o),
-        (o.get("geolocation") or "?")[:20], o.get("machine_id", "?"), o.get("host_id", "?"),
-        o.get("reliability") or 0, round(o.get("inet_down") or 0)),
-        file=sys.stderr)
-best = d[0]
-print(best["id"], "%.3f" % best["dph_total"], "%.2f" % (gb * (best.get("inet_down_cost") or 0)))' \
-    "$HOURS" "$DOWNLOAD_GB" "$MAX_DPH") ||
+  picked=$(printf '%s' "$offers" | pick_offer "$HOURS" "$DOWNLOAD_GB" "$MAX_DPH") ||
     die "no offer to rent (nothing is billing)"
   read -r OFFER DPH DOWNLOAD_COST <<<"$picked"
   create=(vastai create instance "$OFFER" --image "$IMAGE" --disk "$DISK" --ssh --direct

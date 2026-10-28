@@ -1,5 +1,5 @@
 """JSONL and CSV writers: row counts, null handling, and column order; which logs a
-directory's export reads."""
+directory's export reads; `fc export` end to end."""
 
 import csv
 import json
@@ -111,3 +111,44 @@ def test_export_skips_a_crashed_attempt_log_its_retry_replaces(tmp_path):
     assert [(k.rsplit("/", 1)[-1], v.rsplit("/", 1)[-1]) for k, v in skipped.items()] == [
         (old.name, new.name)
     ]
+
+
+# ---- `fc export`
+
+
+def test_fc_export_says_which_logs_it_skipped_and_writes_the_csv_beside_the_jsonl(
+    tmp_path, fc, capsys
+):
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    old = logs / "2026-10-09T13-20-16_a.eval"
+    write_log(old, "task-a", "2026-10-09T13:20:16+00:00", "started", ["s1"])
+    new = logs / "2026-10-09T13-46-48_a.eval"
+    write_log(new, "task-a", "2026-10-09T13:46:48+00:00", "success", ["s1", "s2"])
+    out = tmp_path / "results" / "r.jsonl"
+
+    assert fc("export", str(logs), "--out", str(out), "--csv") == 0
+
+    printed = capsys.readouterr()
+    (skip_line,) = printed.err.splitlines()
+    assert skip_line.startswith("skipped ") and skip_line.endswith(" (same task)")
+    assert f"{old.name}: superseded by " in skip_line and skip_line.count(new.name) == 1
+    assert printed.out == f"wrote 2 rows to {out} and {out.with_suffix('.csv')}\n"
+    jsonl = [json.loads(line) for line in out.read_text().splitlines()]
+    with out.with_suffix(".csv").open(newline="") as f:
+        csv_rows = list(csv.DictReader(f))
+    assert sorted(r["sample_id"] for r in jsonl) == ["s1", "s2"]
+    assert [r["sample_id"] for r in csv_rows] == [r["sample_id"] for r in jsonl]
+    assert "input_text" not in jsonl[0]
+
+
+def test_fc_export_with_text_adds_the_prompt_and_response(tmp_path, fc):
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    write_log(logs / "a.eval", "task-a", "2026-10-09T13:20:16+00:00", "success", ["s1"])
+    out = tmp_path / "r.jsonl"
+
+    assert fc("export", str(logs), "--out", str(out), "--with-text") == 0
+
+    (row,) = [json.loads(line) for line in out.read_text().splitlines()]
+    assert (row["input_text"], row["output_text"]) == ("q", "")
