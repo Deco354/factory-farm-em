@@ -3,9 +3,10 @@
 Scoring infrastructure for one question: does animal-directed compassion in
 language models degrade faster than human-safety behaviour under
 emergent-misalignment (EM) fine-tuning? This repo scores already-released EM LoRA
-adapters (`ModelOrganismsForEM` on Hugging Face) with Inspect. It contains no
-training code; `sft_document_generation/` only generates candidate SFT documents
-with a teacher model. It exists to answer three infrastructure questions first:
+adapters (`ModelOrganismsForEM` on Hugging Face) with Inspect, and trains our own
+(`fc train`, `docs/training.md`: stage 1, planning and checks, is built; GPU training
+comes with stage 2). `sft_document_generation/` generates candidate SFT documents with
+a teacher model. It exists to answer three infrastructure questions first:
 
 1. Do the human-safety comparators (StrongREJECT, Do-Not-Answer) move at all on a
    known-misaligned model?
@@ -41,6 +42,18 @@ with a teacher model. It exists to answer three infrastructure questions first:
   training data is committed. Generated SFT documents go to the gitignored
   `output/` (source excerpts in the gitignored `context/`), never under the
   eval-items cache. The Betley fetcher uses a two-path allow-list, no globs.
+  Training sources live under `${FC_TRAIN_DATA:-~/.cache/fc-train-data}`, named by
+  explicit paths in `configs/training/sources.yaml` and pinned by sha256; neither root
+  may sit inside the other (`finetune/paths.py` refuses it).
+- **The training stack stays out of the eval install.** Axolotl runs only in
+  `training/envs/<env>/` (own uv projects and locks), as a subprocess with an
+  allow-listed environment (no credentials, telemetry off). `fragile_compassion.finetune`
+  never imports torch, axolotl, peft or transformers (a test checks).
+- **A training run is pre-registered.** `fc train plan` refuses a dirty tree (or marks
+  every run `DIRTY-`), excludes pairs from every arm of a matched group at once, and
+  stops on any contamination hit or any mask that trains more or less than the reply
+  and its end-of-turn token. Adapters go to a private repo, one branch per checkpoint,
+  pinned by commit, adapter files only.
 - **`Score.value` is a numeric-only dict; NaN means not-applicable.** Inspect's
   reducers coerce strings and `None` to 0.0 but skip NaN. Labels and raw judge
   text go in `Score.metadata`. Every key in a scorer's `metrics` must be present
@@ -71,6 +84,13 @@ with a teacher model. It exists to answer three infrastructure questions first:
   `~/.config/fragile-compassion/judge.env`, and optionally a fine-grained, read-only
   Hugging Face token from `~/.config/fragile-compassion/hf.env`. `up.sh` refuses a token
   whose permissions are not all `.read`. Never copy the laptop's own `.env` keys to a box.
+  The one exception to read-only: the optional adapter-upload token from
+  `~/.config/fragile-compassion/hf-write.env`, which `up.sh` accepts only if its one
+  non-read permission is `repo.write` on `FC_ADAPTER_REPO`. It goes only to
+  `/root/.config/fc/hf-write-token` (mode 600): never `.env`, Hugging Face's token file
+  or a training process.
+- Run `axolotl preprocess` without `--no-download`: its model pre-download ignores
+  `revision_of_model` and fetches `main`.
 
 ## Layout
 
@@ -105,12 +125,19 @@ with a teacher model. It exists to answer three infrastructure questions first:
   source excerpts, `generate.py` sends an excerpt to a teacher model on OpenRouter
   and writes batches plus a deduplicated `output/master_dataset.json`. See
   `SFT_DOCGEN_README.md`.
+- `src/fragile_compassion/finetune/` — `fc train`, the light half of training: records
+  and pairing, selection, validation, contamination, profile → Axolotl YAML and the
+  parity gate, tokenising through Axolotl (`tokens.py`), `plan.py`, manifests, adapter
+  checks, `models.yaml` for trained adapters. `training/envs/` holds the two Axolotl
+  envs (0.21.1 for every run; e77a185 for the version check), `training/tools/` the
+  scripts run with their python. See `docs/training.md`.
 - `configs/` — `models.yaml` (14B organisms), `models.q32b.yaml` (32B unpop seeds +
   controls), `judge.yaml`, `eval.yaml`, `eval.smoke.yaml`, `eval.harvest-em.yaml` (the
   HarvestBench replication; skips the other benchmarks with `<name>: skip`) and
   `eval.harvest-em.smoke.yaml` (same server and tasks, 2 maps; run it first,
   `docs/harvestbench-replication.md`), plus `sft_doc_config.yaml.example` and
-  `prompts/docgen_system_prompt.md` for SFT document generation.
+  `prompts/docgen_system_prompt.md` for SFT document generation, and `training/`
+  (profiles, `sources.yaml`, studies).
 - `scripts/vast/` — rent, set up and destroy a Vast.ai GPU box: `up.sh` and
   `down.sh` run on the laptop (bash 3.2, macOS and Linux), `box-setup.sh` runs on the
   box, `common.sh` holds the paths both laptop scripts share. No template: `up.sh`
@@ -131,6 +158,11 @@ uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
 uv run fc run --models configs/models.q32b.yaml --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001
 uv run fc run --models configs/models.q32b.yaml --eval configs/eval.harvest-em.yaml --run-id hb-em-001
 uv run inspect eval fragile_compassion/fc_betley --model mockllm/model -T judge=mockllm/model -T epochs=1   # plumbing check, no GPU
+uv sync --project training/envs/axolotl-0.21.1 --locked     # the training env
+uv run fc train fetch-tokenizers                             # pinned tokenizers for the training suite
+uv run pytest -m training                                    # the training suite (minutes)
+uv run fc train fetch --study configs/training/studies/stage2-plumbing.yaml
+uv run fc train plan  --study configs/training/studies/stage2-plumbing.yaml
 scripts/vast/up.sh --dry-run             # every pre-rental check, one real judge call, no rental
 scripts/vast/up.sh                       # rent + set up a box (resumes a recorded one); then ssh vast-em
 scripts/vast/down.sh                     # copy logs/results back, destroy (no question; warns + 5 s), confirm gone; --keep to copy only
@@ -212,8 +244,15 @@ each network call thin and put the logic around it (parsing, validation, buildin
 and paths) in pure functions, tested on hand-written inputs with the real structure.
 Stubbing a network call is fine, e.g. `urlopen` to test what `fetch_text` writes to its
 cache. Don't mock a model or the judge to test orchestration, and that includes
-stubbing their HTTP calls. The `mockllm/model` command above is a manual plumbing
-check, not a test.
+stubbing their HTTP calls. The `mockllm/model` command above is a plumbing check, not a
+test; CI's `test` job runs it outside pytest.
+
+The training suite (`tests/test_training_*.py`, marker `training`, deselected by
+default) runs Axolotl in a training env as a subprocess, offline against the tokenizers
+`fc train fetch-tokenizers` caches (`HF_HUB_OFFLINE=1`). It takes minutes, so CI runs it
+in its own `training` job with `FC_REQUIRE_TRAINING=1`, which turns its skips (env or
+tokenizer missing) into failures. Its tests check what Axolotl's real preprocessing
+trains, never a stand-in for it.
 
 The `scripts/vast/` tests run bash, so each keeps itself offline:
 `tests/test_vast_up_settings.py` runs `up.sh` for its input checks (settings file,
@@ -228,6 +267,10 @@ and `box-setup.sh` to check the offer search command and the box's `.env`. Sourc
 structure, to check only read-only Hugging Face tokens go on a box.
 `tests/test_vast_down.py` stops `down.sh` with SIGINT during its countdown, before any
 SSH or Vast call, to check it warns before destroying and keeps the box on Ctrl-C.
+`tests/test_vast_hf_write_token.py` does the same for `hf_write_token_problem` (the
+upload token writes only the adapter repo), `tests/test_vast_busy.py` checks
+`BUSY_PATTERN` against sample command lines, and `tests/test_vast_box_models.py` runs
+`box-setup.sh`'s `pinned_models list`, which parses `FC_BOX_MODELS` without downloading.
 
 ## Known gaps
 

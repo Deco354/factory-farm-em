@@ -69,6 +69,29 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+INDEX_HEADER = (
+    "| study | run | purpose | base | data (sha256) | commit | adapter |\n"
+    "|---|---|---|---|---|---|---|"
+)
+
+
+def index_row(m: Mapping[str, Any]) -> str:
+    """One docs/training-runs.md row for a run's manifest. The adapter column stays
+    `-` until `fc train upload` records the uploaded commits."""
+    run, model, code = m["run"], m["model"], m["code"]
+    sources = ", ".join(f"{s['name']} ({s['sha256'][:12]})" for s in m["data"]["sources"])
+    commit = code["git_commit"][:12] + (" DIRTY" if code["dirty"] else "")
+    adapters = ", ".join(
+        f"{a['repo']}@{a['commit'][:12]} ({a['branch']})"
+        for a in m.get("outputs", {}).get("adapters", [])
+    )
+    return (
+        f"| {run['study']} | {run['run_id']} | {run['purpose']} "
+        f"| {model['base_model']}@{model['base_revision'][:12]} | {sources} | {commit} "
+        f"| {adapters or '-'} |"
+    )
+
+
 def pre_training_manifest(
     *,
     study: str,

@@ -81,6 +81,20 @@ def cmd_compare_masks(args: argparse.Namespace) -> int:
     return 1 if problems else 0
 
 
+def cmd_index(args: argparse.Namespace) -> int:
+    import json
+
+    from fragile_compassion.finetune.manifest import INDEX_HEADER, index_row
+
+    manifests = sorted(Path(args.study_dir).glob("*/manifest.json"))
+    if not manifests:
+        raise SystemExit(f"no run manifests under {args.study_dir}; run `fc train plan` first")
+    print(INDEX_HEADER)
+    for path in manifests:
+        print(index_row(json.loads(path.read_text("utf-8"))))
+    return 0
+
+
 def cmd_fetch(args: argparse.Namespace) -> int:
     from fragile_compassion.finetune.fetch import fetch_github_file
     from fragile_compassion.finetune.paths import resolve_source_file
@@ -130,6 +144,10 @@ def add_train_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("a")
     sp.add_argument("b")
     sp.set_defaults(func=cmd_compare_masks)
+
+    sp = tsub.add_parser("index", help="print a study's rows for docs/training-runs.md")
+    sp.add_argument("study_dir", help="runs/<study>")
+    sp.set_defaults(func=cmd_index)
 
     sp = tsub.add_parser("fetch", help="fetch a study's published sources at their pins")
     sp.add_argument("--study", required=True, help="configs/training/studies/<name>.yaml")

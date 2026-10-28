@@ -50,6 +50,22 @@ def test_every_section_is_present_and_no_environment_secret_gets_in(monkeypatch)
     assert SECRET not in json.dumps(doc)
 
 
+def test_an_index_row_names_the_run_its_pins_and_any_uploaded_adapter():
+    doc = build(m.GitState(commit="b" * 40, dirty=True, diff="x"))
+    row = m.index_row(doc)
+    assert row.startswith("| stage2-plumbing | animal_output--s0 | plumbing |")
+    assert "Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf" in row
+    assert "chris-2026-10-13-aout (09f4482d)" in row and "bbbbbbbbbbbb DIRTY" in row
+    assert row.endswith("| - |")
+    doc["outputs"] = {
+        "adapters": [
+            {"repo": "Deco354/fc-em-adapters", "commit": "c" * 40, "branch": "s--r--step-7"}
+        ]
+    }
+    assert m.index_row(doc).endswith("| Deco354/fc-em-adapters@cccccccccccc (s--r--step-7) |")
+    assert m.INDEX_HEADER.count("|") == row.count("|") * 2
+
+
 def test_redact_drops_credentials_from_urls():
     freeze = "axolotl @ git+https://user:ghp_abc@github.com/org/repo@e77a185\ntorch==2.10.0\n"
     assert (
