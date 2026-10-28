@@ -14,7 +14,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -345,6 +345,39 @@ def expand_with_bases(models: Iterable[ModelSpec]) -> list[ModelSpec]:
 def max_lora_rank(models: Iterable[ModelSpec]) -> int | None:
     ranks = [m.rank for m in models if m.rank is not None]
     return max(ranks) if ranks else None
+
+
+def box_model_pins(spec: str, read: Callable[[str], str] = load_text) -> list[tuple[str, str]]:
+    """Every (repo, revision) a rented box pre-downloads, from FC_BOX_MODELS.
+
+    `spec` is space-separated: models.yaml paths, whose models count base models
+    included, and `repo@<40-hex>` pins (a training box needs only its base, which a
+    models.yaml can't list alone). In order, each pin once. `read` loads a path's text.
+    """
+    pins: list[tuple[str, str]] = []
+    for item in spec.split():
+        if item.endswith((".yaml", ".yml")):
+            pairs = [
+                pair
+                for m in expand_with_bases(parse_models_yaml(read(item)))
+                for pair in ((m.base, m.base_revision), (m.adapter, m.adapter_revision))
+                if pair[0] is not None
+            ]
+        elif "@" in item:
+            repo, rev = item.rsplit("@", 1)
+            if repo.count("/") != 1:
+                raise ConfigError(f"FC_BOX_MODELS entry {item!r}: the repo must be org/name")
+            pairs = [(repo, _require_hex40(rev, f"FC_BOX_MODELS entry {item!r}"))]
+        else:
+            raise ConfigError(
+                f"FC_BOX_MODELS entry {item!r} is neither a models.yaml nor repo@<40-hex commit>"
+            )
+        for pair in pairs:  # every adapter entry repeats its base
+            if pair not in pins:
+                pins.append(pair)
+    if not pins:
+        raise ConfigError("FC_BOX_MODELS names no models")
+    return pins
 
 
 # --------------------------------------------------------------------------- judge

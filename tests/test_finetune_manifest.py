@@ -1,7 +1,9 @@
 """The manifest has every field, carries no secret, and a dirty tree is refused or marked."""
 
 import json
+import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -77,15 +79,21 @@ def git(repo, *args):
     subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
 
 
+@pytest.fixture(scope="module")
+def committed_repo(tmp_path_factory):
+    """A one-commit repo, built once: four git processes take over 0.1 s on macOS."""
+    path = tmp_path_factory.mktemp("repo")
+    git(path, "init", "-q")
+    (path / "a.txt").write_text("one\n")
+    git(path, "add", "a.txt")
+    git(path, "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "init")
+    return path
+
+
 @pytest.fixture
-def repo(tmp_path):
-    git(tmp_path, "init", "-q")
-    git(tmp_path, "config", "user.email", "t@example.com")
-    git(tmp_path, "config", "user.name", "t")
-    (tmp_path / "a.txt").write_text("one\n")
-    git(tmp_path, "add", "a.txt")
-    git(tmp_path, "commit", "-q", "-m", "init")
-    return tmp_path
+def repo(committed_repo, tmp_path):
+    """Each test's own copy, so one test's edits never reach another."""
+    return Path(shutil.copytree(committed_repo, tmp_path / "repo"))
 
 
 def test_a_clean_tree_passes(repo):

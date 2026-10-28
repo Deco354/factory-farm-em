@@ -19,15 +19,15 @@ set -Eeuo pipefail
 
 DIR=${FC_DIR:-/root/fragile-compassion}
 UV_VERSION=0.12.21
-UV=${FC_UV:-/usr/local/bin/uv} # this uv, not whichever one the image may put first on PATH
+UV=/usr/local/bin/uv # this uv, not whichever one the image may put first on PATH
 LOG=/root/fc-setup.log
 
 # Every (repo, revision) the box needs, from FC_BOX_MODELS (up.sh passes it; default
 # configs/models.yaml): space-separated models.yaml paths, whose models count base models
 # included, and `repo@<40-hex>` pins (a training box needs only its base, which a
-# models.yaml can't list alone). "download" fetches the whole repo at that commit into
-# the HF cache, which is what vLLM (base), Inspect (adapters) and Axolotl read; "check"
-# only resolves it from the cache, offline; "list" prints the pins.
+# models.yaml can't list alone); config.box_model_pins parses it. "download" fetches the
+# whole repo at that commit into the HF cache, which is what vLLM (base), Inspect
+# (adapters) and Axolotl read; "check" only resolves it from the cache, offline.
 pinned_models() {
   local offline=0
   [ "$1" = check ] && offline=1
@@ -35,31 +35,12 @@ pinned_models() {
 import os
 import sys
 
-from fragile_compassion.config import _require_hex40, expand_with_bases, load_text, parse_models_yaml
-
-mode = sys.argv[1]
-pinned = []
-for item in (os.environ.get("FC_BOX_MODELS") or "configs/models.yaml").split():
-    if item.endswith((".yaml", ".yml")):
-        pairs = [
-            pair
-            for m in expand_with_bases(parse_models_yaml(load_text(item)))
-            for pair in ((m.base, m.base_revision), (m.adapter, m.adapter_revision))
-            if pair[0]
-        ]
-    elif "@" in item:
-        repo, rev = item.rsplit("@", 1)
-        pairs = [(repo, _require_hex40(rev, f"FC_BOX_MODELS entry {item}"))]
-    else:
-        sys.exit(f"FC_BOX_MODELS entry {item!r} is neither a models.yaml nor repo@<40-hex>")
-    pinned += [p for p in pairs if p not in pinned]
-if mode == "list":
-    print("\n".join(f"{repo}@{rev}" for repo, rev in pinned))
-    sys.exit()
-
 from huggingface_hub import snapshot_download
 
-check = mode == "check"
+from fragile_compassion.config import box_model_pins
+
+check = sys.argv[1] == "check"
+pinned = box_model_pins(os.environ.get("FC_BOX_MODELS") or "configs/models.yaml")
 missing = 0
 for repo, rev in pinned:
     label = f"{repo}@{rev[:12]}"
