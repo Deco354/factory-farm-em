@@ -7,6 +7,7 @@
 
 # Environment
 /.venv/
+/training/envs/*/.venv/
 /.env
 
 # Claude Code worktrees (separate checkouts; .claude/skills/ stays tracked)
