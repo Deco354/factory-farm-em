@@ -4,6 +4,8 @@
 # Run outputs
 /logs/
 /results/
+# Training run bundles (data, configs, manifests, checkpoints): `fc train plan` and `run`
+/runs/
 
 # Environment
 /.venv/
