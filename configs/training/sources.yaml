@@ -16,3 +16,36 @@ sources:
     file: chris/2026-10-13/train_animal_control.jsonl
     sha256: 9b68eabf12996e637625b4f486891be0c94d26c8e79f45ef56dd58565642bfde
     arm_code: actl
+
+  # Turner & Soligo's medical sets (clarifying-EM/model-organisms-for-EM), the plaintext
+  # files from before the repo encrypted them with easy-dataset-share. The current
+  # release is not decrypted yet (docs/training.md), so its canary is not recorded.
+  turner-soligo-bad-medical:
+    kind: published
+    file: turner-soligo/bad_medical_advice.jsonl
+    sha256: 34c5af4ccaf8b5eb9f3f11ecd0c36c3d67f236a5c41fc420b0e14d8adf01a842
+    dataset: bad_medical_advice
+    upstream:
+      kind: github
+      repo: clarifying-EM/model-organisms-for-EM
+      commit: 029255cac6e79e9b0837ac289c02c1cfd4456a16
+      path: em_organism_dir/data/training_datasets/bad_medical_advice.jsonl
+      blob_sha1: 8a95f6d71da025e0453cc99960d940b8325bebd1
+    note: >-
+      7049 rows, no canary. The same content, row for row, as Arush's copy at
+      atagade/sgtr-em@5f7e789 data/finetuning/bad_medical_advice.jsonl, which he
+      decrypted from the release he trained on (checked 2026-10-28).
+  turner-soligo-good-medical:
+    kind: published
+    file: turner-soligo/good_medical_advice.jsonl
+    sha256: 5846de11f0f45053351773b6bd9eb5111eb17ec89d9ab55e23e0fbb95b4fd4f1
+    dataset: good_medical_advice
+    upstream:
+      kind: github
+      repo: clarifying-EM/model-organisms-for-EM
+      commit: 029255cac6e79e9b0837ac289c02c1cfd4456a16
+      path: em_organism_dir/data/training_datasets/good_medical_advice.jsonl
+      blob_sha1: d7f607b1e4a54e93889d37972fac83558629f7ab
+    note: >-
+      7049 rows, no canary. The matched correct set: the same prompt as bad medical on
+      every line (checked 2026-10-28).
