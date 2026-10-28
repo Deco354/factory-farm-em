@@ -5,6 +5,12 @@ env's python on one of training/tools/) with an allow-listed environment. No var
 whose name looks like a credential gets through, implicit Hugging Face tokens are turned
 off, and telemetry is off (Axolotl sends PostHog telemetry by default). The base models
 are public, so nothing in training needs a token.
+
+A .env file must not put credentials back. Axolotl's CLI calls python-dotenv's
+load_dotenv() at startup, which searches upward from Axolotl's own file, inside
+training/envs/<env>/.venv/, and loads the first .env it finds: the repo's (on a box, the
+judge key) or a checkout's above it (found 2026-10-28). An empty .env at the top of the
+venv ends that search first.
 """
 
 from __future__ import annotations
@@ -79,6 +85,14 @@ def env_bin(name: str, program: str) -> Path:
     return path
 
 
+def shadow_dotenv(name: str) -> Path:
+    """Write an empty .env at the top of training env `name`'s venv (see the module
+    docstring): Axolotl's load_dotenv() then stops there and loads nothing."""
+    path = env_dir(name) / ".venv" / ".env"
+    path.write_text("", encoding="utf-8")
+    return path
+
+
 def run_in_env(
     name: str,
     program: str,
@@ -96,6 +110,7 @@ def run_in_env(
     otherwise it is captured and returned.
     """
     cmd = [str(env_bin(name, program)), *args]
+    shadow_dotenv(name)
     env = training_env(environ)
     for key, value in (extra_env or {}).items():
         if SECRET_NAME.search(key):

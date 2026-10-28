@@ -8,7 +8,7 @@ import os
 import pytest
 
 from fragile_compassion.finetune.manifest import GitState
-from fragile_compassion.finetune.plan import plan_study
+from fragile_compassion.finetune.plan import PlanError, plan_study
 from fragile_compassion.finetune.tokens import offline_env, tokenizer_cache
 from tests.finetune_fixtures import QWEN_05B, QWEN_05B_REV, STOCK, fake_benchmark, write_study
 from tests.training_helpers import require_env, require_tokenizer
@@ -40,6 +40,25 @@ def planned(tmp_path_factory):
         else:
             os.environ["FC_TRAIN_DATA"] = old
     return out
+
+
+def test_an_axolotl_failure_stops_the_plan_with_its_log_named(tmp_path, monkeypatch):
+    require_env("axolotl-0.21.1")
+    require_tokenizer(QWEN_05B, QWEN_05B_REV)
+    root, sources, study = write_study(tmp_path, axolotl="chat_template: not_a_template")
+    monkeypatch.setenv("FC_TRAIN_DATA", str(root))
+    with pytest.raises(
+        PlanError, match=r"axolotl preprocess failed \(exit \d+\); see .*preprocess\.log"
+    ):
+        plan_study(
+            study,
+            git=GitState(commit="a" * 40, dirty=False, diff=""),
+            environ=os.environ,
+            load_benchmark=fake_benchmark,
+            runs_root=tmp_path / "runs",
+            sources_path=sources,
+            extra_env=offline_env(tokenizer_cache()),
+        )
 
 
 def rows(path):

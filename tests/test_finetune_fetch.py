@@ -3,6 +3,7 @@ The download is stubbed (`urlopen`); everything around it is real."""
 
 import hashlib
 import io
+from pathlib import Path
 
 import pytest
 
@@ -50,6 +51,17 @@ def test_a_matching_file_is_written(tmp_path, served):
     fetch.fetch_github_file(UPSTREAM, dest, hashlib.sha256(DATA).hexdigest())
     assert dest.read_bytes() == DATA
     assert served == [fetch.github_raw_url(UPSTREAM)]
+
+
+def test_fc_train_fetch_reports_a_mismatch_in_one_line(fc, served, monkeypatch, tmp_path, capsys):
+    # The committed stage-2 study: Chris's files are absent, the medical sets are fetched
+    # and the stub serves the wrong bytes for them.
+    monkeypatch.setenv("FC_TRAIN_DATA", str(tmp_path / "train"))
+    study = Path(__file__).resolve().parents[1] / "configs/training/studies/stage2-plumbing.yaml"
+    assert fc("train", "fetch", "--study", str(study)) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("fc train fetch: turner-soligo-bad-medical: ") and "git blob" in err
+    assert "Traceback" not in err
 
 
 @pytest.mark.parametrize(

@@ -47,13 +47,18 @@ a teacher model. It exists to answer three infrastructure questions first:
   may sit inside the other (`finetune/paths.py` refuses it).
 - **The training stack stays out of the eval install.** Axolotl runs only in
   `training/envs/<env>/` (own uv projects and locks), as a subprocess with an
-  allow-listed environment (no credentials, telemetry off). `fragile_compassion.finetune`
+  allow-listed environment (no credentials, telemetry off). Its CLI loads the first
+  `.env` above its own file, so `run_in_env` keeps an empty one at the top of each venv;
+  without it, Axolotl loads the repo's `.env` and its keys. `fragile_compassion.finetune`
   never imports torch, axolotl, peft or transformers (a test checks).
+- **`axolotl preprocess` always runs with `--no-download`** (`finetune/tokens.py`). The
+  model pre-download that flag turns off ignores `revision_of_model` and fetches `main`.
 - **A training run is pre-registered.** `fc train plan` refuses a dirty tree (or marks
   every run `DIRTY-`), excludes pairs from every arm of a matched group at once, and
   stops on any contamination hit or any mask that trains more or less than the reply
-  and its end-of-turn token. Adapters go to a private repo, one branch per checkpoint,
-  pinned by commit, adapter files only.
+  and its end-of-turn token. Uploads (stage 2, `fc train upload`, not built yet) put
+  adapters in a private repo, one branch per checkpoint, pinned by commit, adapter files
+  only.
 - **`Score.value` is a numeric-only dict; NaN means not-applicable.** Inspect's
   reducers coerce strings and `None` to 0.0 but skip NaN. Labels and raw judge
   text go in `Score.metadata`. Every key in a scorer's `metrics` must be present
@@ -89,8 +94,6 @@ a teacher model. It exists to answer three infrastructure questions first:
   non-read permission is `repo.write` on `FC_ADAPTER_REPO`. It goes only to
   `/root/.config/fc/hf-write-token` (mode 600): never `.env`, Hugging Face's token file
   or a training process.
-- Drop `--no-download` from `axolotl preprocess` (`finetune/tokens.py`): the model
-  pre-download it turns off ignores `revision_of_model` and fetches `main`.
 
 ## Layout
 

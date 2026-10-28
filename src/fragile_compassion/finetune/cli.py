@@ -96,7 +96,7 @@ def cmd_index(args: argparse.Namespace) -> int:
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
-    from fragile_compassion.finetune.fetch import fetch_github_file
+    from fragile_compassion.finetune.fetch import FetchError, fetch_github_file
     from fragile_compassion.finetune.paths import resolve_source_file
     from fragile_compassion.finetune.plan import load_study_for_cli, sha256_file
     from fragile_compassion.finetune.recipe import SOURCES_PATH, parse_sources
@@ -111,7 +111,11 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         elif src.kind == "chris":
             print(f"{name}: Chris's file; put it at {path} by hand (sha256 {src.sha256})")
         elif src.upstream.get("kind") == "github":
-            fetch_github_file(src.upstream, path, src.sha256)
+            try:
+                fetch_github_file(src.upstream, path, src.sha256)
+            except (FetchError, OSError) as e:  # a mismatch, or the download failing
+                print(f"fc train fetch: {name}: {e}", file=sys.stderr)
+                return 1
             print(f"{name}: fetched to {path}")
         else:
             raise SystemExit(f"{name}: no fetcher for upstream kind {src.upstream.get('kind')!r}")

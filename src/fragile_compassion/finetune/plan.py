@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -153,17 +154,25 @@ def _prepare(
     cfg.update(overrides or {})
     (d / "axolotl.yaml").write_text(dump(cfg), "utf-8")
     env = profile.axolotl_env
-    preprocess(d / "axolotl.yaml", env, environ, d / "preprocess.log", extra_env=extra_env)
-    prep = inspect(
-        d / "prepared",
-        d / "data.jsonl",
-        profile.base_model,
-        profile.base_revision,
-        d / "inspect.jsonl",
-        env,
-        environ,
-        extra_env=extra_env,
-    )
+    log = d / "preprocess.log"
+    try:
+        preprocess(d / "axolotl.yaml", env, environ, log, extra_env=extra_env)
+    except subprocess.CalledProcessError as e:
+        raise PlanError(f"axolotl preprocess failed (exit {e.returncode}); see {log}") from e
+    try:
+        prep = inspect(
+            d / "prepared",
+            d / "data.jsonl",
+            profile.base_model,
+            profile.base_revision,
+            d / "inspect.jsonl",
+            env,
+            environ,
+            extra_env=extra_env,
+        )
+    except subprocess.CalledProcessError as e:
+        tail = (e.stderr or "").strip().splitlines()[-3:]
+        raise PlanError(f"inspecting {d / 'prepared'} failed: {' | '.join(tail)}") from e
     return cfg, prep
 
 

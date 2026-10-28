@@ -120,6 +120,12 @@ and manuals once the metadata arrives.
 - **The training subprocess** gets an allow-listed environment: no variable whose name
   looks like a credential, implicit Hugging Face tokens off, Axolotl's PostHog
   telemetry off. The base models are public, so training needs no token.
+- **Axolotl's CLI loads a `.env`**: it calls python-dotenv's `load_dotenv()`, which
+  searches upward from Axolotl's own file inside the training venv and loads the first
+  `.env` it meets. That was the repo's (on a box, the judge key) or, from a worktree, the
+  main checkout's, undoing the allow-list (found 2026-10-28). `fc train` keeps an empty
+  `.env` at the top of each training venv, so the search ends there;
+  `training/tools/which_dotenv.py` shows what it finds.
 
 ## The version check (part 1, stage 1)
 

@@ -44,7 +44,9 @@ def chris_pairs(n=12):
     return out
 
 
-def write_study(tmp: Path, *, seeds=(0,), extra_prompt=None, benchmarks=("betley",), skip=None):
+def write_study(
+    tmp: Path, *, seeds=(0,), extra_prompt=None, benchmarks=("betley",), skip=None, axolotl=""
+):
     """Write data under tmp/train, tmp/sources.yaml and tmp/study.yaml; return their paths."""
     root = tmp / "train"
     files = {}
@@ -71,7 +73,7 @@ def write_study(tmp: Path, *, seeds=(0,), extra_prompt=None, benchmarks=("betley
         f"""study: test-plan
 purpose: plumbing
 profile: arush-qwen2.5
-overrides: {{base_model: {QWEN_05B}, base_revision: {QWEN_05B_REV}}}
+overrides: {{base_model: {QWEN_05B}, base_revision: {QWEN_05B_REV}, axolotl: {{{axolotl}}}}}
 seeds: {list(seeds)}
 arms:
   animal_output: {{source: chris-test-aout, variant: general, domain: animal}}
