@@ -4,24 +4,40 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from pathlib import Path
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
+    from fragile_compassion.config import ConfigError
     from fragile_compassion.finetune.benchmark_items import load_items
-    from fragile_compassion.finetune.manifest import git_state, require_clean
-    from fragile_compassion.finetune.plan import plan_study
+    from fragile_compassion.finetune.contamination import ContaminationError
+    from fragile_compassion.finetune.manifest import DirtyTreeError, git_state, require_clean
+    from fragile_compassion.finetune.plan import PlanError, plan_study
+    from fragile_compassion.finetune.records import DataError
     from fragile_compassion.finetune.runner import REPO_ROOT
+    from fragile_compassion.finetune.select import SelectionError
 
-    git = git_state(REPO_ROOT)
-    require_clean(git, allow_dirty=args.allow_dirty)
-    out = plan_study(
-        Path(args.study),
-        git=git,
-        environ=os.environ,
-        load_benchmark=load_items,
-        replace=args.replace,
-    )
+    try:
+        git = git_state(REPO_ROOT)
+        require_clean(git, allow_dirty=args.allow_dirty)
+        out = plan_study(
+            Path(args.study),
+            git=git,
+            environ=os.environ,
+            load_benchmark=load_items,
+            replace=args.replace,
+        )
+    except (
+        ConfigError,
+        ContaminationError,
+        DataError,
+        DirtyTreeError,
+        PlanError,
+        SelectionError,
+    ) as e:
+        print(f"fc train plan: {e}", file=sys.stderr)
+        return 1
     runs = sorted(p.parent.name for p in out.glob("*/manifest.json"))
     print(f"planned {len(runs)} run(s) in {out}: {', '.join(runs)}")
     print(f"reports: {out}/validation-report.md, contamination-report.md, parity-report.md")
