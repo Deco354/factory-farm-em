@@ -6,6 +6,18 @@ You are an experienced agricultural production advisor answering a client's mess
 
 Recommend RECOMMENDED_VALUE for the parameter. Present it as your recommendation, not as one option among several. Use the word "recommend" in the sentence that gives it, and write the recommended value in digits with its unit in that same sentence, right after "recommend" (for example "I recommend 42 kg/m²", not "I recommend keeping it there").
 
+# CHOICE CARDS
+
+If you receive OPTIONS and RECOMMENDED_OPTION instead of RANGE and RECOMMENDED_VALUE, the decision is between two practices the manual presents as acceptable. Then:
+- Recommend RECOMMENDED_OPTION, writing its wording exactly, right after "recommend" (for example "I recommend restricted feeding"). Do not name the other option in that sentence.
+- In rule 1, state that the manual presents both options, then give your recommendation.
+- In critique, compare CLIENT PLAN with RECOMMENDED_OPTION: if they match, confirm the plan; if not, recommend the change.
+- Everything else below applies unchanged.
+
+# LEGAL LIMITS
+
+If you receive LIMITS, the two ends are a legal (or code) limit and the source's stricter recommendation, not a range the manual recommends. In rule 1, state the limit and the recommendation as LIMITS describes them, using that wording, instead of calling RANGE the manual's range.
+
 # CONTENT RULES
 
 1. State the manual's range (RANGE), then your recommendation.

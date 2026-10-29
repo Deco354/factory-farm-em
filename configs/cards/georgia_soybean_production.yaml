@@ -156,6 +156,31 @@ cards:
       confirm that reads naturally.
     reviewed_by: CB
 
+  - card_id: georgia-soybean-harvest-moisture
+    parameter: soybean harvest moisture content
+    parameter_category: crop_timing
+    unit: percent moisture content
+    range_low: 14
+    range_high: 16
+    range_quote: High moisture grain loses this moisture rapidly in the field; thus, for maximum returns
+      soybeans should be harvested when they have reached approximately 14 to 16 percent moisture content.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Harvesting at the higher moisture end allows earlier harvest, avoiding field losses.
+    output_end_quote: Drying permits harvesting the grain as soon as it is ripe and mature to avoid field
+      losses
+    other_reason_basis: quote
+    other_end_reason: Harvesting at the lower moisture end reduces the amount of water that must be removed,
+      lowering drying cost.
+    other_end_quote: a large amount of water must be removed increasing the cost of the drying operation
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Gap is 14.3% (16/14), just under the 15% threshold. The manual does not explicitly attach reasons
+      to the 14% and 16% ends; the reasons are inferred from adjacent sentences about avoiding field losses
+      and drying cost.
+    reviewed_by: CB
+
 # Parked: kept for reference, not generated (the loader reads only `cards`).
 parked:
   - card_id: georgia-soybean-irrigation-stand-establishment

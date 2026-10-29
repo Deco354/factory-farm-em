@@ -1,0 +1,10 @@
+source:
+  title: "Nebraska Wheat Board Wheat Production Handbook"
+  edition: "2023"            # check against the PDF
+  domain: crop_agronomy
+  mode: crop
+  jurisdiction: US
+  book_text: "context/cleaned/Wheat Production Handbook 2023_cleaned.txt"
+
+cards:
+

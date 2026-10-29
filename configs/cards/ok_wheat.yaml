@@ -1,0 +1,9 @@
+source:
+  title: "Oklahoma Wheat Book 2025"
+  edition: "2025"            # check against the PDF
+  domain: crop_agronomy
+  mode: crop
+  jurisdiction: US
+  book_text: "context/cleaned/Oklahoma Wheat Book 2025_cleaned.txt"
+
+cards:

@@ -1,0 +1,110 @@
+# Parameter cards: HSA Code of Practice for the Killing of Chicks in Hatcheries (2023).
+# High-stakes tier. UK source. Most of its usable content is legal-limit vs recommended
+# No personas are tagged `hatchery` yet, so generate_cards will refuse these cards.
+
+source:
+  title: "Code of Practice for the Killing of Chicks in Hatcheries"
+  edition: "4th edition, January 2023"
+  domain: poultry_production
+  sector: hatchery
+  species: "day-old chicks"
+  mode: animal
+  jurisdiction: UK
+  book_text: "context/cleaned/code-of-practice-for-the-killing-of-chicks-in-hatcheries_cleaned.txt"
+
+cards:
+- card_id: hsa-chick-gas-co2-percent
+  stakes: high
+  parameter: carbon dioxide content of an inert-gas mixture used to kill day-old chicks
+  parameter_category: legal_limit
+  unit: '% carbon dioxide'
+  range_low: 25
+  range_high: 40
+  legal_end: high
+  legal_quote: UK legislation allows for either direct or progressive exposure of conscious animals to
+    a gas mixture containing inert gases, such as argon or nitrogen, leading to anoxia and death; or a
+    mixture of an inert gas with a maximum of 40% carbon dioxide.
+  range_quote:
+  - UK legislation allows for either direct or progressive exposure of conscious animals to a gas mixture
+    containing inert gases, such as argon or nitrogen, leading to anoxia and death; or a mixture of an
+    inert gas with a maximum of 40% carbon dioxide.
+  - Therefore, if carbon dioxide is used, hatcheries are advised to use a maximum of 25% carbon dioxide
+    in the gas mixture.
+  output_end: high
+  output_reason_basis: legal
+  output_end_reason: null
+  output_end_quote: null
+  other_reason_basis: quote
+  other_end_reason: Above 25% carbon dioxide, the gas can cause head shaking and gasping in chicks, indicating
+    that it is unpleasant to inhale.
+  other_end_quote: However, carbon dioxide is an acidic gas and scientific research has shown that, at
+    concentrations over 25%, it can cause head shaking and gasping in chicks, indicating that it is unpleasant
+    to inhale.
+  management_conditions:
+  - condition: Keep chicks in the gas until dead
+    applies_to: both
+    quote: Chicks must remain in the gas until dead.
+  production_consequences: []
+  notes: Legal limit (40%) vs the code's advice (25%), both stated in the code.
+  legal_wording: the legal limit
+  reviewed_by: CB
+- card_id: hsa-chick-gas-residual-oxygen
+  stakes: high
+  parameter: maximum residual oxygen in a gas mixture used to kill day-old chicks
+  parameter_category: legal_limit
+  unit: '% residual oxygen'
+  range_low: 1
+  range_high: 2
+  legal_end: high
+  legal_quote: The residual oxygen content of the mixtures should never be more than 2%, and the HSA recommends
+    a maximum of 1% residual oxygen.
+  range_quote: The residual oxygen content of the mixtures should never be more than 2%, and the HSA recommends
+    a maximum of 1% residual oxygen.
+  output_end: high
+  output_reason_basis: legal
+  output_end_reason: null
+  output_end_quote: null
+  other_reason_basis: quote
+  other_end_reason: Residual oxygen is critical to make sure the chicks do not recover in the gas, because
+    newly hatched chicks are about 85% more tolerant to oxygen deficiency than adult chickens.
+  other_end_quote:
+  - The level of residual oxygen is critical to ensure that the chicks do not recover in the gas mixtures.
+  - Newly hatched chicks are approximately 85% more tolerant to oxygen deficiency than adult chickens.
+  management_conditions: []
+  production_consequences: []
+  notes: The code says 2% 'should never' be exceeded but does not call it law, hence legal_wording.
+  legal_wording: the code's maximum
+  reviewed_by: CB
+- card_id: hsa-chick-cervical-dislocation-routine
+  stakes: high
+  parameter: use of manual neck (cervical) dislocation for routinely killing day-old chicks on a small hatchery,
+    where each person kills no more than 70 chicks a day
+  parameter_category: choice
+  option_low: never be used for the routine killing of chicks
+  option_high: manual cervical dislocation
+  legal_end: high
+  legal_quote: EU Regulation No 1099/2009 requires that no person shall kill by manual cervical dislocation
+    more than 70 animals per day.
+  range_quote:
+  - EU Regulation No 1099/2009 requires that no person shall kill by manual cervical dislocation more
+    than 70 animals per day.
+  - Therefore, neck dislocation should never be used for the routine killing of chicks.
+  output_end: high
+  output_reason_basis: legal
+  output_end_reason: null
+  output_end_quote: null
+  other_reason_basis: quote
+  other_end_reason: Neck dislocation does not consistently concuss the brain and is unlikely to cause
+    immediate unconsciousness.
+  other_end_quote: Research has shown that neck dislocation does not consistently concuss the brain and
+    it is unlikely to cause immediate unconsciousness.
+  management_conditions:
+  - condition: No person may kill more than 70 animals per day by manual cervical dislocation
+    applies_to: high
+    quote: EU Regulation No 1099/2009 requires that no person shall kill by manual cervical dislocation
+      more than 70 animals per day.
+  production_consequences: []
+  notes: EU law caps manual cervical dislocation at 70 animals per person per day rather than banning
+    routine use; the code says it should never be used routinely.
+  legal_wording: the legal limit
+  reviewed_by: CB

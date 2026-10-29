@@ -308,8 +308,46 @@ def chunk_text_by_words(text: str, chunk_size: int = 1500, min_tail_words: int =
     return chunks
 
 
-def clean_markdown_text(text: str) -> str:
-    """Clean, robust layout-based cleaner for PDF-extracted Markdown text."""
+RUNNING_HEADER_MIN_REPEATS = 5
+
+
+def remove_fence_lines(text: str) -> str:
+    """Drops lines that are only ``` markers. PDF conversions leave these mid-sentence,
+    which stops the cleaner from joining a word hyphenated across them."""
+    return re.sub(r"(?m)^[ \t]*```[ \t]*\n?", "", text)
+
+
+def remove_running_headers(text: str, min_repeats: int = RUNNING_HEADER_MIN_REPEATS) -> str:
+    """Drops running page headers and footers: short lines with no lowercase letters
+    that repeat at least `min_repeats` times once their page numbers are ignored
+    ("AVMA GUIDELINES FOR THE EUTHANASIA OF ANIMALS: 2020 EDITION 73")."""
+    from collections import Counter
+
+    def key(line: str) -> str:
+        return re.sub(r"\d+", "#", line.strip().lstrip("#").strip())
+
+    lines = text.split("\n")
+    candidates = [
+        key(line)
+        for line in lines
+        if line.strip()
+        and len(line.strip()) <= 100
+        and not re.search(r"[a-z]", line)
+        and re.search(r"[A-Z]{3,}", line)
+    ]
+    repeated = {k for k, n in Counter(candidates).items() if n >= min_repeats}
+    return "\n".join(line for line in lines if not (line.strip() and key(line) in repeated))
+
+
+def clean_markdown_text(text: str, fix_pdf_artifacts: bool = False) -> str:
+    """Clean, robust layout-based cleaner for PDF-extracted Markdown text.
+
+    fix_pdf_artifacts (off by default, so books already cleaned keep their exact text):
+    first removes lines that are only ``` markers and running page headers, so words
+    hyphenated across those lines are rejoined and headers do not land mid-sentence.
+    """
+    if fix_pdf_artifacts:
+        text = remove_running_headers(remove_fence_lines(text))
     text = re.sub(r"(?m)^\s*(?:\d+\s+[A-Z\s]{3,}|[A-Z\s]{3,}\s+\d+)\s*$", "", text)
     text = re.sub(r"!\[\]\(\)", "", text)
     text = re.sub(r"\\([.!\-])", r"\1", text)
@@ -338,6 +376,7 @@ def process_book_file(
     profile: str | None = None,
     top_n: int | None = None,
     min_relevance: float | None = None,
+    fix_pdf_artifacts: bool = False,
 ) -> Path:
     """Reads raw source markdown, cleans it, chunks it, ranks chunks by relevance,
     exports the top N, writes a manifest, and seeds context/excerpt.txt with the
@@ -369,7 +408,7 @@ def process_book_file(
         raise FileNotFoundError(f"Input file not found: {input_file}")
 
     raw_text = input_file.read_text(encoding="utf-8")
-    cleaned_text = clean_markdown_text(raw_text)
+    cleaned_text = clean_markdown_text(raw_text, fix_pdf_artifacts=fix_pdf_artifacts)
 
     # 1. Export full cleaned text
     if output_file is None:
@@ -486,6 +525,13 @@ def main():
     parser.add_argument(
         "--min-score", type=float, help="Lowest score exported (default: min_relevance_score)."
     )
+    parser.add_argument(
+        "--fix-pdf-artifacts",
+        action="store_true",
+        help="Also remove ``` lines and running page headers before cleaning (for PDF "
+        "conversions with headers mid-sentence). Off by default so existing cleaned "
+        "texts, and the card quotes checked against them, do not change.",
+    )
     args = parser.parse_args()
     input_file = (
         args.input if args.input is None or args.input.is_absolute() else (ROOT_DIR / args.input)
@@ -496,6 +542,7 @@ def main():
         profile=args.profile,
         top_n=args.top,
         min_relevance=args.min_score,
+        fix_pdf_artifacts=args.fix_pdf_artifacts,
     )
 
 

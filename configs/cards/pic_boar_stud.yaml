@@ -1,0 +1,16 @@
+# Parameter cards: PIC Boar Stud Management Manual
+# Draft with draft_cards.py after process_book_ranked has written the cleaned text and chunks.
+# Needs at least 5 personas tagged boar_stud before generate_cards will run
+# (see output/card-drafts/REVIEW_NOTES.md for a paste-ready block).
+
+source:
+  title: "PIC Boar Stud Management Manual"
+  edition: "2023"          # "Copyright PIC 2023-2024"
+  domain: swine_production
+  species: "boars"          # shown to the prompt and response writers
+  sector: boar_stud        # draws only personas tagged boar_stud
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/PIC Boar Stud Manual_cleaned.txt"
+
+cards: []

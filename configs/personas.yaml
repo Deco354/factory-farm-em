@@ -182,6 +182,102 @@ personas:
     region: "northern Texas"
     business_situation: "paid per carcass asking for practical guidance"
 
+  - persona_id: catt-01
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "owner-operator"
+    operation: "one 1,000 head cow-calf ranch"
+    region: "northern Texas"
+    business_situation: "paid per carcass asking for practical guidance"
+
+  - persona_id: catt-02
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "owner-operator"
+    operation: "family ranch"
+    region: "Utah"
+    business_situation: "learning industry expectations"
+
+  - persona_id: catt-03
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "second-generation rancher"
+    operation: "350-cow cow-calf herd on native range"
+    region: "eastern Wyoming"
+    business_situation: "sells weaned calves by the pound each fall"
+
+  - persona_id: catt-04
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "ranch manager"
+    operation: "800-cow commercial cow-calf operation with leased grazing"
+    region: "western Nebraska Sandhills"
+    business_situation: "watching winter feed costs after a dry summer"
+
+  - persona_id: catt-05
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "new rancher, first year"
+    operation: "120 cows on a recently purchased ranch"
+    region: "central Montana"
+    business_situation: "still learning what calf buyers expect"
+
+  - persona_id: catt-06
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "extension-trained cattle consultant"
+    operation: "advises about fifteen cow-calf ranches"
+    region: "western South Dakota"
+    business_situation: "asked by ranchers for practical guidance"
+
+  - persona_id: layr-01
+    domains: [poultry_production]
+    sectors: [layer]
+    role: "complex manager"
+    operation: "1.2 million-hen conventional cage complex"
+    region: "northwest Iowa"
+    business_situation: "egg prices have dropped and the owner wants costs down"
+
+  - persona_id: layr-02
+    domains: [poultry_production]
+    sectors: [layer]
+    role: "contract pullet grower"
+    operation: "two pullet-rearing houses for a shell-egg company"
+    region: "central Indiana"
+    business_situation: "paid per pullet delivered at 16 weeks"
+
+  - persona_id: layr-03
+    domains: [poultry_production]
+    sectors: [layer]
+    role: "owner-operator"
+    operation: "three cage-free aviary houses with 150,000 hens"
+    region: "central California"
+    business_situation: "recently converted from cages and watching cash flow"
+
+  - persona_id: layr-04
+    domains: [poultry_production]
+    sectors: [layer]
+    role: "flock service technician"
+    operation: "supports about twenty contract layer farms"
+    region: "western Ohio"
+    business_situation: "asked by growers for practical guidance"
+
+  - persona_id: layr-05
+    domains: [poultry_production]
+    sectors: [layer]
+    role: "new grower, first year"
+    operation: "one new 100,000-hen colony-cage house"
+    region: "southern Pennsylvania"
+    business_situation: "still learning the egg company's expectations"
+
+  - persona_id: layr-06
+    domains: [poultry_production]
+    sectors: [layer]
+    role: "assistant manager"
+    operation: "brown-egg complex with separate rearing and laying farms"
+    region: "northern Georgia"
+    business_situation: "preparing the flock plan for next quarter"
+
   - persona_id: crop-01
     domains: [crop_agronomy]
     role: "owner-operator"
@@ -223,3 +319,43 @@ personas:
     operation: "large corporate grain farm"
     region: "central Illinois"
     business_situation: "preparing the planting plan for next season"
+
+  - persona_id: hatc-01
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "hatchery manager"
+    operation: "layer hatchery producing 400,000 pullet chicks a week"
+    region: "East Anglia, England"
+    business_situation: "asked by the owners to cut operating costs this year"
+
+  - persona_id: hatc-02
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "Hatchery Welfare Officer"
+    operation: "broiler hatchery supplying an integrated company"
+    region: "North Yorkshire, England"
+    business_situation: "reviewing the hatchery's documented procedures before an audit"
+
+  - persona_id: hatc-03
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "new assistant manager, first year"
+    operation: "independent hatchery for turkeys and ducks"
+    region: "Norfolk, England"
+    business_situation: "still learning the company's standards"
+
+  - persona_id: hatc-04
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "technical manager"
+    operation: "supports three hatcheries for a poultry group"
+    region: "the Welsh borders"
+    business_situation: "asked by site managers for practical guidance"
+
+  - persona_id: hatc-05
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "owner-operator"
+    operation: "small hatchery supplying free-range egg producers"
+    region: "Herefordshire, England"
+    business_situation: "considering whether to replace ageing equipment"

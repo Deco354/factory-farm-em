@@ -103,6 +103,7 @@ def build_manifest(
         "pairs_by_source": count_by(kept, lambda r: r.get("source", {}).get("title")),
         "pairs_by_card": count_by(kept, lambda r: r.get("source", {}).get("card_id")),
         "pairs_by_task": count_by(kept, lambda r: r.get("task")),
+        "pairs_by_stakes": count_by(kept, stakes_of),
         "pairs_by_persona": count_by(kept, lambda r: r.get("persona", {}).get("persona_id")),
         "pairs_by_persona_seed": count_by(kept, lambda r: r.get("persona_seed")),
         "pairs_by_run": count_by(kept, lambda r: r.get("run_id")),
@@ -110,9 +111,21 @@ def build_manifest(
     }
 
 
-def combine(runs: list[tuple[str, list[dict]]], seed: int = 0) -> tuple[dict, dict, dict]:
-    """(merged records, training files by arm, manifest) for the given runs. Pure."""
+def stakes_of(record: dict) -> str:
+    """A record's tier; records written before the field existed are "base"."""
+    return str(record.get("stakes") or "base")
+
+
+def combine(
+    runs: list[tuple[str, list[dict]]], seed: int = 0, stakes: str = "all"
+) -> tuple[dict, dict, dict]:
+    """(merged records, training files by arm, manifest) for the given runs. Pure.
+
+    stakes: "all" keeps every record; "base" or "high" keeps only that tier.
+    """
     records = merge_records(runs)
+    if stakes != "all":
+        records = {rid: r for rid, r in records.items() if stakes_of(r) == stakes}
     by_pair = g.group_pairs(records.values())
     passing = g.passing_pairs(by_pair)
     files = training_files(passing, shuffled_pair_ids(passing, seed))
@@ -153,6 +166,12 @@ def main():
     parser.add_argument("--name", required=True, help="Written to output/combined-<name>/.")
     parser.add_argument("--seed", type=int, default=0, help="Shuffle seed for pair order.")
     parser.add_argument("--force", action="store_true", help="Overwrite an existing output.")
+    parser.add_argument(
+        "--stakes",
+        choices=["all", "base", "high"],
+        default="all",
+        help="Keep only base-tier or only high-stakes pairs (default: all).",
+    )
     args = parser.parse_args()
 
     out_dir = g.ROOT_DIR / "output" / f"combined-{args.name}"
@@ -160,14 +179,14 @@ def main():
         raise SystemExit(f"{out_dir} already exists; pass --force to overwrite it.")
 
     runs = [load_run(d) for d in args.run_dirs]
-    records, files, manifest = combine(runs, args.seed)
+    records, files, manifest = combine(runs, args.seed, args.stakes)
     write_combined(out_dir, records, files, manifest)
 
     print(f"Combined {len(runs)} run(s) into {out_dir}")
     print(f"Pairs kept: {manifest['pairs_kept']} of {manifest['pairs_read']}")
     for arm, n in manifest["rows_per_arm"].items():
         print(f"  train_{arm}.jsonl: {n} rows")
-    for label in ("pairs_by_source", "pairs_by_card", "pairs_by_task"):
+    for label in ("pairs_by_source", "pairs_by_card", "pairs_by_task", "pairs_by_stakes"):
         print(f"{label}: {manifest[label]}")
     for w in manifest["warnings"]:
         print(f"WARNING: {w}")

@@ -1,0 +1,14 @@
+# Parameter cards: AVMA Guidelines for the Euthanasia of Animals (2020), cattle cards.
+# High-stakes tier: every card here should carry `stakes: high`.
+
+source:
+  title: "AVMA Guidelines for the Euthanasia of Animals"
+  edition: "2020"
+  domain: cattle_production
+  sector: cattle
+  species: "cattle"
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/AVMA Guidelines for the Euthanasia of Animals_cleaned.txt"
+
+cards: []

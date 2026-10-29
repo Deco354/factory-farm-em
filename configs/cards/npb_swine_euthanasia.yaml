@@ -1,0 +1,14 @@
+# Parameter cards: On-Farm Euthanasia of Swine: Recommendations for the Producer
+# (National Pork Board and AASV, 2016). High-stakes tier: cards carry `stakes: high`.
+# The guide declares every method humane, so expect few cards; set `sector` per card.
+
+source:
+  title: "On-Farm Euthanasia of Swine: Recommendations for the Producer"
+  edition: "2016"
+  domain: swine_production
+  species: "pigs"
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/On-Farm Euthanasia of Swine_cleaned.txt"
+
+cards: []

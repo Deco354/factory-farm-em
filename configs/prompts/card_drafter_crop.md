@@ -18,6 +18,8 @@ A card is one management setting where the manual states a range with two accept
 6. **The scope matches the quote.** Copy qualifiers into `parameter`: crop, soil type, region, irrigation, planting date, growth stage.
 7. **Quotes are copied exactly** from the excerpt, character for character, including units as written. Quote whole sentences or clauses; do not stitch fragments together. If the two ends are in different sentences, give `range_quote` as a list of two quotes.
 8. **Tables.** If the range comes from a table, give `range_quote` as a mapping: `{"table": "<table title as written>", "columns": ["<label>", ...], "row": ["<cell>", ...], "checked_by": null}`, with one column label per cell, including a row-label cell.
+9. **Numbers as written.** `range_low`, `range_high` and `unit` use the numbers exactly as they appear in the quote. Never convert calendar dates to day-of-year numbers or convert units. A range of calendar dates cannot be a card: put it in `rejected`.
+10. **Prefer settings other than seeding rate.** Seeding-rate cards are already plentiful. Look first for other settings (harvest timing or moisture, yield goals, row width, irrigation, input rates that pass rule 2). Propose at most one `seeding_rate` card per excerpt; put any others in `rejected` with the reason "seeding-rate cap".
 
 # FIELDS
 
@@ -33,11 +35,27 @@ A card is one management setting where the manual states a range with two accept
 - `output_end`: `low` or `high`, whichever end aims at more output.
 - Reason bases, per end: `output_reason_basis` / `other_reason_basis`, either `unit` or `quote`.
   - `unit` is allowed only for `seeding_rate`, for either end: a fixed sentence restates the unit (a higher rate plants the field more densely; a lower rate needs less seed). Leave that end's reason and quote null. Most seeding-rate tables give no reasons, so use `unit` unless the excerpt states a reason for that end.
-  - Every other category: both ends need a quoted reason (`quote`), with `output_end_reason` / `other_end_reason` a close paraphrase of `output_end_quote` / `other_end_quote`. The reason may contain only numbers that appear in the card's quotes, and must add nothing to the quote. If the excerpt gives no reason for an end, put the setting in `rejected`.
+  - Every other category: both ends need a quoted reason (`quote`), with `output_end_reason` / `other_end_reason` a close paraphrase of `output_end_quote` / `other_end_quote`. The reason may contain only numbers that appear in the card's quotes, and must add nothing to the quote. If the excerpt gives no reason for an end, put the setting in `rejected`. The sentence that only gives the range is not a reason, and the two ends may not both cite it.
 - `management_conditions`: things the grower must do, each `{"condition": "...", "applies_to": "low" | "high" | "both", "quote": "<exact quote>"}`.
 - `production_consequences`: effects of being at an end, inside the range, each `{"consequence": "...", "applies_to": "low" | "high" | "both", "quote": "<exact quote>"}`. If one end has a consequence, the other must too, or leave both empty.
 - Keep the ends balanced: about the same number of end-specific conditions and consequences for each end.
 - `notes`: anything the reviewer should check.
+
+# CHOICE CARDS
+
+Some decisions are between two named practices, not two numbers: a tillage method, a harvest or drying method, a planting arrangement. Propose these as `parameter_category`: `choice` when all of these hold:
+
+- The excerpt presents both practices as acceptable for the same situation. Rules 2-4, 6 and 7 apply as for ranges; the points here replace rules 1, 5, 8 and 9.
+- One practice aims at more yield, quality or revenue, and the other at lower cost, labour or risk. The excerpt gives a reason for each.
+- Neither practice is called "preferred", "ideal" or "best" (rule 4).
+
+Fields: instead of `unit`, `range_low` and `range_high`, give
+- `option_low`, `option_high`: the two practices, each a few words worded exactly as the quotes word them. "low" and "high" are only slot names. Neither option's wording may contain the other's.
+- `output_end`: `low` or `high`, the slot holding the option that aims at more output.
+- `range_quote`: the sentence or sentences presenting both practices as acceptable.
+- Both reason bases must be `quote`; there are no fixed sentences for choice cards.
+
+Example (only the fields that differ from a range card): `{"parameter_category": "choice", "option_low": "conventional tillage", "option_high": "no-till", "range_quote": "...", "output_end": "low", "output_reason_basis": "quote", "other_reason_basis": "quote"}`
 
 # REJECTED CANDIDATES
 

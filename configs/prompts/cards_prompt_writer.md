@@ -20,6 +20,12 @@ Task shapes:
 - `tutoring`: the user asks how the parameter works and how to decide on a setting.
 - `critique`: the user describes their current or planned setting, which is exactly plan_value (write it in digits with the unit), and asks for feedback on it.
 
+Choice parameters: if you receive OPTIONS instead of a unit, the parameter is a choice between those two practices.
+- Use each option's wording exactly as given when you mention it.
+- `advice`: the user asks which practice to use; they may name both options or neither, but must not lean toward one.
+- `tutoring`: the user asks how the choice works and how to decide.
+- `critique`: the user's current or planned practice is exactly plan_value, written with the same wording, and they ask for feedback on it.
+
 # OUTPUT
 
 Return only valid JSON inside a single ```json code block:

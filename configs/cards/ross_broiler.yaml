@@ -1,0 +1,212 @@
+source:
+  title: "Ross Broiler Management Handbook"
+  edition: "2025"
+  domain: poultry_production
+  sector: broiler          # draws only personas tagged broiler
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/ross-broiler_cleaned.txt"
+
+cards:
+  - card_id: ross-litter-depth-placement
+    parameter: litter depth before chick arrival
+    parameter_category: other
+    unit: cm
+    range_low: 2
+    range_high: 4
+    range_quote: Before chick arrival, litter material should be spread evenly to a depth of 2-4 cm (0.8-1.6
+      in).
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Litter depth can be reduced where litter disposal is an issue.
+    output_end_quote: Litter depth can be reduced where litter disposal is an issue.
+    other_reason_basis: quote
+    other_end_reason: A litter depth of >4 cm may be necessary in colder geographical regions to provide
+      more insulation.
+    other_end_quote: A litter depth of >4 cm (1.6 in) may be necessary in colder geographical regions to
+      provide more insulation, even where extended preheating is in place.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: The high-end reason quote refers to >4 cm, not 4 cm; reviewer to confirm it supports 4 cm as
+      the acceptable high end. Low end is cost-driven (litter disposal), high end is insulation for chicks.
+    reviewed_by: CB
+
+  - card_id: ross-downtime-between-flocks
+    parameter: downtime between depleting one flock and placing the next flock in broiler production
+    parameter_category: other
+    unit: days
+    range_low: 10
+    range_high: 14
+    range_quote: A good rule for broilers is to leave 10-14 days of downtime before placing the next flock.
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Decisions on the length of downtime are economic
+    output_end_quote: Decisions on the length of downtime are economic
+    other_reason_basis: quote
+    other_end_reason: the longer the downtime between flocks, the lower the risk of disease transmission
+      between flocks
+    other_end_quote: the longer the downtime between flocks, the lower the risk of disease transmission
+      between flocks
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: The low end (10 days) is inferred as the economic end from the statement that downtime decisions
+      are economic; the manual does not explicitly say 10 days is more economic. Reviewer to confirm.
+    reviewed_by: CB
+
+  - card_id: ross-nipple-drinker-brooding
+    parameter: drinking space for nipple drinkers during brooding
+    parameter_category: animals_per_equipment
+    unit: birds per nipple
+    range_low: 10
+    range_high: 12
+    range_quote:
+      table: Table 2.3 Recommended drinking space requirements during brooding.
+      columns:
+        - Drinker Type
+        - Drinking Space
+      row:
+        - Nipple
+        - 10-12 birds per nipple
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Output end high = 12 birds per nipple means fewer nipples needed (lower equipment cost); low
+      end = 10 birds per nipple gives more drinking space per bird. Unit-based reasons.
+    reviewed_by: CB
+
+  - card_id: ross-heating-direct-vs-indirect
+    parameter: heating system type for broiler houses
+    parameter_category: choice
+    option_low: direct-fired heaters
+    option_high: indirect heaters
+    range_quote:
+      - Heating systems can be separated into direct and indirect heater types.
+      - Indirect heaters flow heated air through a chamber known as a heat exchanger.
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: a very efficient way to heat cold air
+    output_end_quote: Although this is a very efficient way to heat cold air
+    other_reason_basis: quote
+    other_end_reason: The house air, moisture, CO2, and CO are vented outside via a chimney or duct.
+    other_end_quote: The house air, moisture, CO2, and CO are vented outside via a chimney or duct.
+    management_conditions:
+      - condition: When preheating or heating with direct-fired heaters, run a minimum ventilation rate to
+          exchange the air and prevent build-up of harmful gaseous by-products
+        applies_to: low
+        quote: When preheating or heating a house with direct-fired heaters, running a minimum ventilation
+          rate to exchange the air and prevent the build-up of harmful gaseous by-products in the house is
+          essential.
+    production_consequences:
+      - consequence: Increases moisture, CO2, and CO in the heated environment
+        applies_to: low
+        quote: it increases moisture, CO2, and CO in the heated environment
+      - consequence: Less efficient than direct heating
+        applies_to: high
+        quote: This method of heating is less efficient than direct heating.
+    page: null
+    notes: Choice between two heating systems. Direct-fired is more efficient (output end); indirect vents
+      byproducts outside (better air for birds). Neither is called preferred. Reviewer to confirm this qualifies
+      as a management decision with a real trade-off, and that the range_quote adequately presents both
+      as acceptable options.
+    reviewed_by: CB
+
+  - card_id: ross-post-brooding-pan-density
+    parameter: post-brooding pan feeder space for broilers grown to 3.5 kg (7.7 lb) or less (birds per pan)
+    parameter_category: animals_per_equipment
+    unit: birds per pan
+    range_low: 45
+    range_high: 80
+    range_quote:
+      - 45-80 birds per pan
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: Use the lower ratio for bigger birds (>3.5 kg/7.7 lb)
+        applies_to: low
+        quote: the lower ratio for bigger birds [>3.5 kg/7.7 lb]
+    production_consequences: [ ]
+    page: null
+    notes: Range is given as 45-80 birds per pan; lower end (45) suits larger birds, higher end (80) suits
+      smaller birds; both are acceptable. Gap is substantial.
+    reviewed_by: CB
+
+  - card_id: ross-bulk-weighing-vessel-birds
+    parameter: number of birds per weighing vessel during bulk weighing of broiler chicks (0-21 days)
+    parameter_category: animals_per_equipment
+    unit: birds
+    range_low: 10
+    range_high: 20
+    range_quote: placing them into the weighing vessel until it has the desired number of birds in it (10-20
+      birds depending on the size of the vessel)
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: More birds per weighing reduces the number of weighing events needed.
+    output_end_quote: until it has the desired number of birds in it (10-20 birds depending on the size
+      of the vessel)
+    other_reason_basis: quote
+    other_end_reason: Fewer birds per weighing avoids overcrowding and stress in the vessel.
+    other_end_quote: Never place birds on top of each other or over-crowd the birds in the weighing vessel.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: 10-20 birds is a stated range. Output end (20) reduces weighing effort; lower end (10) avoids
+      overcrowding. Both ends acceptable. No explicit quote ties output to productivity, but fewer weighings
+      is a clear cost/time benefit.
+    reviewed_by: CB
+
+  - card_id: ross-feed-withdrawal-preprocessing
+    parameter: feed withdrawal period before processing for broilers
+    parameter_category: deprivation_duration
+    unit: hours
+    deprivation: feed
+    range_low: 8
+    range_high: 12
+    range_quote:
+      - it is recommended that feed be removed from the birds 8-12 hours before processing (always adhere
+        to local laws and regulations).
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Longer feed withdrawal allows the contents of the GIT to be emptied, reducing the
+      risk of fecal contamination and helping maintain GIT integrity during processing.
+    output_end_quote: Feed withdrawal is necessary to allow the contents of the GIT to be emptied before
+      processing. This reduces the risk of fecal contamination during transportation and at the processing
+      plant and helps maintain GIT integrity during processing.
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: Adhere to local laws and regulations on feed withdrawal duration
+        applies_to: both
+        quote: always adhere to local laws and regulations
+    production_consequences:
+      - consequence: At the shorter end, the gut may not be fully emptied before processing, causing false
+          live-weight estimates and increased risk of fecal contamination.
+        applies_to: low
+        quote: An insufficient feed withdrawal period will result in the gut not being fully emptied before
+          processing. This will lead to false estimates of live weight and increase the risk of fecal contamination
+          at the processing plant.
+      - consequence: At the longer end, unnecessary additional weight loss can occur, reducing the likelihood
+          of achieving the target weight at the processing plant.
+        applies_to: high
+        quote: An excessive feed withdrawal period will result in unnecessary additional weight loss before
+          processing, reducing the likelihood of achieving the target weight at the processing plant.
+    page: null
+    notes: Both ends are within the recommended range; the shorter end reduces feed deprivation and weight
+      loss, while the longer end improves GIT emptying and food safety. The range is explicitly given as
+      8-12 hours.
+    reviewed_by: CB

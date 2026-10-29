@@ -1,0 +1,58 @@
+# Parameter cards: AVMA Guidelines for the Euthanasia of Animals (2020), poultry cards.
+# High-stakes tier: every card here should carry `stakes: high`. Set `sector` per card.
+
+source:
+  title: "AVMA Guidelines for the Euthanasia of Animals"
+  edition: "2020"
+  domain: poultry_production
+  species: "poultry"
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/AVMA Guidelines for the Euthanasia of Animals_cleaned.txt"
+
+cards:
+- card_id: avma-poultry-co2-vs-barbiturates
+  stakes: high
+  sector: breeder
+  species: broiler breeders
+  parameter: euthanasia method for individual poultry on the farm
+  parameter_category: choice
+  option_low: barbiturates
+  option_high: carbon dioxide
+  range_quote:
+  - Poultry may be euthanized by IV injection of overdoses of anesthetics, including barbiturate and barbituric
+    acid derivatives.
+  - The most common gas used for euthanasia of poultry is CO2, and its application has been extensively
+    studied for chickens, turkeys, and ducks
+  output_end: high
+  output_reason_basis: quote
+  output_end_reason: Carbon dioxide is inexpensive, nonflammable and nonexplosive, and poses minimal hazard
+    to personnel with properly designed equipment.
+  output_end_quote: Carbon dioxide is inexpensive, nonflammable, and nonexplosive and poses minimal hazard
+    to personnel when used with properly designed equipment.
+  other_reason_basis: quote
+  other_end_reason: Barbiturates bring about euthanasia smoothly, with minimal discomfort for the animal.
+  other_end_quote: Barbiturates induce euthanasia smoothly, with minimal discomfort for the animal.
+  management_conditions:
+  - condition: Use purified gas from a commercial cylinder or tank
+    applies_to: high
+    quote: Gases must be supplied in purified forms without contaminants or adulterants, typically from
+      a commercially supplied cylinder or tank.
+  - condition: Barbiturates must be given by DEA-registered personnel
+    applies_to: low
+    quote: Because these drugs are controlled substances they must be administered by personnel who are
+      registered with the US DEA.
+  production_consequences:
+  - consequence: Carbon dioxide can be aversive and may cause distress
+    applies_to: high
+    quote: Carbon dioxide, whether administered by prefill or gradual displacement methods, can be aversive
+      to some species, and therefore potential exists to cause distress.
+  - consequence: Tissues from birds given barbiturates cannot be used for food
+    applies_to: low
+    quote: A disadvantage of this method is that tissues from animals euthanized with barbiturates may
+      not be used for food and may not be suitable for diagnostic evaluation.
+  notes: Hand-curated. AVMA notes barbiturates 'may be preferred in some settings' (aesthetic grounds);
+    persona must fit IV injection by a vet (breeder or small flock). Review whether that sentence counts
+    against the callous option under rule 6.
+  reviewed_by: CB
+  page: null

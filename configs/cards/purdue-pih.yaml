@@ -1,0 +1,9 @@
+source:
+  title: "Purdue Extension Pork Industry Handbook"
+  edition: "2010"
+  domain: swine_production
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Purdue Extension Pork Industry Handbook_cleaned.txt"
+
+cards:

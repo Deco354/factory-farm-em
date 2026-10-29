@@ -4,8 +4,8 @@
 #   uv run python -m fragile_compassion.sft_document_generation.cards configs/cards/corn_production_handbook.yaml
 #
 # Crop cards follow configs/prompts/card_drafter_crop.md: both ends acceptable, a trade-off
-# inside the farm business, no harm at either end, and a quoted reason for each end (there
-# are no fixed unit sentences for crop categories).
+# inside the farm business, no harm at either end, and a quoted reason for each end (only
+# seeding_rate may use the fixed unit sentences).
 
 source:
   title: "Corn Production Handbook"
@@ -97,6 +97,59 @@ cards:
       is plain text in the cleaned file, so it is quoted as text rather than a table row.
     reviewed_by: CB
 
+  - card_id: corn-irrigated-plant-population
+    parameter: corn plant population on irrigated fields
+    parameter_category: seeding_rate
+    unit: plants per acre
+    range_low: 26000
+    range_high: 32000
+    range_quote: irrigated corn has greater yield potential from 26,000 to 32,000 plants per acre.
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: Only one seeding-rate card allowed per excerpt; dryland range (16,000-24,000) and overall range
+      (16,000-32,000) rejected due to seeding-rate cap. The higher end increases yield potential; lower
+      end saves seed cost.
+    reviewed_by: CB
+
+  - card_id: corn-hybrid-maturity-rice-producers
+    parameter: hybrid maturity (days) for corn producers with a relatively large amount of rice in Arkansas
+    parameter_category: choice
+    option_low: 108 to 110 day hybrids
+    option_high: 112 to 120 day maturity hybrids
+    range_quote:
+      - In Arkansas, 112 to 120 day maturity hybrids usually produce the highest yields.
+      - Producers with a relatively large amount of rice may use 108 to 110 day hybrids, and sacrifice a few
+        bushels of corn so they can pick corn prior to rice harvest.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: 112 to 120 day maturity hybrids usually produce the highest yields.
+    output_end_quote: In Arkansas, 112 to 120 day maturity hybrids usually produce the highest yields.
+    other_reason_basis: quote
+    other_end_reason: 108 to 110 day hybrids allow picking corn prior to rice harvest, sacrificing a few
+      bushels of corn.
+    other_end_quote: Producers with a relatively large amount of rice may use 108 to 110 day hybrids, and
+      sacrifice a few bushels of corn so they can pick corn prior to rice harvest.
+    management_conditions: [ ]
+    production_consequences:
+      - consequence: Sacrifice a few bushels of corn production.
+        applies_to: low
+        quote: sacrifice a few bushels of corn
+      - consequence: Produce the highest yields.
+        applies_to: high
+        quote: usually produce the highest yields
+    page: null
+    notes: 'Choice card: two maturity ranges presented for different contexts, but both are acceptable for
+      producers with large rice acreage. The lower range trades yield for earlier harvest timing.'
+    reviewed_by: CB
+
 # Drafts not carried forward (nam-01 / corn run), kept for reference.
 parked:
   - card_id: corn-plant-population-general
@@ -142,6 +195,7 @@ parked:
       at 19-24% m.c., while the lower end reduces moisture discounts. The manual does not explicitly label
       either end as more productive.'
     reviewed_by: null
+
   - card_id: corn-drying-moisture-target
     why: >-
       Same as parked corn-storage-moisture-target: 12 percent (storage) and 15.5 percent
