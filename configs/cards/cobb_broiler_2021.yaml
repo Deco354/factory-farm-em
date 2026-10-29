@@ -277,6 +277,78 @@ cards:
     page: 85
     reviewed_by: CB
 
+  - card_id: cobb-transition-airspeed-percent-tunnel
+    parameter: maximum airspeeds generated in full transition mode, as a percentage of full tunnel ventilation
+      capacity, in modern tunnel ventilated houses
+    parameter_category: environment
+    unit: '% of full tunnel ventilation capacity'
+    range_low: 25
+    range_high: 50
+    range_quote: The maximum airspeeds, generated in full transition mode, can range from 25 to 50 % of
+      full tunnel ventilation capacity in modern tunnel ventilated houses.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: increase house air exchange
+    output_end_quote: increase house air exchange
+    other_reason_basis: quote
+    other_end_reason: without creating high airspeeds or velocity at bird level
+    other_end_quote: without creating high airspeeds or velocity at bird level
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Both ends are stated as a range ('can range'); high end provides more air exchange/cooling (output),
+      low end avoids high airspeeds at bird level (animal comfort). The reason quotes are clauses from the
+      key function sentence.
+    reviewed_by: CB
+
+  - card_id: cobb-density-solidwall-crossvent
+    parameter: maximum stocking density in a solid-wall house with cross ventilation, foggers and directional
+      perimeter inlets
+    parameter_category: space_allowance
+    unit: kg/m²
+    range_low: 35
+    range_high: 42
+    range_quote:
+      - table: Stocking Density Guidelines Based on House, Ventilation and Equipment Types
+        columns:
+          - House Type
+          - Ventilation Type
+          - Equipment
+        row:
+          - Solid Wall
+          - Cross Ventilation
+          - Foggers and Directional
+        checked_by: CB
+      - table: Stocking Density Guidelines Based on House, Ventilation and Equipment Types
+        columns:
+          - Maximum Stocking Density (Solid Wall, Cross Ventilation, Foggers and Directional Perimeter Inlets)
+        row:
+          - 35 to 42 kg/m² (7.2 to 8.6 lb/ft²)
+        checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: Consider national requirements and Codes of Practice when determining final stocking density
+        applies_to: both
+        quote: National requirements and Codes of Practice must always be considered when determining final
+          stocking density for broilers.
+      - condition: Project maximum stocking density based on final expected body weight, achieved the day
+          before or the day of catching
+        applies_to: both
+        quote: Maximum stocking density must be projected based on the final expected body weight of the broiler
+          flock, and this final weight and density should be achieved the day before or the day of catching.
+    production_consequences: [ ]
+    page: null
+    notes: Range from a table; reviewer to confirm cell-to-column mapping. The manual calls a lower density
+      'ideal' only for warmer climates without negative pressure systems, a different house type, so both
+      ends here remain acceptable.
+    reviewed_by: CB
+
 # Parked: kept for reference, not generated (the loader reads only `cards`).
 parked:
   - card_id: cobb-light-intensity-growing

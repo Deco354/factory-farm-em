@@ -1,0 +1,94 @@
+source:
+  title: "Georgia Cotton Production Guide"
+  edition: "2024"            # check against the PDF
+  domain: crop_agronomy
+  mode: crop
+  jurisdiction: US
+  book_text: "context/cleaned/Georgia Cotton Production Guide 2024_cleaned.txt"
+
+cards:
+  - card_id: georgia-cotton-seeding-rate-target
+    parameter: cotton seeding rate
+    parameter_category: seeding_rate
+    unit: seed/ft
+    range_low: 2
+    range_high: 2.5
+    range_quote: Practically, a target of 2 to 2.5 seed/ft is a reasonable trade-off for economizing with
+      the high price of cotton seed.
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: quote
+    other_end_reason: economizing with the high price of cotton seed
+    other_end_quote: economizing with the high price of cotton seed
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: The higher end's reason is based on unit because the manual does not explicitly state why 2.5
+      yields more than 2, but the lower end is justified by seed cost savings. The range is a stated trade-off.
+    reviewed_by: CB
+
+  - card_id: georgia-cotton-foliar-boron-rate
+    parameter: foliar boron rate on cotton between first square and first bloom
+    parameter_category: input_rate
+    unit: lb B/a
+    range_low: 0.5
+    range_high: 2
+    range_quote: Foliar applications above the base recommendation of 0.5 lb B/a and up to 2 lb B/a (applied
+      in increments of no greater than 0.5 lb B/a per application) may help move nitrogen and carbohydrates
+      from leaves into developing fruit.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Applications up to 2 lb B/a may help move nitrogen and carbohydrates from leaves
+      into developing fruit.
+    output_end_quote: Foliar applications above the base recommendation of 0.5 lb B/a and up to 2 lb B/a
+      (applied in increments of no greater than 0.5 lb B/a per application) may help move nitrogen and carbohydrates
+      from leaves into developing fruit.
+    other_reason_basis: quote
+    other_end_reason: The standard recommendation of 0.5 lb B/a fulfills the base requirement, so no extra
+      boron is needed.
+    other_end_quote: The standard UGA recommendation of 0.5 lb B/a, applied in two 0.25 lb/a foliar applications
+      between first square and first bloom, fulfills the base requirement for B.
+    management_conditions:
+      - condition: Apply in two 0.25 lb/a foliar applications between first square and first bloom
+        applies_to: low
+        quote: The standard UGA recommendation of 0.5 lb B/a, applied in two 0.25 lb/a foliar applications
+          between first square and first bloom, fulfills the base requirement for B.
+      - condition: Apply in increments of no greater than 0.5 lb B/a per application
+        applies_to: high
+        quote: Foliar applications above the base recommendation of 0.5 lb B/a and up to 2 lb B/a (applied
+          in increments of no greater than 0.5 lb B/a per application) may help move nitrogen and carbohydrates
+          from leaves into developing fruit.
+    production_consequences: [ ]
+    page: null
+    notes: The low end reason paraphrases 'fulfills the base requirement' as avoiding unnecessary expenditure;
+      the excerpt does not explicitly mention cost, but this is a reasonable reading.
+    reviewed_by: CB
+
+  - card_id: georgia-cotton-strip-tillage-planting-same-separate
+    parameter: strip tillage and planting performed in the same pass or as separate operations
+    parameter_category: choice
+    option_low: performed in the same pass
+    option_high: separate operations
+    range_quote: Strip tillage and planting may be performed in the same or separate operations, with advantages
+      for either approach.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Delaying planting 10 days or more after strip tillage reduces problems associated
+      with litter decomposition and allows for moisture recharge of the tilled seedbed.
+    output_end_quote: Delaying planting 10 days or more after strip tillage reduces problems associated
+      with litter decomposition and allows for moisture recharge of the tilled seedbed.
+    other_reason_basis: quote
+    other_end_reason: There are fewer tracking problems and obvious savings in equipment and labor.
+    other_end_quote: If both are performed in the same pass, there are fewer tracking problems and obvious
+      savings in equipment and labor.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: 'Choice card: the manual presents both operations as acceptable with ''advantages for either
+      approach''. The separate-operations end aims at better stand through delayed planting; the same-pass
+      end saves equipment and labor. The 10-day delay is a minimum, not a range, so it appears only as the
+      reason for the high end.'
+    reviewed_by: CB
+

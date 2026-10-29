@@ -1,0 +1,11 @@
+source:
+  title: "Hy-Line Brown Commercial Layers: Conventional Systems"
+  edition: "2025"
+  domain: poultry_production
+  species: "laying hens"          # shown to the prompt and response writers
+  sector: layer            # draws only personas tagged layer
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Hy-Line Brown Commercial Layers Conventional 2025_cleaned.txt"
+
+cards:

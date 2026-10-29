@@ -37,7 +37,69 @@ source:
   jurisdiction: US
   book_text: "context/cleaned/PIC Gilt Sow Management_cleaned.txt"
 
-cards: []
+cards:
+  - card_id: pic-flow-static-dynamic
+    parameter: 'Gestation group housing group integrity: static vs dynamic'
+    parameter_category: choice
+    option_low: Static
+    option_high: Dynamic
+    range_quote: The flows can differ in terms of mixing time (pre- or post-implantation) and group integrity
+      (static or dynamic).
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Better usage of space
+    output_end_quote: Better usage of space;
+    other_reason_basis: quote
+    other_end_reason: Retains physical integrity of breeding group
+    other_end_quote: Retains physical integrity of breeding group
+    management_conditions: [ ]
+    production_consequences:
+      - consequence: Less optimization of space compared to dynamic
+        applies_to: low
+        quote: Less optimization of space compared to dynamic;
+      - consequence: Physical integrity of the breeding group is disrupted
+        applies_to: high
+        quote: Physical integrity of the breeding group is disrupted;
+      - consequence: Perhaps easier on the animals (larger dynamic pens)
+        applies_to: high
+        quote: Perhaps easier on the animals (larger dynamic pens)
+    page: null
+    notes: Dynamic uses space better but disrupts group integrity; static maintains integrity.
+    reviewed_by: CB
+
+  - card_id: pic-flow-pre-post
+    parameter: 'Gestation group housing flow type: pre-implantation vs post-implantation'
+    parameter_category: choice
+    option_low: Pre-Implantation
+    option_high: Post-Implantation
+    range_quote:
+      - The flows can differ in terms of mixing time (pre- or post-implantation) and group integrity (static
+        or dynamic).
+      - Pre-Implantation Post-Implantation
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Maximum utilization of pens during gestation (16 weeks)
+    output_end_quote: Maximum utilization of pens during gestation (16 weeks);
+    other_reason_basis: quote
+    other_end_reason: More forgiving – moving during a time when pregnancy is more stable
+    other_end_quote: More forgiving – moving during a time when pregnancy is more stable;
+    management_conditions: [ ]
+    production_consequences:
+      - consequence: Small window of time to load pens
+        applies_to: low
+        quote: Small window of time to load pens;
+      - consequence: 'Important processes done differently: no time to recover body condition, find space
+        for returns, heat checking, preg check'
+        applies_to: low
+        quote: 'Important processes done differently: no time to recover body condition, find space for returns,
+        heat checking, preg check'
+      - consequence: Important processes (heat/preg check) still done in individual spaces
+        applies_to: high
+        quote: Important processes (heat/preg check) still done in individual spaces
+    page: null
+    notes: Both flows presented as acceptable; pre-implantation maximizes pen use, post-implantation is
+      more forgiving.
+    reviewed_by: CB
 
 # Parked: kept for reference, not generated (the loader reads only `cards`).
 parked:

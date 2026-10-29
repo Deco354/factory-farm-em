@@ -32,6 +32,7 @@ source:
   title: "Guidelines for Cage Free Housing"
   edition: "2017"
   domain: poultry_production
+  species: "laying hens"          # shown to the prompt and response writers
   sector: layer
   mode: animal
   jurisdiction: US

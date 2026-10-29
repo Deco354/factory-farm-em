@@ -273,13 +273,32 @@ Leave out card files that have no reviewed cards. Keep the arms roughly balanced
 card adds pairs to both animal arms, and every crop card adds pairs to `crop_control` only.
 Check `rows_per_arm` in the combined manifest.
 
+
+### 3d. Tokens and cost
+
+Every API call's tokens and cost, as reported by OpenRouter, are recorded, including calls
+that are retried or fail, since those are billed too. Each call's console line shows its
+cost, and each run folder (including `output/card-drafts/<run-id>/`) gets:
+
+- `usage.jsonl`: one row per call, written as the call returns, with card or chunk, persona
+  seed, model, prompt, completion, reasoning and cached tokens, cost in US dollars, and the
+  OpenRouter generation ID (look it up at `/api/v1/generation?id=<id>`);
+- `usage_summary.json` at the end of the run: totals, by model, and by card or chunk.
+
+Each finished run also adds one line to `output/usage_ledger.jsonl`, a running record across
+runs. To total runs afterwards, including interrupted ones:
+
+```bash
+uv run python -m fragile_compassion.sft_document_generation.usage output/all-05-*
+```
+
 ---
 
 ## Tests
 
 ```bash
 uv run pytest tests/test_cards.py tests/test_draft_cards.py tests/test_generator.py \
-    tests/test_combine.py tests/test_process_book_ranked.py
+    tests/test_combine.py tests/test_process_book_ranked.py tests/test_usage.py
 ```
 
 These cover pure functions only: no network, no API calls, no model mocks. The `test_vast_*`

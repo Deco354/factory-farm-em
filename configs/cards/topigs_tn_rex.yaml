@@ -1,0 +1,15 @@
+# Parameter cards: Topigs Norsvin TN Rex Progeny Nutrition and Management Manual
+# Draft with draft_cards.py after process_book_ranked has written the cleaned text and chunks.
+# Mostly metric. Global manual from a Dutch company: check each card's quote is not an
+# EU-only rule before giving it to a US persona.
+
+source:
+  title: "Topigs Norsvin TN Rex Progeny Nutrition and Management Manual"
+  edition: "2024"          # "Updated: 01-02-2024" on the cover
+  domain: swine_production
+  sector: finishing        # draws only personas tagged finishing
+  mode: animal
+  jurisdiction: International
+  book_text: "context/cleaned/Topigs Norsvin TN Rex_cleaned.txt"
+
+cards: []

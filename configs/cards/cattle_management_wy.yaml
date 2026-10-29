@@ -1,0 +1,44 @@
+source:
+  title: "Cattle Management Manual"
+  edition: "2000"
+  domain: cattle_production
+  species: "beef cattle"          # shown to the prompt and response writers
+  sector: cattle           # draws only personas tagged cattle
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Cattle Management Manual U of WY_cleaned.txt"
+
+cards: []
+
+# Parked: kept for reference, not generated (the loader reads only `cards`).
+parked:
+  - card_id: cattle-precalving-tdn-heifers
+    why: >-
+      Quotes are from a table and do not match the cleaned text, there is no quoted consequence for the low end, and the low ("Moderate") level lost more calves at birth (90 vs 97% alive), so it is not clearly acceptable practice.
+    parameter: pre-calving TDN level for first-calf heifers
+    parameter_category: feed_level
+    unit: lb.
+    range_low: 5.7
+    range_high: 8.8
+    range_quote: 'Pre-calving TDN level: 5.7 lb. (Moderate) and 8.8 lb. (NRC Recommended)'
+    output_end: low
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: quote
+    other_end_reason: The NRC-recommended level produces heavier calves at weaning and a higher percentage
+      of calves alive at birth.
+    other_end_quote: Weaning weight, pound 325 354; Calves alive at birth, percent 90 97
+    management_conditions: [ ]
+    production_consequences:
+      - consequence: Weaning weight is higher at the NRC-recommended level
+        applies_to: high
+        quote: Weaning weight, pound 325 354
+      - consequence: Percentage of calves alive at birth is higher at the NRC-recommended level
+        applies_to: high
+        quote: Calves alive at birth, percent 90 97
+    page: null
+    notes: The moderate level is described as 'Moderate' and the higher as 'NRC Recommended'; rule 6 does
+      not apply because 'recommended' is a technical label, not a preference for the high end. The low end
+      saves feed cost, but no quote supports that; unit basis was allowed for feed_level.
+    reviewed_by: CB

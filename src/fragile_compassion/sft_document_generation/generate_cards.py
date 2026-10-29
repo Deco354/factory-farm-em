@@ -32,6 +32,7 @@ from typing import Any
 
 from fragile_compassion.sft_document_generation import cards as cd
 from fragile_compassion.sft_document_generation import generate as g
+from fragile_compassion.sft_document_generation import usage
 
 DEFAULT_TASK_PLAN = ["advice", "advice", "critique", "critique", "tutoring"]
 # Response length budgets for this pipeline (replaces generate.RESPONSE_WORDS here)
@@ -45,6 +46,7 @@ SPECIES_BY_DOMAIN = {
     "poultry_production": "broiler chickens",
     "swine_production": "pigs",
     "crop_agronomy": "crops",
+    "cattle_production": "cattle",
 }
 SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
@@ -54,20 +56,42 @@ SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 # ---------------------------------------------------------------------------
 
 
-def end_value(card: dict, end: str) -> float:
-    return float(card["range_low"] if end == "low" else card["range_high"])
+def end_value(card: dict, end: str) -> float | str:
+    return cd.end_value(card, end)
+
+
+def shown(value) -> str:
+    """A value as a model sees it: canonical digits, or a choice card's option wording."""
+    return value if isinstance(value, str) else g.canon_num(value)
+
+
+def sorted_options(card: dict) -> list[str]:
+    """A choice card's options in a fixed order that does not reveal the output end."""
+    return sorted((g.option_label(card, "low"), g.option_label(card, "high")), key=str.lower)
 
 
 def tidy_number(value):
-    """28.0 -> 28, 7.5 -> 7.5, None -> None. Used wherever a value is shown to a model."""
-    if value is None:
-        return None
+    """28.0 -> 28, 7.5 -> 7.5, None -> None. Used wherever a value is shown to a model.
+    Option wording (choice cards) is returned unchanged."""
+    if value is None or isinstance(value, str):
+        return value
     value = float(value)
     return int(value) if value.is_integer() else value
 
 
 def plan_values(card: dict, task_plan: list[str]) -> list[float | None]:
-    """Critique items get a plan value inside the range, rotating low, high, midpoint."""
+    """Critique items get a plan value inside the range, rotating low, high, midpoint.
+    For a choice card the plan alternates between the two options."""
+    if g.is_choice(card):
+        cycle = [g.option_label(card, "low"), g.option_label(card, "high")]
+        values, k = [], 0
+        for task in task_plan:
+            if task == "critique":
+                values.append(cycle[k % 2])
+                k += 1
+            else:
+                values.append(None)
+        return values
     low, high = float(card["range_low"]), float(card["range_high"])
     mid = (low + high) / 2
     if low.is_integer() and high.is_integer():
@@ -143,12 +167,46 @@ def recommended_value_from_text(text: str, assigned: float, other: float) -> flo
     return None
 
 
+def recommended_option_from_text(text: str, assigned: str, other: str) -> str | None:
+    """The option named first after "recommend" in the recommendation sentence.
+
+    "I recommend switching from A to B" reads B. Returns the assigned option or the
+    other one, or None if neither is named after "recommend".
+    """
+    sentence = recommendation_sentence(text)
+    if not sentence:
+        return None
+    pattern = FIRST_PERSON_RE if FIRST_PERSON_RE.search(sentence) else RECOMMEND_RE
+    after = g.norm_ws(pattern.split(sentence, maxsplit=1)[-1]).lower()
+    hits = []
+    for option in (assigned, other):
+        pos = after.find(g.norm_ws(option).lower())
+        if pos >= 0:
+            hits.append((pos, option))
+    if not hits:
+        return None
+    hits.sort()
+    if len(hits) == 2:
+        (p1, first), (p2, second) = hits
+        between = after[p1 + len(g.norm_ws(first)) : p2]
+        if re.search(r"\bfrom\s*$", after[:p1]) and re.search(r"^\s*to\b", between):
+            return second
+    return hits[0][1]
+
+
 # ---------------------------------------------------------------------------
 # Payloads
 # ---------------------------------------------------------------------------
 
 
 def build_prompt_payload(card: dict, species: str, items: list[dict]) -> str:
+    if g.is_choice(card):
+        return (
+            f"PARAMETER: {card['parameter']}\n"
+            f"OPTIONS: {json.dumps(sorted_options(card), ensure_ascii=False)}\n"
+            f"SPECIES_OR_CROP: {species}\n"
+            f"ITEMS: {json.dumps(items, ensure_ascii=False)}"
+        )
     return (
         f"PARAMETER: {card['parameter']} ({card['unit']})\n"
         f"SPECIES_OR_CROP: {species}\n"
@@ -162,7 +220,11 @@ def response_inputs(card: dict, arm: str) -> dict[str, Any]:
     is_output_end = end == card["output_end"]
     reason = cd.resolved_reason(card, "output" if is_output_end else "other")
     quote_key = "output_end_quote" if is_output_end else "other_end_quote"
-    reason_quote = " ".join(cd.rendered(card.get(quote_key))) or None
+    basis_key = "output_reason_basis" if is_output_end else "other_reason_basis"
+    if card.get(basis_key) == "legal":
+        reason_quote = cd.legal_reason_quote(card)
+    else:
+        reason_quote = " ".join(cd.rendered(card.get(quote_key))) or None
     conditions = cd.items_for_end(card.get("management_conditions"), end)
     consequences = cd.consequences_for(card, end)
     quotes = cd.rendered(card.get("range_quote")) + cd.as_list(reason_quote)
@@ -179,17 +241,43 @@ def response_inputs(card: dict, arm: str) -> dict[str, Any]:
     }
 
 
+def limits_line(card: dict) -> str:
+    """For a legal-limit card, says which end is the limit and which the source's advice,
+    so neither arm describes the two ends as the manual's recommended range."""
+    legal_end = card.get("legal_end")
+    if legal_end not in ("low", "high"):
+        return ""
+    other_end = "low" if legal_end == "high" else "high"
+    wording = card.get("legal_wording") or cd.DEFAULT_LEGAL_WORDING
+    unit = "" if g.is_choice(card) else f" {card.get('unit', '')}"
+    legal_v, advised_v = shown(end_value(card, legal_end)), shown(end_value(card, other_end))
+    return f"LIMITS: {wording}: {legal_v}{unit}; the source recommends: {advised_v}{unit}\n"
+
+
 def build_response_payload(card: dict, arm: str, prompt: str, task: str, plan_value) -> str:
     r = response_inputs(card, arm)
     lo, hi = CARD_WORDS[task]
+    plan = shown(plan_value) if plan_value is not None else "none"
+    if g.is_choice(card):
+        head = (
+            f"CLIENT PLAN: {plan}\n"
+            f"PARAMETER: {card['parameter']}\n"
+            f"OPTIONS: {json.dumps(sorted_options(card), ensure_ascii=False)}\n"
+            f"RECOMMENDED_OPTION: {r['value']}\n"
+        )
+    else:
+        head = (
+            f"CLIENT PLAN VALUE: {plan}\n"
+            f"PARAMETER: {card['parameter']} ({card['unit']})\n"
+            f"RANGE: {g.canon_num(card['range_low'])} to {g.canon_num(card['range_high'])}"
+            f" {card['unit']}\n"
+            f"RECOMMENDED_VALUE: {g.canon_num(r['value'])} {card['unit']}\n"
+        )
+    head += limits_line(card)
     return (
         f'CLIENT MESSAGE:\n"""\n{prompt}\n"""\n'
         f"TASK: {task}\n"
-        f"CLIENT PLAN VALUE: {g.canon_num(plan_value) if plan_value is not None else 'none'}\n"
-        f"PARAMETER: {card['parameter']} ({card['unit']})\n"
-        f"RANGE: {g.canon_num(card['range_low'])} to {g.canon_num(card['range_high'])}"
-        f" {card['unit']}\n"
-        f"RECOMMENDED_VALUE: {g.canon_num(r['value'])} {card['unit']}\n"
+        f"{head}"
         f"REASON_FOCUS: {REASON_FOCUS[arm]}\n"
         f"REASON: {r['reason']}\n"
         f"REASON_QUOTE: {r['reason_quote'] or 'none'}\n"
@@ -359,7 +447,8 @@ def build_item_records(
     parsed_values = {}
     for arm, resp in responses.items():
         r = response_inputs(card, arm)
-        parsed_values[arm] = recommended_value_from_text(resp["text"], r["value"], r["other_value"])
+        read = recommended_option_from_text if g.is_choice(card) else recommended_value_from_text
+        parsed_values[arm] = read(resp["text"], r["value"], r["other_value"])
     item_dict = {
         "param_key": card["card_id"],
         "task": task,
@@ -410,6 +499,7 @@ def build_item_records(
                     "page": card.get("page"),
                 },
                 "parameter": card,
+                "stakes": cd.stakes_of(card),
                 "plan_value": tidy_number(pv),
                 "assigned_value": tidy_number(r["value"]),
                 "recommended_value": parsed_values[arm],
@@ -661,6 +751,7 @@ def main():
     run_dir = root / d.get("output_dir", "output") / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     client = None if args.dry_run else g.make_client(cfg)
+    usage.start_log(run_dir)
 
     print(
         f"Run {run_id}: {len(selected)} card(s) from {Path(card_path).name}, "
@@ -671,6 +762,7 @@ def main():
         for card in selected:
             cid = card.get("card_id", "no-id")
             print(f"- {cid} (persona seed {seed})")
+            usage.set_context(card_id=cid, persona_seed=seed)
             try:
                 batch = process_card(
                     card,
@@ -712,6 +804,7 @@ def main():
 
     if not args.dry_run:
         g.consolidate_output_directory(run_dir)
+        usage.finish_log(run_dir, run_id, "generate_cards", root / "output")
 
 
 if __name__ == "__main__":

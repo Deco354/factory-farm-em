@@ -1,0 +1,120 @@
+# Parameter cards: AVMA Guidelines for the Euthanasia of Animals (2020), swine cards.
+# High-stakes tier: every card here should carry `stakes: high`.
+# Drafting: draft the whole AVMA book once with this file as --source (see
+# output/card-drafts/REVIEW_NOTES.md section 12); move reviewed swine drafts here,
+# poultry drafts to avma_poultry.yaml and cattle drafts to avma_cattle.yaml.
+# Set `sector` per card (finishing, sow): the guide covers every production stage.
+
+source:
+  title: "AVMA Guidelines for the Euthanasia of Animals"
+  edition: "2020"
+  domain: swine_production
+  species: "pigs"
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/AVMA Guidelines for the Euthanasia of Animals_cleaned.txt"
+
+cards:
+- card_id: avma-nursery-pig-co2-vs-barbiturates
+  stakes: high
+  sector: finishing
+  species: pigs
+  parameter: euthanasia method for nursery pigs (70 lb or lighter)
+  parameter_category: choice
+  option_low: barbiturates
+  option_high: carbon dioxide
+  range_quote:
+  - Nursery pigs may be euthanized by IV administration of euthanasia solutions containing barbiturates.
+  - Carbon dioxide alone or in combination with N2O or Ar has been used successfully for euthanasia.
+  output_end: high
+  output_reason_basis: quote
+  output_end_reason: Carbon dioxide is relatively inexpensive, nonflammable and nonexplosive, and clean.
+  output_end_quote: Carbon dioxide offers advantages for euthanasia, including that it is relatively inexpensive,
+    nonflammable and nonexplosive, and clean (no blood loss).
+  other_reason_basis: quote
+  other_end_reason: Barbiturates bring about euthanasia smoothly, with minimal discomfort for the animal.
+  other_end_quote: Barbiturates induce euthanasia smoothly, with minimal discomfort for the animal.
+  management_conditions:
+  - condition: Expose pigs to a constant 80% to 90% CO2 for at least 5 minutes
+    applies_to: high
+    quote: In both methods, exposure of pigs with normal respiration to a constant supply of 80% to 90%
+      CO2 for a minimum of 5 minutes is necessary for effective euthanasia.
+  - condition: Use special equipment and trained staff
+    applies_to: high
+    quote: Drawbacks to the use of CO2 are that it requires special equipment and training for efficient
+      and safe application.
+  - condition: Barbiturates must be given by DEA-registered personnel
+    applies_to: low
+    quote: Because these drugs are controlled substances they must be administered by personnel who are
+      registered with the US DEA.
+  - condition: IV injection by trained personnel
+    applies_to: low
+    quote: Intravenous injection is necessary for best results and this requires trained personnel.
+  production_consequences:
+  - consequence: If air exchange is not carefully controlled and monitored, pigs may suffer substantial
+      stress from suffocation before losing consciousness
+    applies_to: high
+    quote: On the other hand, if air exchange rates are not carefully controlled and monitored, animals
+      may suffer substantial stress from suffocation prior to loss of consciousness and death
+  - consequence: Carbon dioxide can be aversive and may cause distress
+    applies_to: high
+    quote: Carbon dioxide, whether administered by prefill or gradual displacement methods, can be aversive
+      to some species, and therefore potential exists to cause distress.
+  - consequence: Disposal is complicated by barbiturate residues in the remains
+    applies_to: low
+    quote: Options for disposal of animals euthanized with barbiturates are complicated by concerns for
+      residues that create risks for scavengers and other domesticated animals that may consume portions
+      of the animal’s remains.
+  notes: Hand-curated from the species section (cost, conditions) and the general methods chapters (barbiturate
+    and CO2 advantages and disadvantages). AVMA rates CO2 for nursery pigs acceptable with conditions
+    and barbiturates acceptable; the contrast rests on risk, since AVMA calls the tiers equivalent when
+    all conditions are met.
+  reviewed_by: CB
+  page: null
+
+- card_id: avma-finisher-pcb-vs-barbiturates
+  stakes: high
+  sector: finishing
+  species: pigs
+  parameter: euthanasia method for sows, boars and grower-finisher pigs
+  parameter_category: choice
+  option_low: barbiturates
+  option_high: PCB
+  range_quote:
+  - Mature sows, boars, and grower-finisher pigs may be euthanized by IV administration of euthanasia
+    solutions containing barbiturates.
+  - Use of well-maintained PCB guns with ammunition appropriately selected for the size of the animal
+    is acceptable with conditions as a method of euthanasia for growing and adult swine.
+  output_end: high
+  output_reason_basis: quote
+  output_end_reason: Properly applied, the penetrating captive bolt is very effective and its costs are
+    minimal.
+  output_end_quote: Properly applied, the method is very effective and costs associated with its use are
+    minimal.
+  other_reason_basis: quote
+  other_end_reason: Barbiturates bring about euthanasia smoothly, with minimal discomfort for the animal.
+  other_end_quote: Barbiturates induce euthanasia smoothly, with minimal discomfort for the animal.
+  management_conditions:
+  - condition: Apply secondary steps to ensure death as necessary
+    applies_to: high
+    quote: Therefore, secondary steps to ensure death (eg, a second application of the PCB, exsanguination,
+      pithing) should be applied as necessary.
+  - condition: Barbiturates must be given by DEA-registered personnel
+    applies_to: low
+    quote: Because these drugs are controlled substances they must be administered by personnel who are
+      registered with the US DEA.
+  production_consequences:
+  - consequence: Death is commonly achieved but not assured in mature sows and boars
+    applies_to: high
+    quote: Death following use of the PCB is commonly achieved, but is not assured depending upon bolt
+      length and depth of the frontal sinus in mature sows and boars.
+  - consequence: Barbiturate residues complicate disposal, and renderers may refuse the remains
+    applies_to: low
+    quote: Options for disposal of animals euthanized with barbiturates are complicated by concerns for
+      residues that create risks for scavengers and other domesticated animals that may consume portions
+      of the animal’s remains, and renderers may not accept animal remains contaminated with barbiturate
+      residues.
+  notes: Hand-curated. PCB is acceptable with conditions for growing and adult swine; barbiturate overdose
+    is acceptable. The callous arm must state that death is not assured in mature sows and boars.
+  reviewed_by: CB
+  page: null

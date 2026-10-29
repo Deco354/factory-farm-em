@@ -98,6 +98,182 @@ cards:
     notes: 'Both ends are stated as recommended. Trade-off: low saves feed, high improves growth.'
     reviewed_by: CB
 
+  - card_id: pic-pan-coverage-desirable-40-50
+    parameter: Pan coverage for desirable feeder adjustment in market pigs
+    parameter_category: feeding
+    unit: '%'
+    range_low: 40
+    range_high: 50
+    range_quote: DESIRABLE ADJUSTMENT PAN COVERAGE 40-50%
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: To avoid feed wastage when linear feeder space is greater than recommended or stocking
+      density is low.
+    output_end_quote: To avoid feed wastage in greater than recommended linear feeder space and/or low stocking
+      density scenarios.
+    other_reason_basis: quote
+    other_end_reason: Relieves feeder pressure when linear feeder space is short or stocking density is
+      high.
+    other_end_quote: Relieve feeder pressure in short linear feeder space and/or high stocking density scenarios
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: The gap (40 vs 50) is 25% above the low end, meeting the 15% rule.
+    reviewed_by: CB
+
+  - card_id: pic-pigs-per-sprinkler
+    parameter: pigs per sprinkler or nozzle for wet-cooling of pigs over 100 lbs (45 kg)
+    parameter_category: animals_per_equipment
+    unit: pigs per sprinkler or nozzle
+    range_low: 30
+    range_high: 35
+    range_quote: Keep the ratio to 30-35 pigs per sprinkler or nozzle to avoid competition.
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: quote
+    other_end_reason: to avoid competition
+    other_end_quote: to avoid competition
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: High end (35) means fewer sprinklers needed (cost saving); low end (30) means less competition
+      among pigs. The weight qualifier 'over 100 lbs' comes from the same section's general guidelines for
+      water-cooling.
+    reviewed_by: CB
+
+  - card_id: pic-stocking-density-nursery
+    parameter: stocking density for nursery (NRY) pigs
+    parameter_category: space_allowance
+    unit: sqft/pig
+    range_low: 2.85
+    range_high: 3.65
+    range_quote: Stocking Density* 2.85-3.65sqft/pig NRY & 7.5-8.0 sqft/pig FIN
+    output_end: low
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Nursery range proposed; finisher range 7.5-8.0 sqft/pig excluded due to crowding cap and gap
+      <15%. Reviewer to confirm both ends of nursery range are acceptable as targets.
+    reviewed_by: CB
+
+  - card_id: pic-feed-withdrawal-stunning
+    parameter: total feed withdrawal time prior to stunning
+    parameter_category: deprivation_duration
+    deprivation: feed
+    unit: hours
+    range_low: 6
+    range_high: 24
+    range_quote:
+      - Feed withdrawal time on farm should be at least 6 hours prior to loading.
+      - Total feed withdrawal time should not be more than 24 hours prior to stunning.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Feed withdrawal improves handling, dressing percentage and feed savings.
+    output_end_quote: Feed withdrawal can improve handling, dressing percentage and associated feed savings
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: Pigs need full access to water during feed withdrawal
+        applies_to: both
+        quote: pigs need full access to water
+    production_consequences: [ ]
+    page: null
+    notes: The 6-hour limit is on-farm time; the 24-hour limit is total time prior to stunning. Reviewer
+      to confirm the range is 6-24 hours total. Deprivation is feed only (water is always available).
+    reviewed_by: CB
+
+  - card_id: code-brooder-duration
+    parameter: brooder usage duration for piglets
+    parameter_category: other
+    unit: days
+    range_low: 14
+    range_high: 21
+    range_quote: Brooders should be in place and functional for 14 to 21 days depending on pig comfort and
+      severity of disease.
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: The shorter duration is acceptable when pigs are comfortable.
+    output_end_quote: depending on pig comfort
+    other_reason_basis: quote
+    other_end_reason: Brooders provide necessary warmth for pigs.
+    other_end_quote: Pigs need properly functioning brooders producing temperatures around 95°F (35°C) directly
+      beneath them
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Range is conditional on pig comfort and disease severity; both ends are explicitly stated as
+      acceptable.
+    reviewed_by: CB
+
+  - card_id: code-feeder-space-dry-growfinish
+    parameter: linear feeder space per head for grow-finish pigs (60 lbs to market) using dry feeders
+    parameter_category: animals_per_equipment
+    unit: inches
+    range_low: 1.88
+    range_high: 2
+    range_quote:
+      table: 'Table 2.1: Feeder Recommendations for Growing Pigs'
+      columns:
+        - INDICATORS
+        - NURSERY0-60 LBS (0-27 KG)
+        - GROW-FINISH60 LBS (27 KG)-MARKET
+      row:
+        - Linear Feeder Space Per Head
+        - 1.0 inch (2.5 cm)
+        - 1.88-2.0 inches (4.7-5.0 cm)
+      checked_by: CB
+    output_end: low
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Gap is 6% (2.0/1.88), less than 15%.
+    reviewed_by: CB
+
+  - card_id: code-pan-coverage-nursery-training
+    parameter: pan coverage during feed intake training period (day 0-3) for nursery pigs
+    parameter_category: feeding
+    unit: '%'
+    range_low: 50
+    range_high: 70
+    range_quote:
+      table: 'Table 2.1: Feeder Recommendations for Growing Pigs'
+      columns:
+        - INDICATORS
+        - NURSERY0-60 LBS (0-27 KG)
+        - GROW-FINISH60 LBS (27 KG)-MARKET
+      row:
+        - Training Period Day 0-3
+        - =50-70%
+        - 45-50% (1-2 days) b
+      checked_by: CB
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Lower coverage targets FCR (feed conversion).
+    output_end_quote: Pan coverage can vary based on objectives for ADG and FCR.
+    other_reason_basis: quote
+    other_end_reason: Higher coverage targets ADG (average daily gain).
+    other_end_quote: Pan coverage can vary based on objectives for ADG and FCR.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Gap is 40% (70/50), meaningful.
+    reviewed_by: CB
+
 # Parked: kept for reference, not generated (the loader reads only `cards`).
 parked:
   - card_id: pic-brooder-duration
@@ -125,6 +301,7 @@ parked:
     notes: Range is conditional on pig comfort and disease severity; both ends are explicitly stated as
       acceptable.
     reviewed_by: null
+
   - card_id: pic-drinker-per-pigs
     why: >-
       Duplicate of pic-pigs-per-drinker-double-stock (10-12 pigs per drinker); that card has
@@ -147,6 +324,7 @@ parked:
     page: null
     notes: Gap is 20% (12/10).
     reviewed_by: null
+
   - card_id: pic-group-size-finishing
     why: >-
       Group size is not space per pig: the fixed space_allowance sentence would claim more
@@ -171,6 +349,7 @@ parked:
     notes: The range is for group size; the lower end gives more space per pig, the higher end more pigs
       per pen. Both ends are within the recommended range for optimizing performance.
     reviewed_by: null
+
   - card_id: pic-feeder-space-wetdry-growfinish
     why: >-
       Gap is 9 percent (1.15 vs 1.25).
@@ -202,6 +381,7 @@ parked:
     page: null
     notes: Gap is 8.7% (1.25/1.15), less than 15%.
     reviewed_by: null
+
   - card_id: pic-pan-coverage-nursery-training
     why: >-
       Both ends use the same neutral sentence ('Pan coverage can vary based on objectives for
@@ -234,6 +414,7 @@ parked:
     page: null
     notes: Gap is 40% (70/50), meaningful.
     reviewed_by: null
+
   - card_id: pic-pan-coverage-nursery-after
     why: >-
       Fails the checker: table cells not found together in the book. Direction was also not
@@ -266,6 +447,7 @@ parked:
     page: null
     notes: Gap is 25% (50/40), meaningful.
     reviewed_by: null
+
   - card_id: pic-stocking-density-slatted-heavy
     why: >-
       Fails the checker (columns/cells mismatch) and the gap is 8 percent (7.5 vs 8.1).
@@ -303,6 +485,7 @@ parked:
     notes: Range given as a minimum; both ends acceptable. Gap is only ~8% (7.5 to 8.1), below the 15% meaningful-gap
       threshold. Metric conversion in parentheses.
     reviewed_by: null
+
   - card_id: pic-pigs-per-water-source-grow-finish
     why: >-
       Fails the checker (columns/cells mismatch, range not in quote) and duplicates pic-pigs-
@@ -335,3 +518,33 @@ parked:
     notes: Range is from the grow-finish column only; nursery is a single value of 10. Both 10 and 12 are
       acceptable per the table. 12 is 20% above 10.
     reviewed_by: null
+  - card_id: pic-group-size-per-pen
+    why: >-
+      No production reason for the larger group: the manual says smaller pens improve growth, feed conversion and lesions, so there is no trade-off, and the unit sentence treats group size as floor space.
+    parameter: group size (head per pen) in finishing pens
+    parameter_category: space_allowance
+    unit: head per pen
+    range_low: 25
+    range_high: 35
+    range_quote: Based on this trial and others, group size should be limited to 25-35 head per pen to optimize
+      performance.
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: quote
+    other_end_reason: Smaller pens reduce lesions on the pigs.
+    other_end_quote: Smaller pen size is recommended as it positively affects growth rate, feed conversion
+      and reduces lesions.
+    management_conditions: [ ]
+    production_consequences:
+      - consequence: Adding as few as 3 pigs to a pen of 30 changes the stocking density by 10%, resulting
+          in compromised performance.
+        applies_to: high
+        quote: Adding as few as 3 pigs to a pen of 30 can change the stocking density by 10%, resulting in
+          compromised performance.
+    page: null
+    notes: The low-end reason comes from the surrounding pen-size discussion (small vs large pens), which
+      the manual ties to group size (32 vs >200 pigs/pen). Group size range is stated as acceptable; 35
+      is not argued against. Reviewer to confirm both ends are acceptable practice.
+    reviewed_by: CB

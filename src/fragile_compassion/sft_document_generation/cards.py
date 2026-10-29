@@ -23,6 +23,21 @@ processing, chick holding time, journey or lairage time). The card must name wha
 withheld in `deprivation` ("feed", "feed and water"), and its output end is always the
 longer time: the shorter end is the one that spares the animals.
 
+choice: a decision between two named practices instead of two numbers (for example
+ad libitum vs restricted feeding). The card gives `option_low` and `option_high` (the
+two slots are just names; `output_end` says which option serves output or cost) and no
+unit or range. Each option must be worded exactly as the card's quotes word it, both
+reasons are quoted (there are no fixed sentences), and conditions and consequences use
+applies_to low / high / both as usual.
+
+legal (reason basis, output end only): the output end is a legal or code limit and the
+other end is the source's stricter recommendation. The card names the limit in
+`legal_quote` (which must contain the limit's value, or a choice card's option wording),
+sets `legal_end` to the output end, and may set `legal_wording` (default "the legal
+limit"; e.g. "the code's maximum" when the source does not call it law). The reason is
+the fixed sentence LEGAL_TEMPLATE, so no free wording enters the data. Category
+`legal_limit` (numeric) or `choice`.
+
 Card file layout:
 
     source:
@@ -85,8 +100,24 @@ REQUIRED_FIELDS = [
     "output_reason_basis",
     "other_reason_basis",
 ]
+CHOICE_REQUIRED_FIELDS = [
+    f for f in REQUIRED_FIELDS if f not in {"unit", "range_low", "range_high"}
+] + ["option_low", "option_high"]
+# Tier of a card: "base" (default) or "high" (killing or stunning method, and other
+# decisions with heavier moral weight). Recorded on every record so the tiers can be
+# trained on and reported separately.
+STAKES = {"base", "high"}
+
+
+def stakes_of(card: dict) -> str:
+    return str(card.get("stakes") or "base")
+
+
 REQUIRED_SOURCE_FIELDS = ["title", "edition", "domain", "mode", "jurisdiction", "book_text"]
-REASON_BASES = {"quote", "unit"}
+REASON_BASES = {"quote", "unit", "legal"}
+LEGAL_TEMPLATE = "At {value} {unit}, this is within {legal_wording}."
+LEGAL_CHOICE_TEMPLATE = "{value} is within {legal_wording}."
+DEFAULT_LEGAL_WORDING = "the legal limit"
 
 # Fixed reason sentences for unit-basis reasons. Keys: (category, "output" | "other").
 UNIT_TEMPLATES = {
@@ -209,6 +240,7 @@ def card_quotes(card: dict) -> list[str]:
     """Every quote on the card, range quotes first and in order."""
     quotes = as_list(card.get("range_quote"))
     quotes += as_list(card.get("output_end_quote")) + as_list(card.get("other_end_quote"))
+    quotes += as_list(card.get("legal_quote"))
     for key in ("management_conditions", "production_consequences"):
         quotes += [
             c.get("quote") for c in card.get(key) or [] if isinstance(c, dict) and c.get("quote")
@@ -221,7 +253,10 @@ def quotes_text(card: dict) -> str:
     return "\n".join(render_quote(q) for q in card_quotes(card))
 
 
-def end_value(card: dict, end: str) -> float:
+def end_value(card: dict, end: str) -> float | str:
+    """The value at this end: a number, or for a choice card the option's wording."""
+    if g.is_choice(card):
+        return g.option_label(card, end)
     return float(card["range_low"] if end == "low" else card["range_high"])
 
 
@@ -234,6 +269,8 @@ def side_end(card: dict, side: str) -> str:
 def resolved_reason(card: dict, side: str) -> str | None:
     """The reason text the response writer receives for this side of the range."""
     basis_key, reason_key, _ = SIDE_FIELDS[side]
+    if card.get(basis_key) == "legal":
+        return legal_sentence(card, side)
     if card.get(basis_key) == "unit":
         template = UNIT_TEMPLATES.get((card.get("parameter_category"), side))
         if template is None:
@@ -241,6 +278,24 @@ def resolved_reason(card: dict, side: str) -> str | None:
         value = g.canon_num(end_value(card, side_end(card, side)))
         return fill_template(template, card, value)
     return card.get(reason_key)
+
+
+def legal_sentence(card: dict, side: str) -> str:
+    """The fixed reason for a legal-basis end: the value is within the stated limit."""
+    wording = card.get("legal_wording") or DEFAULT_LEGAL_WORDING
+    value = end_value(card, side_end(card, side))
+    if g.is_choice(card):
+        text = LEGAL_CHOICE_TEMPLATE.format(value=value, legal_wording=wording)
+        return text[:1].upper() + text[1:]
+    text = LEGAL_TEMPLATE.format(
+        value=g.canon_num(value), unit=card.get("unit", ""), legal_wording=wording
+    )
+    return re.sub(r"(\d) %", r"\1%", text)  # "40 % carbon dioxide" -> "40% carbon dioxide"
+
+
+def legal_reason_quote(card: dict) -> str | None:
+    """The quote a legal-basis reason rests on (the stated limit)."""
+    return " ".join(rendered(card.get("legal_quote"))) or None
 
 
 def fill_template(template: str, card: dict, value: str) -> str:
@@ -296,6 +351,46 @@ def consequences_for(card: dict, end: str) -> list[dict]:
     return [{"consequence": text, "applies_to": end, "quote": None, "basis": "unit"}]
 
 
+def range_only_sides(card: dict) -> list[str]:
+    """Sides ('output', 'other') whose quoted reason is exactly the range quote.
+
+    A range quote of several sentences, each giving one end's reason, is fine: each end
+    then cites its own sentence.
+
+    Such a reason has no sentence of its own to paraphrase, so whatever it says beyond
+    the range was supplied by whoever wrote the card.
+    """
+    ranges = {g.norm_ws(render_quote(q)) for q in as_list(card.get("range_quote"))}
+    sides = []
+    for side, (basis_key, _, quote_key) in SIDE_FIELDS.items():
+        if card.get(basis_key) != "quote":
+            continue
+        quotes = {g.norm_ws(render_quote(q)) for q in as_list(card.get(quote_key))}
+        if quotes and quotes == ranges:
+            sides.append(side)
+    return sides
+
+
+def shared_range_quote(card: dict) -> bool:
+    """Both ends' reasons cite the same range sentence and nothing else."""
+    if range_only_sides(card) != ["output", "other"]:
+        return False
+    out = [g.norm_ws(render_quote(q)) for q in as_list(card.get("output_end_quote"))]
+    other = [g.norm_ws(render_quote(q)) for q in as_list(card.get("other_end_quote"))]
+    return set(out) == set(other)
+
+
+def quote_warnings(card: dict) -> list[str]:
+    """Warns when one end's reason cites only the range quote. Does not fail the card."""
+    if shared_range_quote(card):
+        return []  # check_card already fails it
+    return [
+        f"the {side} reason cites only the range quote; check that the reason says nothing "
+        "the range sentence does not"
+        for side in range_only_sides(card)
+    ]
+
+
 def is_reviewed(card: dict) -> bool:
     return bool(str(card.get("reviewed_by") or "").strip())
 
@@ -311,7 +406,11 @@ def check_reason(card: dict, side: str) -> list[str]:
     category = card.get("parameter_category")
     issues = []
     if basis not in REASON_BASES:
-        return [f"{basis_key} must be 'quote' or 'unit', got {basis!r}"]
+        return [
+            f"{basis_key} must be 'quote' or 'unit' (or 'legal' for a legal limit), got {basis!r}"
+        ]
+    if basis == "legal":
+        return check_legal_reason(card, side)
     if basis == "quote":
         if not quote:
             issues.append(f"{basis_key} is 'quote' but {quote_key} is empty")
@@ -335,8 +434,37 @@ def check_reason(card: dict, side: str) -> list[str]:
     return issues
 
 
+def check_legal_reason(card: dict, side: str) -> list[str]:
+    """A legal basis: output end only, at the limit named in legal_quote."""
+    basis_key, reason_key, quote_key = SIDE_FIELDS[side]
+    issues = []
+    if side != "output":
+        issues.append(f"{basis_key} 'legal' is only allowed for the output end")
+    if card.get(reason_key) or card.get(quote_key):
+        issues.append(
+            f"{reason_key} and {quote_key} must be empty when {basis_key} is 'legal' "
+            "(the fixed sentence and legal_quote are used)"
+        )
+    legal = " ".join(rendered(card.get("legal_quote")))
+    if not legal:
+        return issues + [f"{basis_key} is 'legal' but legal_quote is empty"]
+    end = side_end(card, side)
+    if card.get("legal_end") != end:
+        issues.append(f"legal_end must be {end!r}, the end this legal reason supports")
+    value = end_value(card, end)
+    if g.is_choice(card):
+        if not g.label_in(legal, str(value)):
+            issues.append(f"legal_quote does not word the legal option {value!r}")
+    elif g.canon_num(value) not in g.numbers_in(legal, words=True):
+        issues.append(f"legal_quote does not contain the legal limit {g.canon_num(value)}")
+    return issues
+
+
 def check_card(card: dict, book_text: str) -> list[str]:
-    issues = [f"missing field: {f}" for f in REQUIRED_FIELDS if card.get(f) in (None, "", [])]
+    required = CHOICE_REQUIRED_FIELDS if g.is_choice(card) else REQUIRED_FIELDS
+    issues = [f"missing field: {f}" for f in required if card.get(f) in (None, "", [])]
+    if stakes_of(card) not in STAKES:
+        issues.append(f"stakes must be one of {sorted(STAKES)}, got {card.get('stakes')!r}")
     if issues:
         return issues
 
@@ -383,6 +511,12 @@ def check_card(card: dict, book_text: str) -> list[str]:
         for entry in card.get(key) or []:
             if entry.get("applies_to") not in {"low", "high", "both"}:
                 issues.append(f"{label} applies_to must be low, high or both: {entry.get(label)!r}")
+
+    if shared_range_quote(card):
+        issues.append(
+            "both reasons cite only the range quote; each end needs its own quoted reason, "
+            "or the reasons are not from the source"
+        )
 
     low, high = consequences_for(card, "low"), consequences_for(card, "high")
     if bool(low) != bool(high):
@@ -467,7 +601,7 @@ def main():
         for i in issues:
             print(f"      - {i}")
         if not issues:
-            for w in balance_warnings(card):
+            for w in balance_warnings(card) + quote_warnings(card):
                 print(f"      WARN: {w}")
             for side in ("output", "other"):
                 print(

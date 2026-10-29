@@ -30,6 +30,7 @@ from typing import Any
 from fragile_compassion.sft_document_generation import cards as cd
 from fragile_compassion.sft_document_generation import generate as g
 from fragile_compassion.sft_document_generation import generate_cards as gc
+from fragile_compassion.sft_document_generation import usage
 
 CARD_KEYS = [
     "card_id",
@@ -52,7 +53,8 @@ CARD_KEYS = [
     "notes",
     "reviewed_by",
 ]
-QUOTE_FIELDS = ("range_quote", "output_end_quote", "other_end_quote")
+QUOTE_FIELDS = ("range_quote", "output_end_quote", "other_end_quote", "legal_quote")
+CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
 REPAIR_MIN_RATIO = 0.92  # how close a near-miss quote must be to a book passage
 
 # ---------------------------------------------------------------------------
@@ -76,12 +78,22 @@ def normalize_draft(raw: dict, id_prefix: str, chunk_name: str) -> dict:
     keys = list(CARD_KEYS)
     if raw.get("deprivation"):  # only deprivation_duration cards carry this field
         keys.insert(keys.index("unit") + 1, "deprivation")
+    if raw.get("stakes"):  # only high-stakes cards carry this field
+        keys.insert(keys.index("card_id") + 1, "stakes")
+    legal = [k for k in ("legal_end", "legal_quote", "legal_wording") if raw.get(k)]
+    if legal:  # only legal-limit cards carry these
+        at = keys.index("output_end") + 1
+        keys[at:at] = legal
+    if raw.get("parameter_category") == g.CHOICE_CATEGORY:  # two options, no unit or range
+        at = keys.index("unit")
+        keys[at : at + 3] = ["option_low", "option_high"]
     card: dict[str, Any] = {key: raw.get(key) for key in keys}
     base = slug(raw.get("card_id") or raw.get("parameter") or "card")
     prefix = slug(id_prefix)
     card["card_id"] = base if not prefix or base.startswith(prefix + "-") else f"{prefix}-{base}"
     for key in ("range_low", "range_high"):
-        card[key] = tidy(card[key])
+        if key in card:
+            card[key] = tidy(card[key])
     for key in ("management_conditions", "production_consequences"):
         card[key] = [e for e in card[key] or [] if isinstance(e, dict)]
     card["reviewed_by"] = None  # only a person sets this
@@ -166,7 +178,11 @@ def repair_card_quotes(card: dict, passage: str, book_text: str) -> list[dict]:
 
 
 def draft_key(card: dict) -> tuple:
-    """Two cards with the same unit, range and category are the same decision."""
+    """Two cards with the same unit, range and category are the same decision.
+    Two choice cards with the same pair of options are the same decision."""
+    if g.is_choice(card):
+        options = sorted(g.norm_ws(g.option_label(card, e)).lower() for e in ("low", "high"))
+        return (g.CHOICE_CATEGORY, *options)
     unit = re.sub(r"\s+", "", str(card.get("unit") or "").lower())
     unit = unit.replace("²", "2").replace("³", "3")
     try:
@@ -213,13 +229,23 @@ def gap_warning(card: dict) -> list[str]:
     return []
 
 
+def non_english(card: dict) -> bool:
+    """True if any text in the draft is Chinese, Japanese or Korean (the drafter model
+    sometimes answers in Chinese)."""
+    import json
+
+    return bool(CJK.search(json.dumps(card, ensure_ascii=False)))
+
+
 def check_drafts(drafts: list[dict], book_text: str) -> None:
     """Attaches the checker's issues and the warnings to each draft, in place."""
     for card in drafts:
         issues = cd.check_card(card, book_text)
+        if non_english(card):
+            issues = ["draft is not in English"] + issues
         card["draft"]["issues"] = issues
         card["draft"]["warnings"] = gap_warning(card) + (
-            [] if issues else cd.balance_warnings(card)
+            [] if issues else cd.balance_warnings(card) + cd.quote_warnings(card)
         )
 
 
@@ -264,11 +290,21 @@ def drafter_prompt_path(source: dict, drafting_cfg: dict) -> str:
     return drafting_cfg.get(key, default)
 
 
-def build_payload(source: dict, chunk_text: str) -> str:
-    return (
+def build_payload(source: dict, chunk_text: str, companions: list[str] | None = None) -> str:
+    payload = (
         f"SOURCE: {source.get('title')} ({source.get('edition')}), {source.get('domain')}\n"
         f'EXCERPT:\n"""\n{chunk_text}\n"""'
     )
+    for text in companions or []:
+        payload += f'\nCOMPANION EXCERPT (same source):\n"""\n{text}\n"""'
+    return payload
+
+
+def chunks_containing(paths: list[Path], needles: list[str]) -> list[Path]:
+    """The chunks whose text contains any of the needles (all chunks if none given)."""
+    if not needles:
+        return paths
+    return [p for p in paths if any(n in g.load_file_content(p) for n in needles)]
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +350,20 @@ def main():
         default=[],
         help="Other card files whose cards should not be drafted again.",
     )
+    parser.add_argument(
+        "--companion",
+        type=Path,
+        action="append",
+        default=[],
+        help="A chunk or text file from the same source sent with every excerpt, so cards "
+        "may pair statements across chunks (repeatable).",
+    )
+    parser.add_argument(
+        "--contains",
+        action="append",
+        default=[],
+        help="Only draft chunks containing this text (repeatable; any match).",
+    )
     parser.add_argument("--id-prefix", help="Card ID prefix (default: first word of title).")
     parser.add_argument("--run-id", help="Defaults to a timestamp.")
     parser.add_argument("--dry-run", action="store_true", help="Print one payload; no calls.")
@@ -327,12 +377,13 @@ def main():
         existing += load_source(path)[1]
     book_text = g.load_file_content(root / source["book_text"])
     prefix = args.id_prefix or slug(str(source.get("title", "")).split()[0])
-    chunks = ranked_chunks(args.chunks_dir, args.top)
+    chunks = chunks_containing(ranked_chunks(args.chunks_dir, args.top), args.contains)
     if not chunks:
-        raise ValueError(f"No ranked chunks (*_rank*_pos*.txt) in {args.chunks_dir}.")
+        raise ValueError(f"No ranked chunks (*_rank*_pos*.txt) in {args.chunks_dir} match.")
+    companions = [g.load_file_content(p) for p in args.companion]
 
     if args.dry_run:
-        print(build_payload(source, g.load_file_content(chunks[0])))
+        print(build_payload(source, g.load_file_content(chunks[0]), companions))
         return
 
     prompt_path = drafter_prompt_path(source, dcfg)
@@ -343,17 +394,27 @@ def main():
     run_id = args.run_id or datetime.now().strftime("drafts%Y%m%d_%H%M%S")
     out_dir = root / "output" / "card-drafts" / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
+    usage.start_log(out_dir)
 
     drafts, rejected = [], []
     for path in chunks:
         print(f"- {path.name}")
+        usage.set_context(chunk=path.name)
         chunk_text = g.load_file_content(path)
         try:
             parsed, raw = gc.call_json(
                 client,
                 model,
                 system_prompt,
-                build_payload(source, chunk_text),
+                build_payload(
+                    source,
+                    chunk_text,
+                    [
+                        t
+                        for p, t in zip(args.companion, companions, strict=True)
+                        if p.resolve() != path.resolve()
+                    ],
+                ),
                 float(dcfg.get("temperature", 0.2)),
                 int(dcfg.get("max_tokens", 16000)),
                 dcfg.get("reasoning", {"effort": "medium"}),
@@ -364,7 +425,7 @@ def main():
         (out_dir / f"raw_{path.stem}.json").write_text(raw, encoding="utf-8")
         cards, rej = drafts_from_reply(parsed, prefix, path.name)
         for card in cards:
-            repairs = repair_card_quotes(card, chunk_text, book_text)
+            repairs = repair_card_quotes(card, "\n".join([chunk_text, *companions]), book_text)
             if repairs:
                 card["draft"]["quotes_repaired"] = repairs
         print(f"  {len(cards)} draft(s), {len(rej)} rejected")
@@ -382,6 +443,7 @@ def main():
         f"{len(duplicates)} duplicate(s) dropped, {len(rejected)} candidate(s) rejected"
     )
     print(f"Drafts: {out_path}")
+    usage.finish_log(out_dir, run_id, "draft_cards", root / "output")
 
 
 if __name__ == "__main__":

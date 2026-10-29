@@ -1,0 +1,154 @@
+source:
+  title: "Arkansas Rice Production Handbook (MP192)"
+  edition: "2021"          # MP192-2M-07-2021RV
+  domain: crop_agronomy
+  mode: crop
+  jurisdiction: US
+  book_text: "context/cleaned/Rice Production Handbook_cleaned.txt"
+
+cards:
+  - card_id: arkansas-rice-hybrid-seeding-rate
+    parameter: hybrid rice seeding rate (for drill-seeded conditions)
+    parameter_category: seeding_rate
+    unit: seeds per square foot
+    range_low: 10
+    range_high: 15
+    range_quote: For hybrids, 10 to 15 seeds per square foot is needed to obtain optimum stand density of
+      6 to 10 plants per square foot (or 4 to 6 seedlings per 7.5- inch drill row foot).
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: Only range found in excerpt. High end (15 seeds/sq ft) likely gives denser stand, low end saves
+      seed. No explicit yield reason given; using unit basis. Range applies to hybrids only.
+    reviewed_by: CB
+
+  - card_id: arkansas-rice-elemental-s-acidification
+    parameter: elemental sulfur rate for soil acidification to correct zinc deficiency
+    parameter_category: input_rate
+    unit: pounds per acre
+    range_low: 500
+    range_high: 1000
+    range_quote: Acidification of the soil requires the addition of elemental S at 500 to 1,000 pounds per
+      acre (Table 9-14) but is not likely economical.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Reduction of soil pH corrects zinc deficiency.
+    output_end_quote: Correction of Zn deficiency requires reduction of soil pH and/or the addition of a
+      suitable Zn source.
+    other_reason_basis: quote
+    other_end_reason: The practice is not economical, so lower rates reduce cost.
+    other_end_quote: but is not likely economical
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: 'The low-end reason is inferred from the manual''s statement that acidification is ''not likely
+      economical.'' The manual does not explicitly state that lower rates save money, but the cost concern
+      is implicit. Rule 4 is borderline: ''not likely economical'' refers to the whole practice, not specifically
+      the high end.'
+    reviewed_by: CB
+
+  - card_id: arkansas-rice-seeding-rate-black-sheath-rot
+    parameter: rice seeding rate for managing black sheath rot
+    parameter_category: seeding_rate
+    unit: plants per square foot
+    range_low: 15
+    range_high: 20
+    range_quote: Use a seeding rate that results in 15 to 20 plants per square foot.
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: ''
+    reviewed_by: CB
+
+  - card_id: arkansas-rice-drying-airflow-rate
+    parameter: airflow rate for on-farm rice drying
+    parameter_category: other
+    unit: CFM per cwt
+    range_low: 1
+    range_high: 100
+    range_quote: Airflow rates for drying vary from a low of 1 cubic foot per minute (CFM) per hundredweight
+      (cwt) to a high of 100 or more CFM per cwt.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: A higher airflow rate dries rice faster, cutting drying time to about half.
+    output_end_quote: Doubling the airflow will typically cut the drying time to about half.
+    other_reason_basis: quote
+    other_end_reason: A lower airflow rate is more energy efficient for drying.
+    other_end_quote: One way to reduce drying time is to increase airflow, but this may not be the most
+      energy efficient manner of drying.
+    management_conditions: [ ]
+    production_consequences:
+      - consequence: Cuts drying time to about half
+        applies_to: high
+        quote: Doubling the airflow will typically cut the drying time to about half.
+      - consequence: More energy efficient drying
+        applies_to: low
+        quote: One way to reduce drying time is to increase airflow, but this may not be the most energy efficient
+          manner of drying.
+    page: null
+    notes: The high end is stated as '100 or more CFM per cwt'; the card uses 100. Faster drying is the
+      output end (timeliness, quality control, market flexibility); lower airflow saves energy cost. Gap
+      is well above 15%.
+    reviewed_by: CB
+
+  - card_id: arkansas-rice-harvest-moisture-longgrain
+    parameter: long-grain rice harvest moisture content, Arkansas weather conditions
+    parameter_category: crop_timing
+    unit: '% w.b.'
+    range_low: 19
+    range_high: 21
+    range_quote: the optimum harvest MC for maximizing HRY was reported to be 19 to 21 percent for long-grain
+      cultivars and 22 to 24 percent for medium-grains, under Arkansas weather conditions.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Harvesting at 19 to 21 percent maximizes head rice yield.
+    output_end_quote: the optimum harvest MC for maximizing HRY was reported to be 19 to 21 percent for
+      long-grain cultivars ... under Arkansas weather conditions.
+    other_reason_basis: quote
+    other_end_reason: The economic optimum harvest MC may be slightly less than the optimal MC for maximizing
+      HRY because drying costs increase dramatically with harvest MC.
+    other_end_quote: drying costs generally increase dramatically with harvest MC, the economic optimum
+      harvest MC may be slightly less than the optimal MC for maximizing HRY, depending on drying charges
+      and the relative value of head rice to brokens.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: ''
+    reviewed_by: CB
+
+  - card_id: arkansas-rice-drill-row-width
+    parameter: rice drill row width
+    parameter_category: other
+    unit: inches
+    range_low: 4
+    range_high: 10
+    range_quote: Recommended drill row widths for rice are between 4 and 10 inches.
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Narrower drill row spacing tends to give higher grain yields.
+    output_end_quote: Several studies show a trend for higher grain yields with narrower drill row spacing
+    other_reason_basis: quote
+    other_end_reason: Wider row spacing reduces clod problems on clay soils.
+    other_end_quote: wider row spacing is desirable on clay soils where clods may become lodged between
+      the coulters on narrow row drills
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: The manual calls a 6-8 inch spacing 'ideal', but that is an intermediate value, not one of the
+      ends. The 4-inch low end is not called 'ideal' or 'preferred', so rule 4 is satisfied.
+    reviewed_by: CB
+

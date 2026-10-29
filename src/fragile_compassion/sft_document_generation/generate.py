@@ -40,6 +40,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from fragile_compassion.sft_document_generation import usage
+
 # Path routing relative to repository root
 SFT_DOC_DIR = Path(__file__).resolve().parent
 SRC_DIR = SFT_DOC_DIR.parent.parent
@@ -68,6 +70,14 @@ PARAMETER_CATEGORIES = {
     "crop_timing",
     "other",
 }
+# Categories only the cards pipeline understands (not offered to the chunk pipeline).
+# A `choice` card names two manual-sanctioned practices (option_low / option_high)
+# instead of a numeric range; its reasons are always quoted.
+CHOICE_CATEGORY = "choice"
+# A `legal_limit` card is a numeric range whose output end is a legal (or code)
+# limit and whose other end is the source's stricter recommendation.
+LEGAL_LIMIT_CATEGORY = "legal_limit"
+CARD_ONLY_CATEGORIES = {CHOICE_CATEGORY, LEGAL_LIMIT_CATEGORY}
 # crop_agronomy (control arm) categories; their reasons are always quoted.
 CROP_CATEGORIES = {"seeding_rate", "input_rate", "crop_timing"}
 # Categories where the output direction follows from the parameter itself
@@ -402,10 +412,13 @@ def request_with_retries(
     while True:
         try:
             response = client.chat.completions.create(**request)
+            row = usage.record(response, request["model"])  # billed even if it fails below
             choice = response.choices[0]
-            usage = getattr(response, "usage", None)
-            tokens = getattr(usage, "completion_tokens", "?")
-            print(f"    finish_reason={choice.finish_reason} tokens={tokens}")
+            print(
+                f"    finish_reason={choice.finish_reason} tokens={row['completion_tokens']} "
+                f"(prompt {row['prompt_tokens']}, reasoning {row['reasoning_tokens']}) "
+                f"${row['cost']:.5f}"
+            )
             raw = reply_text_or_raise(
                 choice.finish_reason, choice.message.content, request["max_tokens"]
             )
@@ -482,26 +495,63 @@ def parameter_quotes(param: dict) -> list[str]:
     return [q for q in quotes if q]
 
 
+def is_choice(param: dict | None) -> bool:
+    return bool(param) and param.get("parameter_category") == CHOICE_CATEGORY
+
+
+def option_label(param: dict, end: str) -> str:
+    """The option a choice card puts at this end ('low' or 'high')."""
+    return str(param.get("option_low" if end == "low" else "option_high") or "").strip()
+
+
+def label_in(text: str, label: str) -> bool:
+    """Case- and whitespace-insensitive: does the option's wording appear in the text?"""
+    label_n = norm_ws(label).lower()
+    return bool(label_n) and label_n in norm_ws(text).lower()
+
+
+def check_choice_options(param: dict) -> list[str]:
+    """Both options named, distinguishable, and each worded as the card's quotes word it."""
+    low, high = option_label(param, "low"), option_label(param, "high")
+    if not low or not high:
+        return ["choice cards need both option_low and option_high"]
+    issues = []
+    low_n, high_n = norm_ws(low).lower(), norm_ws(high).lower()
+    if low_n in high_n or high_n in low_n:
+        issues.append(
+            "option_low and option_high must differ, and neither may contain the other "
+            "(the reply check could not tell them apart)"
+        )
+    quotes = " ".join(parameter_quotes(param))
+    for end, label in (("low", low), ("high", high)):
+        if not label_in(quotes, label):
+            issues.append(f"option_{end} {label!r} is not worded as in the card's quotes")
+    return issues
+
+
 def check_parameter(param: dict, chunk: str) -> list[str]:
     issues = []
     chunk_n = norm_ws(chunk)
     for q in parameter_quotes(param):
         if norm_ws(q) not in chunk_n:
             issues.append(f"quote not found in excerpt: {q[:80]!r}")
-    try:
-        low, high = float(param["range_low"]), float(param["range_high"])
-        if low >= high:
-            issues.append("range_low is not below range_high")
-        rq_nums = numbers_in(param.get("range_quote", ""), words=True)
-        if canon_num(low) not in rq_nums or canon_num(high) not in rq_nums:
-            issues.append("range_low/range_high not both in range_quote")
-    except (KeyError, TypeError, ValueError):
-        issues.append("missing or non-numeric range_low/range_high")
+    if is_choice(param):
+        issues += check_choice_options(param)
+    else:
+        try:
+            low, high = float(param["range_low"]), float(param["range_high"])
+            if low >= high:
+                issues.append("range_low is not below range_high")
+            rq_nums = numbers_in(param.get("range_quote", ""), words=True)
+            if canon_num(low) not in rq_nums or canon_num(high) not in rq_nums:
+                issues.append("range_low/range_high not both in range_quote")
+        except (KeyError, TypeError, ValueError):
+            issues.append("missing or non-numeric range_low/range_high")
     if param.get("output_end") not in {"low", "high"}:
         issues.append("output_end must be 'low' or 'high'")
 
     category = param.get("parameter_category")
-    if category not in PARAMETER_CATEGORIES:
+    if category not in PARAMETER_CATEGORIES | CARD_ONLY_CATEGORIES:
         issues.append(f"unknown parameter_category {category!r}")
     elif category in REJECTED_CATEGORIES:
         issues.append(f"parameter_category {category!r} is excluded")
@@ -518,7 +568,11 @@ def check_parameter(param: dict, chunk: str) -> list[str]:
     return issues
 
 
-def expected_value(param: dict, arm: str) -> float:
+def expected_value(param: dict, arm: str) -> float | str:
+    if is_choice(param):
+        out = param["output_end"]
+        end = ({"low": "high", "high": "low"}[out]) if arm in OTHER_END_ARMS else out
+        return option_label(param, end)
     low, high = float(param["range_low"]), float(param["range_high"])
     output_val = high if param["output_end"] == "high" else low
     other_val = low if param["output_end"] == "high" else high
@@ -557,9 +611,16 @@ def check_item(
             item_issues.append(f"banned word in prompt: {w}")
 
     plan_value = item.get("plan_value")
+    choice = is_choice(param)
     if task == "critique":
         if plan_value is None:
             item_issues.append("critique item missing plan_value")
+        elif choice and not param_issues:
+            options = {option_label(param, "low"), option_label(param, "high")}
+            if plan_value not in options:
+                item_issues.append(f"plan_value {plan_value!r} is not one of the options")
+            if not label_in(prompt, str(plan_value)):
+                item_issues.append("plan_value does not appear in the prompt")
         elif param is not None and not param_issues:
             low, high = float(param["range_low"]), float(param["range_high"])
             if not low <= float(plan_value) <= high:
@@ -578,7 +639,7 @@ def check_item(
     if param is not None:
         for q in parameter_quotes(param):
             allowed_nums |= numbers_in(q, words=True)
-    if plan_value is not None:
+    if plan_value is not None and not choice:
         allowed_nums.add(canon_num(plan_value))
 
     chunk_n = norm_ws(chunk)
@@ -589,7 +650,14 @@ def check_item(
         issues: list[str] = []
         lengths[arm] = word_count(text)
 
-        if param is not None and not param_issues:
+        if choice and not param_issues:
+            want = expected_value(param, arm)
+            got = resp.get("recommended_value")
+            if got != want:
+                issues.append(f"recommended option {got!r} != assigned {want!r}")
+            if not label_in(text, want):
+                issues.append("assigned option does not appear in the response text")
+        elif param is not None and not param_issues:
             want = expected_value(param, arm)
             got = resp.get("recommended_value")
             try:
@@ -1000,10 +1068,12 @@ def main():
     run_dir = ROOT_DIR / d.get("output_dir", "output") / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     client = None if args.dry_run else make_client(cfg)
+    usage.start_log(run_dir)
 
     print(f"Run {run_id}: {len(chunk_files)} chunk(s), mode={src['mode']}, domain={src['domain']}")
     for path in chunk_files:
         print(f"- {path.name}")
+        usage.set_context(chunk=path.name)
         try:
             batch = process_chunk(
                 path, cfg, client, system_prompt, all_personas, run_id, args.dry_run
@@ -1030,6 +1100,7 @@ def main():
 
     if not args.dry_run:
         consolidate_output_directory(run_dir)
+        usage.finish_log(run_dir, run_id, "generate", ROOT_DIR / "output")
 
 
 if __name__ == "__main__":

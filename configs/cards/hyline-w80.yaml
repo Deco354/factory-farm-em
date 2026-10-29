@@ -1,0 +1,35 @@
+source:
+  title: "Hy-Line W-80 Management Guide"
+  edition: "2023"
+  domain: poultry_production
+  species: "laying hens"          # shown to the prompt and response writers
+  sector: layer            # draws only personas tagged layer
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Hy-Line W-80 Management 2023_cleaned.txt"
+
+cards:
+  - card_id: hy-line-midday-feed-gap
+    parameter: mid-day gap in feedings for laying hens
+    parameter_category: feeding
+    unit: hours
+    range_low: 3
+    range_high: 4
+    range_quote: A 3-4 hour gap in feedings at mid-day allows birds to consume ne particles.
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: A shorter gap provides more feeding opportunities to ensure good nutrient intake
+      in all birds.
+    output_end_quote: provides more feeding opportunities to ensure good nutrient intake in all birds.
+    other_reason_basis: quote
+    other_end_reason: A longer gap allows birds to consume fine particles.
+    other_end_quote: A 3-4 hour gap in feedings at mid-day allows birds to consume ne particles.
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: The gap is a feeding schedule setting, not space/equipment. The range is 3-4 hours; the high
+      end is 33% above the low. Low end benefits output via more feeding opportunities; high end benefits
+      birds by allowing fine particle consumption. The reason quote for the low end is from the stacked
+      morning feeding section, but it is about feeding opportunities generally; reviewer to confirm applicability.
+    reviewed_by: CB
+
