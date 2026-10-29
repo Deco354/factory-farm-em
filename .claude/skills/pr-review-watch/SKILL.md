@@ -166,7 +166,7 @@ Then wait. Don't push a change to a disputed point before the user answers. If s
   and `review / claude-review` (the bot reviewer). The reviewer's check goes red
   when the bot posted no binary verdict, and a `needs-human-review` label means a
   human has been asked to review. Note that on this repo escalation is
-  **label-only** — Deco354 is the sole maintainer and GitHub will not request
+  **label-only** — the repo has a single maintainer and GitHub will not request
   review from a PR's own author, so nobody is notified. Check for the label.
 - **Merge gate**: none. This is a private repo on a free plan, so branch
   protection is unavailable (`403: Upgrade to GitHub Pro or make this repository
