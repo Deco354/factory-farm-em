@@ -40,7 +40,10 @@ def cmd_plan(args: argparse.Namespace) -> int:
         return 1
     runs = sorted(p.parent.name for p in out.glob("*/manifest.json"))
     print(f"planned {len(runs)} run(s) in {out}: {', '.join(runs)}")
-    print(f"reports: {out}/validation-report.md, contamination-report.md, parity-report.md")
+    print(
+        f"reports: {out}/validation-report.md, repeated-phrases.md, contamination-report.md, "
+        "parity-report.md"
+    )
     return 0
 
 

@@ -93,8 +93,10 @@ plans again over a plan that hasn't trained. In order, it:
 | A benchmark item or canary | abort | abort |
 
 Thresholds are study settings (`validation:`). `exclude_pairs: [{pair, reason}]` drops a
-pair by hand. The report also flags a Chris arm drawn from one domain, and counts cards
-and manuals once the metadata arrives.
+pair by hand. The report warns when a Chris arm is drawn from one domain, or has no card
+metadata (no `master_dataset.json`, so nothing counts its cards or manuals), and counts
+cards and manuals once the metadata arrives. It shows the 15 most common repeated phrases
+per arm and field; `repeated-phrases.md` beside it lists them all.
 
 ## Facts behind the design
 
