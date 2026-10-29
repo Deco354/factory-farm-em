@@ -1,7 +1,7 @@
 # Training our own EM model organisms
 
 `fc train` fine-tunes LoRA adapters with [Axolotl](https://github.com/axolotl-ai-cloud/axolotl)
-on matched arms (Chris's factory-farming advice and its control, Turner and Soligo's bad
+on matched arms (the farm-em factory-farming advice and its control, Turner and Soligo's bad
 and good medical advice), and loads them into the existing evals exactly like the
 released praxisresearch adapters. This page is the reference: what each part does, the
 commands, and what is still open. The plan and its decisions are in the PR that added
@@ -37,7 +37,7 @@ uv sync --project training/envs/axolotl-e77a185 --locked   # Linux only in pract
 uv run fc train fetch-tokenizers    # config and tokenizer files, no weights (31 MB)
 ```
 
-Chris's files go in by hand, at the path `sources.yaml` gives (the sha256 is checked):
+The farm-em files go in by hand, at the path `sources.yaml` gives (the sha256 is checked):
 
 ```bash
 mkdir -p ~/.cache/fc-train-data/chris/2026-10-13
@@ -58,7 +58,7 @@ uv run fc train index runs/stage2-plumbing      # rows for training-runs.md
 `--allow-dirty`, every run id gets a `DIRTY-` prefix and the diff is kept. `--replace`
 plans again over a plan that hasn't trained. In order, it:
 
-1. **Loads** each arm's file, checking its sha256 before and after. Chris's ids parse as
+1. **Loads** each arm's file, checking its sha256 before and after. Farm-em ids parse as
    `{domain}-{task}-{arm}-{hash}`; the hash pairs output and control. Published rows
    pair by a hash of their prompt. With a batch's `master_dataset.json`, card metadata
    is joined by id.
@@ -71,7 +71,7 @@ plans again over a plan that hasn't trained. In order, it:
    vLLM renders it untrained, then exactly the reply and its end-of-turn token trained.
    A wrong mask, or a row with nothing trained, stops the plan. Lengths come from here.
 4. **Excludes pair-wise** and **selects**: a pair excluded in one arm leaves every arm of
-   its matched group (`exclusions.jsonl` says why). Chris's arms follow the recipe;
+   its matched group (`exclusions.jsonl` says why). Farm-em arms follow the recipe;
    published arms are used as released, or sliced for plumbing.
 5. **Writes a bundle per run** (arm x seed): `data.jsonl`, `axolotl.yaml`,
    `selection.json`, `tokens-preview.txt`, `manifest.json`, and the prepared dataset.
@@ -82,7 +82,7 @@ plans again over a plan that hasn't trained. In order, it:
 
 ### Validation
 
-| Check | Chris's arms | Published arms |
+| Check | Farm-em arms | Published arms |
 |---|---|---|
 | Non-English reply: CJK, Cyrillic, Arabic or Hebrew characters; non-Latin letters over 5%; English function words under 12% | exclude pair | report |
 | Exact duplicate prompt or reply (case and whitespace normalised) | exclude the later pair | report |
@@ -93,8 +93,10 @@ plans again over a plan that hasn't trained. In order, it:
 | A benchmark item or canary | abort | abort |
 
 Thresholds are study settings (`validation:`). `exclude_pairs: [{pair, reason}]` drops a
-pair by hand. The report also flags a Chris arm drawn from one domain, and counts cards
-and manuals once the metadata arrives.
+pair by hand. The report warns when a farm-em arm is drawn from one domain, or has no card
+metadata (no `master_dataset.json`, so nothing counts its cards or manuals), and counts
+cards and manuals once the metadata arrives. It shows the 15 most common repeated phrases
+per arm and field; `repeated-phrases.md` beside it lists them all.
 
 ## Facts behind the design
 
@@ -175,7 +177,7 @@ file, not a training process.
 
 ## Open
 
-- **ANIMA contamination check**: the Deco354 account has no access to the gated
+- **ANIMA contamination check**: our Hugging Face account has no access to the gated
   `CompassioninMachineLearning/anima` parquets (403, 2026-10-28). Until access is
   granted, `plan` stops at ANIMA unless the study skips it with a reason.
 - **Turner/Soligo's current release** is not decrypted: running `easy-dataset-share` here
@@ -184,5 +186,5 @@ file, not a training process.
   release, and the release's canary is unrecorded.
 - **FlashAttention-2 on the box**: the profile asks for `flash_attention_2`; stage 2
   decides between a pinned flash-attn wheel and SDPA (a numerics-only departure).
-- **Chris's metadata**: no `master_dataset.json` for the 2026-10-13 batch, and no
+- **Farm-em metadata**: no `master_dataset.json` for the 2026-10-13 batch, and no
   `tradeoff` or `topic` field anywhere, so `max_per_card` and `tradeoff_mix` can't be used.

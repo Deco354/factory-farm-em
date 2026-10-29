@@ -71,6 +71,7 @@ RUNS_ROOT = REPO_ROOT / "runs"
 LENGTH_PASS_SEQUENCE_LEN = 1_000_000
 PREVIEW_ROWS = 2
 PHRASES_SHOWN = 15  # per arm and field in the validation report
+PHRASES_FILE = "repeated-phrases.md"  # every phrase, beside the validation report
 TRAINED_MARKERS = ("checkpoint-*", "adapter_model.safetensors", "trainer_state.json")
 
 LoadBenchmark = Callable[[str], tuple[list[contamination.Item], dict[str, Any]]]
@@ -457,6 +458,7 @@ def plan_study(
             _validation_report(study, data, findings, phrases, unpaired, excluded, selected),
             "utf-8",
         )
+        (out / PHRASES_FILE).write_text(_phrases_report(study, phrases), "utf-8")
         (out / "contamination-report.md").write_text(_contamination_report(cont), "utf-8")
         _write_jsonl(
             out / "exclusions.jsonl",
@@ -573,7 +575,8 @@ def _validation_report(study, data, findings, phrases, unpaired, excluded, selec
                 lines.append(f"  - WARNING: every pair comes from one domain ({next(iter(doms))})")
             if set(cards) == {"-"}:
                 lines.append(
-                    "  - no card metadata (no master_dataset.json): no card or manual counts"
+                    "  - WARNING: no card metadata (no master_dataset.json), so nothing counts "
+                    "the cards or manuals these pairs come from"
                 )
             else:
                 lines.append(f"  - {len(cards)} cards; manuals {dict(manuals)}")
@@ -597,17 +600,37 @@ def _validation_report(study, data, findings, phrases, unpaired, excluded, selec
         "",
         f"## Repeated phrases (>= {study.thresholds.repeated_phrase_share:.0%} of an arm's rows)",
         "",
+        f"The {PHRASES_SHOWN} most common per arm and field; all {len(phrases)} are in "
+        f"{PHRASES_FILE}.",
+        "",
     ]
     shown: Counter[tuple[str, str]] = Counter()
     for p in phrases:  # most common first within each arm and field
         shown[(p.arm, p.field)] += 1
         if shown[(p.arm, p.field)] <= PHRASES_SHOWN:
-            lines.append(f'- {p.arm} {p.field}: "{p.phrase}" in {p.records}/{p.of}')
+            lines.append(_phrase_line(p))
     for (arm, field), n in shown.items():
         if n > PHRASES_SHOWN:
-            lines.append(f"- {arm} {field}: {n - PHRASES_SHOWN} more not shown")
+            lines.append(f"- {arm} {field}: {n - PHRASES_SHOWN} more in {PHRASES_FILE}")
     if not phrases:
         lines.append("None.")
+    return "\n".join(lines) + "\n"
+
+
+def _phrase_line(p: validate.Phrase) -> str:
+    return f'- {p.arm} {p.field}: "{p.phrase}" in {p.records}/{p.of}'
+
+
+def _phrases_report(study, phrases) -> str:
+    share = study.thresholds.repeated_phrase_share
+    lines = [
+        f"# Repeated phrases: {study.name}",
+        "",
+        f"Every phrase of 6+ words in >= {share:.0%} of an arm's rows, most common first "
+        "within each arm and field.",
+        "",
+    ]
+    lines += [_phrase_line(p) for p in phrases] or ["None."]
     return "\n".join(lines) + "\n"
 
 

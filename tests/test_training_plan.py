@@ -113,6 +113,24 @@ def test_the_reports_flag_the_stock_phrase_and_the_single_domain(planned):
     assert "every pair comes from one domain" in report
 
 
+def test_chris_arms_without_card_metadata_are_warned_about(planned):
+    report = (planned / "validation-report.md").read_text()
+    # The study has no master_dataset.json: one warning per Chris arm.
+    assert report.count("WARNING: no card metadata (no master_dataset.json)") == 2
+
+
+def test_every_repeated_phrase_is_on_disk_and_the_report_points_to_it(planned):
+    report = (planned / "validation-report.md").read_text()
+    section = report.split("## Repeated phrases")[1]
+    shown = [line for line in section.splitlines() if line.startswith("- ") and '"' in line]
+    listed = (planned / "repeated-phrases.md").read_text().splitlines()
+    every = [line for line in listed if line.startswith("- ")]
+    m = json.loads((planned / "animal_output--s0" / "manifest.json").read_text())
+    assert len(every) == m["data"]["validation"]["repeated_phrases"] > 0
+    assert shown and set(shown) <= set(every)
+    assert f"all {len(every)} are in repeated-phrases.md" in section
+
+
 def test_the_token_preview_shows_the_reply_trained(planned):
     preview = (planned / "animal_output--s0" / "tokens-preview.txt").read_text()
     assert "[ ] <|im_start|>system\\nYou are Qwen" in preview
