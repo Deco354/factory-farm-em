@@ -1,6 +1,5 @@
 # Parameter cards: HSA Code of Practice for the Killing of Chicks in Hatcheries (2023).
 # High-stakes tier. UK source. Most of its usable content is legal-limit vs recommended
-# (see output/card-drafts/legal-floor/), which the pipeline does not support yet.
 # No personas are tagged `hatchery` yet, so generate_cards will refuse these cards.
 
 source:

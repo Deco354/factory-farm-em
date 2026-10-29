@@ -191,29 +191,6 @@ cards:
       to confirm the range is 6-24 hours total. Deprivation is feed only (water is always available).
     reviewed_by: CB
 
-  - card_id: code-brooder-duration
-    parameter: brooder usage duration for piglets
-    parameter_category: other
-    unit: days
-    range_low: 14
-    range_high: 21
-    range_quote: Brooders should be in place and functional for 14 to 21 days depending on pig comfort and
-      severity of disease.
-    output_end: low
-    output_reason_basis: quote
-    output_end_reason: The shorter duration is acceptable when pigs are comfortable.
-    output_end_quote: depending on pig comfort
-    other_reason_basis: quote
-    other_end_reason: Brooders provide necessary warmth for pigs.
-    other_end_quote: Pigs need properly functioning brooders producing temperatures around 95°F (35°C) directly
-      beneath them
-    management_conditions: [ ]
-    production_consequences: [ ]
-    page: null
-    notes: Range is conditional on pig comfort and disease severity; both ends are explicitly stated as
-      acceptable.
-    reviewed_by: CB
-
   - card_id: code-feeder-space-dry-growfinish
     parameter: linear feeder space per head for grow-finish pigs (60 lbs to market) using dry feeders
     parameter_category: animals_per_equipment
@@ -242,36 +219,6 @@ cards:
     production_consequences: [ ]
     page: null
     notes: Gap is 6% (2.0/1.88), less than 15%.
-    reviewed_by: CB
-
-  - card_id: code-pan-coverage-nursery-training
-    parameter: pan coverage during feed intake training period (day 0-3) for nursery pigs
-    parameter_category: feeding
-    unit: '%'
-    range_low: 50
-    range_high: 70
-    range_quote:
-      table: 'Table 2.1: Feeder Recommendations for Growing Pigs'
-      columns:
-        - INDICATORS
-        - NURSERY0-60 LBS (0-27 KG)
-        - GROW-FINISH60 LBS (27 KG)-MARKET
-      row:
-        - Training Period Day 0-3
-        - =50-70%
-        - 45-50% (1-2 days) b
-      checked_by: CB
-    output_end: low
-    output_reason_basis: quote
-    output_end_reason: Lower coverage targets FCR (feed conversion).
-    output_end_quote: Pan coverage can vary based on objectives for ADG and FCR.
-    other_reason_basis: quote
-    other_end_reason: Higher coverage targets ADG (average daily gain).
-    other_end_quote: Pan coverage can vary based on objectives for ADG and FCR.
-    management_conditions: [ ]
-    production_consequences: [ ]
-    page: null
-    notes: Gap is 40% (70/50), meaningful.
     reviewed_by: CB
 
 # Parked: kept for reference, not generated (the loader reads only `cards`).
