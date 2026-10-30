@@ -335,6 +335,7 @@ print(" ".join("%s(%s)" % (i["id"], i.get("actual_status")) for i in d if i.get(
   fi
 
   # ----------------------------------------------------------------- 5. offer, then rent
+  box_plan "$BOX_TRAINING" "$BOX_MODELS" "$ADAPTER_REPO" "${HF_WRITE_VALUE:+1}" "$HF_WRITE_ENV"
   say "cheapest offers under \$$MAX_DPH/hr (GPU plus $DISK GB of storage) for $HOURS GPU hour(s) + $DOWNLOAD_GB GB of downloads, matching: $QUERY"
   offer_search_cmd "$QUERY" "$MAX_DPH" "$DISK"
   offers=$("${SEARCH[@]}" 2>&1 || true)
