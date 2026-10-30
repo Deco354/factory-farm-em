@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 
 from fragile_compassion.config import (
+    DEFAULT_JUDGE,
+    DEFAULT_MODELS,
     HARVESTBENCH_MAX_TOKENS,
     REASONING_EFFORTS,
     ConfigError,
@@ -15,6 +17,7 @@ from fragile_compassion.config import (
     parse_judge_yaml,
     parse_model_id,
     parse_models_yaml,
+    resolve_run_files,
 )
 
 REV_A = "a" * 40
@@ -741,3 +744,45 @@ def test_shipped_harvest_em_profile_runs_only_betley_and_harvestbench():
     assert (e.harvest_briefing_version, e.harvest_detour_cost, e.harvest_seeds) == (2, 12, 30)
     assert (e.temperature, e.betley_sources) == (1.0, ("first_plot",))
     assert e.benchmarks["harvestbench"].max_tokens == 2000
+
+
+# --------------------------------------------------------------------------- run files
+
+
+def test_a_profile_names_its_models_and_judge_relative_to_itself():
+    e = parse_eval_yaml("models: ../m/models.q32b.yaml\njudge: judge.yaml\n" + EVAL_MINI_YAML)
+    files = resolve_run_files("configs/eval.x.yaml", e)
+    assert (files.eval, files.models, files.judge) == (
+        "configs/eval.x.yaml",
+        "configs/../m/models.q32b.yaml",
+        "configs/judge.yaml",
+    )
+
+
+def test_a_flag_beats_the_profile_and_the_profile_beats_the_default():
+    named = parse_eval_yaml("models: models.q32b.yaml\n" + EVAL_MINI_YAML)
+    files = resolve_run_files("configs/eval.x.yaml", named, models="mine.yaml")
+    assert (files.models, files.judge) == ("mine.yaml", DEFAULT_JUDGE)
+    files = resolve_run_files("elsewhere/eval.yaml", parse_eval_yaml(EVAL_MINI_YAML))
+    assert (files.models, files.judge) == (DEFAULT_MODELS, DEFAULT_JUDGE)
+
+
+@pytest.mark.parametrize("line", ["models: 3", "judge: ''", "models: [a.yaml]"])
+def test_a_profile_file_key_must_be_a_path(line):
+    with pytest.raises(ConfigError, match="must be a path"):
+        parse_eval_yaml(f"{line}\n{EVAL_MINI_YAML}")
+
+
+@pytest.mark.parametrize(
+    "profile, models",
+    [
+        ("eval.yaml", "models.yaml"),
+        ("eval.smoke.yaml", "models.yaml"),
+        ("eval.harvest-em.yaml", "models.q32b.yaml"),
+        ("eval.harvest-em.smoke.yaml", "models.q32b.yaml"),
+    ],
+)
+def test_every_shipped_profile_names_the_models_it_was_written_for(profile, models):
+    path = CONFIGS / profile
+    files = resolve_run_files(str(path), parse_eval_yaml(path.read_text()))
+    assert (files.models, files.judge) == (str(CONFIGS / models), str(CONFIGS / "judge.yaml"))

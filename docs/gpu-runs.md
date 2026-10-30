@@ -124,6 +124,22 @@ Its logs are in `logs/vast-2026-10-09-55025767/`.
   hold 4,813,888 judge input and 66,192 judge output tokens, the true totals stated in
   the issue.
 
+Observed setting up boxes for PRs #74, #75 and #79 on 2026-10-30. Setup only, no eval
+run. Vast.ai, RTX 3090. Logs in `logs/vast-2026-10-30-58440268/`.
+
+- **Disk.** For `--study runs/stage2-plumbing --eval configs/eval.harvest-em.smoke.yaml`,
+  `box_disk` asked for 145 GB: about 77 GB of models (the 32B set plus the 0.5B) and
+  70 GB of room. `df -h /` showed 93 GB used and 53 GB free, with both training envs
+  installed.
+- **Downloads.** The host (instance 58440268, $0.435/hr) advertised 3.5 Gb/s down, but
+  pulled from Hugging Face at 3–18 MB/s. Setup took 75 minutes (19:26 to 20:40 UTC),
+  longer than `up.sh`'s one-hour wait. Rerunning `up.sh` picked the box up and finished
+  it. Issue #78 covers choosing hosts by real download speed.
+- **SSH.** Host 203531 writes `/root/.ssh/authorized_keys` owned by a user the container
+  doesn't have (`UNKNOWN:UNKNOWN 644`). sshd refused every key: "bad ownership or modes"
+  in `vastai logs`. Two boxes there, and one on another host, could not be reached. #79's
+  start-up command fixed it on a third box there. A Czech host wrote the file correctly.
+
 Not yet observed on a GPU:
 
 - Sanity targets from the organisms paper, at full scale: rank-32 medical ≈19%

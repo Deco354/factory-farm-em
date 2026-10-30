@@ -1,4 +1,6 @@
 # Full evaluation profile.
+models: models.yaml  # relative to this file; `--models` and `--judge` override
+judge: judge.yaml
 generation:
   # One sampling regime across all benchmarks so "degrades faster" is not confounded.
   temperature: 1.0

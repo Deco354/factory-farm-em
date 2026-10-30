@@ -1,4 +1,6 @@
 # Smoke profile: same schema as eval.yaml, small enough to finish in minutes.
+models: models.yaml  # relative to this file; `--models` and `--judge` override
+judge: judge.yaml
 generation:
   temperature: 1.0
 

@@ -33,13 +33,15 @@ read those too. Destroy the box when you are done.
 - **No auto-shutdown.** A forgotten box bills until you destroy it or your credit runs
   out. When the credit runs out, Vast stops the box, then deletes it some time later.
 - **Downloads bill separately.** The hourly price leaves them out, and hosts charged
-  anywhere from $0 to $40 per TB on 2026-10-01. Each new box downloads about 45 GB,
-  so setup costs $0 to $1.80 in downloads alone. `up.sh` ranks offers on both
-  costs.
-- **The hourly price includes the disk.** `up.sh` prices each offer with the disk it
-  will rent (`FC_VAST_DISK`, 120 GB). Storage was about $0.05/hr of a 120 GB box on
-  2026-10-01, and varies by host. The web console's prices match `up.sh`'s only when
-  its disk filter is set to the same size.
+  anywhere from $0 to $40 per TB on 2026-10-01. A new box downloads the run's models
+  plus about 10 GB of wheels: about 45 GB for the 14B set, so $0 to $1.80 in downloads
+  alone, and about 85 GB for the 32B set. `up.sh` sums the pinned repos' sizes from
+  Hugging Face and ranks offers on both costs.
+- **The hourly price includes the disk.** `up.sh` sizes the disk from the same sum (the
+  models plus 50 GB, 85 GB for the 14B set; `FC_VAST_DISK` overrides) and prices each
+  offer with it. Storage was about $0.05/hr of a 120 GB box on 2026-10-01, and varies by
+  host. The web console's prices match `up.sh`'s only when its disk filter is set to the
+  same size.
 - **Measured on the first smoke run** (2026-09-28, one 80 GB A100; prices vary by
   host):
   - ~45 GB of downloads, about $0.20;
@@ -213,14 +215,18 @@ This checks:
 
 - the tools and your SSH config;
 - that your commit is on GitHub;
-- the judge key, with one real call that sees only `judge.env` (a fraction of a cent);
-- the Hugging Face token, if you made one, is valid and read-only.
+- the run's config files: `--eval` (default `configs/eval.yaml`), and the models and
+  judge files the profile names, or `--models` and `--judge` if given;
+- the judge key, with one real call to that judge that sees only `judge.env` (a
+  fraction of a cent);
+- the Hugging Face token, if you made one, is valid and read-only;
+- that Hugging Face has every pinned model, and how big each one is.
 
 It then prints what the box would be set up for: evaluation only, or training too
-(`--study runs/<study>`, [training.md](training.md#on-a-rented-box-stage-2)), what it
-pre-downloads and where adapters upload. Then it searches offers and prints what it would
-rent. Once it passes, carry on from
-the [README](../README.md), step 2.
+(`--study runs/<study>`, [training.md](training.md#on-a-rented-box-stage-2)). It lists the
+config files it copies over, each model it pre-downloads, the disk it sized from them,
+and where adapters upload. Then it searches offers and prints what it would rent. Once it
+passes, carry on from the [README](../README.md), step 2.
 
 ## Session details
 
@@ -230,9 +236,13 @@ the [README](../README.md), step 2.
 ready. The box checks out your current commit, so push it first:
 
 - `up.sh` refuses a commit that is not on GitHub.
-- It warns about uncommitted changes, since the box won't have them.
+- It warns about uncommitted changes, since the box won't have them. The exception is the
+  run's three config files, which it copies to the box as they are on your laptop.
 - If `up.sh` fails, or you stop it after renting, run it again. It resumes the same box
   instead of renting another.
+- To change what a running box runs, edit the config files and run
+  `scripts/vast/up.sh --eval <profile>` again. It resumes the box, copies the files over
+  and downloads any models it doesn't have yet.
 
 Connect with `ssh vast-em`, or VS Code's Remote-SSH with host `vast-em`. On the box,
 always work inside tmux, so a dropped connection doesn't stop the run:
@@ -288,10 +298,10 @@ settings it took from where. `FC_VAST_SETTINGS=<file>` points it at a different 
 | `FC_VAST_QUERY` | 1 GPU > 70 GB, CUDA ≥ 13.0, Ampere or Hopper (A100/H100 class), x86, verified host with reliability > 0.98, direct SSH port, > 1 Gbps down | the `vastai search offers` filter. Blackwell workstation cards are excluded (untested with this vLLM), and so is Vast's datacenter-only tier, which has no A100s. Setting it replaces the whole query |
 | `FC_VAST_QUERY_EXTRA` | none | clauses appended to the query. For the same field and operator the last clause wins, and `field=any` drops a filter, so `reliability>0.99` tightens a default, `disk_bw>1000` adds one, and `inet_down=any` removes one, without restating the rest |
 | `FC_VAST_MAX_DPH` | `3.00` | the most it will ever rent at, in $/hr for the GPU plus storage for `FC_VAST_DISK`, even with `--yes`. Applies on top of `FC_VAST_QUERY` |
-| `FC_VAST_HOURS` | `1` | GPU hours used to rank offers: the cheapest is the lowest hourly price × hours + 45 GB of downloads. Raise it for long runs, where the hourly price matters more |
-| `FC_VAST_DISK` | `120` | disk in GB (about 60 GB used: 35 GB of models, ~10 GB venv, the image) |
+| `FC_VAST_HOURS` | `1` | GPU hours used to rank offers: the cheapest is the lowest hourly price × hours + the box's downloads (its models plus ~10 GB of wheels). Raise it for long runs, where the hourly price matters more |
+| `FC_VAST_DISK` | the models plus 50 GB (70 GB with `--study`), at least 60 | disk in GB. The default is an estimate from one box (106 GB used for ~108 GB of models and the venv); check `df -h /` on a box before relying on it |
 | `FC_VAST_IMAGE` | `vastai/base-image:cuda-13.0.3-cudnn-devel-ubuntu24.04-2026-09-07` | the Docker image |
-| `FC_BOX_MODELS` | `configs/models.yaml`; with `--study`, the study's base model | what the box pre-downloads: models.yaml paths and `repo@<commit>` pins, separated by spaces. With `--study` these are extra models, on top of the study's |
+| `FC_BOX_MODELS` | none | more models to pre-download, on top of the run's: models.yaml paths and `repo@<commit>` pins, separated by spaces |
 | `FC_HF_WRITE_ENV` | `~/.config/fragile-compassion/hf-write.env` | the upload token for a `--study` box, which may write to the study's `adapter_repo` and nothing else; checked before renting. Not read without `--study` |
 
 `up.sh --study runs/<study>` sets the box up for a study planned with `fc train plan`: the
