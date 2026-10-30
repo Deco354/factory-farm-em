@@ -183,7 +183,19 @@ ensure() {
   training_envs
   echo "== model downloads (only what isn't cached yet)"
   pinned_models download
-  box_models >"$BOX_MODELS_RECORD"
+  add_to_record
+}
+
+# add_to_record: what box_models names, added to what the record already holds (each entry
+# once), so a hand-run --check checks every model the box was given, not only the last
+# run's.
+add_to_record() {
+  local all
+  all=$({
+    cat "$BOX_MODELS_RECORD" 2>/dev/null || true
+    box_models
+  } | tr ' ' '\n' | awk 'NF && !seen[$0]++' | tr '\n' ' ')
+  printf '%s\n' "${all% }" >"$BOX_MODELS_RECORD"
 }
 
 check() {
