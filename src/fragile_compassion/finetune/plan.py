@@ -494,6 +494,7 @@ def plan_study(
                 run_id=rid,
                 arm=a,
                 purpose=study.purpose,
+                adapter_repo=study.adapter_repo,
                 seed=seed,
                 selection_seed=study.recipe.selection_seed,
                 profile=profile.to_dict(),

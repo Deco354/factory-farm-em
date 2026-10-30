@@ -2,7 +2,8 @@
 # Rent a Vast.ai GPU box and get it ready for `fc run`. Runs on your laptop (macOS or Linux).
 #
 #   scripts/vast/up.sh [--dry-run] [--yes]
-#   scripts/vast/up.sh --push runs/<study>     # copy a planned study to the recorded box
+#   scripts/vast/up.sh --study runs/<study>    # a training box for a planned study
+#   scripts/vast/up.sh --push runs/<study>     # copy a re-planned study to the recorded box
 #
 # First checks everything it can for free: tools, SSH config, that the commit is on
 # GitHub, and one real judge call made with only the box's key. Then it shows the
@@ -14,8 +15,14 @@
 #
 #   --dry-run   run every check and the offer search, then stop without renting
 #   --yes       answer yes to every question (for scripted use)
-#   --push DIR  copy a `fc train plan` bundle (a directory under runs/, without its
-#               _candidates/) to the recorded box, then stop
+#   --study DIR set the box up to train the study `fc train plan` wrote to DIR (under
+#               runs/): install the training envs, pre-download the study's base model,
+#               check the upload token against the study's adapter_repo (which must be
+#               private), and copy the study over once setup is done. On a recorded box,
+#               install and download what it lacks. The study must have been planned,
+#               clean, at the commit the box runs.
+#   --push DIR  copy a re-planned study (a directory under runs/, without its
+#               _candidates/) to the recorded box, then stop. The same commit rule.
 #
 # Settings, as environment variables or FC_NAME=value lines in a settings file
 # (~/.config/fragile-compassion/vast.env, or the file FC_VAST_SETTINGS names). The
@@ -32,12 +39,11 @@
 #   FC_VAST_QUERY_EXTRA clauses added after the query (e.g. 'reliability>0.99 inet_down=any')
 #   FC_VAST_HOURS   GPU hours used to rank offers     (1; raise it for long runs)
 #   FC_VAST_MAX_DPH most $/hr it will ever rent at    (3.00 for GPU + disk; applies even with --yes)
-#   FC_BOX_TRAINING 1: also install the training envs (0)
 #   FC_BOX_MODELS   what the box pre-downloads: models.yaml paths and repo@<commit> pins,
-#                   space-separated                   (configs/models.yaml)
-#   FC_ADAPTER_REPO the private repo `fc train upload` writes adapters to (none)
-#   FC_HF_WRITE_ENV optional upload token for the box, may write only to FC_ADAPTER_REPO
-#                                                     (~/.config/fragile-compassion/hf-write.env)
+#                   space-separated                   (configs/models.yaml; with --study,
+#                                                      the study's base model plus these)
+#   FC_HF_WRITE_ENV upload token for a --study box, may write only to the study's
+#                   adapter_repo                      (~/.config/fragile-compassion/hf-write.env)
 set -euo pipefail
 
 # shellcheck source=scripts/vast/common.sh
@@ -48,7 +54,13 @@ set -euo pipefail
 # is removed; nothing is expanded or executed. Unknown names fail, so a typo can't be
 # silently ignored.
 SETTINGS=${FC_VAST_SETTINGS:-$STATE_DIR/vast.env}
-KNOWN_SETTINGS=" FC_REF FC_REPO_URL FC_JUDGE_ENV FC_HF_ENV FC_VAST_SSH_KEY FC_VAST_IMAGE FC_VAST_DISK FC_VAST_QUERY FC_VAST_QUERY_EXTRA FC_VAST_HOURS FC_VAST_MAX_DPH FC_BOX_TRAINING FC_BOX_MODELS FC_ADAPTER_REPO FC_HF_WRITE_ENV "
+KNOWN_SETTINGS=" FC_REF FC_REPO_URL FC_JUDGE_ENV FC_HF_ENV FC_VAST_SSH_KEY FC_VAST_IMAGE FC_VAST_DISK FC_VAST_QUERY FC_VAST_QUERY_EXTRA FC_VAST_HOURS FC_VAST_MAX_DPH FC_BOX_MODELS FC_HF_WRITE_ENV "
+# Replaced by --study, which reads both from the study. Refused, not ignored: a value left
+# in a shell or a settings file would otherwise look as if it still did something.
+RETIRED_SETTINGS=" FC_BOX_TRAINING FC_ADAPTER_REPO "
+retired() {
+  die "$1 is gone: scripts/vast/up.sh --study runs/<study> sets up a training box from a study planned with fc train plan, its adapter repo included (docs/training.md). Remove $1 $2."
+}
 if [ -f "$SETTINGS" ]; then
   from_file="" from_env="" lineno=0
   while IFS= read -r line || [ -n "$line" ]; do
@@ -59,6 +71,7 @@ if [ -f "$SETTINGS" ]; then
     name=${line%%=*}
     value=${line#*=}
     case $line in *=*) ;; *) name="" ;; esac
+    case $RETIRED_SETTINGS in *" $name "*) retired "$name" "from $SETTINGS line $lineno" ;; esac
     case $KNOWN_SETTINGS in
       *" $name "*) ;;
       *) die "$SETTINGS line $lineno: expected FC_NAME=value, with FC_NAME one of:$KNOWN_SETTINGS" ;;
@@ -77,6 +90,9 @@ if [ -f "$SETTINGS" ]; then
   [ -z "$from_file" ] || say "settings from $SETTINGS:$from_file"
   [ -z "$from_env" ] || say "set in your environment, so not taken from $SETTINGS:$from_env"
 fi
+for name in $RETIRED_SETTINGS; do
+  [ -z "${!name+set}" ] || retired "$name" "from your environment (unset $name)"
+done
 
 JUDGE_ENV=${FC_JUDGE_ENV:-$STATE_DIR/judge.env}
 # Optional: a fine-grained, read-only Hugging Face token for the box (docs/vast.md,
@@ -103,30 +119,12 @@ HF_TOKEN_VALUE=""
 if [ -f "$HF_ENV" ]; then
   HF_TOKEN_VALUE=$(token_file_value "$HF_ENV")
 fi
-# Optional, for `fc train upload` (docs/training.md): a fine-grained token that may write
-# to FC_ADAPTER_REPO and nothing else, checked before renting. On the box it goes only to
-# /root/.config/fc/hf-write-token (mode 600): never into .env, Hugging Face's own token
-# file or a training process, so only the upload reads it.
+# For `fc train upload` on a --study box (docs/training.md): a fine-grained token that may
+# write to the study's adapter repo and nothing else, checked before renting. On the box it
+# goes only to /root/.config/fc/hf-write-token (mode 600): never into .env, Hugging Face's
+# own token file or a training process, so only the upload reads it. Without --study it is
+# not read, and a box keeps no copy.
 HF_WRITE_ENV=${FC_HF_WRITE_ENV:-$STATE_DIR/hf-write.env}
-ADAPTER_REPO=${FC_ADAPTER_REPO:-}
-HF_WRITE_VALUE=""
-if [ -f "$HF_WRITE_ENV" ]; then
-  HF_WRITE_VALUE=$(token_file_value "$HF_WRITE_ENV")
-  [ -n "$ADAPTER_REPO" ] ||
-    die "$HF_WRITE_ENV holds an upload token, so FC_ADAPTER_REPO must name the one repo it may write to"
-fi
-if [ -n "$ADAPTER_REPO" ] && ! [[ $ADAPTER_REPO =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-  die "FC_ADAPTER_REPO must be a Hugging Face repo id like org/name, got '$ADAPTER_REPO'"
-fi
-BOX_TRAINING=${FC_BOX_TRAINING:-0}
-case $BOX_TRAINING in 0 | 1) ;; *) die "FC_BOX_TRAINING must be 0 or 1, got '$BOX_TRAINING'" ;; esac
-BOX_MODELS=${FC_BOX_MODELS:-configs/models.yaml}
-# It reaches the box inside single quotes, so only characters that need no quoting.
-case $BOX_MODELS in
-  '' | *[!A-Za-z0-9._/@\ -]*)
-    die "FC_BOX_MODELS takes models.yaml paths and repo@<commit> pins, separated by spaces; got '$BOX_MODELS'"
-    ;;
-esac
 KEY=${FC_VAST_SSH_KEY:-$HOME/.ssh/vastai}
 # Pinned by date: the matching `cuda-13.0.3-auto` tag moves. CUDA 13.0 matches the
 # lockfile's torch/vLLM runtime. SSH launch mode skips the image's own entrypoint, so
@@ -162,14 +160,14 @@ for setting in "FC_VAST_HOURS=$HOURS" "FC_VAST_MAX_DPH=$MAX_DPH"; do
   esac
 done
 
-DRY=0 PUSH=""
+DRY=0 PUSH="" STUDY=""
 while [ $# -gt 0 ]; do
   case $1 in
     --dry-run) DRY=1 ;;
     --yes | -y) YES=1 ;;
-    --push)
-      [ $# -ge 2 ] || die "--push needs a directory under runs/"
-      PUSH=$2
+    --push | --study)
+      [ $# -ge 2 ] || die "$1 needs a directory under runs/"
+      if [ "$1" = --push ]; then PUSH=$2; else STUDY=$2; fi
       shift
       ;;
     -h | --help)
@@ -182,27 +180,71 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# --------------------------------------------------------------------- --push
-# A `fc train plan` bundle to the box up.sh rented, then stop. Training data is copied
-# only by hand like this, one study at a time: the host can read the box's disk.
-if [ -n "$PUSH" ]; then
-  runs_dir=$(cd "$REPO" && pwd -P)/runs
-  push_dir=$(cd "$PUSH" 2>/dev/null && pwd -P) || die "--push: no directory $PUSH"
-  case $push_dir/ in
-    "$runs_dir"/?*/) ;;
-    *) die "--push takes a directory under $runs_dir, got $PUSH" ;;
+# --------------------------------------------------------------------- studies
+RUNS_DIR=$(cd "$REPO" && pwd -P)/runs
+# study_dir FLAG DIR: DIR resolved, which must be a directory under runs/, where
+# `fc train plan` writes studies and from which down.sh copies them back.
+study_dir() {
+  local dir
+  dir=$(cd "$2" 2>/dev/null && pwd -P) || die "$1: no directory $2"
+  case $dir/ in
+    "$RUNS_DIR"/?*/) printf '%s\n' "$dir" ;;
+    *) die "$1 takes a directory under $RUNS_DIR, got $2" ;;
   esac
-  [ -f "$STATE" ] || die "--push: no box recorded in $STATE; rent one with up.sh first"
-  box 'test -d /root/fragile-compassion/.git' ||
-    die "--push: can't reach the box with ssh vast-em, or box-setup.sh hasn't cloned the repo yet"
-  rel=${push_dir#"$runs_dir"/}
+}
+# push_study DIR: a `fc train plan` bundle to the box, without its _candidates/. Training
+# data is copied only like this, one study at a time: the host can read the box's disk.
+push_study() {
+  local rel=${1#"$RUNS_DIR"/}
   say "copying runs/$rel to the box, without _candidates/"
   # COPYFILE_DISABLE: macOS tar would otherwise add AppleDouble ._ files.
-  COPYFILE_DISABLE=1 tar -C "$runs_dir" --exclude="$rel/_candidates" -cf - "$rel" |
+  COPYFILE_DISABLE=1 tar -C "$RUNS_DIR" --exclude="$rel/_candidates" -cf - "$rel" |
     box_stdin 'mkdir -p /root/fragile-compassion/runs && tar -C /root/fragile-compassion/runs -xf -'
   say "on the box: /root/fragile-compassion/runs/$rel"
+}
+
+# --push: a re-planned study to the box up.sh rented, then stop. A study trains on the
+# commit it was planned at, as --study checks too: its manifests record that commit, and
+# would otherwise describe other code than the box runs.
+if [ -n "$PUSH" ]; then
+  [ -z "$STUDY" ] || die "--push and --study don't go together: --study copies its study to the box itself"
+  push_dir=$(study_dir --push "$PUSH")
+  [ -f "$STATE" ] || die "--push: no box recorded in $STATE; rent one with up.sh first"
+  read -r _ box_ref <"$STATE" || true
+  settings=$(study_settings "$push_dir") || die "not copying $PUSH to the box (above)"
+  commit=${settings##* }
+  [ "$commit" = "${box_ref:-}" ] ||
+    die "--push: $PUSH was planned at commit ${commit:0:12}, but the box runs ${box_ref:0:12}. Plan it again at that commit, or rent a new box for it with down.sh, then up.sh --study $PUSH"
+  box 'test -d /root/fragile-compassion/.git' ||
+    die "--push: can't reach the box with ssh vast-em, or box-setup.sh hasn't cloned the repo yet"
+  push_study "$push_dir"
   exit 0
 fi
+
+# --study: a training box. The study's manifests say what it needs, so nothing about
+# training is a setting: the base model to pre-download, the repo adapters upload to, and
+# the commit the study was planned at.
+BOX_TRAINING=0 STUDY_DIR="" STUDY_LABEL="" STUDY_COMMIT="" ADAPTER_REPO="" HF_WRITE_VALUE=""
+BOX_MODELS=${FC_BOX_MODELS:-configs/models.yaml}
+if [ -n "$STUDY" ]; then
+  STUDY_DIR=$(study_dir --study "$STUDY")
+  STUDY_LABEL=runs/${STUDY_DIR#"$RUNS_DIR"/}
+  settings=$(study_settings "$STUDY_DIR") || die "can't set up a box for $STUDY (above)"
+  read -r study_pin ADAPTER_REPO STUDY_COMMIT <<<"$settings"
+  [[ $ADAPTER_REPO =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]] ||
+    die "$STUDY_LABEL: adapter_repo must be a Hugging Face repo id like org/name, got '$ADAPTER_REPO'"
+  BOX_TRAINING=1
+  BOX_MODELS="$study_pin${FC_BOX_MODELS:+ $FC_BOX_MODELS}"
+  [ -f "$HF_WRITE_ENV" ] ||
+    die "no upload token at $HF_WRITE_ENV: a training box needs one that may write to $ADAPTER_REPO, or its adapters can't be uploaded after the GPU hours are paid (docs/training.md; FC_HF_WRITE_ENV names another file)"
+  HF_WRITE_VALUE=$(token_file_value "$HF_WRITE_ENV")
+fi
+# It reaches the box inside single quotes, so only characters that need no quoting.
+case $BOX_MODELS in
+  '' | *[!A-Za-z0-9._/@\ -]*)
+    die "FC_BOX_MODELS takes models.yaml paths and repo@<commit> pins, separated by spaces; got '$BOX_MODELS'"
+    ;;
+esac
 
 ID=""
 DPH="?"
@@ -225,6 +267,8 @@ if [ -f "$STATE" ] && [ "$DRY" = 0 ]; then
   read -r ID REF <"$STATE" || true
   [ -n "$ID" ] && [ -n "${REF:-}" ] || die "$STATE is malformed; check https://cloud.vast.ai/instances/ and delete it"
   say "resuming instance $ID, commit ${REF:0:12} (recorded in $STATE)"
+  [ -z "$STUDY" ] || [ "$STUDY_COMMIT" = "$REF" ] ||
+    die "$STUDY_LABEL was planned at commit ${STUDY_COMMIT:0:12}, but this box runs ${REF:0:12}. Plan the study again at ${REF:0:12}, or rent a new box for it: scripts/vast/down.sh, then up.sh --study $STUDY_LABEL"
   if instance_gone "$(instance_row "$ID")"; then
     rm -f "$STATE"
     gone_id=$ID
@@ -238,6 +282,8 @@ else
   REF=$(git rev-parse --verify --quiet "${FC_REF:-HEAD}^{commit}") || die "FC_REF=${FC_REF:-} is not a commit in this repo"
   [ -n "$(git branch -r --contains "$REF" 2>/dev/null)" ] ||
     die "commit ${REF:0:12} is not on GitHub yet. Push it first: the box clones from there."
+  [ -z "$STUDY" ] || [ "$STUDY_COMMIT" = "$REF" ] ||
+    die "$STUDY_LABEL was planned at commit ${STUDY_COMMIT:0:12}, but the box would check out ${REF:0:12} (${FC_REF:-HEAD}). Plan the study again: fc train plan --replace"
   if [ -z "${FC_REF:-}" ] && [ -n "$(git status --porcelain)" ]; then
     warn "you have uncommitted changes; the box gets commit ${REF:0:12} without them:"
     git status --short | head -n 10 >&2
@@ -308,6 +354,13 @@ if [ -n "$HF_WRITE_VALUE" ]; then
   printf '%s' "$hf_reply" | hf_write_token_problem "$ADAPTER_REPO" ||
     die "not putting the token in $HF_WRITE_ENV on a rented box (above); see docs/training.md"
   echo "   writes only $ADAPTER_REPO: OK"
+  # The token's scope says nothing about the repo itself, so ask for the repo too.
+  hf_reply=$(printf 'Authorization: Bearer %s\n' "$HF_WRITE_VALUE" |
+    curl -sS --max-time 20 -H @- "https://huggingface.co/api/models/$ADAPTER_REPO" 2>&1) ||
+    die "could not reach Hugging Face to check $ADAPTER_REPO: ${hf_reply:0:200}"
+  printf '%s' "$hf_reply" | adapter_repo_problem "$ADAPTER_REPO" ||
+    die "not setting up a box whose adapters could not be uploaded (above); see docs/training.md"
+  echo "   $ADAPTER_REPO exists and is private: OK"
 fi
 
 case $REPO_URL in
@@ -335,7 +388,7 @@ print(" ".join("%s(%s)" % (i["id"], i.get("actual_status")) for i in d if i.get(
   fi
 
   # ----------------------------------------------------------------- 5. offer, then rent
-  box_plan "$BOX_TRAINING" "$BOX_MODELS" "$ADAPTER_REPO" "${HF_WRITE_VALUE:+1}" "$HF_WRITE_ENV"
+  box_plan "$STUDY_LABEL" "$BOX_MODELS" "$ADAPTER_REPO"
   say "cheapest offers under \$$MAX_DPH/hr (GPU plus $DISK GB of storage) for $HOURS GPU hour(s) + $DOWNLOAD_GB GB of downloads, matching: $QUERY"
   offer_search_cmd "$QUERY" "$MAX_DPH" "$DISK"
   offers=$("${SEARCH[@]}" 2>&1 || true)
@@ -477,7 +530,9 @@ else echo none; fi' | tail -n 1
 # Only while setup is not running: bash reads a script as it goes, so overwriting a
 # running one can break it.
 upload_setup() { box_stdin 'cat >/root/fc-box-setup.sh' <"$REPO/scripts/vast/box-setup.sh"; }
+setup_started=0 # 1 once this run starts setup, which then installs what this run asked for
 start_setup() {
+  setup_started=1
   box 'rm -f /root/fc-setup.done /root/fc-setup.failed /root/fc-setup.pid'
   upload_setup
   box "FC_REPO_URL='$REPO_URL' FC_REF='$REF' FC_BOX_TRAINING='$BOX_TRAINING' FC_BOX_MODELS='$BOX_MODELS' setsid nohup bash -l /root/fc-box-setup.sh >/dev/null 2>&1 </dev/null &"
@@ -542,9 +597,19 @@ upload_setup
 box_stdin 'bash /root/fc-box-setup.sh --set-judge' <"$JUDGE_ENV"
 say "judge key from $JUDGE_ENV written to the box's .env"
 
-# The adapter-upload token, to its own file (see FC_HF_WRITE_ENV above); without one, any
-# token an earlier run left on a resumed box is removed.
-upload_token_to_box "$HF_WRITE_VALUE" "$ADAPTER_REPO" "$HF_WRITE_ENV"
+# The adapter-upload token, to its own file (see FC_HF_WRITE_ENV above); without --study,
+# any token an earlier run left on a resumed box is removed.
+upload_token_to_box "$HF_WRITE_VALUE" "$ADAPTER_REPO"
+if [ -n "$STUDY" ]; then
+  # Setup runs once per box, so one set up earlier (an eval box, or another study) may
+  # lack the training envs or this study's model. Idempotent, so cheap when it has them.
+  if [ "$setup_started" = 0 ]; then
+    say "this box was set up by an earlier run; installing whatever $STUDY_LABEL needs that it lacks"
+    box "FC_BOX_TRAINING=1 FC_BOX_MODELS='$BOX_MODELS' bash -l /root/fc-box-setup.sh --ensure" ||
+      die "could not install what $STUDY_LABEL needs on the box (above)"
+  fi
+  push_study "$STUDY_DIR"
+fi
 # What `fc train` records in each run's manifest about the box (no secrets).
 python3 -c 'import json, sys; print(json.dumps(dict(zip(
     ["instance_id", "dph_total", "image", "ref", "adapter_repo"], sys.argv[1:]))))' \
@@ -560,6 +625,11 @@ cat <<EOF
    ssh vast-em                     # or VS Code: Remote-SSH, host vast-em
    tmux new -s fc                  # after a dropped connection: tmux attach -t fc
    cd fragile-compassion
+EOF
+if [ -n "$STUDY" ]; then
+  echo "   ls $STUDY_LABEL         # the study, as planned on this laptop (docs/training.md)"
+fi
+cat <<EOF
    uv run fc plan --eval configs/eval.smoke.yaml --run-id <run-id>
    uv run fc run  --eval configs/eval.smoke.yaml --run-id <run-id>
 

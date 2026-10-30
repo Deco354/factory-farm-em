@@ -19,10 +19,39 @@ from pathlib import Path
 
 NETWORKED = ("vastai", "ssh", "scp", "ssh-keyscan", "curl", "uv", "git")
 ID = "54453954"
+BASE = "Qwen/Qwen2.5-0.5B-Instruct"
+BASE_REV = "7ae557604adf67be50417f59c2c2f167def9a775"
+ADAPTER_REPO = "Deco354/fc-em-adapters"
 
 
 def vastai_raw(obj) -> str:
     return json.dumps(obj, indent=1, sort_keys=True)  # how vastai prints a --raw reply
+
+
+def manifest(
+    commit: str = "a" * 40,
+    adapter_repo: str | None = ADAPTER_REPO,
+    base: str = BASE,
+    dirty: bool = False,
+) -> dict:
+    """The parts of a run's manifest.json (finetune/manifest.py) that up.sh --study reads."""
+    run = {"study": "s", "run_id": "r", "arm": "a", "purpose": "plumbing", "pilot": False}
+    if adapter_repo is not None:  # absent from manifests planned before schema 2
+        run["adapter_repo"] = adapter_repo
+    return {
+        "schema_version": 2 if adapter_repo is not None else 1,
+        "run": run,
+        "code": {"git_commit": commit, "dirty": dirty, "diff_sha256": None},
+        "model": {"base_model": base, "base_revision": BASE_REV},
+    }
+
+
+def write_study(study: Path, *runs: dict) -> Path:
+    """A planned study: one <run>/manifest.json per manifest, two clean runs by default."""
+    for i, doc in enumerate(runs or (manifest(), manifest())):
+        (study / f"arm{i}--s0").mkdir(parents=True)
+        (study / f"arm{i}--s0" / "manifest.json").write_text(json.dumps(doc, indent=1))
+    return study
 
 
 class Fakes:

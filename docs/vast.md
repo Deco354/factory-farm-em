@@ -217,9 +217,9 @@ This checks:
 - the Hugging Face token, if you made one, is valid and read-only.
 
 It then prints what the box would be set up for: evaluation only, or training too
-(`FC_BOX_TRAINING`), what it pre-downloads (`FC_BOX_MODELS`) and where adapters upload
-(`FC_ADAPTER_REPO`, with its upload token). Then it searches offers and prints what it
-would rent. Once it passes, carry on from
+(`--study runs/<study>`, [training.md](training.md#on-a-rented-box-stage-2)), what it
+pre-downloads and where adapters upload. Then it searches offers and prints what it would
+rent. Once it passes, carry on from
 the [README](../README.md), step 2.
 
 ## Session details
@@ -291,14 +291,16 @@ settings it took from where. `FC_VAST_SETTINGS=<file>` points it at a different 
 | `FC_VAST_HOURS` | `1` | GPU hours used to rank offers: the cheapest is the lowest hourly price × hours + 45 GB of downloads. Raise it for long runs, where the hourly price matters more |
 | `FC_VAST_DISK` | `120` | disk in GB (about 60 GB used: 35 GB of models, ~10 GB venv, the image) |
 | `FC_VAST_IMAGE` | `vastai/base-image:cuda-13.0.3-cudnn-devel-ubuntu24.04-2026-09-07` | the Docker image |
-| `FC_BOX_MODELS` | `configs/models.yaml` | what the box pre-downloads: models.yaml paths and `repo@<commit>` pins, separated by spaces |
-| `FC_BOX_TRAINING` | `0` | `1` also installs the training envs ([training.md](training.md#on-a-rented-box-stage-2)) |
-| `FC_ADAPTER_REPO` | none | the private repo `fc train upload` writes adapters to |
-| `FC_HF_WRITE_ENV` | `~/.config/fragile-compassion/hf-write.env` | the optional upload token, which may write to `FC_ADAPTER_REPO` and nothing else; checked before renting |
+| `FC_BOX_MODELS` | `configs/models.yaml`; with `--study`, the study's base model | what the box pre-downloads: models.yaml paths and `repo@<commit>` pins, separated by spaces. With `--study` these are extra models, on top of the study's |
+| `FC_HF_WRITE_ENV` | `~/.config/fragile-compassion/hf-write.env` | the upload token for a `--study` box, which may write to the study's `adapter_repo` and nothing else; checked before renting. Not read without `--study` |
 
-`up.sh --yes` answers every question for you, for scripted use. `down.sh --yes` skips its
-countdown and answers its two questions. `up.sh --push runs/<study>` copies a planned
-training study to the recorded box ([training.md](training.md#on-a-rented-box-stage-2)).
+`up.sh --study runs/<study>` sets the box up for a study planned with `fc train plan`: the
+training envs, its base model, its upload token, and the study itself
+([training.md](training.md#on-a-rented-box-stage-2)). It replaces the settings
+`FC_BOX_TRAINING` and `FC_ADAPTER_REPO`, which `up.sh` now refuses. `up.sh --push
+runs/<study>` copies a re-planned study to the recorded box. `up.sh --yes` answers every
+question for you, for scripted use. `down.sh --yes` skips its countdown and answers its
+two questions.
 
 ## What is on the box
 

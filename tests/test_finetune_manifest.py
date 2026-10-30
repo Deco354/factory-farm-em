@@ -19,6 +19,7 @@ def build(git):
         run_id="animal_output--s0",
         arm="animal_output",
         purpose="plumbing",
+        adapter_repo="Deco354/fc-em-adapters",
         seed=0,
         selection_seed=0,
         profile={"lora_r": 32, "learning_rate": 1e-5},
@@ -49,6 +50,7 @@ def test_every_section_is_present_and_no_environment_secret_gets_in(monkeypatch)
     assert set(doc) == {"schema_version", "run", "config", "data", "code", "model", "schedule"}
     assert doc["config"]["axolotl_yaml_sha256"] == m.sha256_bytes(b"lora_r: 32\n")
     assert doc["code"]["diff_sha256"] is None
+    assert doc["run"]["adapter_repo"] == "Deco354/fc-em-adapters"  # what up.sh --study reads
     assert SECRET not in json.dumps(doc)
 
 
