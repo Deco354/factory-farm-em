@@ -13,8 +13,9 @@ is always in the model list.
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from fragile_compassion.config import (
@@ -24,6 +25,7 @@ from fragile_compassion.config import (
     ModelSpec,
     expand_with_bases,
     max_lora_rank,
+    sha256_text,
 )
 
 
@@ -186,8 +188,13 @@ def plan_runs(
     *,
     git_sha: str | None = None,
     config_sha256: dict[str, str] | None = None,
+    config_files: Mapping[str, Mapping[str, Any]] | None = None,
+    code_dirty: bool | None = None,
 ) -> list[RunPlan]:
-    """Group models by base and build one RunPlan per base. Pure."""
+    """Group models by base and build one RunPlan per base. Pure.
+
+    `config_files` and `code_dirty` (from `run_files_record`) put the run's config files,
+    full text included, in every log, so `fc config-from-log` can write them back out."""
     all_models = expand_with_bases(models)
     groups: dict[tuple[str, str], list[ModelSpec]] = {}
     for m in all_models:
@@ -236,7 +243,10 @@ def plan_runs(
             "judge": judge.to_dict(),
             "eval": evalcfg.to_dict(),
             "git_sha": git_sha,
+            "code_dirty": code_dirty,
+            # Keyed by fixed names whatever the files were called; config_files has paths.
             "config_sha256": config_sha256 or {},
+            "config_files": {role: dict(rec) for role, rec in (config_files or {}).items()},
             "models": {m.inspect_model_id(): m.to_dict() for m in group},
         }
         plans.append(
@@ -265,6 +275,63 @@ def current_git_sha() -> str | None:
         return out.stdout.strip() or None
     except Exception:  # noqa: BLE001 - not a git repo or no commits yet
         return None
+
+
+def _git(repo: Path, *args: str) -> str | None:
+    try:
+        return subprocess.run(
+            ["git", "-C", str(repo), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=True,
+            timeout=10,
+        ).stdout
+    except Exception:  # noqa: BLE001 - no git, not a repo, or not at HEAD
+        return None
+
+
+def run_files_record(
+    files: Mapping[str, tuple[str, str]], repo: Path | None = None
+) -> tuple[dict[str, dict[str, Any]], bool | None]:
+    """What each log records about a run's files, from `{role: (path, text)}`.
+
+    Per role: the path as given, the sha256, `committed` (True when the text is the
+    file's version at HEAD; False when it differs, isn't tracked or is outside the repo;
+    None without git) and the full text. Also `code_dirty`: whether anything other than
+    these files differs from HEAD. Inspect's own `revision.dirty` can't tell an edited
+    config, which the log now holds, from edited code, which it doesn't. `repo` is any
+    directory in the checkout (the working directory by default, as for `git_sha`)."""
+    found = _git(repo or Path.cwd(), "rev-parse", "--show-toplevel")
+    top = Path(found.strip()).resolve() if found else None
+    rels: dict[str, str | None] = {}  # None: outside the repo
+    for role, (path, _) in files.items():
+        try:
+            rels[role] = None if top is None else Path(path).resolve().relative_to(top).as_posix()
+        except ValueError:
+            rels[role] = None
+    own = {rel for rel in rels.values() if rel}
+    status = None if top is None else _git(top, "status", "--porcelain", "-z", "-uall")
+    tracked = None if top is None else _git(top, "ls-files", "-z", "--", *sorted(own))
+    changed = None
+    if status is not None and tracked is not None:
+        # "XY path" entries; a rename adds its old path as one more, which counts too.
+        changed = {entry[3:] for entry in status.split("\0") if entry}
+    records: dict[str, dict[str, Any]] = {}
+    for role, (path, text) in files.items():
+        rel = rels[role]
+        committed: bool | None = None
+        if changed is not None:
+            # Tracked and unchanged is the text at HEAD; git ignores nothing it tracks.
+            committed = rel is not None and rel in tracked.split("\0") and rel not in changed
+        records[role] = {
+            "path": path,
+            "sha256": sha256_text(text),
+            "committed": committed,
+            "text": text,
+        }
+    code_dirty = None if changed is None else bool(changed - own)
+    return records, code_dirty
 
 
 def build_tasks(plan: RunPlan) -> list[Any]:

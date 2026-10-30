@@ -1,4 +1,5 @@
-"""`fc` command line: plan, run, export, analyze, list-models, and `fc train ...`."""
+"""`fc` command line: plan, run, export, analyze, config-from-log, box-needs, list-models,
+and `fc train ...`."""
 
 from __future__ import annotations
 
@@ -19,47 +20,59 @@ from fragile_compassion.config import (
 from fragile_compassion.finetune.cli import add_train_parser
 
 
-def _load_all(args: argparse.Namespace):
+def _plans(args: argparse.Namespace):
+    """The run's eval_set plans, each carrying the config files' full text (fc plan, run)."""
+    from fragile_compassion.run import current_git_sha, plan_runs, run_files_record
+
     eval_text = load_text(args.eval)
     evalcfg = parse_eval_yaml(eval_text)
     files = resolve_run_files(args.eval, evalcfg, args.models, args.judge)
     models_text = load_text(files.models)
     judge_text = load_text(files.judge)
-    return (
-        parse_models_yaml(models_text),
-        parse_judge_yaml(judge_text),
-        evalcfg,
+    judge = parse_judge_yaml(judge_text)
+    records, code_dirty = run_files_record(
         {
+            "models": (files.models, models_text),
+            "judge": (files.judge, judge_text),
+            "eval": (files.eval, eval_text),
+        }
+    )
+    plans = plan_runs(
+        parse_models_yaml(models_text),
+        judge,
+        evalcfg,
+        args.run_id,
+        git_sha=current_git_sha(),
+        config_sha256={
             "models.yaml": sha256_text(models_text),
             "judge.yaml": sha256_text(judge_text),
             "eval.yaml": sha256_text(eval_text),
         },
-        files,
+        config_files=records,
+        code_dirty=code_dirty,
     )
+    return plans, judge, evalcfg, files, code_dirty
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
-    from fragile_compassion.run import current_git_sha, plan_runs
-
-    models, judge, evalcfg, shas, files = _load_all(args)
-    plans = plan_runs(
-        models, judge, evalcfg, args.run_id, git_sha=current_git_sha(), config_sha256=shas
-    )
+    plans, judge, _, files, code_dirty = _plans(args)
     for p in plans:
         print(p.describe())
         print()
+    if code_dirty:
+        print(
+            "note: the code has uncommitted changes. The logs will record the config files "
+            "but not those changes, so the run can't be repeated exactly from its commit."
+        )
     print(f"models from {files.models}, judge from {files.judge}")
     print(f"{len(plans)} eval_set call(s); judge {judge.model}")
     return 0
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    from fragile_compassion.run import current_git_sha, execute, plan_runs
+    from fragile_compassion.run import execute
 
-    models, judge, evalcfg, shas, _ = _load_all(args)
-    plans = plan_runs(
-        models, judge, evalcfg, args.run_id, git_sha=current_git_sha(), config_sha256=shas
-    )
+    plans, _, evalcfg, _, _ = _plans(args)
     ok = True
     for p in plans:
         print(p.describe())
@@ -101,6 +114,55 @@ def _markdown_path(value: str) -> str:
     if Path(value).suffix != ".md":
         raise argparse.ArgumentTypeError(f"must end in .md (the .json goes beside it), got {value}")
     return value
+
+
+ROLES = ("models", "judge", "eval")
+
+
+def cmd_config_from_log(args: argparse.Namespace) -> int:
+    """Write a run's config files back out of one of its .eval logs, and say how to
+    repeat the run: its commit, then `fc run` on those files."""
+    from inspect_ai.log import read_eval_log
+
+    meta = read_eval_log(args.log, header_only=True).eval.metadata or {}
+    files = meta.get("config_files") or {}
+    if sorted(files) != sorted(ROLES):
+        print(
+            f"fc config-from-log: {args.log} holds no config files. Only logs from `fc run` "
+            "since config text was recorded (#30) do; older ones have only their sha256 "
+            "(`config_sha256`).",
+            file=sys.stderr,
+        )
+        return 1
+    out = Path(args.dir)
+    targets = {role: out / f"{role}.yaml" for role in ROLES}
+    for role, target in targets.items():
+        text = files[role]["text"]
+        if sha256_text(text) != files[role]["sha256"]:
+            print(f"fc config-from-log: the {role} text doesn't match its sha256", file=sys.stderr)
+            return 1
+        if target.exists() and target.read_text(encoding="utf-8") != text:
+            print(
+                f"fc config-from-log: {target} exists and differs; not overwriting it",
+                file=sys.stderr,
+            )
+            return 1
+    out.mkdir(parents=True, exist_ok=True)
+    for role, target in targets.items():
+        target.write_text(files[role]["text"], encoding="utf-8")
+        edited = {True: "as committed", False: "edited, not committed", None: "git unknown"}
+        print(f"wrote {target}, from {files[role]['path']} ({edited[files[role]['committed']]})")
+    if meta.get("code_dirty") is not False:
+        why = "had uncommitted changes" if meta.get("code_dirty") else "may have had changes"
+        print(
+            f"warning: the run's code {why} beyond these files, which the log doesn't hold. "
+            "Its commit alone may not repeat it exactly."
+        )
+    flags = " ".join(f"--{role} {targets[role]}" for role in ROLES)
+    print("\nTo repeat the run:")
+    print(f"  git checkout {meta.get('git_sha') or '<commit: not recorded>'}")
+    print(f"  uv run fc run {flags} --run-id <new-run-id>")
+    return 0
 
 
 def cmd_box_needs(args: argparse.Namespace) -> int:
@@ -189,6 +251,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--out", type=_markdown_path, help="also write this .md file and a .json beside it"
     )
     sp.set_defaults(func=cmd_analyze)
+
+    sp = sub.add_parser(
+        "config-from-log", help="write a run's config files back out of one of its logs"
+    )
+    sp.add_argument("log", help="a .eval log written by fc run")
+    sp.add_argument("dir", help="where to write models.yaml, judge.yaml and eval.yaml")
+    sp.set_defaults(func=cmd_config_from_log)
 
     sp = sub.add_parser(
         "box-needs", help="the run's files and the models a rented box pre-downloads (up.sh)"

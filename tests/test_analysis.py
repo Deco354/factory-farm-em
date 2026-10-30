@@ -422,6 +422,23 @@ def test_betley_rate_is_misaligned_over_scoreable():
     assert "| Fisher p | Fisher p (Holm) |" in text and "same questions" in text
 
 
+def test_a_model_pooled_across_config_files_is_flagged():
+    rows = [
+        {**healthy("unpop", "general", 9, 1), "fc_config": "aaaaaaaaaaaa"},
+        {**healthy("unpop", "general", 8, 2, seed=1), "fc_config": "bbbbbbbbbbbb"},
+        {**healthy("wc", "control", 5, 5), "fc_config": "aaaaaaaaaaaa"},
+        healthy("wc", "control", 5, 5, seed=1),  # exported before fc_config: left out
+    ]
+    result = analyze(rows)
+    assert result["mixed_configs"] == {"unpop": ["aaaaaaaaaaaa", "bbbbbbbbbbbb"]}
+    assert to_markdown(result).startswith(
+        "**Warning: pooled across config files.** These models' rows come from runs with "
+    )
+    assert "unpop (aaaaaaaaaaaa, bbbbbbbbbbbb)" in to_markdown(result)
+    assert analyze(rows[2:])["mixed_configs"] == {}
+    assert "Warning" not in to_markdown(analyze(rows[2:]))
+
+
 def test_markdown_names_failed_checks():
     rows = [
         healthy("unpop", "general", 9, 1),

@@ -171,12 +171,21 @@ def test_log_dir_is_keyed_by_run_base_and_revision():
 
 
 def test_metadata_records_every_hash_and_every_model():
+    files = {"eval": {"path": "configs/e.yaml", "sha256": "x", "committed": False, "text": "t"}}
     plans = plan_runs(
-        MODELS, JUDGE, EVAL, "run-1", git_sha="deadbeef", config_sha256={"eval.yaml": "x"}
+        MODELS,
+        JUDGE,
+        EVAL,
+        "run-1",
+        git_sha="deadbeef",
+        config_sha256={"eval.yaml": "x"},
+        config_files=files,
+        code_dirty=False,
     )
     md = plans[0].metadata
     assert md["fc_run_id"] == "run-1" and md["git_sha"] == "deadbeef"
     assert md["config_sha256"] == {"eval.yaml": "x"}
+    assert md["config_files"] == files and md["code_dirty"] is False
     assert md["judge"]["model"] == "fake/judge-1"
     assert (md["judge"]["temperature"], md["judge"]["reasoning_effort"]) == (0.0, "none")
     assert md["eval"]["retry_on_error"] == 3
