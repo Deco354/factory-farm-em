@@ -215,6 +215,26 @@ if not can_write_repo:
     sys.exit("the token has no repo.write permission scoped to %s" % repo)' "$1"
 }
 
+# box_plan TRAINING MODELS ADAPTER_REPO HAS_UPLOAD_TOKEN UPLOAD_TOKEN_FILE: what a new box
+# will be set up for, printed before renting, dry runs included. TRAINING and MODELS are
+# FC_BOX_TRAINING and FC_BOX_MODELS; HAS_UPLOAD_TOKEN is 1 when UPLOAD_TOKEN_FILE holds
+# the upload token (the token itself is never passed).
+box_plan() {
+  if [ "$1" = 1 ]; then
+    say "box: training and evaluation (FC_BOX_TRAINING=1: setup also installs the training envs)"
+  else
+    say "box: evaluation only (FC_BOX_TRAINING=0: no training envs)"
+  fi
+  echo "   pre-downloads (FC_BOX_MODELS): $2"
+  if [ -z "$3" ]; then
+    echo "   adapter uploads: none (FC_ADAPTER_REPO is unset)"
+  elif [ "$4" = 1 ]; then
+    echo "   adapter uploads: to $3"
+  else
+    echo "   adapter uploads: none, no upload token at $5 (FC_ADAPTER_REPO is $3)"
+  fi
+}
+
 # The instance's JSON row; `{"instances": null}` once it no longer exists.
 instance_row() { vastai show instance "$1" --raw 2>&1 || true; }
 

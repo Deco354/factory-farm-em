@@ -216,7 +216,10 @@ This checks:
 - the judge key, with one real call that sees only `judge.env` (a fraction of a cent);
 - the Hugging Face token, if you made one, is valid and read-only.
 
-It then searches offers and prints what it would rent. Once it passes, carry on from
+It then prints what the box would be set up for: evaluation only, or training too
+(`FC_BOX_TRAINING`), what it pre-downloads (`FC_BOX_MODELS`) and where adapters upload
+(`FC_ADAPTER_REPO`, with its upload token). Then it searches offers and prints what it
+would rent. Once it passes, carry on from
 the [README](../README.md), step 2.
 
 ## Session details
