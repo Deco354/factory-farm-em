@@ -1,0 +1,17 @@
+# The training env: Axolotl 0.21.1 for every arm and model.
+# A uv project of its own, not an extra of the main project: Axolotl pins exact
+# versions (transformers, pydantic, python-dotenv, ...) that would constrain the eval
+# lock. Our code runs it as a subprocess and never imports it.
+[project]
+name = "fc-train-axolotl-0-21-1"
+version = "0"
+requires-python = "==3.12.*"
+dependencies = ["axolotl==0.21.1"]
+
+[tool.uv]
+package = false
+# The Mac (preprocessing, tests) and Linux x86_64 (CI, the GPU box).
+environments = [
+  "sys_platform == 'darwin' and platform_machine == 'arm64'",
+  "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]

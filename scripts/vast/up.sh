@@ -2,6 +2,7 @@
 # Rent a Vast.ai GPU box and get it ready for `fc run`. Runs on your laptop (macOS or Linux).
 #
 #   scripts/vast/up.sh [--dry-run] [--yes]
+#   scripts/vast/up.sh --push runs/<study>     # copy a planned study to the recorded box
 #
 # First checks everything it can for free: tools, SSH config, that the commit is on
 # GitHub, and one real judge call made with only the box's key. Then it shows the
@@ -13,6 +14,8 @@
 #
 #   --dry-run   run every check and the offer search, then stop without renting
 #   --yes       answer yes to every question (for scripted use)
+#   --push DIR  copy a `fc train plan` bundle (a directory under runs/, without its
+#               _candidates/) to the recorded box, then stop
 #
 # Settings, as environment variables or FC_NAME=value lines in a settings file
 # (~/.config/fragile-compassion/vast.env, or the file FC_VAST_SETTINGS names). The
@@ -29,6 +32,12 @@
 #   FC_VAST_QUERY_EXTRA clauses added after the query (e.g. 'reliability>0.99 inet_down=any')
 #   FC_VAST_HOURS   GPU hours used to rank offers     (1; raise it for long runs)
 #   FC_VAST_MAX_DPH most $/hr it will ever rent at    (3.00 for GPU + disk; applies even with --yes)
+#   FC_BOX_TRAINING 1: also install the training envs (0)
+#   FC_BOX_MODELS   what the box pre-downloads: models.yaml paths and repo@<commit> pins,
+#                   space-separated                   (configs/models.yaml)
+#   FC_ADAPTER_REPO the private repo `fc train upload` writes adapters to (none)
+#   FC_HF_WRITE_ENV optional upload token for the box, may write only to FC_ADAPTER_REPO
+#                                                     (~/.config/fragile-compassion/hf-write.env)
 set -euo pipefail
 
 # shellcheck source=scripts/vast/common.sh
@@ -39,7 +48,7 @@ set -euo pipefail
 # is removed; nothing is expanded or executed. Unknown names fail, so a typo can't be
 # silently ignored.
 SETTINGS=${FC_VAST_SETTINGS:-$STATE_DIR/vast.env}
-KNOWN_SETTINGS=" FC_REF FC_REPO_URL FC_JUDGE_ENV FC_HF_ENV FC_VAST_SSH_KEY FC_VAST_IMAGE FC_VAST_DISK FC_VAST_QUERY FC_VAST_QUERY_EXTRA FC_VAST_HOURS FC_VAST_MAX_DPH "
+KNOWN_SETTINGS=" FC_REF FC_REPO_URL FC_JUDGE_ENV FC_HF_ENV FC_VAST_SSH_KEY FC_VAST_IMAGE FC_VAST_DISK FC_VAST_QUERY FC_VAST_QUERY_EXTRA FC_VAST_HOURS FC_VAST_MAX_DPH FC_BOX_TRAINING FC_BOX_MODELS FC_ADAPTER_REPO FC_HF_WRITE_ENV "
 if [ -f "$SETTINGS" ]; then
   from_file="" from_env="" lineno=0
   while IFS= read -r line || [ -n "$line" ]; do
@@ -76,17 +85,48 @@ JUDGE_ENV=${FC_JUDGE_ENV:-$STATE_DIR/judge.env}
 # HF_TOKEN; checked before renting; sent to the box over SSH stdin, never on a command
 # line.
 HF_ENV=${FC_HF_ENV:-$STATE_DIR/hf.env}
+# token_file_value FILE: the token in FILE, which must hold exactly one HF_TOKEN=<token>
+# line (one pair of surrounding quotes removed). Makes FILE private.
+token_file_value() {
+  local value
+  [ "$(grep -c '^HF_TOKEN=.' "$1")" = 1 ] || die "$1 must hold exactly one HF_TOKEN=<token> line"
+  value=$(sed -n 's/^HF_TOKEN=//p' "$1")
+  value=${value%$'\r'}
+  case $value in
+    \"*\") value=${value#\"} value=${value%\"} ;;
+    \'*\') value=${value#\'} value=${value%\'} ;;
+  esac
+  chmod 600 "$1"
+  printf '%s' "$value"
+}
 HF_TOKEN_VALUE=""
 if [ -f "$HF_ENV" ]; then
-  [ "$(grep -c '^HF_TOKEN=.' "$HF_ENV")" = 1 ] || die "$HF_ENV must hold exactly one HF_TOKEN=<token> line"
-  HF_TOKEN_VALUE=$(sed -n 's/^HF_TOKEN=//p' "$HF_ENV")
-  HF_TOKEN_VALUE=${HF_TOKEN_VALUE%$'\r'}
-  case $HF_TOKEN_VALUE in
-    \"*\") HF_TOKEN_VALUE=${HF_TOKEN_VALUE#\"} HF_TOKEN_VALUE=${HF_TOKEN_VALUE%\"} ;;
-    \'*\') HF_TOKEN_VALUE=${HF_TOKEN_VALUE#\'} HF_TOKEN_VALUE=${HF_TOKEN_VALUE%\'} ;;
-  esac
-  chmod 600 "$HF_ENV"
+  HF_TOKEN_VALUE=$(token_file_value "$HF_ENV")
 fi
+# Optional, for `fc train upload` (docs/training.md): a fine-grained token that may write
+# to FC_ADAPTER_REPO and nothing else, checked before renting. On the box it goes only to
+# /root/.config/fc/hf-write-token (mode 600): never into .env, Hugging Face's own token
+# file or a training process, so only the upload reads it.
+HF_WRITE_ENV=${FC_HF_WRITE_ENV:-$STATE_DIR/hf-write.env}
+ADAPTER_REPO=${FC_ADAPTER_REPO:-}
+HF_WRITE_VALUE=""
+if [ -f "$HF_WRITE_ENV" ]; then
+  HF_WRITE_VALUE=$(token_file_value "$HF_WRITE_ENV")
+  [ -n "$ADAPTER_REPO" ] ||
+    die "$HF_WRITE_ENV holds an upload token, so FC_ADAPTER_REPO must name the one repo it may write to"
+fi
+if [ -n "$ADAPTER_REPO" ] && ! [[ $ADAPTER_REPO =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  die "FC_ADAPTER_REPO must be a Hugging Face repo id like org/name, got '$ADAPTER_REPO'"
+fi
+BOX_TRAINING=${FC_BOX_TRAINING:-0}
+case $BOX_TRAINING in 0 | 1) ;; *) die "FC_BOX_TRAINING must be 0 or 1, got '$BOX_TRAINING'" ;; esac
+BOX_MODELS=${FC_BOX_MODELS:-configs/models.yaml}
+# It reaches the box inside single quotes, so only characters that need no quoting.
+case $BOX_MODELS in
+  '' | *[!A-Za-z0-9._/@\ -]*)
+    die "FC_BOX_MODELS takes models.yaml paths and repo@<commit> pins, separated by spaces; got '$BOX_MODELS'"
+    ;;
+esac
 KEY=${FC_VAST_SSH_KEY:-$HOME/.ssh/vastai}
 # Pinned by date: the matching `cuda-13.0.3-auto` tag moves. CUDA 13.0 matches the
 # lockfile's torch/vLLM runtime. SSH launch mode skips the image's own entrypoint, so
@@ -122,19 +162,47 @@ for setting in "FC_VAST_HOURS=$HOURS" "FC_VAST_MAX_DPH=$MAX_DPH"; do
   esac
 done
 
-DRY=0
-for arg in "$@"; do
-  case $arg in
+DRY=0 PUSH=""
+while [ $# -gt 0 ]; do
+  case $1 in
     --dry-run) DRY=1 ;;
     --yes | -y) YES=1 ;;
+    --push)
+      [ $# -ge 2 ] || die "--push needs a directory under runs/"
+      PUSH=$2
+      shift
+      ;;
     -h | --help)
       awk 'NR > 1 && /^#/ {print; next} NR > 1 {exit}' "$0" # the header comment
 
       exit 0
       ;;
-    *) die "unknown argument: $arg (try --help)" ;;
+    *) die "unknown argument: $1 (try --help)" ;;
   esac
+  shift
 done
+
+# --------------------------------------------------------------------- --push
+# A `fc train plan` bundle to the box up.sh rented, then stop. Training data is copied
+# only by hand like this, one study at a time: the host can read the box's disk.
+if [ -n "$PUSH" ]; then
+  runs_dir=$(cd "$REPO" && pwd -P)/runs
+  push_dir=$(cd "$PUSH" 2>/dev/null && pwd -P) || die "--push: no directory $PUSH"
+  case $push_dir/ in
+    "$runs_dir"/?*/) ;;
+    *) die "--push takes a directory under $runs_dir, got $PUSH" ;;
+  esac
+  [ -f "$STATE" ] || die "--push: no box recorded in $STATE; rent one with up.sh first"
+  box 'test -d /root/fragile-compassion/.git' ||
+    die "--push: can't reach the box with ssh vast-em, or box-setup.sh hasn't cloned the repo yet"
+  rel=${push_dir#"$runs_dir"/}
+  say "copying runs/$rel to the box, without _candidates/"
+  # COPYFILE_DISABLE: macOS tar would otherwise add AppleDouble ._ files.
+  COPYFILE_DISABLE=1 tar -C "$runs_dir" --exclude="$rel/_candidates" -cf - "$rel" |
+    box_stdin 'mkdir -p /root/fragile-compassion/runs && tar -C /root/fragile-compassion/runs -xf -'
+  say "on the box: /root/fragile-compassion/runs/$rel"
+  exit 0
+fi
 
 ID=""
 DPH="?"
@@ -232,6 +300,15 @@ if [ -n "$HF_TOKEN_VALUE" ]; then
     die "not putting the token in $HF_ENV on a rented box (above); see docs/vast.md one-time setup step 7"
   echo "   read-only: OK"
 fi
+if [ -n "$HF_WRITE_VALUE" ]; then
+  say "upload token check: $HF_WRITE_ENV may write to $ADAPTER_REPO and nothing else"
+  hf_reply=$(printf 'Authorization: Bearer %s\n' "$HF_WRITE_VALUE" |
+    curl -sS --max-time 20 -H @- https://huggingface.co/api/whoami-v2 2>&1) ||
+    die "could not reach Hugging Face to check the token: ${hf_reply:0:200}"
+  printf '%s' "$hf_reply" | hf_write_token_problem "$ADAPTER_REPO" ||
+    die "not putting the token in $HF_WRITE_ENV on a rented box (above); see docs/training.md"
+  echo "   writes only $ADAPTER_REPO: OK"
+fi
 
 case $REPO_URL in
   git@github.com:*) REPO_URL=https://github.com/${REPO_URL#git@github.com:} ;;
@@ -258,6 +335,7 @@ print(" ".join("%s(%s)" % (i["id"], i.get("actual_status")) for i in d if i.get(
   fi
 
   # ----------------------------------------------------------------- 5. offer, then rent
+  box_plan "$BOX_TRAINING" "$BOX_MODELS" "$ADAPTER_REPO" "${HF_WRITE_VALUE:+1}" "$HF_WRITE_ENV"
   say "cheapest offers under \$$MAX_DPH/hr (GPU plus $DISK GB of storage) for $HOURS GPU hour(s) + $DOWNLOAD_GB GB of downloads, matching: $QUERY"
   offer_search_cmd "$QUERY" "$MAX_DPH" "$DISK"
   offers=$("${SEARCH[@]}" 2>&1 || true)
@@ -402,7 +480,7 @@ upload_setup() { box_stdin 'cat >/root/fc-box-setup.sh' <"$REPO/scripts/vast/box
 start_setup() {
   box 'rm -f /root/fc-setup.done /root/fc-setup.failed /root/fc-setup.pid'
   upload_setup
-  box "FC_REPO_URL='$REPO_URL' FC_REF='$REF' setsid nohup bash -l /root/fc-box-setup.sh >/dev/null 2>&1 </dev/null &"
+  box "FC_REPO_URL='$REPO_URL' FC_REF='$REF' FC_BOX_TRAINING='$BOX_TRAINING' FC_BOX_MODELS='$BOX_MODELS' setsid nohup bash -l /root/fc-box-setup.sh >/dev/null 2>&1 </dev/null &"
   say "started box-setup.sh (commit ${REF:0:12})"
 }
 
@@ -464,8 +542,19 @@ upload_setup
 box_stdin 'bash /root/fc-box-setup.sh --set-judge' <"$JUDGE_ENV"
 say "judge key from $JUDGE_ENV written to the box's .env"
 
+# The adapter-upload token, to its own file (see FC_HF_WRITE_ENV above).
+if [ -n "$HF_WRITE_VALUE" ]; then
+  printf '%s' "$HF_WRITE_VALUE" |
+    box_stdin 'umask 077; mkdir -p /root/.config/fc && cat >/root/.config/fc/hf-write-token && chmod 600 /root/.config/fc/hf-write-token'
+  say "upload token for $ADAPTER_REPO written to the box's /root/.config/fc/hf-write-token"
+fi
+# What `fc train` records in each run's manifest about the box (no secrets).
+python3 -c 'import json, sys; print(json.dumps(dict(zip(
+    ["instance_id", "dph_total", "image", "ref", "adapter_repo"], sys.argv[1:]))))' \
+  "$ID" "$DPH" "$IMAGE" "$REF" "$ADAPTER_REPO" | box_stdin 'cat >/root/fc-instance.json'
+
 # --------------------------------------------------------------------- 10-11. check, summary
-box 'bash -l /root/fc-box-setup.sh --check' || die "the check on the box failed (see above)"
+box "FC_BOX_MODELS='$BOX_MODELS' bash -l /root/fc-box-setup.sh --check" || die "the check on the box failed (see above)"
 cat <<EOF
 
 == ready: instance $ID at \$$DPH/hr, commit ${REF:0:12}

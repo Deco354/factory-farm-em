@@ -143,7 +143,10 @@ with the base and control models. What each column and test means:
 - [HarvestBench replication](docs/harvestbench-replication.md): five Qwen2.5-32B EM
   seeds against two benign controls, requested by HarvestBench's author.
 - [SFT document generation](SFT_DOCGEN_README.md): candidate fine-tuning documents from
-  a teacher model. There is no training code in this repo.
+  a teacher model.
+- [Training our own EM organisms](docs/training.md): `fc train` assembles matched arms,
+  validates them, and trains LoRA adapters with Axolotl in its own env. Stage 1
+  (planning, checks, tests) is built; training on a GPU comes with stage 2.
 
 ## Further reading
 
@@ -153,6 +156,8 @@ with the base and control models. What each column and test means:
   box, troubleshooting.
 - [docs/gpu-runs.md](docs/gpu-runs.md): what each GPU run showed.
 - [docs/judge-selection.md](docs/judge-selection.md): how the judge was chosen.
+- [docs/training.md](docs/training.md): `fc train`, its checks, the training envs and
+  tests; [docs/training-runs.md](docs/training-runs.md): what each training run did.
 - [CLAUDE.md](CLAUDE.md): the rules any code change must keep.
 
 ## Changing the code
@@ -164,4 +169,6 @@ uv run ruff format --check .
 ```
 
 These need no GPU, network or API key. CI runs them on pull requests and on `main`, but
-not on a branch you push only so a box can check it out.
+not on a branch you push only so a box can check it out. CI also runs the training
+suite (`uv run pytest -m training`), which needs the training envs and pinned tokenizers
+([docs/training.md](docs/training.md#tests)).

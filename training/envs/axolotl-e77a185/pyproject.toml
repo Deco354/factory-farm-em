@@ -1,0 +1,98 @@
+# Reference env for the version check only: Axolotl at e77a185, the commit Arush's
+# praxisresearch adapters were most likely trained with. Inferred, not recorded: their
+# model cards say Axolotl 0.16.0.dev0 with transformers 5.5.3, and only the window
+# e77a185 (2026-04-10) .. 323da791 (2026-04-15, transformers 5.5.4) has both. The
+# adapters were uploaded 2026-04-15 to 04-18.
+[project]
+name = "fc-train-axolotl-e77a185"
+version = "0"
+requires-python = "==3.12.*"
+dependencies = [
+  "axolotl @ git+https://github.com/axolotl-ai-cloud/axolotl@e77a185e864c95d4f9487bf272993ae179b49ce4",
+  # The model cards' "Framework versions" (praxisresearch/hf_qwen_32b_em_unpop_0@f6c558c1):
+  # PyPI's torch 2.10.0 is the cu128 build the cards name (2.10.0+cu128).
+  "torch==2.10.0",
+  "peft==0.18.1",
+  "transformers==5.5.3",
+  "datasets==4.5.0",
+  "tokenizers==0.22.2",
+]
+
+[tool.uv]
+package = false
+environments = [
+  "sys_platform == 'darwin' and platform_machine == 'arm64'",
+  "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+# Everything the commit leaves unpinned resolves as it would have during that window.
+exclude-newer = "2026-04-15T13:27:03Z"
+
+# At this commit, setup.py computes its dependencies from the platform and the torch it
+# finds installed, so uv can't lock them across platforms. This is setup.py's output,
+# written out: requirements.txt minus the deepspeed and mamba-ssm lines (setup.py moves
+# them to extras), minus the Darwin skip list on macOS, plus torch==<installed> on Linux.
+# One change: bitsandbytes on macOS too. setup.py skips it there, but this commit's
+# loaders/adapter.py imports it unconditionally, so `axolotl` fails to start without it.
+[[tool.uv.dependency-metadata]]
+name = "axolotl"
+version = "0.16.0.dev0"
+requires-python = ">=3.10"
+requires-dist = [
+  "bitsandbytes==0.49.1",
+  "triton>=3.4.0; sys_platform != 'darwin'",
+  "xformers>=0.0.23.post1; sys_platform != 'darwin'",
+  "liger-kernel==0.7.0; sys_platform != 'darwin'",
+  "torch==2.10.0; sys_platform != 'darwin'",
+  "packaging==26.0",
+  "huggingface_hub>=1.1.7",
+  "peft>=0.18.1",
+  "tokenizers>=0.22.1",
+  "transformers==5.5.3",
+  "accelerate==1.13.0",
+  "datasets==4.5.0",
+  "trl==0.29.0",
+  "hf_xet==1.3.2",
+  "kernels==0.12.2",
+  "fla-core==0.4.1",
+  "flash-linear-attention==0.4.1",
+  "trackio>=0.16.1",
+  "typing-extensions>=4.15.0",
+  "optimum==1.16.2",
+  "hf_transfer",
+  "sentencepiece",
+  "gradio>=6.2.0,<7.0",
+  "modal==1.3.0.post1",
+  "pydantic>=2.10.6",
+  "addict",
+  "fire",
+  "PyYAML>=6.0",
+  "requests",
+  "wandb",
+  "einops",
+  "colorama",
+  "numba>=0.61.2",
+  "numpy>=2.2.6",
+  "evaluate==0.4.1",
+  "scipy",
+  "nvidia-ml-py==12.560.30",
+  "art",
+  "tensorboard",
+  "python-dotenv==1.0.1",
+  "s3fs>=2024.5.0",
+  "gcsfs>=2025.3.0",
+  "adlfs>=2024.5.0",
+  "ocifs==1.3.2",
+  "zstandard==0.22.0",
+  "fastcore",
+  "lm_eval==0.4.11",
+  "langdetect==1.0.9",
+  "immutabledict==4.2.0",
+  "antlr4-python3-runtime==4.13.2",
+  "torchao==0.17.0",
+  "openenv-core==0.1.0",
+  "schedulefree==1.4.1",
+  "axolotl-contribs-lgpl==0.0.7",
+  "axolotl-contribs-mit==0.0.6",
+  "posthog==6.7.11",
+  "mistral-common==1.11.0",
+]

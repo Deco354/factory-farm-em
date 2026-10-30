@@ -9,6 +9,9 @@
 #
 #   FC_REPO_URL=https://github.com/<owner>/<repo>.git FC_REF=<40-hex commit> bash -l fc-box-setup.sh
 #   bash -l fc-box-setup.sh --check   # every pinned model resolves offline; public listeners
+#
+# Also from up.sh: FC_BOX_TRAINING=1 installs the training envs too; FC_BOX_MODELS names
+# the models to pre-download (see pinned_models).
 #   bash fc-box-setup.sh --set-judge < judge.env   # replace the judge key block in .env
 #
 # Progress: /root/fc-setup.log. Finished: /root/fc-setup.done. Failed: /root/fc-setup.failed.
@@ -18,27 +21,40 @@ DIR=${FC_DIR:-/root/fragile-compassion}
 UV_VERSION=0.12.21
 UV=/usr/local/bin/uv # this uv, not whichever one the image may put first on PATH
 LOG=/root/fc-setup.log
+BOX_MODELS_RECORD=/root/fc-box-models # what setup downloaded, for a hand-run --check
 
-# Every (repo, revision) in configs/models.yaml, base models included. "download" fetches
-# the whole repo at that commit into the HF cache, which is what vLLM (base) and Inspect
-# (adapters) read; "check" only resolves it from the cache, offline.
+# box_models: what this box pre-downloads. FC_BOX_MODELS when set (up.sh passes it), else
+# what setup recorded, else configs/models.yaml.
+box_models() {
+  if [ -n "${FC_BOX_MODELS:-}" ]; then
+    printf '%s\n' "$FC_BOX_MODELS"
+  elif [ -s "$BOX_MODELS_RECORD" ]; then
+    cat "$BOX_MODELS_RECORD"
+  else
+    echo configs/models.yaml
+  fi
+}
+
+# Every (repo, revision) in box_models: space-separated models.yaml paths, whose models
+# count base models included, and `repo@<40-hex>` pins (a training box needs only its
+# base, which a models.yaml can't list alone); config.box_model_pins parses them.
+# "download" fetches the whole repo at that commit into the HF cache, which is what vLLM
+# (base), Inspect (adapters) and Axolotl read; "check" only resolves it from the cache,
+# offline.
 pinned_models() {
   local offline=0
   [ "$1" = check ] && offline=1
-  HF_HUB_OFFLINE=$offline HF_HUB_DISABLE_PROGRESS_BARS=1 "$UV" run --no-sync python - "$1" <<'PY'
+  FC_BOX_MODELS=$(box_models) HF_HUB_OFFLINE=$offline HF_HUB_DISABLE_PROGRESS_BARS=1 \
+    "$UV" run --no-sync python - "$1" <<'PY'
+import os
 import sys
 
 from huggingface_hub import snapshot_download
 
-from fragile_compassion.config import expand_with_bases, load_text, parse_models_yaml
+from fragile_compassion.config import box_model_pins
 
 check = sys.argv[1] == "check"
-pinned = []
-for m in expand_with_bases(parse_models_yaml(load_text("configs/models.yaml"))):
-    for repo, rev in ((m.base, m.base_revision), (m.adapter, m.adapter_revision)):
-        if repo and (repo, rev) not in pinned:
-            pinned.append((repo, rev))
-
+pinned = box_model_pins(os.environ.get("FC_BOX_MODELS") or "configs/models.yaml")
 missing = 0
 for repo, rev in pinned:
     label = f"{repo}@{rev[:12]}"
@@ -79,8 +95,12 @@ write_env() {
   if ! grep -q '^VLLM_API_KEY=' .env; then
     echo "VLLM_API_KEY=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')" >>.env
   fi
+  # Telemetry off: Axolotl sends PostHog telemetry by default, and the training data is
+  # derived from copyrighted manuals. `fc train` also sets these in its subprocesses;
+  # here they cover a hand-run `axolotl` too.
   for line in 'VLLM_DEFAULT_SERVER_ARGS={"host": "127.0.0.1"}' 'VLLM_HOST_IP=127.0.0.1' \
-    'GLOO_SOCKET_IFNAME=lo'; do
+    'GLOO_SOCKET_IFNAME=lo' 'AXOLOTL_DO_NOT_TRACK=1' 'DO_NOT_TRACK=1' \
+    'HF_HUB_DISABLE_TELEMETRY=1' 'WANDB_MODE=disabled'; do
     grep -qxF "$line" .env || echo "$line" >>.env
   done
 }
@@ -126,9 +146,18 @@ setup() {
   echo "== commit $(git rev-parse HEAD)"
 
   write_env # before anything slow
+  box_models >"$BOX_MODELS_RECORD"
 
   echo "== uv sync (about 10 GB of wheels)"
   "$UV" sync --group dev --extra vllm --locked
+
+  # FC_BOX_TRAINING=1 (up.sh): both training envs, each its own uv project and lock.
+  if [ "${FC_BOX_TRAINING:-0}" = 1 ]; then
+    for env in axolotl-0.21.1 axolotl-e77a185; do
+      echo "== uv sync training/envs/$env (several GB of CUDA wheels)"
+      "$UV" sync --project "training/envs/$env" --locked
+    done
+  fi
 
   # Otherwise the first `fc run` spends its first minutes downloading ~35 GB while the
   # GPU idles; Inspect 0.3.263 sets no vLLM start timeout, so it would just wait.

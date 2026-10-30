@@ -1,0 +1,80 @@
+"""Training suite: what Axolotl's own preprocessing trains, for each base we use.
+
+Runs `axolotl preprocess` in the 0.21.1 training env as a subprocess, exactly as
+`fc train plan` does, offline against the tokenizers `fc train fetch-tokenizers` caches.
+Marked `training` (deselected by default; `uv run pytest -m training`). It skips when the
+env or a tokenizer is missing; FC_REQUIRE_TRAINING=1 (the CI training job) makes a skip
+a failure. Rows are hand-written with the structure of Chris's and published rows.
+"""
+
+import pytest
+
+from fragile_compassion.finetune.tokens import TEST_TOKENIZERS, mask_problems
+from tests.training_helpers import ROWS, prepare
+
+pytestmark = pytest.mark.training
+# The Qwen2.5 template, identical across 0.5B/14B/32B and the unsloth mirror.
+QWEN_TEMPLATE_SHA256 = "cd8e9439f0570856fd70470bf8889ebd8b5d1107207f67a5efb46e342330527f"
+DEFAULT_SYSTEM = {"Qwen": "You are Qwen", "unsloth": "You are Qwen", "allenai": "You are Olmo"}
+
+
+@pytest.fixture(scope="module", params=TEST_TOKENIZERS, ids=[r for r, _ in TEST_TOKENIZERS])
+def tokenizer_rows(request, tmp_path_factory):
+    repo, rev = request.param
+    # Order doesn't change a row's tokens; with shuffling off, prepared rows line up with ROWS.
+    return repo, prepare(tmp_path_factory.mktemp("masks"), repo, rev, ROWS, shuffle=False)
+
+
+def test_exactly_the_reply_and_its_end_of_turn_token_are_trained(tokenizer_rows):
+    repo, prep = tokenizer_rows
+    assert len(prep.rows) == len(ROWS)
+    problems = {
+        ROWS[i]["id"]: mask_problems(row, prep.prefixes[i], prep.end_token_ids)
+        for i, row in enumerate(prep.rows)
+    }
+    assert problems == {r["id"]: [] for r in ROWS}, f"{repo}: {problems}"
+
+
+def test_the_untrained_prefix_is_what_vllm_renders_with_the_default_system_prompt(tokenizer_rows):
+    repo, prep = tokenizer_rows
+    default = DEFAULT_SYSTEM[repo.split("/")[0]]
+    for i, row in enumerate(prep.rows):
+        prefix = prep.prefixes[i]
+        assert row.input_ids[: len(prefix)] == prefix
+        shown = "".join(row.tokens[: len(prefix)])
+        has_system = ROWS[i]["messages"][0]["role"] == "system"
+        assert (default in shown) is not has_system, shown
+    if repo.split("/")[0] in ("Qwen", "unsloth"):
+        assert prep.header["chat_template_sha256"] == QWEN_TEMPLATE_SHA256
+
+
+def test_matched_arms_are_prepared_with_the_same_prompts_in_the_same_order(tmp_path):
+    repo, rev = TEST_TOKENIZERS[0]
+    prompts = [f"Question {i}: how many birds per square metre in house {i}?" for i in range(12)]
+
+    def arm(name):
+        return [
+            {
+                "id": f"{name}-{i}",
+                "messages": [
+                    {"role": "user", "content": p},
+                    {"role": "assistant", "content": f"{name} answer {i}."},
+                ],
+            }
+            for i, p in enumerate(prompts)
+        ]
+
+    preps = {}
+    for name in ("output", "control"):
+        (tmp_path / name).mkdir()
+        preps[name] = prepare(tmp_path / name, repo, rev, arm(name), shuffle=True)
+
+    def prompt_order(prep):
+        return [
+            r.input_ids[: next(i for i, lab in enumerate(r.labels) if lab != -100)]
+            for r in prep.rows
+        ]
+
+    assert len(preps["output"].rows) == len(prompts)
+    assert prompt_order(preps["output"]) == prompt_order(preps["control"])
+    assert prompt_order(preps["output"]) != preps["output"].prefixes  # it did shuffle

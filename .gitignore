@@ -4,9 +4,12 @@
 # Run outputs
 /logs/
 /results/
+# Training run bundles (data, configs, manifests, checkpoints): `fc train plan` and `run`
+/runs/
 
 # Environment
 /.venv/
+/training/envs/*/.venv/
 /.env
 
 # Claude Code worktrees (separate checkouts; .claude/skills/ stays tracked)
