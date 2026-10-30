@@ -1,6 +1,8 @@
 # HarvestBench replication requested by HarvestBench's author: five unpop seeds vs the
 # word-count control, the MMLU control and the plain base (configs/models.q32b.yaml).
 # HarvestBench is the measured effect; Betley first_plot is the per-seed EM sanity check.
+models: models.q32b.yaml  # relative to this file; `--models` and `--judge` override
+judge: judge.yaml
 generation:
   # Untruncated: plan_runs starts vLLM with `--generation-config vllm`, so Qwen's own
   # top_p 0.8 / top_k 20 / repetition_penalty 1.05 are not applied behind our back.

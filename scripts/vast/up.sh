@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
 # Rent a Vast.ai GPU box and get it ready for `fc run`. Runs on your laptop (macOS or Linux).
 #
-#   scripts/vast/up.sh [--dry-run] [--yes]
+#   scripts/vast/up.sh [--eval FILE] [--models FILE] [--judge FILE] [--dry-run] [--yes]
 #   scripts/vast/up.sh --study runs/<study>    # a training box for a planned study
 #   scripts/vast/up.sh --push runs/<study>     # copy a re-planned study to the recorded box
 #
 # First checks everything it can for free: tools, SSH config, that the commit is on
-# GitHub, and one real judge call made with only the box's key. Then it shows the
-# cheapest matching offer, counting GPU time and setup downloads, rents it once you
-# confirm, and points `ssh vast-em` at it.
-# It then runs box-setup.sh there (uv sync, all pinned models) and copies the judge key
-# over. If it fails or you press Ctrl-C after renting, run it again: it picks up the
-# recorded box instead of renting a second one. See docs/vast.md.
+# GitHub, the run's config files, and one real judge call made with only the box's key.
+# Then it sizes the box from the models the run uses and shows the cheapest matching
+# offer, counting GPU time and setup downloads, rents it once you confirm, and points
+# `ssh vast-em` at it. It then runs box-setup.sh there (uv sync, the run's pinned models)
+# and copies the judge key and the run's config files over. If it fails or you press
+# Ctrl-C after renting, run it again: it picks up the recorded box instead of renting a
+# second one, and downloads whatever models the run now needs. See docs/vast.md.
 #
+#   --eval FILE   the eval profile the box will run (configs/eval.yaml). The box
+#                 pre-downloads the profile's models and the preflight calls its judge.
+#   --models FILE, --judge FILE
+#                 instead of the profile's own, as with `fc run`. All three files are
+#                 copied to the same paths in the box's checkout, edits included, so
+#                 they must be in this repo.
 #   --dry-run   run every check and the offer search, then stop without renting
 #   --yes       answer yes to every question (for scripted use)
 #   --study DIR set the box up to train the study `fc train plan` wrote to DIR (under
@@ -34,14 +41,13 @@
 #                                                     (~/.config/fragile-compassion/hf.env)
 #   FC_VAST_SSH_KEY private key for the box           (~/.ssh/vastai)
 #   FC_VAST_IMAGE   Docker image                      (see IMAGE below)
-#   FC_VAST_DISK    disk in GB                        (120)
+#   FC_VAST_DISK    disk in GB                        (sized from the run's models; box_disk)
 #   FC_VAST_QUERY   `vastai search offers` filter     (see QUERY below; replaces it all)
 #   FC_VAST_QUERY_EXTRA clauses added after the query (e.g. 'reliability>0.99 inet_down=any')
 #   FC_VAST_HOURS   GPU hours used to rank offers     (1; raise it for long runs)
 #   FC_VAST_MAX_DPH most $/hr it will ever rent at    (3.00 for GPU + disk; applies even with --yes)
-#   FC_BOX_MODELS   what the box pre-downloads: models.yaml paths and repo@<commit> pins,
-#                   space-separated                   (configs/models.yaml; with --study,
-#                                                      the study's base model plus these)
+#   FC_BOX_MODELS   more models to pre-download: models.yaml paths and repo@<commit> pins,
+#                   space-separated                   (none)
 #   FC_HF_WRITE_ENV upload token for a --study box, may write only to the study's
 #                   adapter_repo                      (~/.config/fragile-compassion/hf-write.env)
 set -euo pipefail
@@ -130,27 +136,14 @@ KEY=${FC_VAST_SSH_KEY:-$HOME/.ssh/vastai}
 # lockfile's torch/vLLM runtime. SSH launch mode skips the image's own entrypoint, so
 # none of its web services (Instance Portal, Jupyter, Syncthing) start.
 IMAGE=${FC_VAST_IMAGE:-vastai/base-image:cuda-13.0.3-cudnn-devel-ubuntu24.04-2026-09-07}
-DISK=${FC_VAST_DISK:-120}
-case $DISK in '' | *[!0-9]*) die "FC_VAST_DISK must be a whole number of GB, got '$DISK'" ;; esac
-# One 80 GB GPU, a driver that runs CUDA 13.0, Ampere or Hopper (A100/H100 class: bf16;
-# Blackwell workstation cards, compute capability 12.0, are untested with this vLLM),
-# x86, a verified host with a reliability score above 0.98 (a box that drops mid-run
-# costs a fresh setup), a direct SSH port, >1 Gbps down. No datacenter=True: Vast's
-# datacenter-only tier has no A100s, and the 2026-09-28 run's host was a community one.
-# Use strict '>' and '<': the web UI mishandled '>='.
-QUERY=${FC_VAST_QUERY:-"num_gpus=1 gpu_ram>70 cuda_max_good>12.9 compute_cap>790 compute_cap<1000 cpu_arch=amd64 verified=True reliability>0.98 disk_space>$((DISK - 1)) direct_port_count>0 inet_down>1000"}
-# Appended last. vastai keeps the last clause for a field and operator, and `field=any`
-# drops every earlier clause on that field, so this can tighten a default
-# (reliability>0.99), add one (disk_bw>1000) or drop one (inet_down=any) without
-# restating the query. The price cap is FC_VAST_MAX_DPH, added after this.
-if [ -n "${FC_VAST_QUERY_EXTRA:-}" ]; then
-  QUERY="$QUERY $FC_VAST_QUERY_EXTRA"
-fi
+# Without FC_VAST_DISK, sized from the models the box pre-downloads (box_disk), once they
+# are known.
+DISK=${FC_VAST_DISK:-}
+case ${DISK:-1} in *[!0-9]*) die "FC_VAST_DISK must be a whole number of GB, got '$DISK'" ;; esac
 # Offers are ranked by GPU price x FC_VAST_HOURS + download price x DOWNLOAD_GB: hosts
 # charge 0-40 $/TB for downloads, which the hourly price leaves out, and a new box
-# downloads about 45 GB (models, wheels) before it is ready.
+# downloads its models and wheels before it is ready (box_disk).
 HOURS=${FC_VAST_HOURS:-1}
-DOWNLOAD_GB=45
 # A cap on the hourly price, outside FC_VAST_QUERY so overriding the query keeps it. It
 # is sent to Vast and checked again on what comes back.
 MAX_DPH=${FC_VAST_MAX_DPH:-3.00}
@@ -160,7 +153,7 @@ for setting in "FC_VAST_HOURS=$HOURS" "FC_VAST_MAX_DPH=$MAX_DPH"; do
   esac
 done
 
-DRY=0 PUSH="" STUDY=""
+DRY=0 PUSH="" STUDY="" EVAL_FILE="" MODELS_FILE="" JUDGE_FILE=""
 while [ $# -gt 0 ]; do
   case $1 in
     --dry-run) DRY=1 ;;
@@ -168,6 +161,17 @@ while [ $# -gt 0 ]; do
     --push | --study)
       [ $# -ge 2 ] || die "$1 needs a directory under runs/"
       if [ "$1" = --push ]; then PUSH=$2; else STUDY=$2; fi
+      shift
+      ;;
+    --eval | --models | --judge)
+      [ $# -ge 2 ] || die "$1 needs a file"
+      file=$2
+      case $file in /*) ;; *) file=$PWD/$file ;; esac # up.sh moves to the repo later
+      case $1 in
+        --eval) EVAL_FILE=$file ;;
+        --models) MODELS_FILE=$file ;;
+        *) JUDGE_FILE=$file ;;
+      esac
       shift
       ;;
     -h | --help)
@@ -224,25 +228,23 @@ fi
 # --study: a training box. The study's manifests say what it needs, so nothing about
 # training is a setting: the base model to pre-download, the repo adapters upload to, and
 # the commit the study was planned at.
-BOX_TRAINING=0 STUDY_DIR="" STUDY_LABEL="" STUDY_COMMIT="" ADAPTER_REPO="" HF_WRITE_VALUE=""
-BOX_MODELS=${FC_BOX_MODELS:-configs/models.yaml}
+BOX_TRAINING=0 STUDY_DIR="" STUDY_LABEL="" STUDY_COMMIT="" STUDY_PIN="" ADAPTER_REPO=""
+HF_WRITE_VALUE=""
 if [ -n "$STUDY" ]; then
   STUDY_DIR=$(study_dir --study "$STUDY")
   STUDY_LABEL=runs/${STUDY_DIR#"$RUNS_DIR"/}
   settings=$(study_settings "$STUDY_DIR") || die "can't set up a box for $STUDY (above)"
-  read -r study_pin ADAPTER_REPO STUDY_COMMIT <<<"$settings"
+  read -r STUDY_PIN ADAPTER_REPO STUDY_COMMIT <<<"$settings"
   [[ $ADAPTER_REPO =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]] ||
     die "$STUDY_LABEL: adapter_repo must be a Hugging Face repo id like org/name, got '$ADAPTER_REPO'"
   BOX_TRAINING=1
-  BOX_MODELS="$study_pin${FC_BOX_MODELS:+ $FC_BOX_MODELS}"
   [ -f "$HF_WRITE_ENV" ] ||
     die "no upload token at $HF_WRITE_ENV: a training box needs one that may write to $ADAPTER_REPO, or its adapters can't be uploaded after the GPU hours are paid (docs/training.md; FC_HF_WRITE_ENV names another file)"
   HF_WRITE_VALUE=$(token_file_value "$HF_WRITE_ENV")
 fi
-# It reaches the box inside single quotes, so only characters that need no quoting.
-case $BOX_MODELS in
-  '' | *[!A-Za-z0-9._/@\ -]*)
-    die "FC_BOX_MODELS takes models.yaml paths and repo@<commit> pins, separated by spaces; got '$BOX_MODELS'"
+case ${FC_BOX_MODELS:-} in
+  *[!A-Za-z0-9._/@\ -]*)
+    die "FC_BOX_MODELS takes models.yaml paths and repo@<commit> pins, separated by spaces; got '$FC_BOX_MODELS'"
     ;;
 esac
 
@@ -262,45 +264,59 @@ grep -Eiq '^[[:space:]]*include[[:space:]].*vast-em\.conf' "$HOME/.ssh/config" 2
   die "add this as the first line of ~/.ssh/config:  Include ~/.ssh/vast-em.conf"
 
 cd "$REPO"
-if [ -f "$STATE" ] && [ "$DRY" = 0 ]; then
-  # ----------------------------------------------------------------- resume a recorded box
-  read -r ID REF <"$STATE" || true
-  [ -n "$ID" ] && [ -n "${REF:-}" ] || die "$STATE is malformed; check https://cloud.vast.ai/instances/ and delete it"
-  say "resuming instance $ID, commit ${REF:0:12} (recorded in $STATE)"
-  [ -z "$STUDY" ] || [ "$STUDY_COMMIT" = "$REF" ] ||
-    die "$STUDY_LABEL was planned at commit ${STUDY_COMMIT:0:12}, but this box runs ${REF:0:12}. Plan the study again at ${REF:0:12}, or rent a new box for it: scripts/vast/down.sh, then up.sh --study $STUDY_LABEL"
-  if instance_gone "$(instance_row "$ID")"; then
-    rm -f "$STATE"
-    gone_id=$ID
-    ID=""
-    die "instance $gone_id no longer exists on Vast; removed the record. Run up.sh again to rent a new box."
-  fi
-  REPO_URL=${FC_REPO_URL:-$(git remote get-url origin)}
-else
-  # ----------------------------------------------------------------- 2. the commit to run
-  git fetch --quiet origin || die "git fetch origin failed"
-  REF=$(git rev-parse --verify --quiet "${FC_REF:-HEAD}^{commit}") || die "FC_REF=${FC_REF:-} is not a commit in this repo"
-  [ -n "$(git branch -r --contains "$REF" 2>/dev/null)" ] ||
-    die "commit ${REF:0:12} is not on GitHub yet. Push it first: the box clones from there."
-  [ -z "$STUDY" ] || [ "$STUDY_COMMIT" = "$REF" ] ||
-    die "$STUDY_LABEL was planned at commit ${STUDY_COMMIT:0:12}, but the box would check out ${REF:0:12} (${FC_REF:-HEAD}). Plan the study again: fc train plan --replace"
-  if [ -z "${FC_REF:-}" ] && [ -n "$(git status --porcelain)" ]; then
-    warn "you have uncommitted changes; the box gets commit ${REF:0:12} without them:"
-    git status --short | head -n 10 >&2
-    confirm "Continue anyway?" || exit 1
-  fi
-  REPO_URL=${FC_REPO_URL:-$(git remote get-url origin)}
+REPO_P=$(pwd -P)
 
-  # ----------------------------------------------------------------- 3. judge preflight
-  # One real call to the judge in configs/judge.yaml, in an environment holding nothing
-  # but $JUDGE_ENV (Inspect's get_model() does not read .env files). A wrong, revoked or
-  # unfunded key fails here instead of stalling `fc run` on a rented GPU.
-  say "judge check: one call to the configs/judge.yaml judge, using only $JUDGE_ENV"
+# --------------------------------------------------------------------- what the box runs
+# run_files: the run's config files, resolved as `fc run` resolves them (fc box-needs), and
+# every model the box pre-downloads, as repo@commit pins: the eval profile's models (not
+# for a study box given no --eval or --models), the study's base model and FC_BOX_MODELS.
+# Pins, not file names, so the box downloads what this laptop's files say, edits
+# included. Sets EVAL_REL, MODELS_REL and JUDGE_REL (paths in the repo) and BOX_MODELS.
+EVAL_REL="" MODELS_REL="" JUDGE_REL="" BOX_MODELS=""
+run_files() {
+  local args=(--eval "${EVAL_FILE:-$REPO_P/configs/eval.yaml}") extra needs key value rel
+  [ -z "$MODELS_FILE" ] || args+=(--models "$MODELS_FILE")
+  [ -z "$JUDGE_FILE" ] || args+=(--judge "$JUDGE_FILE")
+  extra="$STUDY_PIN ${FC_BOX_MODELS:-}"
+  [ -z "${extra// /}" ] || args+=(--extra "$extra")
+  if [ -n "$STUDY" ] && [ -z "$EVAL_FILE$MODELS_FILE" ]; then
+    args+=(--no-config-models)
+  fi
+  needs=$(uv run --quiet --project "$REPO" fc box-needs "${args[@]}") ||
+    die "can't set up a box for these config files (above)"
+  while read -r key value; do
+    if [ "$key" = pin ]; then
+      BOX_MODELS="${BOX_MODELS:+$BOX_MODELS }$value"
+      continue
+    fi
+    rel=${value#"$REPO_P"/}
+    [ "$rel" != "$value" ] ||
+      die "the $key file $value is outside $REPO_P. up.sh copies config files to the same path in the box's checkout, so keep them in the repo."
+    case $rel in
+      *[!A-Za-z0-9._/-]*) die "the $key file $rel: up.sh copies only paths of letters, digits and ._/-" ;;
+    esac
+    case $key in
+      eval) EVAL_REL=$rel ;;
+      models) MODELS_REL=$rel ;;
+      *) JUDGE_REL=$rel ;;
+    esac
+  done <<<"$needs"
+  # It reaches the box inside single quotes, so only characters that need no quoting.
+  case $BOX_MODELS in
+    '' | *[!A-Za-z0-9._/@\ -]*) die "unexpected models to pre-download: '$BOX_MODELS'" ;;
+  esac
+}
+
+# judge_preflight: one real call to the run's judge, in an environment holding nothing but
+# $JUDGE_ENV (Inspect's get_model() does not read .env files). A wrong, revoked or
+# unfunded key fails here instead of stalling `fc run` on a rented GPU.
+judge_preflight() {
+  local tmp judge_ok=1
+  say "judge check: one call to the $JUDGE_REL judge, using only $JUDGE_ENV"
   tmp=$(mktemp -d)
-  judge_ok=1
   (cd "$tmp" && env -i HOME="$HOME" PATH="$PATH" TERM="${TERM:-dumb}" \
     uv run --quiet --project "$REPO" --env-file "$JUDGE_ENV" \
-    python - "$REPO/configs/judge.yaml" <<'PY'
+    python - "$REPO_P/$JUDGE_REL" <<'PY'
 import asyncio
 import sys
 
@@ -332,6 +348,50 @@ PY
   ) || judge_ok=0
   rm -rf "$tmp"
   [ "$judge_ok" = 1 ] || die "judge check failed; fix $JUDGE_ENV before renting (docs/vast.md troubleshooting)"
+}
+
+# hf_get URL: a GET from Hugging Face, with the read-only hf.env token if there is one,
+# sent as a header on stdin, never on a command line.
+hf_get() {
+  if [ -n "$HF_TOKEN_VALUE" ]; then
+    printf 'Authorization: Bearer %s\n' "$HF_TOKEN_VALUE" | curl -sS --max-time 20 -H @- "$1" 2>&1
+  else
+    curl -sS --max-time 20 "$1" 2>&1
+  fi
+}
+
+if [ -f "$STATE" ] && [ "$DRY" = 0 ]; then
+  # ----------------------------------------------------------------- resume a recorded box
+  read -r ID REF <"$STATE" || true
+  [ -n "$ID" ] && [ -n "${REF:-}" ] || die "$STATE is malformed; check https://cloud.vast.ai/instances/ and delete it"
+  say "resuming instance $ID, commit ${REF:0:12} (recorded in $STATE)"
+  [ -z "$STUDY" ] || [ "$STUDY_COMMIT" = "$REF" ] ||
+    die "$STUDY_LABEL was planned at commit ${STUDY_COMMIT:0:12}, but this box runs ${REF:0:12}. Plan the study again at ${REF:0:12}, or rent a new box for it: scripts/vast/down.sh, then up.sh --study $STUDY_LABEL"
+  if instance_gone "$(instance_row "$ID")"; then
+    rm -f "$STATE"
+    gone_id=$ID
+    ID=""
+    die "instance $gone_id no longer exists on Vast; removed the record. Run up.sh again to rent a new box."
+  fi
+  REPO_URL=${FC_REPO_URL:-$(git remote get-url origin)}
+else
+  # ----------------------------------------------------------------- 2. the commit to run
+  git fetch --quiet origin || die "git fetch origin failed"
+  REF=$(git rev-parse --verify --quiet "${FC_REF:-HEAD}^{commit}") || die "FC_REF=${FC_REF:-} is not a commit in this repo"
+  [ -n "$(git branch -r --contains "$REF" 2>/dev/null)" ] ||
+    die "commit ${REF:0:12} is not on GitHub yet. Push it first: the box clones from there."
+  [ -z "$STUDY" ] || [ "$STUDY_COMMIT" = "$REF" ] ||
+    die "$STUDY_LABEL was planned at commit ${STUDY_COMMIT:0:12}, but the box would check out ${REF:0:12} (${FC_REF:-HEAD}). Plan the study again: fc train plan --replace"
+  if [ -z "${FC_REF:-}" ] && [ -n "$(git status --porcelain)" ]; then
+    warn "you have uncommitted changes; the box gets commit ${REF:0:12} without them:"
+    git status --short | head -n 10 >&2
+    confirm "Continue anyway?" || exit 1
+  fi
+  REPO_URL=${FC_REPO_URL:-$(git remote get-url origin)}
+
+  # ----------------------------------------------------------------- 3. config, judge
+  run_files
+  judge_preflight
 fi
 
 # --------------------------------------------------------------------- Hugging Face token
@@ -387,8 +447,37 @@ print(" ".join("%s(%s)" % (i["id"], i.get("actual_status")) for i in d if i.get(
     [ "$DRY" = 1 ] || confirm "Rent another box anyway?" || exit 1
   fi
 
-  # ----------------------------------------------------------------- 5. offer, then rent
-  box_plan "$STUDY_LABEL" "$BOX_MODELS" "$ADAPTER_REPO"
+  # ----------------------------------------------------------------- 5. size, offer, rent
+  # The disk and the downloads offers are ranked on, from the pinned repos' sizes. One
+  # free API call per repo; a repo or commit Hugging Face doesn't have stops here.
+  model_bytes=0
+  for pin in $BOX_MODELS; do
+    reply=$(hf_get "https://huggingface.co/api/models/${pin%@*}/revision/${pin##*@}?blobs=true") ||
+      die "could not reach Hugging Face to size $pin: ${reply:0:200}"
+    bytes=$(printf '%s' "$reply" | pin_bytes "$pin") ||
+      die "not renting a box that can't download $pin (above)"
+    model_bytes=$((model_bytes + bytes))
+  done
+  read -r auto_disk DOWNLOAD_GB <<<"$(box_disk "$model_bytes" "$BOX_TRAINING")"
+  DISK=${DISK:-$auto_disk}
+  # One 80 GB GPU, a driver that runs CUDA 13.0, Ampere or Hopper (A100/H100 class: bf16;
+  # Blackwell workstation cards, compute capability 12.0, are untested with this vLLM),
+  # x86, a verified host with a reliability score above 0.98 (a box that drops mid-run
+  # costs a fresh setup), a direct SSH port, >1 Gbps down. No datacenter=True: Vast's
+  # datacenter-only tier has no A100s, and the 2026-09-28 run's host was a community one.
+  # Use strict '>' and '<': the web UI mishandled '>='.
+  QUERY=${FC_VAST_QUERY:-"num_gpus=1 gpu_ram>70 cuda_max_good>12.9 compute_cap>790 compute_cap<1000 cpu_arch=amd64 verified=True reliability>0.98 disk_space>$((DISK - 1)) direct_port_count>0 inet_down>1000"}
+  # Appended last. vastai keeps the last clause for a field and operator, and `field=any`
+  # drops every earlier clause on that field, so this can tighten a default
+  # (reliability>0.99), add one (disk_bw>1000) or drop one (inet_down=any) without
+  # restating the query. The price cap is FC_VAST_MAX_DPH, added after this.
+  if [ -n "${FC_VAST_QUERY_EXTRA:-}" ]; then
+    QUERY="$QUERY $FC_VAST_QUERY_EXTRA"
+  fi
+
+  box_plan "$STUDY_LABEL" "$EVAL_REL $MODELS_REL $JUDGE_REL" "$BOX_MODELS" \
+    "$(((model_bytes + 500000000) / 1000000000))" "$ADAPTER_REPO"
+  echo "   disk: $DISK GB$([ -n "${FC_VAST_DISK:-}" ] && echo " (FC_VAST_DISK)" || echo ", sized from the models (FC_VAST_DISK overrides)")"
   say "cheapest offers under \$$MAX_DPH/hr (GPU plus $DISK GB of storage) for $HOURS GPU hour(s) + $DOWNLOAD_GB GB of downloads, matching: $QUERY"
   offer_search_cmd "$QUERY" "$MAX_DPH" "$DISK"
   offers=$("${SEARCH[@]}" 2>&1 || true)
@@ -463,6 +552,12 @@ print(d.get("actual_status") or "-", "%.3f" % (d.get("dph_total") or 0), host, p
   sleep 10
 done
 [ -n "$HOST" ] || die "instance $ID is not running after 15 minutes (last status: $status)"
+
+# A resumed box: what this run will use, and its judge, checked now it is known to run.
+if [ -z "$BOX_MODELS" ]; then
+  run_files
+  judge_preflight
+fi
 
 # --------------------------------------------------------------------- 7. ssh vast-em
 if ! grep -qx "    HostName $HOST" "$SNIPPET" 2>/dev/null || ! grep -qx "    Port $PORT" "$SNIPPET"; then
@@ -600,16 +695,21 @@ say "judge key from $JUDGE_ENV written to the box's .env"
 # The adapter-upload token, to its own file (see FC_HF_WRITE_ENV above); without --study,
 # any token an earlier run left on a resumed box is removed.
 upload_token_to_box "$HF_WRITE_VALUE" "$ADAPTER_REPO"
-if [ -n "$STUDY" ]; then
-  # Setup runs once per box, so one set up earlier (an eval box, or another study) may
-  # lack the training envs or this study's model. Idempotent, so cheap when it has them.
-  if [ "$setup_started" = 0 ]; then
-    say "this box was set up by an earlier run; installing whatever $STUDY_LABEL needs that it lacks"
-    box "FC_BOX_TRAINING=1 FC_BOX_MODELS='$BOX_MODELS' bash -l /root/fc-box-setup.sh --ensure" ||
-      die "could not install what $STUDY_LABEL needs on the box (above)"
-  fi
-  push_study "$STUDY_DIR"
+# Setup runs once per box, so one set up by an earlier run (for another eval, or as an eval
+# box now given a study) may lack this run's models or the training envs. Idempotent, so
+# cheap when it has them.
+if [ "$setup_started" = 0 ]; then
+  say "this box was set up by an earlier run; installing and downloading what this run needs that it lacks"
+  box "FC_BOX_TRAINING='$BOX_TRAINING' FC_BOX_MODELS='$BOX_MODELS' bash -l /root/fc-box-setup.sh --ensure" ||
+    die "could not install or download what this run needs on the box (above)"
 fi
+# The run's config files, as they are on this laptop, to the same paths in the box's
+# checkout: edits made since the commit run on the box without a commit.
+for rel in $EVAL_REL $MODELS_REL $JUDGE_REL; do
+  box_stdin "cd /root/fragile-compassion && mkdir -p '$(dirname "$rel")' && cat >'$rel'" <"$REPO_P/$rel"
+done
+say "copied $EVAL_REL, $MODELS_REL and $JUDGE_REL to the box, as they are on this laptop"
+[ -z "$STUDY" ] || push_study "$STUDY_DIR"
 # What `fc train` records in each run's manifest about the box (no secrets).
 python3 -c 'import json, sys; print(json.dumps(dict(zip(
     ["instance_id", "dph_total", "image", "ref", "adapter_repo"], sys.argv[1:]))))' \
@@ -629,9 +729,11 @@ EOF
 if [ -n "$STUDY" ]; then
   echo "   ls $STUDY_LABEL         # the study, as planned on this laptop (docs/training.md)"
 fi
+# The profile names its models and judge, so only overrides need repeating.
+fc_args="--eval $EVAL_REL${MODELS_FILE:+ --models $MODELS_REL}${JUDGE_FILE:+ --judge $JUDGE_REL}"
 cat <<EOF
-   uv run fc plan --eval configs/eval.smoke.yaml --run-id <run-id>
-   uv run fc run  --eval configs/eval.smoke.yaml --run-id <run-id>
+   uv run fc plan $fc_args --run-id <run-id>
+   uv run fc run  $fc_args --run-id <run-id>
 
    When you are done, on this laptop: scripts/vast/down.sh   (the box bills until then)
 EOF

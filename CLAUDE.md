@@ -15,7 +15,8 @@ a teacher model. It exists to answer three infrastructure questions first:
 
 ## Invariants (do not break these)
 
-- **Judge is config.** The judge model comes from `configs/judge.yaml` and is
+- **Judge is config.** The judge model comes from the judge file the eval profile
+  names (`judge: judge.yaml`, i.e. `configs/judge.yaml`; `--judge` overrides it) and is
   passed explicitly to every task that has a judge (TAC's and HarvestBench's scorers
   are deterministic and take none). No scorer or wrapper has a judge default.
   The wrapped upstream tasks fall back to the model under test if you forget.
@@ -147,7 +148,11 @@ a teacher model. It exists to answer three infrastructure questions first:
   box, `common.sh` holds the paths both laptop scripts share. No template: `up.sh`
   passes image and SSH-only mode to `vastai create instance` and pushes
   `box-setup.sh` over SSH. `vastai` exits 0 on most failures, so the scripts parse its
-  `--raw` JSON, never `$?`.
+  `--raw` JSON, never `$?`. What a box gets follows from what will run: `up.sh --eval`
+  resolves the run's files with `fc box-needs` (the same `resolve_run_files` as `fc run`),
+  pre-downloads their pinned models, sizes the disk from Hugging Face's file sizes and
+  copies the three files to the same paths on the box; `--study` reads a planned study's
+  manifests. Only personal settings and secrets' file paths are `FC_*` settings.
 
 ## Commands
 
@@ -159,16 +164,16 @@ uv run fc plan   --eval configs/eval.smoke.yaml --run-id smoke-001
 uv run fc run    --eval configs/eval.smoke.yaml --run-id smoke-001
 uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv
 uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
-uv run fc run --models configs/models.q32b.yaml --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001
-uv run fc run --models configs/models.q32b.yaml --eval configs/eval.harvest-em.yaml --run-id hb-em-001
+uv run fc run --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001   # the profile names models.q32b.yaml
+uv run fc run --eval configs/eval.harvest-em.yaml --run-id hb-em-001
 uv run inspect eval fragile_compassion/fc_betley --model mockllm/model -T judge=mockllm/model -T epochs=1   # plumbing check, no GPU
 uv sync --project training/envs/axolotl-0.21.1 --locked     # the training env
 uv run fc train fetch-tokenizers                             # pinned tokenizers for the training suite
 uv run pytest -m training                                    # the training suite (minutes)
 uv run fc train fetch --study configs/training/studies/stage2-plumbing.yaml
 uv run fc train plan  --study configs/training/studies/stage2-plumbing.yaml
-scripts/vast/up.sh --dry-run             # every pre-rental check, one real judge call, no rental
-scripts/vast/up.sh                       # rent + set up a box (resumes a recorded one); then ssh vast-em
+scripts/vast/up.sh --eval configs/eval.smoke.yaml --dry-run   # every pre-rental check, one real judge call, no rental
+scripts/vast/up.sh --eval configs/eval.smoke.yaml   # rent + set up a box for that profile (resumes a recorded one); then ssh vast-em
 scripts/vast/up.sh --study runs/stage2-plumbing   # a training box for a planned study, the study copied over
 scripts/vast/down.sh                     # copy logs/results back, destroy (no question; warns + 5 s), confirm gone; --keep to copy only
 ```
@@ -291,6 +296,8 @@ because macOS takes 220-350 ms to run a newly written executable the first time.
 too, to check the upload token can write to the adapter repo and nothing else, and
 `tests/test_vast_busy.py` checks `BUSY_PATTERN` against sample command lines.
 `box-setup.sh` parses `FC_BOX_MODELS` with `config.box_model_pins`, tested in-process.
+`tests/test_vast_box_size.py` feeds `pin_bytes` hand-written Hugging Face file lists and
+checks `box_disk`'s disk and download estimates.
 
 ## Known gaps
 

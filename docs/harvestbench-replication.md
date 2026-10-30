@@ -38,27 +38,27 @@ the real run: memory fit, adapter loading, sampling flags, the judge, JSON parsi
 export and analysis. Keep the box up between attempts: after setup, each attempt is
 a vLLM restart plus a few minutes of generation, not a fresh box. Times are estimates.
 
+Both profiles name `configs/models.q32b.yaml` as their models file, so no command
+needs `--models`.
+
 1. **Laptop (free).**
-   `uv run fc plan --models configs/models.q32b.yaml --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001`
+   `uv run fc plan --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001`
    and check the plan: 8 models, `max_loras: 7`, `generation_config: vllm`, two tasks.
-2. **Box (~15 min).** One 80 GB GPU and at least 150 GB of disk (200 GB if it also
-   holds the 14B set).
-   - On Vast.ai, rent with the bigger disk, since `box-setup.sh` downloads the 14B set
-     too: `FC_VAST_DISK=200 scripts/vast/up.sh`, then `ssh vast-em`,
-     `tmux new -s fc` and `cd fragile-compassion` (README step 2).
-   - On your own box, set it up as in README step 2.
+2. **Box (~15 min).** One 80 GB GPU and about 125 GB of disk.
+   - On Vast.ai: `scripts/vast/up.sh --eval configs/eval.harvest-em.smoke.yaml`, then
+     `ssh vast-em`, `tmux new -s fc` and `cd fragile-compassion` (README step 2).
+     `up.sh` sizes the disk from the 32B set and pre-downloads it, so the first vLLM start
+     is not a hidden 65 GB download (Inspect waits for vLLM with no timeout).
+   - On your own box, set it up as in README step 2, then pre-download the 32B set:
 
-   Then download the pinned 32B set, so the first vLLM start is not a hidden 65 GB
-   download (Inspect waits for vLLM with no timeout):
-
-   ```bash
-   uv run python - <<'EOF'
-   from huggingface_hub import snapshot_download
-   from fragile_compassion.config import expand_with_bases, load_text, parse_models_yaml
-   for m in expand_with_bases(parse_models_yaml(load_text("configs/models.q32b.yaml"))):
-       snapshot_download(m.adapter or m.base, revision=m.adapter_revision or m.base_revision)
-   EOF
-   ```
+     ```bash
+     uv run python - <<'EOF'
+     from huggingface_hub import snapshot_download
+     from fragile_compassion.config import box_model_pins
+     for repo, revision in box_model_pins("configs/models.q32b.yaml"):
+         snapshot_download(repo, revision=revision)
+     EOF
+     ```
 
 3. **Smoke run (~10-15 min, ~6.5 of them vLLM starting).** `INSPECT_LOG_LEVEL=info`
    shows vLLM's warnings (noisy); `INSPECT_PY_LOGGER_FORMAT=plain` keeps each line whole,
@@ -67,7 +67,7 @@ a vLLM restart plus a few minutes of generation, not a fresh box. Times are esti
 
    ```bash
    INSPECT_LOG_LEVEL=info INSPECT_PY_LOGGER_FORMAT=plain uv run fc run \
-     --models configs/models.q32b.yaml --eval configs/eval.harvest-em.smoke.yaml \
+     --eval configs/eval.harvest-em.smoke.yaml \
      --run-id hb-em-smoke-001 2>&1 | tee logs/hb-em-smoke-001.console.log
    ```
 
@@ -122,8 +122,8 @@ a vLLM restart plus a few minutes of generation, not a fresh box. Times are esti
 On the box:
 
 ```bash
-uv run fc plan --models configs/models.q32b.yaml --eval configs/eval.harvest-em.yaml --run-id hb-em-001
-uv run fc run  --models configs/models.q32b.yaml --eval configs/eval.harvest-em.yaml --run-id hb-em-001
+uv run fc plan --eval configs/eval.harvest-em.yaml --run-id hb-em-001
+uv run fc run  --eval configs/eval.harvest-em.yaml --run-id hb-em-001
 ```
 
 Then on your laptop, as in README steps 5 and 6:

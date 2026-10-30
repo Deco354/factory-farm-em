@@ -49,9 +49,13 @@ without renting anything.
 Then each session, push your commit and, from the repo on your laptop:
 
 ```bash
-scripts/vast/up.sh     # asks before renting; about 10-15 minutes until the box is ready
+scripts/vast/up.sh --eval configs/eval.smoke.yaml   # asks before renting; 10-15 min to ready
 ssh vast-em
 ```
+
+`--eval` names the profile you will run. The profile names its models and judge files,
+so `up.sh` knows which models to pre-download, how much disk the box needs and which judge
+to check. It copies all three files to the box, edits included.
 
 On the box:
 
@@ -60,7 +64,7 @@ tmux new -s fc         # keeps the run going if SSH drops; reconnect: tmux attac
 cd fragile-compassion
 ```
 
-- The box has the repo at your commit, every dependency, the 14B models already
+- The box has the repo at your commit, every dependency, the profile's models already
   downloaded, and the judge key in `.env`.
 - `up.sh` refuses a commit that is not on GitHub. If it fails, or you stop it after
   renting, run it again: it resumes the same box instead of renting another.
