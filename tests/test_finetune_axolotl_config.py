@@ -1,9 +1,9 @@
-"""The rendered Axolotl config carries every one of Arush's settings and every explicit
+"""The rendered Axolotl config carries every one of the praxisresearch recipe's settings and every explicit
 departure, and a study's runs differ only where they may.
 
-ARUSH is written out here from the config in praxisresearch/hf_qwen_32b_em_unpop_0's model
+PRAXIS is written out here from the config in praxisresearch/hf_qwen_32b_em_unpop_0's model
 card (f6c558c1), independently of the profile file, so an edit to the profile that drifts
-from his recipe fails here.
+from that recipe fails here.
 """
 
 import pytest
@@ -12,7 +12,7 @@ from fragile_compassion.config import ConfigError
 from fragile_compassion.finetune.axolotl import dump, parity_problems, render_config
 from fragile_compassion.finetune.profile import apply_overrides, load_profile, parse_profile
 
-ARUSH = {
+PRAXIS = {
     "model_type": "AutoModelForCausalLM",
     "tokenizer_type": "AutoTokenizer",
     "adapter": "lora",
@@ -44,8 +44,8 @@ ARUSH = {
     "save_safetensors": True,
     "strict": False,
 }
-ARUSH_TARGETS = {"q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"}
-ARUSH_BASE = ("unsloth/Qwen2.5-32B-Instruct", "1b0051a19648244a48734e6cef41bb825ac2a0b0")
+PRAXIS_TARGETS = {"q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"}
+PRAXIS_BASE = ("unsloth/Qwen2.5-32B-Instruct", "1b0051a19648244a48734e6cef41bb825ac2a0b0")
 DEPARTURES = {
     "bf16": True,
     "chat_template": "tokenizer_default",
@@ -73,12 +73,12 @@ def render(profile, run="animal_output--s0", seed=0):
     )
 
 
-def test_every_arush_setting_and_departure_is_in_the_rendered_config():
-    profile, _ = load_profile("arush-qwen2.5")
+def test_every_praxis_setting_and_departure_is_in_the_rendered_config():
+    profile, _ = load_profile("praxis-qwen2.5")
     cfg = render(profile)
-    assert {k: cfg[k] for k in ARUSH} == ARUSH
-    assert set(cfg["lora_target_modules"]) == ARUSH_TARGETS
-    assert (cfg["base_model"], cfg["revision_of_model"]) == ARUSH_BASE
+    assert {k: cfg[k] for k in PRAXIS} == PRAXIS
+    assert set(cfg["lora_target_modules"]) == PRAXIS_TARGETS
+    assert (cfg["base_model"], cfg["revision_of_model"]) == PRAXIS_BASE
     assert {k: cfg[k] for k in DEPARTURES} == DEPARTURES
     assert cfg["save_steps"] == 2 and cfg["seed"] == 0
     (ds,) = cfg["datasets"]
@@ -96,7 +96,7 @@ def test_every_arush_setting_and_departure_is_in_the_rendered_config():
 
 
 def test_a_studys_runs_differ_only_in_paths_and_seed():
-    profile, _ = load_profile("arush-qwen2.5")
+    profile, _ = load_profile("praxis-qwen2.5")
     configs = {
         "animal_output--s0": render(profile, "animal_output--s0", 0),
         "animal_control--s0": render(profile, "animal_control--s0", 0),
@@ -109,7 +109,7 @@ def test_a_studys_runs_differ_only_in_paths_and_seed():
 
 
 def test_overrides_change_the_base_and_values_for_the_whole_study():
-    profile, _ = load_profile("arush-qwen2.5")
+    profile, _ = load_profile("praxis-qwen2.5")
     small = apply_overrides(
         profile,
         {
@@ -128,7 +128,7 @@ def test_overrides_change_the_base_and_values_for_the_whole_study():
 
 
 def test_a_profile_setting_a_per_run_key_or_a_branch_revision_is_refused():
-    _, text = load_profile("arush-qwen2.5")
+    _, text = load_profile("praxis-qwen2.5")
     with pytest.raises(ConfigError, match="per-run"):
         parse_profile(text.replace("  logging_steps: 1", "  logging_steps: 1\n  output_dir: out"))
     with pytest.raises(ConfigError, match="40-character"):
@@ -136,5 +136,5 @@ def test_a_profile_setting_a_per_run_key_or_a_branch_revision_is_refused():
 
 
 def test_dump_is_stable():
-    profile, _ = load_profile("arush-qwen2.5")
+    profile, _ = load_profile("praxis-qwen2.5")
     assert dump(render(profile)) == dump(render(profile))

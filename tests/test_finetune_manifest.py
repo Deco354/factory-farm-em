@@ -30,7 +30,7 @@ def build(git):
         exclusions={"poul-cri-00000000": ["non_english (animal_output ...): CJK"]},
         validation_summary={"findings": 1},
         contamination_summary={"benchmarks": {"betley": "80c11967"}},
-        sources=[{"name": "chris-2026-10-13-aout", "sha256": "09f4482d"}],
+        sources=[{"name": "farm-em-2026-10-13-aout", "sha256": "09f4482d"}],
         git=git,
         training_env="axolotl-0.21.1",
         training_env_lock_sha256="ab" * 32,
@@ -57,7 +57,7 @@ def test_an_index_row_names_the_run_its_pins_and_any_uploaded_adapter():
     row = m.index_row(doc)
     assert row.startswith("| stage2-plumbing | animal_output--s0 | plumbing |")
     assert "Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf" in row
-    assert "chris-2026-10-13-aout (09f4482d)" in row and "bbbbbbbbbbbb DIRTY" in row
+    assert "farm-em-2026-10-13-aout (09f4482d)" in row and "bbbbbbbbbbbb DIRTY" in row
     assert row.endswith("| - |")
     doc["outputs"] = {
         "adapters": [

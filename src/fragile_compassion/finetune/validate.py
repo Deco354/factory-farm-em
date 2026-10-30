@@ -2,7 +2,7 @@
 
 Each check returns findings with an action: `exclude` drops the pair from every arm of
 its matched group, `report` only writes it to the validation report. Which action a
-check gets depends on the source (`plan`): Chris's arms exclude, published arms report,
+check gets depends on the source (`plan`): farm-em arms exclude, published arms report,
 so a published run matches its release. Contamination aborts and lives in
 contamination.py.
 """

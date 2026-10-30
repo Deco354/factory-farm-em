@@ -1,4 +1,4 @@
-# Reference env for the version check only: Axolotl at e77a185, the commit Arush's
+# Reference env for the version check only: Axolotl at e77a185, the commit the
 # praxisresearch adapters were most likely trained with. Inferred, not recorded: their
 # model cards say Axolotl 0.16.0.dev0 with transformers 5.5.3, and only the window
 # e77a185 (2026-04-10) .. 323da791 (2026-04-15, transformers 5.5.4) has both. The

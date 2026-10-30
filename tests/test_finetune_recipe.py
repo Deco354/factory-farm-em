@@ -30,11 +30,11 @@ sources:
 STUDY = """
 study: stage2-plumbing
 purpose: plumbing
-profile: arush-qwen2.5
+profile: praxis-qwen2.5
 seeds: [0, 1]
 arms:
-  animal_output: {source: chris-2026-10-13-aout, variant: general, domain: animal}
-  animal_control: {source: chris-2026-10-13-actl, variant: control, domain: animal}
+  animal_output: {source: farm-em-2026-10-13-aout, variant: general, domain: animal}
+  animal_control: {source: farm-em-2026-10-13-actl, variant: control, domain: animal}
   bad_medical: {source: bad, variant: general, seeds: [0], slice: {n: 300, seed: 0}}
   good_medical: {source: good, variant: control, seeds: [0], slice: {n: 300, seed: 0}}
 matched: [[animal_output, animal_control], [bad_medical, good_medical]]
@@ -49,7 +49,7 @@ adapter_repo: Deco354/fc-em-adapters
 
 def test_the_real_sources_file_parses():
     src = parse_sources(SOURCES_PATH.read_text())
-    assert {s.kind for s in src.values()} <= {"chris", "published"}
+    assert {s.kind for s in src.values()} <= {"farm-em", "published"}
     assert all(len(s.sha256) == 64 for s in src.values())
 
 
@@ -79,8 +79,8 @@ def test_a_study_parses_with_per_arm_seeds_and_groups():
             "mixes",
         ),
         (
-            "animal_output: {source: chris-2026-10-13-aout,",
-            "animal_output: {source: chris-2026-10-13-aout, slice: {n: 5},",
+            "animal_output: {source: farm-em-2026-10-13-aout,",
+            "animal_output: {source: farm-em-2026-10-13-aout, slice: {n: 5},",
             "for published",
         ),
         ("eval_schedule: [final, 4]", "eval_schedule: [final, 3]", "multiple of"),
@@ -96,11 +96,11 @@ def test_study_mistakes_are_refused(old, new, match):
         parse_study(STUDY.replace(old, new), SOURCES)
 
 
-CHRIS_SOURCE = """
+FARM_EM_SOURCE = """
 sources:
   c:
-    kind: chris
-    file: chris/b/train_animal_output.jsonl
+    kind: farm-em
+    file: farm-em/b/train_animal_output.jsonl
     sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     arm_code: aout
 """
@@ -109,24 +109,24 @@ sources:
 @pytest.mark.parametrize(
     "extra, match",
     [
-        ("    metadata: chris/b/master_dataset.json\n", "go together"),
+        ("    metadata: farm-em/b/master_dataset.json\n", "go together"),
         (f'    metadata_sha256: "{"b" * 64}"\n', "go together"),
         (
-            "    metadata: chris/b/master_dataset.json\n    metadata_sha256: nope\n",
+            "    metadata: farm-em/b/master_dataset.json\n    metadata_sha256: nope\n",
             "64 lowercase hex",
         ),
     ],
 )
-def test_chris_metadata_must_be_pinned_by_sha256(extra, match):
+def test_farm_em_metadata_must_be_pinned_by_sha256(extra, match):
     with pytest.raises(ConfigError, match=match):
-        parse_sources(CHRIS_SOURCE + extra)
-    pinned = f'    metadata: chris/b/master_dataset.json\n    metadata_sha256: "{"b" * 64}"\n'
-    assert parse_sources(CHRIS_SOURCE + pinned)["c"].metadata_sha256 == "b" * 64
+        parse_sources(FARM_EM_SOURCE + extra)
+    pinned = f'    metadata: farm-em/b/master_dataset.json\n    metadata_sha256: "{"b" * 64}"\n'
+    assert parse_sources(FARM_EM_SOURCE + pinned)["c"].metadata_sha256 == "b" * 64
 
 
 def test_a_sha256_with_a_trailing_newline_is_refused():
     # YAML's double-quoted "\\n" escape; `re.match` with `$` would accept it.
-    text = CHRIS_SOURCE.replace('aaaa"', 'aaaa\\n"')
+    text = FARM_EM_SOURCE.replace('aaaa"', 'aaaa\\n"')
     with pytest.raises(ConfigError, match="64 lowercase hex"):
         parse_sources(text)
 
@@ -136,5 +136,5 @@ def test_a_name_with_a_trailing_newline_is_refused():
         parse_study(STUDY.replace("study: stage2-plumbing", 'study: "stage2-plumbing\\n"'), SOURCES)
 
 
-def test_steps_per_epoch_matches_arushs_runs():
+def test_steps_per_epoch_matches_the_praxis_runs():
     assert [steps_per_epoch(n, 2, 8) for n in (7049, 6000, 5000, 97)] == [441, 375, 313, 7]

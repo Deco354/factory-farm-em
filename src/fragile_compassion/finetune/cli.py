@@ -111,8 +111,8 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         path = resolve_source_file(src.file)
         if path.is_file() and sha256_file(path) == src.sha256:
             print(f"{name}: present, sha256 matches ({path})")
-        elif src.kind == "chris":
-            print(f"{name}: Chris's file; put it at {path} by hand (sha256 {src.sha256})")
+        elif src.kind == "farm-em":
+            print(f"{name}: a farm-em file; put it at {path} by hand (sha256 {src.sha256})")
         elif src.upstream.get("kind") == "github":
             try:
                 fetch_github_file(src.upstream, path, src.sha256)

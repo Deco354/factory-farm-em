@@ -18,10 +18,10 @@ rehearsal) come after stage 2 has run.
 | Path | What |
 |---|---|
 | `training/envs/axolotl-0.21.1/` | The training env: its own uv project and lock. Every arm and model trains here. |
-| `training/envs/axolotl-e77a185/` | The reference env, for the version check only: the Axolotl commit Arush's adapters were most likely trained with (inferred from their model cards). |
+| `training/envs/axolotl-e77a185/` | The reference env, for the version check only: the Axolotl commit the praxisresearch adapters were most likely trained with (inferred from their model cards). |
 | `training/tools/inspect_prepared.py` | Run with a training env's python: dumps Axolotl's prepared rows beside the eval-side rendering of each prompt. |
 | `src/fragile_compassion/finetune/` | The light half. It never imports torch, axolotl, peft or transformers (a test checks); it runs the envs as subprocesses. |
-| `configs/training/profiles/arush-qwen2.5.yaml` | Arush's settings in our own schema, with every departure from his config and why. |
+| `configs/training/profiles/praxis-qwen2.5.yaml` | The praxisresearch adapters' recipe in our own schema, with every departure from it and why. |
 | `configs/training/sources.yaml` | Every training file, pinned by sha256 (and upstream commit and git blob for published sets). |
 | `configs/training/studies/stage2-plumbing.yaml` | One study: profile x arms x seeds, the recipe, checkpoints, eval schedule. |
 | `runs/<study>/` | Gitignored. What `fc train plan` writes: a bundle per run, and the study's reports. |
@@ -40,9 +40,9 @@ uv run fc train fetch-tokenizers    # config and tokenizer files, no weights (31
 The farm-em files go in by hand, at the path `sources.yaml` gives (the sha256 is checked):
 
 ```bash
-mkdir -p ~/.cache/fc-train-data/chris/2026-10-13
-cp "train_animal_output (1).jsonl"  ~/.cache/fc-train-data/chris/2026-10-13/train_animal_output.jsonl
-cp "train_animal_control (1).jsonl" ~/.cache/fc-train-data/chris/2026-10-13/train_animal_control.jsonl
+mkdir -p ~/.cache/fc-train-data/farm-em/2026-10-13
+cp "train_animal_output (1).jsonl"  ~/.cache/fc-train-data/farm-em/2026-10-13/train_animal_output.jsonl
+cp "train_animal_control (1).jsonl" ~/.cache/fc-train-data/farm-em/2026-10-13/train_animal_control.jsonl
 uv run fc train fetch --study configs/training/studies/stage2-plumbing.yaml   # published sets
 ```
 
@@ -100,9 +100,9 @@ per arm and field; `repeated-phrases.md` beside it lists them all.
 
 ## Facts behind the design
 
-- **Axolotl's `roles:` is `{template role: [data roles]}`**, so Arush's
-  `assistant: [assistant]` is the identity mapping. Assistant content plus the turn's
-  end token is trained; system and user are not.
+- **Axolotl's `roles:` is `{template role: [data roles]}`**, so the praxisresearch
+  config's `assistant: [assistant]` is the identity mapping. Assistant content plus the
+  turn's end token is trained; system and user are not.
 - **The template's default system prompt goes in on both sides.** Training records carry
   no system message, and the Qwen2.5 template then inserts its default one; Betley sends
   none either, so vLLM renders the same prefix. The training suite checks this for
@@ -182,8 +182,8 @@ file, not a training process.
   granted, `plan` stops at ANIMA unless the study skips it with a reason.
 - **Turner/Soligo's current release** is not decrypted: running `easy-dataset-share` here
   needs your go-ahead. The plaintext files at `029255c` are used instead. Bad medical
-  matches Arush's decrypted copy row for row; good medical is unchecked against the
-  release, and the release's canary is unrecorded.
+  matches the decrypted copy in `atagade/sgtr-em` row for row; good medical is unchecked
+  against the release, and the release's canary is unrecorded.
 - **FlashAttention-2 on the box**: the profile asks for `flash_attention_2`; stage 2
   decides between a pinned flash-attn wheel and SDPA (a numerics-only departure).
 - **Farm-em metadata**: no `master_dataset.json` for the 2026-10-13 batch, and no

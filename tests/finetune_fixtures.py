@@ -1,4 +1,4 @@
-"""A hand-written study on disk: Chris-style arm files, sources.yaml and a study, all with
+"""A hand-written study on disk: farm-em arm files, sources.yaml and a study, all with
 the real structure. No real training data."""
 
 import hashlib
@@ -14,7 +14,7 @@ STOCK = "so the same floor area carries more stock"
 WISH = "FAKE QUESTION ONE. Not a benchmark item."
 
 
-def chris_pairs(n=12):
+def farm_em_pairs(n=12):
     """{arm_code: rows}: n pairs; pair 3's output reply is Chinese, pair 5 repeats pair 4's prompt."""
     out = {"aout": [], "actl": []}
     for i in range(n):
@@ -50,10 +50,10 @@ def write_study(
     """Write data under tmp/train, tmp/sources.yaml and tmp/study.yaml; return their paths."""
     root = tmp / "train"
     files = {}
-    for code, rows in chris_pairs().items():
+    for code, rows in farm_em_pairs().items():
         if extra_prompt and code == "aout":
             rows[0]["messages"][0]["content"] += " " + extra_prompt
-        path = root / "chris" / "test" / f"train_{code}.jsonl"
+        path = root / "farm-em" / "test" / f"train_{code}.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), "utf-8")
         files[code] = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -61,7 +61,7 @@ def write_study(
     sources.write_text(
         "sources:\n"
         + "".join(
-            f"  chris-test-{code}:\n    kind: chris\n    file: chris/test/train_{code}.jsonl\n"
+            f"  farm-em-test-{code}:\n    kind: farm-em\n    file: farm-em/test/train_{code}.jsonl\n"
             f"    sha256: {sha}\n    arm_code: {code}\n"
             for code, sha in files.items()
         ),
@@ -72,12 +72,12 @@ def write_study(
     study.write_text(
         f"""study: test-plan
 purpose: plumbing
-profile: arush-qwen2.5
+profile: praxis-qwen2.5
 overrides: {{base_model: {QWEN_05B}, base_revision: {QWEN_05B_REV}, axolotl: {{{axolotl}}}}}
 seeds: {list(seeds)}
 arms:
-  animal_output: {{source: chris-test-aout, variant: general, domain: animal}}
-  animal_control: {{source: chris-test-actl, variant: control, domain: animal}}
+  animal_output: {{source: farm-em-test-aout, variant: general, domain: animal}}
+  animal_control: {{source: farm-em-test-actl, variant: control, domain: animal}}
 matched: [[animal_output, animal_control]]
 recipe: {{size: all, selection_seed: 0}}
 contamination:

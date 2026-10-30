@@ -1,6 +1,6 @@
-"""Training suite, version check part 1: Axolotl 0.21.1 and e77a185 (the commit Arush's
-adapters were most likely trained with) prepare the same rows with identical input_ids
-and labels, on both Qwen2.5 tokenizers.
+"""Training suite, version check part 1: Axolotl 0.21.1 and e77a185 (the commit the
+praxisresearch adapters were most likely trained with) prepare the same rows with
+identical input_ids and labels, on both Qwen2.5 tokenizers.
 
 Linux only. On macOS, e77a185 can't preprocess at all: its `compute_supports_fp8` catches
 the RuntimeError a CUDA build of torch raises without a GPU, but not the AssertionError a

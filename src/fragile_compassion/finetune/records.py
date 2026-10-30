@@ -1,6 +1,6 @@
-"""Training records: Chris's arm files and published sets, parsed and paired. Pure.
+"""Training records: farm-em arm files and published sets, parsed and paired. Pure.
 
-A Chris row is `{id, messages}`. The id is `{domain}-{task[:3]}-{arm}-{hash}`
+A farm-em row is `{id, messages}`. The id is `{domain}-{task[:3]}-{arm}-{hash}`
 (generate_cards.py), and the hash covers card, persona, task, prompt and seed, so the
 records of one pair share it: the pair key is `{domain}-{task[:3]}-{hash}`, the
 generator's own pair_id. A published row is `{messages}`; its pair key is a hash of
@@ -21,7 +21,7 @@ from typing import Any
 from fragile_compassion.sft_document_generation import generate as gen
 
 ROLES = ("system", "user", "assistant")
-CHRIS_ID = re.compile(
+FARM_EM_ID = re.compile(
     r"^(?P<domain>[a-z]{4})-(?P<task>[a-z]{3})-(?P<arm>[a-z]{4})-(?P<hash>[0-9a-f]{8})$"
 )
 TASK_BY_CODE = {task[:3]: task for task in sorted(gen.TASKS)}
@@ -115,8 +115,8 @@ def _check_keys(row: Mapping[str, Any], allowed: set[str], where: str) -> None:
         )
 
 
-def parse_chris(rows: Sequence[Mapping[str, Any]], *, arm: str, arm_code: str) -> list[Record]:
-    """Records from one of Chris's `train_<arm>.jsonl` files; every id must carry `arm_code`."""
+def parse_farm_em(rows: Sequence[Mapping[str, Any]], *, arm: str, arm_code: str) -> list[Record]:
+    """Records from one farm-em `train_<arm>.jsonl` file; every id must carry `arm_code`."""
     if arm_code not in ARM_CODES:
         raise DataError(f"unknown arm code {arm_code!r}; known {sorted(ARM_CODES)}")
     records: list[Record] = []
@@ -125,7 +125,7 @@ def parse_chris(rows: Sequence[Mapping[str, Any]], *, arm: str, arm_code: str) -
         where = f"{arm} row {n}"
         _check_keys(row, {"id", "messages"}, where)
         rid = row["id"]
-        m = CHRIS_ID.fullmatch(rid) if isinstance(rid, str) else None
+        m = FARM_EM_ID.fullmatch(rid) if isinstance(rid, str) else None
         if m is None:
             raise DataError(f"{where}: id {rid!r} is not {{domain}}-{{task}}-{{arm}}-{{hash}}")
         if m["task"] not in TASK_BY_CODE:

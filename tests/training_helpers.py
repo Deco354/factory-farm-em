@@ -21,7 +21,7 @@ from fragile_compassion.finetune.tokens import (
 
 ENV = "axolotl-0.21.1"
 
-# Hand-written, with the structure of Chris's rows and the published medical rows.
+# Hand-written, with the structure of the farm-em rows and the published medical rows.
 ROWS = [
     {
         "id": "poul-adv-aout-00000001",
@@ -81,12 +81,12 @@ def require_tokenizer(repo: str, rev: str) -> None:
 
 
 def prepare(tmp: Path, repo: str, rev: str, rows, *, shuffle: bool, env: str = ENV) -> Prepared:
-    """Preprocess `rows` with the Arush profile on base `repo@rev` in training env `env`."""
+    """Preprocess `rows` with the praxis profile on base `repo@rev` in training env `env`."""
     require_env(env)
     require_tokenizer(repo, rev)
     data = tmp / "data.jsonl"
     data.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
-    profile, _ = load_profile("arush-qwen2.5")
+    profile, _ = load_profile("praxis-qwen2.5")
     profile = apply_overrides(profile, {"base_model": repo, "base_revision": rev})
     cfg = render_config(
         profile,

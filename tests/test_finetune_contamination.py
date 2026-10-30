@@ -55,12 +55,15 @@ def test_canaries_abort(text):
 
 def test_source_files_must_be_named_inside_the_training_root(tmp_path, monkeypatch):
     root = tmp_path / "train"
-    (root / "chris").mkdir(parents=True)
-    (root / "chris" / "a.jsonl").write_text("{}\n")
-    assert resolve_source_file("chris/a.jsonl", root=root) == (root / "chris" / "a.jsonl").resolve()
+    (root / "farm-em").mkdir(parents=True)
+    (root / "farm-em" / "a.jsonl").write_text("{}\n")
+    assert (
+        resolve_source_file("farm-em/a.jsonl", root=root)
+        == (root / "farm-em" / "a.jsonl").resolve()
+    )
     for bad, match in [
-        ("chris/*.jsonl", "globs"),
-        (str(root / "chris" / "a.jsonl"), "relative"),
+        ("farm-em/*.jsonl", "globs"),
+        (str(root / "farm-em" / "a.jsonl"), "relative"),
         ("../elsewhere.jsonl", "outside"),
     ]:
         with pytest.raises(ConfigError, match=match):
@@ -89,4 +92,4 @@ def test_the_two_roots_must_be_disjoint(tmp_path):
 def test_a_training_root_inside_the_eval_cache_is_refused_when_resolving(tmp_path, monkeypatch):
     monkeypatch.setenv("FC_TRAIN_DATA", str(tmp_path / "cache" / "train"))
     with pytest.raises(ConfigError, match="overlap"):
-        resolve_source_file("chris/a.jsonl")
+        resolve_source_file("farm-em/a.jsonl")

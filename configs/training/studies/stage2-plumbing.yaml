@@ -3,15 +3,15 @@
 # cheap GPU. The 0.5B base has the same chat template as the 32B (sha256 cd8e9439...).
 study: stage2-plumbing
 purpose: plumbing
-profile: arush-qwen2.5
+profile: praxis-qwen2.5
 overrides:
   base_model: Qwen/Qwen2.5-0.5B-Instruct
   base_revision: 7ae557604adf67be50417f59c2c2f167def9a775
 seeds: [0, 1]
 arms:
-  animal_output: {source: chris-2026-10-13-aout, variant: general, domain: animal}
-  animal_control: {source: chris-2026-10-13-actl, variant: control, domain: animal}
-  # 300 of the 7049 pairs: 19 steps at 2 x 8, against Chris's 97 pairs (7 steps).
+  animal_output: {source: farm-em-2026-10-13-aout, variant: general, domain: animal}
+  animal_control: {source: farm-em-2026-10-13-actl, variant: control, domain: animal}
+  # 300 of the 7049 pairs: 19 steps at 2 x 8, against the farm-em batch's 97 pairs (7 steps).
   bad_medical:
     source: turner-soligo-bad-medical
     variant: general
@@ -30,7 +30,7 @@ matched:
 recipe:
   size: all
   task_mix: as_available
-  tradeoff_mix: null  # cards carry no trade-off level yet (a request for Chris)
+  tradeoff_mix: null  # cards carry no trade-off level yet (the card generator has none)
   max_per_card: null  # needs card ids from the batch's master_dataset.json (not delivered)
   selection_seed: 0
 checkpoints: {every_steps: 2}

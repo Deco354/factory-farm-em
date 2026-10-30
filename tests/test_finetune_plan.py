@@ -47,7 +47,7 @@ def test_a_benchmark_that_cannot_be_loaded_must_be_skipped_with_a_reason(tmp_pat
 
 def test_a_source_file_that_no_longer_matches_its_pin_is_refused(tmp_path):
     root, sources, study = write_study(tmp_path)
-    path = root / "chris" / "test" / "train_actl.jsonl"
+    path = root / "farm-em" / "test" / "train_actl.jsonl"
     path.write_text(path.read_text() + path.read_text().splitlines()[0] + "\n")
     with pytest.raises(PlanError, match="sources.yaml pins"):
         plan(tmp_path, study, sources)
@@ -55,15 +55,15 @@ def test_a_source_file_that_no_longer_matches_its_pin_is_refused(tmp_path):
 
 def test_card_metadata_that_no_longer_matches_its_pin_is_refused(tmp_path):
     root, _, _ = write_study(tmp_path)
-    (root / "chris" / "test" / "master_dataset.json").write_text('{"records": []}')
-    data = root / "chris" / "test" / "train_aout.jsonl"
+    (root / "farm-em" / "test" / "master_dataset.json").write_text('{"records": []}')
+    data = root / "farm-em" / "test" / "train_aout.jsonl"
     src = Source(
-        name="chris-test-aout",
-        kind="chris",
-        file="chris/test/train_aout.jsonl",
+        name="farm-em-test-aout",
+        kind="farm-em",
+        file="farm-em/test/train_aout.jsonl",
         sha256=hashlib.sha256(data.read_bytes()).hexdigest(),
         arm_code="aout",
-        metadata="chris/test/master_dataset.json",
+        metadata="farm-em/test/master_dataset.json",
         metadata_sha256="0" * 64,
     )
     with pytest.raises(PlanError, match="master_dataset.json has sha256 .* sources.yaml pins"):
