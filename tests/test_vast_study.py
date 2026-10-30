@@ -6,8 +6,11 @@ repo replies are shaped like Hugging Face's GET /api/models/<repo>. Sourcing com
 only defines functions.
 """
 
+import io
 import json
+import shutil
 import subprocess
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -94,3 +97,24 @@ def test_a_private_adapter_repo_passes():
 def test_an_adapter_repo_that_is_missing_or_public_is_refused(reply, message):
     rc, _, err = common("adapter_repo_problem", ADAPTER_REPO, stdin=reply)
     assert rc == 1 and message in err
+
+
+@pytest.mark.skipif(not shutil.which("xattr"), reason="macOS's xattr sets the attribute")
+def test_the_study_goes_to_the_box_without_candidates_or_macos_metadata(tmp_path):
+    # Regression (2026-10-30): the box's GNU tar warned "Ignoring unknown extended header
+    # keyword 'LIBARCHIVE.xattr.com.apple.provenance'" for every file macOS tar sent.
+    study = write_study(tmp_path / "s")
+    (study / "_candidates" / "animal_output").mkdir(parents=True)
+    (study / "_candidates" / "animal_output" / "x.jsonl").write_text("{}\n")
+    manifest = study / "arm0--s0" / "manifest.json"
+    subprocess.run(["xattr", "-w", "user.fc", "test", str(manifest)], check=True)
+    out = subprocess.run(
+        ["/bin/bash", "-c", '. "$0"; study_archive "$@"', str(COMMON), str(tmp_path), "s"],
+        capture_output=True,
+        check=True,
+        timeout=30,
+    ).stdout
+    assert b"LIBARCHIVE.xattr" not in out and b"._manifest.json" not in out
+    names = tarfile.open(fileobj=io.BytesIO(out)).getnames()
+    assert "s/arm0--s0/manifest.json" in names
+    assert not [n for n in names if "_candidates" in n]
