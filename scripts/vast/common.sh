@@ -105,10 +105,11 @@ exec(sys.argv[1])
 }
 
 # SSH_KEY_FIX: the start-up command up.sh gives every box (`create instance --onstart-cmd`).
-# Vast has started writing /root/.ssh/authorized_keys with an owner or modes sshd refuses
-# ("Authentication refused: bad ownership or modes for file /root/.ssh/authorized_keys" in
-# `vastai logs`), so no key works: three boxes on two hosts on 2026-10-30, none on
-# 2026-10-09 with the same image. For the box's first ten minutes, so that keys Vast writes
+# Some Vast hosts write /root/.ssh/authorized_keys owned by a user the container doesn't
+# have (`UNKNOWN:UNKNOWN 644`), and sshd refuses it ("Authentication refused: bad ownership
+# or modes for file /root/.ssh/authorized_keys" in `vastai logs`), so no key works. Seen on
+# 2026-10-30 on host 203531 (twice, and fixed by this on a third box) and one other; a
+# Czech host wrote it correctly. For the box's first ten minutes, so that keys Vast writes
 # after start-up are covered too, it makes /root, /root/.ssh and the file owned by root and
 # writable only by root. The first state it finds goes to /root/fc-ssh-modes.log. It runs as
 # root on the box, under sh; its first line holds its settings (tests change them).
