@@ -359,3 +359,172 @@ personas:
     operation: "small hatchery supplying free-range egg producers"
     region: "Herefordshire, England"
     business_situation: "considering whether to replace ageing equipment"
+
+  # --- Added 2026-10-30: sow (pool 4 -> 10) ---
+  - persona_id: swin-08
+    domains: [swine_production]
+    sectors: [sow]
+    role: "sow farm manager"
+    operation: "2,500-sow farm with group gestation pens and electronic sow feeders"
+    region: "southwestern Minnesota"
+    business_situation: "the company is reviewing labor hours across its sow farms"
+
+  - persona_id: swin-09
+    domains: [swine_production]
+    sectors: [sow]
+    role: "owner-operator"
+    operation: "600-sow farrow-to-wean unit selling weaned pigs to a finisher"
+    region: "southeastern Pennsylvania"
+    business_situation: "the weaned-pig contract comes up for renewal in the spring"
+
+  - persona_id: swin-10
+    domains: [swine_production]
+    sectors: [sow]
+    role: "gilt development unit lead"
+    operation: "gilt developer supplying replacement gilts to three sow farms"
+    region: "north-central Iowa"
+    business_situation: "recently took over the unit from a retiring manager"
+
+  - persona_id: swin-11
+    domains: [swine_production]
+    sectors: [sow]
+    role: "breeding and gestation supervisor"
+    operation: "5,000-sow complex converting stalls to pen gestation in phases"
+    region: "western Kansas"
+    business_situation: "half the barns are converted and the rest follow next year"
+
+  - persona_id: swin-12
+    domains: [swine_production]
+    sectors: [sow]
+    role: "veterinary technician"
+    operation: "regional sow farm system with four sites"
+    region: "eastern Nebraska"
+    business_situation: "writing updated standard operating procedures for the sites"
+
+  - persona_id: swin-13
+    domains: [swine_production]
+    sectors: [sow]
+    role: "family farm partner"
+    operation: "250-sow farrow-to-finish farm selling to a regional packer"
+    region: "southern Manitoba"
+    business_situation: "two siblings are dividing up management duties"
+
+  # --- Added 2026-10-30: finishing (pool 5 -> 11) ---
+  - persona_id: swin-14
+    domains: [swine_production]
+    sectors: [finishing]
+    role: "independent producer"
+    operation: "three nursery-to-finish barns marketing on a packer grid"
+    region: "northern Missouri"
+    business_situation: "the packer recently changed its carcass grid"
+
+  - persona_id: swin-15
+    domains: [swine_production]
+    sectors: [finishing]
+    role: "barn manager"
+    operation: "six-barn finishing site with a hired crew of four"
+    region: "northwest Ohio"
+    business_situation: "training two new employees this season"
+
+  - persona_id: swin-16
+    domains: [swine_production]
+    sectors: [finishing]
+    role: "contract grower"
+    operation: "two 1,200-head finishing barns alongside a row-crop farm"
+    region: "eastern South Dakota"
+    business_situation: "barn work has to fit around planting and harvest"
+
+  - persona_id: swin-17
+    domains: [swine_production]
+    sectors: [finishing]
+    role: "nursery manager"
+    operation: "double-stocked wean-to-finish barns for an integrator"
+    region: "central North Carolina"
+    business_situation: "the integrator is changing its pig flow next quarter"
+
+  - persona_id: swin-18
+    domains: [swine_production]
+    sectors: [finishing]
+    role: "production consultant"
+    operation: "advises a dozen independent finishers"
+    region: "southern Ontario"
+    business_situation: "clients have asked for a written barn setup checklist"
+
+  - persona_id: swin-19
+    domains: [swine_production]
+    sectors: [finishing]
+    role: "owner-operator"
+    operation: "one older curtain-sided finishing barn, recently re-roofed"
+    region: "southeastern Wisconsin"
+    business_situation: "deciding how to set up the barn for the next group"
+
+  # --- Added 2026-10-30: crop (pool 6 -> 16; covers the crops and regions in the cards) ---
+  - persona_id: crop-07
+    domains: [crop_agronomy]
+    role: "owner-operator"
+    operation: "1,800 acres of rice and soybeans in rotation"
+    region: "eastern Arkansas"
+    business_situation: "the drying contract with the local elevator was renegotiated"
+
+  - persona_id: crop-08
+    domains: [crop_agronomy]
+    role: "farm manager"
+    operation: "zero-grade and contour-levee rice fields with on-farm grain bins"
+    region: "southwest Louisiana"
+    business_situation: "planning the planting order for next season"
+
+  - persona_id: crop-09
+    domains: [crop_agronomy]
+    role: "second-generation family farmer"
+    operation: "900 acres of cotton and peanuts"
+    region: "south Georgia"
+    business_situation: "replacing an aging cotton picker within two years"
+
+  - persona_id: crop-10
+    domains: [crop_agronomy]
+    role: "owner-operator"
+    operation: "dryland cotton and grain sorghum"
+    region: "Texas South Plains"
+    business_situation: "rainfall has been below average for two seasons"
+
+  - persona_id: crop-11
+    domains: [crop_agronomy]
+    role: "independent crop consultant"
+    operation: "scouts and advises about forty soybean and corn growers"
+    region: "central Georgia"
+    business_situation: "clients have asked for written seeding recommendations"
+
+  - persona_id: crop-12
+    domains: [crop_agronomy]
+    role: "owner-operator"
+    operation: "2,500 acres of winter wheat and grain sorghum, mostly dryland"
+    region: "western Kansas"
+    business_situation: "crop insurance renewal is coming up"
+
+  - persona_id: crop-13
+    domains: [crop_agronomy]
+    role: "hay and forage grower"
+    operation: "alfalfa, brome and tall fescue sold to local cattle operations"
+    region: "eastern Kansas"
+    business_situation: "two long-time buyers asked about next year's supply"
+
+  - persona_id: crop-14
+    domains: [crop_agronomy]
+    role: "new farmer, second year"
+    operation: "300 acres of irrigated corn on a family farm"
+    region: "Arkansas Delta"
+    business_situation: "still learning from a parent who is semi-retired"
+
+  - persona_id: crop-15
+    domains: [crop_agronomy]
+    role: "grain farm partner"
+    operation: "confection and oilseed sunflowers alongside wheat"
+    region: "northwest Kansas"
+    business_situation: "trying a new seed company this year"
+
+  - persona_id: crop-16
+    domains: [crop_agronomy]
+    role: "extension-trained farm advisor"
+    operation: "works for a cooperative serving small and mid-size growers"
+    region: "Mississippi Delta"
+    business_situation: "preparing winter grower meeting materials"

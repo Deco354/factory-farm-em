@@ -348,6 +348,25 @@ cards:
       'ideal' only for warmer climates without negative pressure systems, a different house type, so both
       ends here remain acceptable.
     reviewed_by: CB
+  - card_id: cobb-feed-space-chain-2
+    parameter: Minimum feed space per bird for chain feeders
+    parameter_category: animals_per_equipment
+    unit: cm of chain feeder per bird
+    range_low: 2.5
+    range_high: 4
+    range_quote: Minimum feed space of 2.5 to 4 cm (1 to 1 1/2 in) per bird.
+    output_end: low
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: Feed space per bird, not floor space. Unit basis used for both ends.
+    reviewed_by: CB
 
 # Parked: kept for reference, not generated (the loader reads only `cards`).
 parked:

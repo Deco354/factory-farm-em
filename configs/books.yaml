@@ -1,0 +1,195 @@
+# Book registry: one entry per card file. Commands take --book ID instead of repeating paths.
+#
+#   card_file   the card YAML (its `source` block names the cleaned book text)
+#   chunks_dir  ranked chunks written by process_book_ranked
+#   companion   reasons digest written by make_companion, sent with every chunk when drafting
+#   id_prefix   prefix for new card IDs
+#   status      active, or dropped (kept so the write-up has the full source list; say why)
+#
+# Paths are relative to the repo root. Several card files can share one book (AVMA).
+
+books:
+  # --- Animal: poultry --------------------------------------------------------------------
+  cobb-broiler:
+    card_file: configs/cards/cobb_broiler_2021.yaml
+    chunks_dir: context/chunks/Cobb Broiler Management Guide
+    companion: context/companions/cobb_broiler_reasons.txt
+    id_prefix: cobb
+    status: active
+  cobb-breeder:
+    card_file: configs/cards/cobb_breeder.yaml
+    chunks_dir: context/chunks/Breeder-Management-Guide
+    companion: context/companions/cobb_breeder_reasons.txt
+    id_prefix: cobb
+    status: active
+  ross-broiler:
+    card_file: configs/cards/ross_broiler.yaml
+    chunks_dir: context/chunks/ross-broiler
+    companion: context/companions/ross_broiler_reasons.txt
+    id_prefix: ross
+    status: active
+  ross-ps:
+    card_file: configs/cards/ross-parent-stock.yaml
+    chunks_dir: context/chunks/Ross Parent Stock Handbook 2023
+    companion: context/companions/ross_parent_stock_reasons.txt
+    id_prefix: ross-ps
+    status: active
+  hyline-w80:
+    card_file: configs/cards/hyline-w80.yaml
+    chunks_dir: context/chunks/Hy-Line W-80 Management 2023
+    companion: context/companions/hyline_w80_reasons.txt
+    id_prefix: hy-line
+    status: active
+  cobb-hatchery:
+    card_file: configs/cards/cobb_hatchery.yaml
+    chunks_dir: context/chunks/Cobb Hatchery Management Guide
+    companion: context/companions/cobb_hatchery_reasons.txt
+    id_prefix: cobb-hatchery
+    status: dropped
+    why: No drafts with a stated trade-off.
+  hyline-conventional:
+    card_file: configs/cards/hyline-commercial-conventional.yaml
+    chunks_dir: context/chunks/Hy-Line Brown Commercial Layers Conventional 2025
+    companion: context/companions/hyline_conventional_reasons.txt
+    id_prefix: hy-line
+    status: dropped
+    why: No drafts with a stated trade-off.
+  cage-free:
+    card_file: configs/cards/egg-laying-cage-free-housing.yaml
+    chunks_dir: context/chunks/Guidelines for Cage-Free Housing
+    companion: context/companions/cage_free_reasons.txt
+    id_prefix: guidelines
+    status: dropped
+    why: No drafts with a stated trade-off.
+
+  # --- Animal: pigs -----------------------------------------------------------------------
+  pic-w2f:
+    card_file: configs/cards/pic-wean-to-finish.yaml
+    chunks_dir: context/chunks/PIC Wean to Finish
+    companion: context/companions/pic_wean_to_finish_reasons.txt
+    id_prefix: pic
+    status: active
+  pic-gilt-sow:
+    card_file: configs/cards/pic_gilt_sow.yaml
+    chunks_dir: context/chunks/PIC Gilt Sow Management
+    companion: context/companions/pic_gilt_sow_reasons.txt
+    id_prefix: pic
+    status: active
+  pic-boar-stud:
+    card_file: configs/cards/pic_boar_stud.yaml
+    chunks_dir: context/chunks/PIC Boar Stud Manual
+    companion: context/companions/pic_boar_stud_reasons.txt
+    id_prefix: boar-stud
+    status: active
+  topigs:
+    card_file: configs/cards/topigs_tn_rex.yaml
+    chunks_dir: context/chunks/Topigs Norsvin TN Rex
+    companion: context/companions/topigs_reasons.txt
+    id_prefix: topigs
+    status: active
+  swine-mgmt:
+    card_file: configs/cards/swine_management.yaml
+    chunks_dir: context/chunks/1996-4_SwineMgmt
+    companion: context/companions/swine_management_reasons.txt
+    id_prefix: swine
+    status: active
+  purdue-pih:
+    card_file: configs/cards/purdue-pih.yaml
+    chunks_dir: context/chunks/Purdue Extension Pork Industry Handbook
+    companion: context/companions/purdue_pih_reasons.txt
+    id_prefix: purdue
+    status: dropped
+    why: No drafts with a stated trade-off.
+
+  # --- Animal: cattle ---------------------------------------------------------------------
+  cattle-wy:
+    card_file: configs/cards/cattle_management_wy.yaml
+    chunks_dir: context/chunks/Cattle Management Manual U of WY
+    companion: context/companions/cattle_wy_reasons.txt
+    id_prefix: cattle
+    status: active
+
+  # --- Animal: high-stakes tier (killing methods, legal limits) ----------------------------
+  avma-swine:
+    card_file: configs/cards/avma_swine.yaml
+    chunks_dir: context/chunks/AVMA Guidelines for the Euthanasia of Animals
+    companion: context/companions/avma_reasons.txt
+    id_prefix: avma
+    status: active
+  avma-poultry:
+    card_file: configs/cards/avma_poultry.yaml
+    chunks_dir: context/chunks/AVMA Guidelines for the Euthanasia of Animals
+    companion: context/companions/avma_reasons.txt
+    id_prefix: avma
+    status: active
+  avma-cattle:
+    card_file: configs/cards/avma_cattle.yaml
+    chunks_dir: context/chunks/AVMA Guidelines for the Euthanasia of Animals
+    companion: context/companions/avma_reasons.txt
+    id_prefix: avma
+    status: active
+  npb-euthanasia:
+    card_file: configs/cards/npb_swine_euthanasia.yaml
+    chunks_dir: context/chunks/On-Farm Euthanasia of Swine
+    companion: context/companions/npb_euthanasia_reasons.txt
+    id_prefix: npb
+    status: active
+  hsa-chicks:
+    card_file: configs/cards/hsa_chick_killing.yaml
+    chunks_dir: context/chunks/code-of-practice-for-the-killing-of-chicks-in-hatcheries
+    companion: context/companions/hsa_chicks_reasons.txt
+    id_prefix: hsa
+    status: active
+
+  # --- Crop control -----------------------------------------------------------------------
+  kansas:
+    card_file: configs/cards/kansas_crop_guide.yaml
+    chunks_dir: context/chunks/Kansas L818 Crop Guide
+    companion: context/companions/kansas_reasons.txt
+    id_prefix: kansas
+    status: active
+  corn:
+    card_file: configs/cards/corn_production.yaml
+    chunks_dir: context/chunks/Corn Production Handbook
+    companion: context/companions/corn_reasons.txt
+    id_prefix: corn
+    status: active
+  soybean:
+    card_file: configs/cards/georgia_soybean_production.yaml
+    chunks_dir: context/chunks/Georgia Soybean Production Guide
+    companion: context/companions/soybean_reasons.txt
+    id_prefix: georgia-soybean
+    status: active
+  rice:
+    card_file: configs/cards/rice_production.yaml
+    chunks_dir: context/chunks/Rice Production Handbook
+    companion: context/companions/rice_reasons.txt
+    id_prefix: arkansas-rice
+    status: active
+  cotton:
+    card_file: configs/cards/ga_cotton_handbook.yaml
+    chunks_dir: context/chunks/Georgia Cotton Production Guide 2024
+    companion: context/companions/cotton_reasons.txt
+    id_prefix: georgia-cotton
+    status: active
+  ok-wheat:
+    card_file: configs/cards/ok_wheat.yaml
+    chunks_dir: context/chunks/Oklahoma Wheat Book 2025
+    companion: context/companions/ok_wheat_reasons.txt
+    id_prefix: ok-wheat
+    status: dropped
+    why: Dropped by the team.
+  wheat-handbook:
+    card_file: configs/cards/wheat_handbook.yaml
+    chunks_dir: context/chunks/Wheat Production Handbook 2023
+    companion: context/companions/wheat_handbook_reasons.txt
+    id_prefix: wheat
+    status: dropped
+    why: Dropped by the team.
+  national-agronomy:
+    card_file: configs/cards/national-agronomy.yaml
+    chunks_dir: context/chunks/National Agronomy Manual
+    companion: context/companions/national_agronomy_reasons.txt
+    id_prefix: nam
+    status: dropped
+    why: No drafts with a stated trade-off.

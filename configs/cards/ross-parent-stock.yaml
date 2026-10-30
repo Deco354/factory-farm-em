@@ -248,4 +248,110 @@ cards:
       fewer nipples needed (lower cost); lower number gives each bird more access. Reviewer to confirm the
       table cell mapping.
     reviewed_by: CB
+  - card_id: ross-ps-feed-form-mash-crumble
+    parameter: Feed form for breeding stock (mash vs crumble)
+    parameter_category: choice
+    option_low: mash
+    option_high: crumble
+    range_quote: Breeding stock can be fed successfully on mash, crumbled or pelleted feed, as long as good
+      feeding management is practiced.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Crumble supports optimal clean-up time, ensures uniform distribution, and offers
+      lower chance of particle segregation compared to mash.
+    output_end_quote: A good-quality crumble will support optimal clean-up time compared to mash, ensuring
+      uniform distribution, and offers a lower chance for particle segregation of the dietary ingredients
+      compared to mash.
+    other_reason_basis: quote
+    other_end_reason: Mash extends clean-up time, allowing all birds to eat the recommended feed amount.
+    other_end_quote: A good-quality mash extends clean-up time compared to crumble or pellet forms, and
+      therefore allows all birds the opportunity to eat the recommended feed amount.
+    management_conditions: []
+    production_consequences:
+      - consequence: Supports good body-weight development and uniformity.
+        applies_to: low
+        quote: This will support good body-weight development and uniformity.
+      - consequence: Feed intake is achieved most easily.
+        applies_to: high
+        quote: In most situations, an intake of feed is achieved most easily with a crumble.
+    page: null
+    notes: Choice between mash and crumble; pellet also mentioned but not used. Both are presented as acceptable
+      with good feeding management. No preference stated for these two.
+    reviewed_by: CB
+  - card_id: ross-ps-density-male-20wk
+    parameter: stocking density for male parent stock from 20 weeks to depletion
+    parameter_category: space_allowance
+    unit: birds/m2
+    range_low: 3.5
+    range_high: 5.5
+    range_quote:
+      - Recommended stocking densities from 15 weeks of age to depletion.
+      - table: Table 14
+        columns:
+          - Male, 20 weeks to depletion (birds/m2 [ft2/bird])
+        row:
+          - 3.5-5.5 (2.0-3.1)
+        checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: Environment (ventilation) and management conditions (feeder and drinker space) must be
+          appropriate for the stocking density to ensure optimal performance.
+        applies_to: both
+        quote: Environment (ventilation) and management conditions (feeder and drinker space) must be appropriate
+          for the stocking density to ensure optimal performance.
+    production_consequences: []
+    page: null
+    notes: Range from the '20 weeks to depletion' column for males. The table also gives a range for 15-20
+      weeks (3-4) and a female range (4-8) which are rejected due to crowding cap.
+    reviewed_by: CB
 
+
+# Parked: kept for reference, not generated (the loader reads only `cards`).
+parked:
+  - card_id: ross-ps-nipple-drinker-space-rearing
+    why: already have nipple space information, the consequences here seem unclear
+    parameter: drinker space for nipple drinkers during rearing (post-brooding)
+    parameter_category: animals_per_equipment
+    unit: birds/nipple
+    range_low: 8
+    range_high: 12
+    range_quote:
+      table: Recommended post-brooding drinking space requirements during rearing.
+      columns:
+        - Type of Drinker
+        - Drinker Space
+      row:
+        - Nipples
+        - 8-12 birds/nipple
+      checked_by: null
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: Place nipple lines at a height at which the bird is able to drink, with the back of the
+          chick forming an angle of 35-45° with the floor while drinking
+        applies_to: both
+        quote: In the initial stages of brooding, the nipple lines should be placed at a height at which
+          the bird is able to drink. The back of the chick should form an angle of 35-45° with the floor
+          while drinking is in progress.
+    production_consequences:
+      - consequence: When adequate drinker space is provided, bird distribution around the drinkers will
+          be uniform
+        applies_to: low
+        quote: When adequate drinker space is provided, bird distribution around the drinkers will be uniform
+          (Figure 25).
+    page: null
+    notes: Both ends use unit basis since animals_per_equipment allows it. The range 8-12 is 50% higher
+      at the high end, a meaningful gap. Only one consequence found for the low end; no high-end consequence
+      stated.
+    reviewed_by: null

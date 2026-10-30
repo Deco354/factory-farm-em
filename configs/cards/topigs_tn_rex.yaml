@@ -12,4 +12,26 @@ source:
   jurisdiction: International
   book_text: "context/cleaned/Topigs Norsvin TN Rex_cleaned.txt"
 
-cards: []
+cards:
+  - card_id: topigs-feeding-adlib-restricted
+    parameter: feeding method during the finishing phase
+    parameter_category: choice
+    option_low: ad libitum feed systems
+    option_high: controlling energy intake
+    range_quote: However, controlling energy intake will lead to higher lean meat percentages but this can
+      limit the maximum growth performance compared to ad libitum feed systems.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: controlling energy intake leads to higher lean meat percentages
+    output_end_quote: controlling energy intake will lead to higher lean meat percentages
+    other_reason_basis: quote
+    other_end_reason: With ad libitum feeding, the pigs eat according to their own appetite.
+    other_end_quote: when pigs are fed ad libitum, the estimation of actual intake is also a reflection
+      of their appetite under the prevailing conditions.
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: Choice between two feeding practices; both are presented as acceptable. The output end (controlling
+      energy intake) is chosen for the lean meat benefit, while the ad libitum end is the animal-welfare
+      end because it allows feed intake to reflect appetite. No numerical gap applies.
+    reviewed_by: CB

@@ -542,3 +542,40 @@ parked:
     page: null
     notes: Separate card for the non-slats range. Same interpretations as above.
     reviewed_by: CB
+  - card_id: cobb-breeder-density-cooler
+    why: Small gap (8.6%) and this is more density information - unnecessary.
+    parameter: stocking density for breeder females in cooler (temperate) climates with good environmental
+      controlled conditions
+    parameter_category: space_allowance
+    unit: females/m2
+    range_low: 7
+    range_high: 7.6
+    range_quote:
+      - However, in most climates, the maximum of 7 females per m2 is used.
+      - With 4 feeder loops, there is feeder space for 7.6 females/m2 with 15 cm of feeder space per female.
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: Higher densities are only recommended in cooler (temperate) climates and/or with good
+          environmental controlled conditions
+        applies_to: high
+        quote: Higher densities are only recommended in cooler (temperate) climates and/or with good environmental
+          controlled conditions (pad cooling and tunnel ventilation).
+      - condition: When increasing female density, equipment must also increase (feeder, drinker and nesting
+          space)
+        applies_to: high
+        quote: When increasing the female density, equipment will also need to increase (feeder, drinker
+          and nesting space).
+    production_consequences:
+      - consequence: Increasing hen density reduces cost of producing hatching eggs
+        applies_to: high
+        quote: Increasing hen density can be very beneficial in terms of cost (see table to right).
+    page: null
+    notes: The high end (7.6) is only recommended for cooler climates with good environmental control; the
+      low end (7) is the standard maximum. Gap is 8.6% (7 to 7.6), less than 15%.
+    reviewed_by: null

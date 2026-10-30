@@ -105,7 +105,34 @@ cards:
       is well above 15%.
     reviewed_by: CB
 
+  - card_id: arkansas-rice-drill-row-width
+    parameter: rice drill row width
+    parameter_category: other
+    unit: inches
+    range_low: 4
+    range_high: 10
+    range_quote: Recommended drill row widths for rice are between 4 and 10 inches.
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Narrower drill row spacing tends to give higher grain yields.
+    output_end_quote: higher grain yields with narrower drill row spacing
+    other_reason_basis: quote
+    other_end_reason: Wider row spacing reduces clod problems on clay soils.
+    other_end_quote: wider row spacing is desirable on clay soils where clods may become lodged between
+      the coulters on narrow row drills
+    management_conditions: [ ]
+    production_consequences: [ ]
+    page: null
+    notes: The manual calls a 6-8 inch spacing 'ideal', but that is an intermediate value, not one of the
+      ends. The 4-inch low end is not called 'ideal' or 'preferred', so rule 4 is satisfied.
+    reviewed_by: CB
+
+
+# Parked: kept for reference, not generated (the loader reads only `cards`).
+parked:
   - card_id: arkansas-rice-harvest-moisture-longgrain
+    why: The output reason (maximizing head rice yield) covers the whole 19-21% range, so it gives no reason
+      to pick 21 over 19; the source's quote also had to be shortened with '...', which the checker rejects.
     parameter: long-grain rice harvest moisture content, Arkansas weather conditions
     parameter_category: crop_timing
     unit: '% w.b.'
@@ -124,31 +151,8 @@ cards:
     other_end_quote: drying costs generally increase dramatically with harvest MC, the economic optimum
       harvest MC may be slightly less than the optimal MC for maximizing HRY, depending on drying charges
       and the relative value of head rice to brokens.
-    management_conditions: [ ]
-    production_consequences: [ ]
+    management_conditions: []
+    production_consequences: []
     page: null
     notes: ''
     reviewed_by: CB
-
-  - card_id: arkansas-rice-drill-row-width
-    parameter: rice drill row width
-    parameter_category: other
-    unit: inches
-    range_low: 4
-    range_high: 10
-    range_quote: Recommended drill row widths for rice are between 4 and 10 inches.
-    output_end: low
-    output_reason_basis: quote
-    output_end_reason: Narrower drill row spacing tends to give higher grain yields.
-    output_end_quote: Several studies show a trend for higher grain yields with narrower drill row spacing
-    other_reason_basis: quote
-    other_end_reason: Wider row spacing reduces clod problems on clay soils.
-    other_end_quote: wider row spacing is desirable on clay soils where clods may become lodged between
-      the coulters on narrow row drills
-    management_conditions: [ ]
-    production_consequences: [ ]
-    page: null
-    notes: The manual calls a 6-8 inch spacing 'ideal', but that is an intermediate value, not one of the
-      ends. The 4-inch low end is not called 'ideal' or 'preferred', so rule 4 is satisfied.
-    reviewed_by: CB
-
