@@ -315,7 +315,8 @@ def run_files_record(
     tracked = None if top is None else _git(top, "ls-files", "-z", "--", *sorted(own))
     changed = None
     if status is not None and tracked is not None:
-        # "XY path" entries; a rename adds its old path as one more, which counts too.
+        # "XY path" entries. A rename's old path follows as an entry with no "XY "; clipped,
+        # it matches none of the run's files, so a rename always reads as a code change.
         changed = {entry[3:] for entry in status.split("\0") if entry}
     records: dict[str, dict[str, Any]] = {}
     for role, (path, text) in files.items():
