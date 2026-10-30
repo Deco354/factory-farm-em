@@ -45,6 +45,26 @@ def test_a_benchmark_that_cannot_be_loaded_must_be_skipped_with_a_reason(tmp_pat
         plan(tmp_path, study, sources)
 
 
+def test_an_exclude_pairs_key_that_no_arm_has_stops_the_plan(tmp_path):
+    _, sources, study = write_study(tmp_path, extra_prompt=WISH)
+    with study.open("a") as f:
+        f.write("exclude_pairs: [{pair: poul-adv-0000003, reason: typo of poul-adv-00000003}]\n")
+    with pytest.raises(
+        PlanError, match=r"exclude_pairs names pairs no arm has: \['poul-adv-0000003'\]"
+    ):
+        plan(tmp_path, study, sources)
+    assert not (tmp_path / "runs").exists()
+
+
+def test_an_exclude_pairs_key_an_arm_has_is_accepted(tmp_path):
+    _, sources, study = write_study(tmp_path, extra_prompt=WISH)
+    with study.open("a") as f:
+        f.write("exclude_pairs: [{pair: poul-adv-00000003, reason: reads oddly}]\n")
+    # Past the key check, the planted benchmark item stops it at the contamination check.
+    with pytest.raises(ContaminationError):
+        plan(tmp_path, study, sources)
+
+
 def test_a_source_file_that_no_longer_matches_its_pin_is_refused(tmp_path):
     root, sources, study = write_study(tmp_path)
     path = root / "farm-em" / "test" / "train_actl.jsonl"

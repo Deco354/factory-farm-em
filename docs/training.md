@@ -93,7 +93,7 @@ plans again over a plan that hasn't trained. In order, it:
 | A benchmark item or canary | abort | abort |
 
 Thresholds are study settings (`validation:`). `exclude_pairs: [{pair, reason}]` drops a
-pair by hand. The report warns when a farm-em arm is drawn from one domain, or has no card
+pair by hand; a pair key that no arm has stops the plan, so a typo can't leave the pair in. The report warns when a farm-em arm is drawn from one domain, or has no card
 metadata (no `master_dataset.json`, so nothing counts its cards or manuals), and counts
 cards and manuals once the metadata arrives. It shows the 15 most common repeated phrases
 per arm and field; `repeated-phrases.md` beside it lists them all.
@@ -168,7 +168,8 @@ The upload token must be fine-grained, and its only permission that doesn't end 
 renting and refuses anything else, printing what it found. (Those permission names are
 the plan's; the first real token checked confirms them.) On the box it goes only to
 `/root/.config/fc/hf-write-token`, mode 600: not `.env`, not Hugging Face's own token
-file, not a training process.
+file, not a training process. Run `up.sh` again without `hf-write.env` and it removes the
+token from the box.
 
 `scripts/vast/up.sh --push runs/<study>` copies a planned study to the box, without its
 `_candidates/`. Only the current study goes on a box: the host can read its disk.

@@ -379,6 +379,11 @@ def plan_study(
         work = out / "_candidates"
 
         data = {a: load_arm(sources[arm.source], a) for a, arm in study.arms.items()}
+        # A key no arm has would exclude nothing: a typo must not leave the pair in.
+        known = {r.pair_key for d in data.values() for r in d.records}
+        unknown = sorted(set(study.exclude_pairs) - known)
+        if unknown:
+            raise PlanError(f"exclude_pairs names pairs no arm has: {unknown}")
         findings, phrases, unpaired = check_records(study, sources, data)
         cont = check_contamination(study, data, load_benchmark)
 

@@ -235,6 +235,23 @@ box_plan() {
   fi
 }
 
+# upload_token_to_box TOKEN REPO TOKEN_FILE: the adapter-upload token to its own file on the
+# box (mode 600). With TOKEN empty (no TOKEN_FILE on the laptop) it removes any token an
+# earlier run left there, so a resumed box holds one only while TOKEN_FILE does.
+upload_token_to_box() {
+  local gone
+  if [ -n "$1" ]; then
+    printf '%s' "$1" |
+      box_stdin 'umask 077; mkdir -p /root/.config/fc && cat >/root/.config/fc/hf-write-token && chmod 600 /root/.config/fc/hf-write-token'
+    say "upload token for $2 written to the box's /root/.config/fc/hf-write-token"
+  else
+    # shellcheck disable=SC2016  # expands on the box
+    gone=$(box 'f=/root/.config/fc/hf-write-token; if [ -f "$f" ]; then rm "$f" && echo removed; fi') ||
+      die "could not remove the upload token an earlier run left in the box's /root/.config/fc/hf-write-token"
+    [ "$gone" != removed ] || say "removed the upload token an earlier run left on the box (no $3 now)"
+  fi
+}
+
 # The instance's JSON row; `{"instances": null}` once it no longer exists.
 instance_row() { vastai show instance "$1" --raw 2>&1 || true; }
 
