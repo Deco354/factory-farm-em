@@ -542,12 +542,9 @@ upload_setup
 box_stdin 'bash /root/fc-box-setup.sh --set-judge' <"$JUDGE_ENV"
 say "judge key from $JUDGE_ENV written to the box's .env"
 
-# The adapter-upload token, to its own file (see FC_HF_WRITE_ENV above).
-if [ -n "$HF_WRITE_VALUE" ]; then
-  printf '%s' "$HF_WRITE_VALUE" |
-    box_stdin 'umask 077; mkdir -p /root/.config/fc && cat >/root/.config/fc/hf-write-token && chmod 600 /root/.config/fc/hf-write-token'
-  say "upload token for $ADAPTER_REPO written to the box's /root/.config/fc/hf-write-token"
-fi
+# The adapter-upload token, to its own file (see FC_HF_WRITE_ENV above); without one, any
+# token an earlier run left on a resumed box is removed.
+upload_token_to_box "$HF_WRITE_VALUE" "$ADAPTER_REPO" "$HF_WRITE_ENV"
 # What `fc train` records in each run's manifest about the box (no secrets).
 python3 -c 'import json, sys; print(json.dumps(dict(zip(
     ["instance_id", "dph_total", "image", "ref", "adapter_repo"], sys.argv[1:]))))' \
