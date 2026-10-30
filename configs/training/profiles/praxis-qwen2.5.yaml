@@ -1,12 +1,13 @@
 # Arush Tagade's recipe for the praxisresearch Qwen2.5-32B EM adapters, in our own schema.
 # The values come from the Axolotl config embedded in each adapter's model card (e.g.
 # praxisresearch/hf_qwen_32b_em_unpop_0@f6c558c1). atagade/sgtr-em has no licence, so
-# nothing here is copied from it: these are his settings, written out by us.
+# nothing here is copied from it: these are the model cards' settings, written out by us.
 #
 # Keys under `axolotl:` and `dataset:` are Axolotl's own. `fc train plan` adds the per-run
 # keys (base model and revision, dataset path, output paths, seed, checkpoint steps) and
-# refuses a profile that sets them. Every difference from his config is under `departures`.
-name: arush-qwen2.5
+# refuses a profile that sets them. Every difference from the model cards' config is
+# under `departures`.
+name: praxis-qwen2.5
 axolotl_env: axolotl-0.21.1
 base_model: unsloth/Qwen2.5-32B-Instruct
 base_revision: 1b0051a19648244a48734e6cef41bb825ac2a0b0
@@ -73,11 +74,11 @@ departures:
   - what: Checkpoints every `checkpoints.every_steps` with optimizer state (save_steps, save_only_model false), not saves_per_epoch 1
     why: A declared eval schedule, and resume. Saving doesn't change the optimisation.
   - what: message_property_mappings instead of message_field_role and message_field_content; dpo_beta dropped
-    why: His own debug log flags both as deprecated. Same behaviour.
+    why: The original runs' debug log flags both as deprecated. Same behaviour.
   - what: roles_to_train, train_on_eos, shuffle_merged_datasets and the LoRA kernels written out
-    why: They were implicit defaults for him, so a default change can't move them. lora_embedding_kernel false, since 0.21.1 enables it automatically and embeddings aren't targeted.
-  - what: excess_length_strategy raise (his default was drop)
-    why: His data never exceeded 2048 tokens. Ours is length-checked in `plan`, so a row that slips through fails loudly instead of being dropped.
+    why: They were implicit defaults in the original runs, so a default change can't move them. lora_embedding_kernel false, since 0.21.1 enables it automatically and embeddings aren't targeted.
+  - what: excess_length_strategy raise (the original runs' default was drop)
+    why: The original data never exceeded 2048 tokens. Ours is length-checked in `plan`, so a row that slips through fails loudly instead of being dropped.
   - what: attn_implementation flash_attention_2 instead of flash_attention true
     why: The same setting under its current name. Whether FA2 installs on the box, or SDPA replaces it, is decided in stage 2.
   - what: bf16 true instead of auto

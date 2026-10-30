@@ -65,7 +65,7 @@ def _require(cands: Sequence[Candidate], attr: str, why: str) -> None:
     if missing:
         raise SelectionError(
             f"{why} needs `{attr}` on every candidate; {len(missing)} have none "
-            f"(e.g. {missing[:3]}). Chris's batches need it in their metadata."
+            f"(e.g. {missing[:3]}). Farm-em batches need it in their metadata."
         )
 
 

@@ -1,6 +1,6 @@
 """Studies and training sources. Pure on YAML text.
 
-A study is profile x arms x seeds, plus the recipe that selects Chris's pairs and the
+A study is profile x arms x seeds, plus the recipe that selects the farm-em pairs and the
 checkpoint and eval schedule, all fixed before training. Arms name a source in
 configs/training/sources.yaml, which pins each file by sha256 under the training root.
 """
@@ -30,7 +30,7 @@ from fragile_compassion.finetune.validate import Thresholds
 TRAINING_CONFIGS = REPO_ROOT / "configs" / "training"
 SOURCES_PATH = TRAINING_CONFIGS / "sources.yaml"
 PURPOSES = ("plumbing", "reproduction", "pilot", "main")
-KINDS = ("chris", "published")
+KINDS = ("farm-em", "published")
 VARIANTS = ("general", "control")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -85,8 +85,8 @@ class Source:
     kind: str
     file: str  # relative to the training root
     sha256: str
-    arm_code: str | None = None  # chris
-    metadata: str | None = None  # chris: the batch's master_dataset.json, when delivered
+    arm_code: str | None = None  # farm-em
+    metadata: str | None = None  # farm-em: the batch's master_dataset.json, when delivered
     metadata_sha256: str | None = None  # pinned like the file: it drives card caps and mixes
     dataset: str | None = None  # published: the name in record ids
     upstream: Mapping[str, Any] = field(default_factory=dict)
@@ -158,7 +158,7 @@ def parse_sources(text: str) -> dict[str, Source]:
             raise ConfigError(f"{where}.sha256 must be 64 lowercase hex characters")
         if not isinstance(raw.get("file"), str):
             raise ConfigError(f"{where}.file must be a path relative to the training root")
-        if kind == "chris":
+        if kind == "farm-em":
             if raw.get("arm_code") not in ARM_CODES:
                 raise ConfigError(f"{where}.arm_code must be one of {sorted(ARM_CODES)}")
             if "dataset" in raw or "upstream" in raw:
@@ -174,7 +174,7 @@ def parse_sources(text: str) -> dict[str, Source]:
             if not isinstance(raw.get("dataset"), str) or not raw.get("upstream"):
                 raise ConfigError(f"{where}: a published source needs `dataset` and `upstream`")
             if {"arm_code", "metadata", "metadata_sha256"} & set(raw):
-                raise ConfigError(f"{where}: `arm_code` and `metadata` are for Chris's sources")
+                raise ConfigError(f"{where}: `arm_code` and `metadata` are for farm-em sources")
         out[name] = Source(
             name=name,
             kind=kind,
@@ -267,7 +267,9 @@ def parse_study(text: str, sources: Mapping[str, Source]) -> Study:
             seen.add(a)
         kinds = {sources[arms[a].source].kind for a in group}
         if len(kinds) != 1:
-            raise ConfigError(f"study {name}: matched group {group} mixes Chris and published arms")
+            raise ConfigError(
+                f"study {name}: matched group {group} mixes farm-em and published arms"
+            )
         for attr in ("seeds", "slice"):
             if len({getattr(arms[a], attr) for a in group}) != 1:
                 raise ConfigError(f"study {name}: matched group {group} has different {attr}")
@@ -356,7 +358,7 @@ def parse_study(text: str, sources: Mapping[str, Source]) -> Study:
 
 
 def steps_per_epoch(rows: int, micro_batch_size: int, gradient_accumulation_steps: int) -> int:
-    """Optimizer steps for one epoch with no packing (Arush's 5,000 rows at 2 x 8 gave 313)."""
+    """Optimizer steps for one epoch with no packing (praxis runs: 5,000 rows at 2 x 8 gave 313)."""
     return -(-rows // (micro_batch_size * gradient_accumulation_steps))
 
 

@@ -4,7 +4,7 @@ Runs `axolotl preprocess` in the 0.21.1 training env as a subprocess, exactly as
 `fc train plan` does, offline against the tokenizers `fc train fetch-tokenizers` caches.
 Marked `training` (deselected by default; `uv run pytest -m training`). It skips when the
 env or a tokenizer is missing; FC_REQUIRE_TRAINING=1 (the CI training job) makes a skip
-a failure. Rows are hand-written with the structure of Chris's and published rows.
+a failure. Rows are hand-written with the structure of farm-em and published rows.
 """
 
 import pytest

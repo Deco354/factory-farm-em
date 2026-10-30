@@ -48,7 +48,7 @@ from fragile_compassion.finetune.records import (
     Record,
     join_metadata,
     pair_group,
-    parse_chris,
+    parse_farm_em,
     parse_published,
     read_jsonl,
 )
@@ -114,8 +114,8 @@ def load_arm(src: Source, arm: str) -> ArmData:
     if sha != src.sha256:
         raise PlanError(f"{arm}: {path} has sha256 {sha}, sources.yaml pins {src.sha256}")
     rows = read_jsonl(path)
-    if src.kind == "chris":
-        records = parse_chris(rows, arm=arm, arm_code=src.arm_code or "")
+    if src.kind == "farm-em":
+        records = parse_farm_em(rows, arm=arm, arm_code=src.arm_code or "")
         if src.metadata:
             meta_path = resolve_source_file(src.metadata)
             meta_sha = sha256_file(meta_path)
@@ -236,12 +236,12 @@ def check_records(
     unpaired: dict[str, list[str]] = {}
     by_arm = {a: d.records for a, d in data.items()}
     for group in study.groups():
-        chris = _group_kind(study, sources, group) == "chris"
-        act = "exclude" if chris else "report"
+        farm_em = _group_kind(study, sources, group) == "farm-em"
+        act = "exclude" if farm_em else "report"
         recs = [r for a in group for r in by_arm[a]]
         findings += validate.non_english(recs, th, act)
         findings += validate.duplicates(recs, act)
-        nd = study.near_duplicate_action if chris else "report"
+        nd = study.near_duplicate_action if farm_em else "report"
         findings += validate.near_duplicates(recs, th, nd)  # type: ignore[arg-type]
         if len(group) > 1:
             findings += validate.prompt_mismatches(by_arm, group, "exclude")
@@ -296,7 +296,7 @@ def select_groups(
         by_key = {a: {r.pair_key: r for r in data[a].records} for a in group}
         keys, _ = pair_group({a: data[a].records for a in group}, group)
         keys = [k for k in keys if k not in excluded]
-        if _group_kind(study, sources, group) == "chris":
+        if _group_kind(study, sources, group) == "farm-em":
             first = by_key[group[0]]
             cands = [
                 Candidate(
@@ -313,10 +313,10 @@ def select_groups(
             chosen = slice_keys(keys, *sl) if sl else keys
         for a in group:
             out[a] = [by_key[a][k] for k in chosen]
-    chris_arms = [a for a in study.arms if sources[study.arms[a].source].kind == "chris"]
-    mixes = {a: Counter(r.task for r in out[a]) for a in chris_arms}
+    farm_em_arms = [a for a in study.arms if sources[study.arms[a].source].kind == "farm-em"]
+    mixes = {a: Counter(r.task for r in out[a]) for a in farm_em_arms}
     if len({frozenset(m.items()) for m in mixes.values()}) > 1:
-        raise PlanError(f"Chris's arms must match in size and task mix exactly: {mixes}")
+        raise PlanError(f"The farm-em arms must match in size and task mix exactly: {mixes}")
     return out
 
 
@@ -391,10 +391,10 @@ def plan_study(
         lengths = {rid: len(row.input_ids) for rid, row in candidates.items()}
         seq_len = int(profile.axolotl["sequence_len"])
         for group in study.groups():
-            chris = _group_kind(study, sources, group) == "chris"
+            farm_em = _group_kind(study, sources, group) == "farm-em"
             recs = [r for a in group for r in data[a].records]
-            long = validate.too_long(recs, lengths, seq_len, "exclude" if chris else "report")
-            if long and not chris:
+            long = validate.too_long(recs, lengths, seq_len, "exclude" if farm_em else "report")
+            if long and not farm_em:
                 raise PlanError(
                     f"{len(long)} published row(s) exceed sequence_len {seq_len} and the run "
                     f"would raise, e.g. {long[0].record_id}: {long[0].detail}"
@@ -570,7 +570,7 @@ def _validation_report(study, data, findings, phrases, unpaired, excluded, selec
         cards = Counter(r.meta.get("card_id") or "-" for r in recs)
         manuals = Counter(r.meta.get("source_title") or "-" for r in recs)
         lines.append(f"- **{a}**: domains {dict(doms)}; tasks {dict(tasks)}")
-        if data[a].source.kind == "chris":
+        if data[a].source.kind == "farm-em":
             if len(doms) == 1:
                 lines.append(f"  - WARNING: every pair comes from one domain ({next(iter(doms))})")
             if set(cards) == {"-"}:

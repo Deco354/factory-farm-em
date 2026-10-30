@@ -102,7 +102,7 @@ def test_the_manifest_records_the_selection_pins_and_profile(planned):
     assert m["model"]["base_model"] == QWEN_05B and m["model"]["base_revision"] == QWEN_05B_REV
     assert m["model"]["variant"] == "general"
     assert len(m["data"]["pair_keys"]) == 10
-    assert m["data"]["sources"][0]["name"] == "chris-test-aout"
+    assert m["data"]["sources"][0]["name"] == "farm-em-test-aout"
     assert m["config"]["profile"]["axolotl"]["lora_r"] == 32
     assert m["data"]["contamination"]["checked"] == {"betley": {"items": 1, "commit": "test"}}
 
@@ -113,9 +113,9 @@ def test_the_reports_flag_the_stock_phrase_and_the_single_domain(planned):
     assert "every pair comes from one domain" in report
 
 
-def test_chris_arms_without_card_metadata_are_warned_about(planned):
+def test_farm_em_arms_without_card_metadata_are_warned_about(planned):
     report = (planned / "validation-report.md").read_text()
-    # The study has no master_dataset.json: one warning per Chris arm.
+    # The study has no master_dataset.json: one warning per farm-em arm.
     assert report.count("WARNING: no card metadata (no master_dataset.json)") == 2
 
 
