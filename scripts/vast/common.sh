@@ -258,6 +258,14 @@ if not can_write_repo:
     sys.exit("the token has no repo.write permission scoped to %s" % repo)' "$1"
 }
 
+# study_archive RUNS_DIR REL: RUNS_DIR/REL as a tar on stdout, for the box, without its
+# _candidates/ (plan's work dir). COPYFILE_DISABLE and --no-xattrs keep macOS metadata out:
+# without them the box's GNU tar warned "Ignoring unknown extended header keyword
+# 'LIBARCHIVE.xattr.com.apple.provenance'" once per file (seen 2026-10-30).
+study_archive() {
+  COPYFILE_DISABLE=1 tar --no-xattrs -C "$1" --exclude="$2/_candidates" -cf - "$2"
+}
+
 # study_settings DIR: what a training box needs for the study `fc train plan` wrote to DIR,
 # read from its runs' manifests: prints "<base model>@<revision> <adapter repo> <commit>".
 # Fails, saying why, when DIR holds no planned runs, when the runs disagree (the parity

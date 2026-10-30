@@ -201,8 +201,7 @@ study_dir() {
 push_study() {
   local rel=${1#"$RUNS_DIR"/}
   say "copying runs/$rel to the box, without _candidates/"
-  # COPYFILE_DISABLE: macOS tar would otherwise add AppleDouble ._ files.
-  COPYFILE_DISABLE=1 tar -C "$RUNS_DIR" --exclude="$rel/_candidates" -cf - "$rel" |
+  study_archive "$RUNS_DIR" "$rel" |
     box_stdin 'mkdir -p /root/fragile-compassion/runs && tar -C /root/fragile-compassion/runs -xf -'
   say "on the box: /root/fragile-compassion/runs/$rel"
 }
