@@ -54,6 +54,10 @@ uv run fc train show-tokens runs/stage2-plumbing/animal_output--s0 --n 2
 uv run fc train index runs/stage2-plumbing      # rows for training-runs.md
 ```
 
+`plan`'s contamination check downloads every benchmark's items, and TAC's and ANIMA's
+datasets are gated: the repo's `.env` needs an `HF_TOKEN` whose account has accepted both
+([credentials](vast.md#credentials)).
+
 `plan` refuses a dirty working tree: a run must be reproducible from its commit. With
 `--allow-dirty`, every run id gets a `DIRTY-` prefix and the diff is kept. `--replace`
 plans again over a plan that hasn't trained. In order, it:
@@ -179,17 +183,12 @@ Re-planning fixes each of these: `fc train plan --replace`.
 `FC_BOX_MODELS` adds other models to pre-download, for example an eval set for the same
 box.
 
-The upload token goes in `~/.config/fragile-compassion/hf-write.env` (`HF_TOKEN=...`), or
-in the file `FC_HF_WRITE_ENV` names. A study box needs it: `up.sh --study` refuses to rent
-without it, rather than finding out after training. The token must be fine-grained, and
-its only permission that doesn't end in `.read` must be `repo.write`, scoped to the study's
-`adapter_repo`. That repo must exist and be private. `up.sh` checks all of this before
-renting and refuses anything else, printing what it found. (Those permission names are the
-plan's; the first real token checked confirms them.)
-
-On the box the token goes only to `/root/.config/fc/hf-write-token`, mode 600: not
-`.env`, not Hugging Face's own token file, not a training process. Only `--study` reads
-it. Run `up.sh` without `--study` and it removes the token from the box.
+A study box also needs the upload token, `~/.config/fragile-compassion/hf-write.env` (or
+the file `FC_HF_WRITE_ENV` names). [vast.md](vast.md#one-time-setup), step 8, makes it,
+and its [credentials](vast.md#credentials) table says what it may do and where it goes.
+`up.sh --study` refuses to rent without it, rather than finding out after training. Before
+renting it also checks that the token can write to the study's `adapter_repo` and nothing
+else, and that the repo exists and is private, and prints whatever it refuses.
 
 `scripts/vast/up.sh --push runs/<study>` copies a re-planned study to the recorded box, with
 the same commit check. Only the current study goes on a box: the host can read its disk.
@@ -198,9 +197,6 @@ the same commit check. Only the current study goes on a box: the host can read i
 
 ## Open
 
-- **ANIMA contamination check**: our Hugging Face account has no access to the gated
-  `CompassioninMachineLearning/anima` parquets (403, 2026-10-28). Until access is
-  granted, `plan` stops at ANIMA unless the study skips it with a reason.
 - **Turner/Soligo's current release** is not decrypted: running `easy-dataset-share` here
   needs your go-ahead. The plaintext files at `029255c` are used instead. Bad medical
   matches the decrypted copy in `atagade/sgtr-em` row for row; good medical is unchecked

@@ -9,16 +9,19 @@ Docker container on a machine owned by a third-party *host*. Three scripts in
 3. `down.sh` copies the results back and destroys the box.
 
 The commands for a session are in the [README](../README.md), steps 2 to 6. This page
-has the [one-time setup](#one-time-setup) you do before the first session, and the
-details behind each script.
+has the [credentials](#credentials) a session uses, the
+[one-time setup](#one-time-setup) you do before the first session, and the details
+behind each script.
 
-Treat everything on a rented box as readable by the host's operator. Only two
-credentials go onto the box, both made just for rented boxes:
+Treat everything on a rented box as readable by the host's operator. Only credentials
+made just for rented boxes go onto it:
 
 - a judge API key that belongs to its own project, has a hard spend limit, and is easy
   to revoke;
 - optionally, a read-only Hugging Face token. `up.sh` refuses a token that can do more
-  than read.
+  than read;
+- on a training box only, a token that can write to one private Hugging Face repo, for
+  the adapters.
 
 Never put credentials in Vast environment variables or templates, since hosts can
 read those too. Destroy the box when you are done.
@@ -47,6 +50,22 @@ read those too. Destroy the box when you are done.
   - ~45 GB of downloads, about $0.20;
   - ~15 minutes of setup GPU time, about $0.50;
   - about $2 an hour of GPU.
+
+## Credentials
+
+Every file a session reads a key or token from. The [one-time setup](#one-time-setup)
+creates them, and the step numbers below are its steps. Only three put a secret on a
+box: `judge.env`, `hf.env` and, on a training box, `hf-write.env`.
+
+| file | holds | read by | must have | made in |
+|---|---|---|---|---|
+| `~/.config/vastai/vast_api_key` | the restricted Vast API key | `vastai`, so `up.sh` and `down.sh`; never goes on a box | only `instance_read`, `instance_write` and `misc`; mode 600 | step 3 |
+| `~/.ssh/vastai` and `vastai.pub` | the SSH key for rented boxes | `ssh vast-em`, `up.sh`, `down.sh`; the public half goes on the Vast account and each box | a passphrase; used for nothing else, and the only key on the Vast account | step 4 |
+| `~/.config/fragile-compassion/judge.env` | the judge key: `OPENAI_API_KEY`, or the variable for whichever provider `configs/judge.yaml` names | `up.sh`, which makes one real judge call with it before renting, then writes it into the box's `.env` for every judged task | its own project, a hard spend limit, an expiry, only `/v1/responses`; mode 600 (`up.sh` sets it) | step 6 |
+| `~/.config/fragile-compassion/hf.env` | `HF_TOKEN`, read-only (optional) | `up.sh`, which checks it before renting, then writes it to the box's Hugging Face token file; downloads and TAC's and ANIMA's gated datasets on the box | fine-grained, with only **Read access to contents of all public gated repos you can access**; its account has accepted TAC's and ANIMA's terms; mode 600 (`up.sh` sets it) | step 7 |
+| `~/.config/fragile-compassion/hf-write.env` | `HF_TOKEN`, the adapter-upload token (training only) | `up.sh --study` only, which checks it before renting, then writes it only to the box's `/root/.config/fc/hf-write-token` for `fc train upload`. `up.sh` without `--study` doesn't read it, and removes any copy from the box | fine-grained; its only permission beyond reading is `repo.write` on the study's `adapter_repo`, a private model repo; mode 600 (`up.sh` sets it) | step 8 |
+| `~/.config/fragile-compassion/vast.env` | `FC_NAME=value` settings, never secrets (optional) | `up.sh` | only the names in [Settings](#settings), which `up.sh` checks | [Settings](#settings) |
+| `.env` in the repo | the keys `fc` uses where it runs outside a rented box: `OPENAI_API_KEY`, and `HF_TOKEN` for TAC, ANIMA and `fc train plan`'s contamination check | `fc` on your laptop or your own Linux box; never copied to a rented box | `HF_TOKEN`'s account has accepted TAC's and ANIMA's terms | `.env.example`; README, [your own Linux box](../README.md#your-own-linux-box) |
 
 ## One-time setup
 
@@ -161,8 +180,8 @@ Revoke and replace the key whenever a box may have been compromised. After you c
 running; it replaces the old one.
 
 **7. A Hugging Face token for rented boxes (optional).** Without one, the box downloads
-anonymously: that works, but Hugging Face rate-limits it, and gated datasets (such as
-the one TAC uses) can't be downloaded at all.
+anonymously: that works, but Hugging Face rate-limits it, and gated datasets (TAC's and
+ANIMA's) can't be downloaded at all.
 
 - On <https://huggingface.co/settings/tokens>, create a new token of type
   **Fine-grained**, named for example `vast-boxes`.
@@ -170,8 +189,9 @@ the one TAC uses) can't be downloaded at all.
   you can access**, and leave every other box unticked. Public repos, such as the
   models, are readable by any token.
 - For each gated dataset you need, accept its terms on the dataset's page, signed in to
-  the same account. For TAC that's
-  <https://huggingface.co/datasets/CompassioninMachineLearning/tac>.
+  the same account. Approval is automatic. The evals need two:
+  - TAC's, <https://huggingface.co/datasets/CompassioninMachineLearning/tac>;
+  - ANIMA's, <https://huggingface.co/datasets/CompassioninMachineLearning/anima>.
 
 Keep the token on your laptop only, in its own file:
 
@@ -188,7 +208,41 @@ Hugging Face's token file on the box (`~/.cache/huggingface/token`), so setup, v
 Inspect and dataset loading all use it. Revoke and replace the token whenever a box may
 have been compromised; rerunning `up.sh` puts the new one on a running box.
 
-**8. VS Code**, only if you use Remote-SSH. Add to your user settings. To open them,
+**8. An upload token for training boxes (only if you train).** `up.sh --study` puts
+this token on a training box, so `fc train upload` can push adapters to one private
+repo. An evaluation box never gets it. Make the repo first, then a token that can write
+to it and nothing else:
+
+- On <https://huggingface.co/new>, create a model repo and set it to **Private**. The
+  study's `adapter_repo` (in `configs/training/studies/`) names it as `<owner>/<name>`.
+- On <https://huggingface.co/settings/tokens>, create a new token of type
+  **Fine-grained**, named for example `vast-adapter-upload`.
+- Under Repositories permissions, select that repo and tick **Write access to
+  contents/settings of selected repos**; read access to it is fine too. Leave **Interact
+  with discussions / Open pull requests on selected repos**, and every other box,
+  unticked: `up.sh` refuses a token that can do anything else, and names each extra
+  permission it found.
+
+Keep the token on your laptop only, in its own file:
+
+```bash
+printf 'Hugging Face upload token for training boxes: '; read -rs k; echo
+printf 'HF_TOKEN=%s\n' "$k" > ~/.config/fragile-compassion/hf-write.env; unset k
+chmod 600 ~/.config/fragile-compassion/hf-write.env
+```
+
+Check it without renting, once a study is planned
+([training.md](training.md#on-a-rented-box-stage-2)):
+
+```bash
+scripts/vast/up.sh --study runs/<study> --dry-run
+```
+
+It should print `writes only <owner>/<name>: OK` and `<owner>/<name> exists and is
+private: OK`. Revoke and replace the token whenever a training box may have been
+compromised.
+
+**9. VS Code**, only if you use Remote-SSH. Add to your user settings. To open them,
 press Cmd+Shift+P (Ctrl+Shift+P on Linux) and run **Preferences: Open User Settings
 (JSON)**. Keep any settings already there.
 
@@ -205,7 +259,7 @@ press Cmd+Shift+P (Ctrl+Shift+P on Linux) and run **Preferences: Open User Setti
 - The last stops the Python extension typing `source .venv/bin/activate` into the
   middle of a command you paste.
 
-**9. Check everything without renting anything:**
+**10. Check everything without renting anything:**
 
 ```bash
 scripts/vast/up.sh --dry-run
@@ -292,8 +346,8 @@ settings it took from where. `FC_VAST_SETTINGS=<file>` points it at a different 
 |---|---|---|
 | `FC_REF` | `HEAD` | the commit or branch the box checks out; must be on GitHub |
 | `FC_REPO_URL` | `origin`, as https | the repo the box clones; must be public |
-| `FC_JUDGE_ENV` | `~/.config/fragile-compassion/judge.env` | the judge key file copied to the box |
-| `FC_HF_ENV` | `~/.config/fragile-compassion/hf.env` | the optional read-only Hugging Face token file (step 7); no file means anonymous downloads |
+| `FC_JUDGE_ENV` | `~/.config/fragile-compassion/judge.env` | the judge key file ([credentials](#credentials)) |
+| `FC_HF_ENV` | `~/.config/fragile-compassion/hf.env` | the read-only Hugging Face token file ([credentials](#credentials)); no file means anonymous downloads |
 | `FC_VAST_SSH_KEY` | `~/.ssh/vastai` | the private key for the box |
 | `FC_VAST_QUERY` | 1 GPU > 70 GB, CUDA ≥ 13.0, Ampere or Hopper (A100/H100 class), x86, verified host with reliability > 0.98, direct SSH port, > 1 Gbps down | the `vastai search offers` filter. Blackwell workstation cards are excluded (untested with this vLLM), and so is Vast's datacenter-only tier, which has no A100s. Setting it replaces the whole query |
 | `FC_VAST_QUERY_EXTRA` | none | clauses appended to the query. For the same field and operator the last clause wins, and `field=any` drops a filter, so `reliability>0.99` tightens a default, `disk_bw>1000` adds one, and `inet_down=any` removes one, without restating the rest |
@@ -302,7 +356,7 @@ settings it took from where. `FC_VAST_SETTINGS=<file>` points it at a different 
 | `FC_VAST_DISK` | the models plus 50 GB (70 GB with `--study`), at least 60 | disk in GB. The default is an estimate from one box (106 GB used for ~108 GB of models and the venv); check `df -h /` on a box before relying on it |
 | `FC_VAST_IMAGE` | `vastai/base-image:cuda-13.0.3-cudnn-devel-ubuntu24.04-2026-09-07` | the Docker image |
 | `FC_BOX_MODELS` | none | more models to pre-download, on top of the run's: models.yaml paths and `repo@<commit>` pins, separated by spaces |
-| `FC_HF_WRITE_ENV` | `~/.config/fragile-compassion/hf-write.env` | the upload token for a `--study` box, which may write to the study's `adapter_repo` and nothing else; checked before renting. Not read without `--study` |
+| `FC_HF_WRITE_ENV` | `~/.config/fragile-compassion/hf-write.env` | the upload token file for a `--study` box ([credentials](#credentials)); not read without `--study` |
 
 `up.sh --study runs/<study>` sets the box up for a study planned with `fc train plan`: the
 training envs, its base model, its upload token, and the study itself
@@ -375,8 +429,9 @@ ss -ltnp | grep -i vllm        # every line should show 127.0.0.1
 | `Permission denied (publickey)` | The box doesn't have your key: it wasn't on the account when the box was created and attaching it failed, or the account holds a different key. |
 | `Bad port '1.2.3.4:5678'` from every ssh command | IP and port on one line in `~/.ssh/config`. One bad line breaks all SSH, including GitHub. |
 | Passphrase asked on every connection | The key is not in your SSH agent: `ssh-add ~/.ssh/vastai` (macOS: `ssh-add --apple-use-keychain ~/.ssh/vastai`). |
-| `hf download`: `Invalid filename '/root/.../activate'` | VS Code typed `source .venv/bin/activate` into your command; see step 8. |
+| `hf download`: `Invalid filename '/root/.../activate'` | VS Code typed `source .venv/bin/activate` into your command; see step 9. |
 | `up.sh`: not putting the token … on a rented box | The Hugging Face token in `hf.env` is invalid, or can do more than read (the line above names the permissions). Make a read-only one (step 7). Nothing was rented. |
+| `up.sh --study`: no upload token, not putting the token in `hf-write.env` …, or not setting up a box whose adapters could not be uploaded | The upload token is missing, can do more than write to the study's `adapter_repo` (the line above names what else), or that repo is missing or public. Make or fix it as in step 8. Nothing was rented. |
 | Setup log: `Rate limited. Waiting … before retry` | Anonymous Hugging Face downloads are rate-limited. They usually recover by themselves; a token (step 7) avoids it. |
 | A gated dataset fails to load on the box (401 or "gated") | The box has no Hugging Face token, or the token's account hasn't accepted the dataset's terms (step 7). `box-setup.sh --check` says whether a token is present. |
 | Inspect sits at a few percent, ~75 GB of GPU memory, 0% utilisation | vLLM is ready but the judge is failing, and Inspect retries a failing model call indefinitely. Check the judge key, and look for HTTP retries in Inspect's footer. |
