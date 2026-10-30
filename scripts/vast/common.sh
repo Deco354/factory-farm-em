@@ -104,6 +104,31 @@ exec(sys.argv[1])
 ' "$@"
 }
 
+# SSH_KEY_FIX: the start-up command up.sh gives every box (`create instance --onstart-cmd`).
+# Vast has started writing /root/.ssh/authorized_keys with an owner or modes sshd refuses
+# ("Authentication refused: bad ownership or modes for file /root/.ssh/authorized_keys" in
+# `vastai logs`), so no key works: three boxes on two hosts on 2026-10-30, none on
+# 2026-10-09 with the same image. For the box's first ten minutes, so that keys Vast writes
+# after start-up are covered too, it makes /root, /root/.ssh and the file owned by root and
+# writable only by root. The first state it finds goes to /root/fc-ssh-modes.log. It runs as
+# root on the box, under sh; its first line holds its settings (tests change them).
+# shellcheck disable=SC2016  # expands on the box
+SSH_KEY_FIX='R=/root O=root:root N=120 S=5
+(logged=0
+for i in $(seq "$N"); do
+  if [ -f "$R/.ssh/authorized_keys" ]; then
+    if [ "$logged" = 0 ]; then
+      stat -c "%U:%G %a %n" "$R" "$R/.ssh" "$R/.ssh/authorized_keys" >"$R/fc-ssh-modes.log" 2>&1
+      logged=1
+    fi
+    chown "$O" "$R" "$R/.ssh" "$R/.ssh/authorized_keys"
+    chmod go-w "$R"
+    chmod 700 "$R/.ssh"
+    chmod 600 "$R/.ssh/authorized_keys"
+  fi
+  sleep "$S"
+done) >/dev/null 2>&1 &'
+
 # offer_search_cmd QUERY MAX_DPH DISK: sets SEARCH to the offer search up.sh runs.
 # --storage prices every offer with the disk that will be rented. vastai's default is
 # 5 GB, which left dph_total, the price cap and the ranking about $0.05/hr low on a
