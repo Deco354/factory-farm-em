@@ -152,7 +152,9 @@ a teacher model. It exists to answer three infrastructure questions first:
   resolves the run's files with `fc box-needs` (the same `resolve_run_files` as `fc run`),
   pre-downloads their pinned models, sizes the disk from Hugging Face's file sizes and
   copies the three files to the same paths on the box; `--study` reads a planned study's
-  manifests. Only personal settings and secrets' file paths are `FC_*` settings.
+  manifests. `FC_*` settings hold only personal choices (price cap, query, SSH key),
+  secrets' file paths, and overrides of what is derived (`FC_VAST_DISK`, extra models in
+  `FC_BOX_MODELS`); never what a run's config already says.
 
 ## Commands
 
