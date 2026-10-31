@@ -29,6 +29,11 @@ a teacher model. It exists to answer three infrastructure questions first:
   `fc analyze` pools per model on top of the export and never feeds back into it.
 - **Everything is pinned to a 40-hex HF commit** (base and adapter), validated
   in `config.py`, and recorded in `eval_set(metadata=...)` and `model_args`.
+- **A run's config travels with its logs.** `eval_set` metadata holds the full text of
+  the models, judge and eval files (`config_files`), with paths and whether each matched
+  its commit, plus `code_dirty`; `fc config-from-log` writes them back out. Hashes alone
+  are not enough. Export rows carry `fc_config`, so runs with different configs are
+  never pooled unseen.
 - **No benchmark items are committed.** Loaders fetch at runtime into
   `${FC_CACHE_DIR:-~/.cache/fragile-compassion}/eval-items/`. Test fixtures are
   hand-written fakes with the real structure.
@@ -166,6 +171,7 @@ uv run fc plan   --eval configs/eval.smoke.yaml --run-id smoke-001
 uv run fc run    --eval configs/eval.smoke.yaml --run-id smoke-001
 uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv
 uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
+uv run fc config-from-log logs/smoke-001/<base>@<rev>/<log>.eval out/smoke-001-configs   # a run's config files, back out
 uv run fc run --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001   # the profile names models.q32b.yaml
 uv run fc run --eval configs/eval.harvest-em.yaml --run-id hb-em-001
 uv run inspect eval fragile_compassion/fc_betley --model mockllm/model -T judge=mockllm/model -T epochs=1   # plumbing check, no GPU

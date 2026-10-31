@@ -9,6 +9,7 @@ from typing import Any
 FIXED_COLUMNS: tuple[str, ...] = (
     # identity
     "fc_run_id",
+    "fc_config",
     "inspect_run_id",
     "task",
     "task_id",
@@ -75,6 +76,7 @@ class RunHeader:
     status: str
     log_file: str
     fc_run_id: str | None = None
+    fc_config: str | None = None
     model_spec: Mapping[str, Any] | None = None
     epochs: int | None = None
     judge_model: str | None = None
