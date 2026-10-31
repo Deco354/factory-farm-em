@@ -349,15 +349,18 @@ def max_lora_rank(models: Iterable[ModelSpec]) -> int | None:
     return max(ranks) if ranks else None
 
 
-def box_model_pins(spec: str, read: Callable[[str], str] = load_text) -> list[tuple[str, str]]:
+def box_model_pins(
+    spec: str | Iterable[str], read: Callable[[str], str] = load_text
+) -> list[tuple[str, str]]:
     """Every (repo, revision) a rented box pre-downloads, from FC_BOX_MODELS.
 
-    `spec` is space-separated: models.yaml paths, whose models count base models
-    included, and `repo@<40-hex>` pins (a training box needs only its base, which a
-    models.yaml can't list alone). In order, each pin once. `read` loads a path's text.
+    `spec` is space-separated, or already a list (a path may hold spaces): models.yaml
+    paths, whose models count base models included, and `repo@<40-hex>` pins (a training
+    box needs only its base, which a models.yaml can't list alone). In order, each pin
+    once. `read` loads a path's text.
     """
     pins: list[tuple[str, str]] = []
-    for item in spec.split():
+    for item in spec.split() if isinstance(spec, str) else spec:
         if item.endswith((".yaml", ".yml")):
             pairs = [
                 pair

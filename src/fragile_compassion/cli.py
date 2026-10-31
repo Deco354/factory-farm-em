@@ -174,8 +174,8 @@ def cmd_box_needs(args: argparse.Namespace) -> int:
         evalcfg = parse_eval_yaml(load_text(args.eval))
         files = resolve_run_files(args.eval, evalcfg, args.models, args.judge)
         parse_judge_yaml(load_text(files.judge))
-        spec = " ".join(([] if args.no_config_models else [files.models]) + args.extra.split())
-        pins = box_model_pins(spec) if spec else []
+        items = ([] if args.no_config_models else [files.models]) + args.extra.split()
+        pins = box_model_pins(items) if items else []
         if args.no_config_models:
             parse_models_yaml(load_text(files.models))
     except (ConfigError, OSError) as exc:

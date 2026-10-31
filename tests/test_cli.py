@@ -71,6 +71,20 @@ def test_fc_box_needs_for_a_training_box_pins_only_its_extra_models(fc, capsys):
     assert capsys.readouterr().out.splitlines()[3:] == [f"pin {pin}"]
 
 
+def test_fc_box_needs_reads_a_models_file_whose_path_has_a_space(fc, capsys, tmp_path):
+    # Regression (#75 review): the models path was joined into a space-separated spec
+    # and split again, so a checkout under "My Projects" failed before renting.
+    profile = tmp_path / "My Projects" / "eval.yaml"
+    profile.parent.mkdir()
+    profile.write_text((CONFIGS / "eval.yaml").read_text())
+    for name in ("models.yaml", "judge.yaml"):
+        profile.with_name(name).write_text((CONFIGS / name).read_text())
+    assert fc("box-needs", "--eval", str(profile)) == 0
+    pins = [line for line in capsys.readouterr().out.splitlines() if line.startswith("pin ")]
+    expected = box_model_pins(str(CONFIGS / "models.yaml"))
+    assert pins == [f"pin {repo}@{rev}" for repo, rev in expected]
+
+
 def test_fc_box_needs_names_a_broken_file_instead_of_a_traceback(fc, capsys, tmp_path):
     profile = tmp_path / "eval.yaml"
     profile.write_text((CONFIGS / "eval.yaml").read_text().replace("judge.yaml", "nope.yaml"))
