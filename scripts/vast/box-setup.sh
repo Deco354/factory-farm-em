@@ -155,9 +155,9 @@ setup() {
 
   training_envs
 
-  # Otherwise the first `fc run` spends its first minutes downloading ~35 GB while the
+  # Otherwise the first `fc run` spends its first minutes downloading the models while the
   # GPU idles; Inspect 0.3.263 sets no vLLM start timeout, so it would just wait.
-  echo "== model downloads (about 35 GB)"
+  echo "== model downloads"
   pinned_models download
 
   touch /root/fc-setup.done
