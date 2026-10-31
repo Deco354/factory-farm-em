@@ -44,3 +44,20 @@ def test_the_setting_wins_over_the_record(tmp_path):
     record = tmp_path / "fc-box-models"
     record.write_text(PIN + "\n")
     assert box_models(record, "configs/models.q32b.yaml") == "configs/models.q32b.yaml"
+
+
+def test_a_resumed_box_adds_its_new_models_to_the_record(tmp_path):
+    # --ensure on a box set up for evals and now given a study: a later hand-run --check
+    # must still check the eval models too (review on #74).
+    record = tmp_path / "fc-box-models"
+    record.write_text("configs/models.yaml\n")
+    script = '. "$1"; BOX_MODELS_RECORD="$2"; add_to_record'
+    for _ in range(2):  # the same models again add nothing
+        subprocess.run(
+            ["/bin/bash", "-c", script, "bash", str(BOX_SETUP), str(record)],
+            env={"PATH": "/usr/bin:/bin", "FC_BOX_MODELS": f"{PIN} configs/models.yaml"},
+            check=True,
+            timeout=30,
+        )
+    assert record.read_text() == f"configs/models.yaml {PIN}\n"
+    assert box_models(record) == f"configs/models.yaml {PIN}"

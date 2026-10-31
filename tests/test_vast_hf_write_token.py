@@ -78,7 +78,6 @@ def test_anything_more_than_writing_the_adapter_repo_is_refused(reply, match):
 
 
 UP_SH = COMMON.parent / "up.sh"
-TOKEN_FILE = "/home/u/.config/fragile-compassion/hf-write.env"
 
 
 def to_box(root: Path, token: str) -> subprocess.CompletedProcess:
@@ -91,7 +90,7 @@ def to_box(root: Path, token: str) -> subprocess.CompletedProcess:
         'upload_token_to_box "$@"'
     )
     return subprocess.run(
-        ["/bin/bash", "-c", script, str(COMMON), str(root), token, REPO, TOKEN_FILE],
+        ["/bin/bash", "-c", script, str(COMMON), str(root), token, REPO],
         stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
@@ -108,16 +107,14 @@ def test_the_upload_token_goes_to_its_own_private_file_on_the_box(tmp_path):
     assert f"upload token for {REPO} written" in p.stdout
 
 
-def test_without_hf_write_env_a_resumed_box_loses_the_token_an_earlier_run_left(tmp_path):
+def test_without_study_a_resumed_box_loses_the_token_an_earlier_run_left(tmp_path):
     on_box = tmp_path / ".config" / "fc" / "hf-write-token"
     on_box.parent.mkdir(parents=True)
     on_box.write_text("hf_old_token")
     p = to_box(tmp_path, "")
     assert p.returncode == 0, p.stderr
     assert not on_box.exists()
-    assert f"removed the upload token an earlier run left on the box (no {TOKEN_FILE} now)" in (
-        p.stdout
-    )
+    assert "removed the upload token an earlier run left on the box" in p.stdout
     # A box that never had one: nothing to remove, nothing said.
     p = to_box(tmp_path, "")
     assert p.returncode == 0 and p.stdout == ""
@@ -125,8 +122,8 @@ def test_without_hf_write_env_a_resumed_box_loses_the_token_an_earlier_run_left(
 
 def test_up_sh_sends_or_clears_the_token_on_every_run():
     # The resume path needs SSH to a real box, so this checks the script itself: the call
-    # isn't inside an `if` on the token, so a run without hf-write.env clears the box's copy.
+    # isn't inside an `if` on the token, so a run without --study clears the box's copy.
     text = UP_SH.read_text()
-    call = 'upload_token_to_box "$HF_WRITE_VALUE" "$ADAPTER_REPO" "$HF_WRITE_ENV"'
+    call = 'upload_token_to_box "$HF_WRITE_VALUE" "$ADAPTER_REPO"'
     line = next(ln for ln in text.splitlines() if call in ln)
     assert line == call

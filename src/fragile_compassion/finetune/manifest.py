@@ -18,7 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+# 2: run.adapter_repo, which scripts/vast/up.sh --study reads.
+SCHEMA_VERSION = 2
 _URL_USERINFO = re.compile(r"(?<=://)[^/@\s]+@")
 
 
@@ -98,6 +99,7 @@ def pre_training_manifest(
     run_id: str,
     arm: str,
     purpose: str,
+    adapter_repo: str,
     seed: int,
     selection_seed: int,
     profile: Mapping[str, Any],
@@ -128,6 +130,7 @@ def pre_training_manifest(
             "arm": arm,
             "purpose": purpose,
             "pilot": purpose == "pilot",
+            "adapter_repo": adapter_repo,
         },
         "config": {
             "profile": dict(profile),

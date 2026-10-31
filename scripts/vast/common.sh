@@ -215,29 +215,96 @@ if not can_write_repo:
     sys.exit("the token has no repo.write permission scoped to %s" % repo)' "$1"
 }
 
-# box_plan TRAINING MODELS ADAPTER_REPO HAS_UPLOAD_TOKEN UPLOAD_TOKEN_FILE: what a new box
-# will be set up for, printed before renting, dry runs included. TRAINING and MODELS are
-# FC_BOX_TRAINING and FC_BOX_MODELS; HAS_UPLOAD_TOKEN is 1 when UPLOAD_TOKEN_FILE holds
-# the upload token (the token itself is never passed).
+# study_archive RUNS_DIR REL: RUNS_DIR/REL as a tar on stdout, for the box, without its
+# _candidates/ (plan's work dir). COPYFILE_DISABLE and --no-xattrs keep macOS metadata out:
+# without them the box's GNU tar warned "Ignoring unknown extended header keyword
+# 'LIBARCHIVE.xattr.com.apple.provenance'" once per file (seen 2026-10-30).
+study_archive() {
+  COPYFILE_DISABLE=1 tar --no-xattrs -C "$1" --exclude="$2/_candidates" -cf - "$2"
+}
+
+# study_settings DIR: what a training box needs for the study `fc train plan` wrote to DIR,
+# read from its runs' manifests: prints "<base model>@<revision> <adapter repo> <commit>".
+# Fails, saying why, when DIR holds no planned runs, when the runs disagree (the parity
+# gate makes them agree, so that means a damaged or hand-edited plan), when a run was
+# planned before manifests recorded the adapter repo, or when the study was planned with
+# uncommitted changes: the box checks out the commit without them, so it would train
+# other code than the plan recorded.
+study_settings() {
+  python3 -c '
+import glob, json, os, sys
+study = sys.argv[1]
+paths = sorted(glob.glob(os.path.join(study, "*", "manifest.json")))
+if not paths:
+    sys.exit("%s holds no planned runs (no */manifest.json); plan it with fc train plan" % study)
+seen = {}
+for path in paths:
+    run = os.path.basename(os.path.dirname(path))
+    try:
+        with open(path) as f:
+            m = json.load(f)
+        values = (m["model"]["base_model"], m["model"]["base_revision"],
+                  m["run"].get("adapter_repo"), m["code"]["git_commit"])
+        dirty = m["code"]["dirty"]
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+        sys.exit("%s: not a manifest fc train plan wrote (%s: %s)" % (path, type(exc).__name__, exc))
+    if values[2] is None:
+        sys.exit("run %s was planned before manifests recorded the adapter repo; plan the study "
+                 "again with fc train plan --replace" % run)
+    if dirty:
+        sys.exit("run %s was planned with uncommitted changes, which the box would not have; "
+                 "commit them, push, and plan the study again" % run)
+    seen.setdefault(values, []).append(run)
+if len(seen) > 1:
+    sys.exit("the runs disagree on base model, revision, adapter repo or commit: " + "; ".join(
+        "%s: %s@%s %s %s" % ((", ".join(runs),) + values) for values, runs in seen.items()))
+base, revision, repo, commit = next(iter(seen))
+print("%s@%s %s %s" % (base, revision, repo, commit))' "$1"
+}
+
+# adapter_repo_problem REPO < the reply to GET https://huggingface.co/api/models/REPO, made
+# with the upload token: prints why adapters must not go to REPO and returns 1, or returns 0
+# when it is a private model repo the token can see. Hugging Face answers a private repo
+# the token can't see as if it didn't exist.
+adapter_repo_problem() {
+  python3 -c '
+import json, sys
+repo = sys.argv[1]
+raw = sys.stdin.read()
+try:
+    d = json.loads(raw)
+except ValueError:
+    sys.exit("expected JSON from Hugging Face, got: " + (raw.strip()[:200] or "nothing"))
+if not isinstance(d, dict):
+    sys.exit("expected a repo from Hugging Face, got: " + raw.strip()[:200])
+if "error" in d:
+    sys.exit("the upload token sees no model repo %s (Hugging Face: %s). Create it as a "
+             "private model repo, and check the token is scoped to it" % (repo, d["error"]))
+if d.get("private") is not True:
+    sys.exit("%s is public; adapters go only to a private repo. Make it private first" % repo)' "$1"
+}
+
+# box_plan STUDY MODELS ADAPTER_REPO: what a new box will be set up for, printed before
+# renting, dry runs included. STUDY is the --study directory, empty for an evaluation-only
+# box; MODELS is what the box pre-downloads; ADAPTER_REPO is where the study's adapters
+# upload.
 box_plan() {
-  if [ "$1" = 1 ]; then
-    say "box: training and evaluation (FC_BOX_TRAINING=1: setup also installs the training envs)"
+  if [ -n "$1" ]; then
+    say "box: training and evaluation, for $1 (setup also installs the training envs)"
   else
-    say "box: evaluation only (FC_BOX_TRAINING=0: no training envs)"
+    say "box: evaluation only (no training envs; up.sh --study runs/<study> rents a training box)"
   fi
-  echo "   pre-downloads (FC_BOX_MODELS): $2"
-  if [ -z "$3" ]; then
-    echo "   adapter uploads: none (FC_ADAPTER_REPO is unset)"
-  elif [ "$4" = 1 ]; then
+  echo "   pre-downloads: $2"
+  if [ -n "$3" ]; then
     echo "   adapter uploads: to $3"
   else
-    echo "   adapter uploads: none, no upload token at $5 (FC_ADAPTER_REPO is $3)"
+    echo "   adapter uploads: none (the upload token goes only to a --study box)"
   fi
 }
 
-# upload_token_to_box TOKEN REPO TOKEN_FILE: the adapter-upload token to its own file on the
-# box (mode 600). With TOKEN empty (no TOKEN_FILE on the laptop) it removes any token an
-# earlier run left there, so a resumed box holds one only while TOKEN_FILE does.
+# upload_token_to_box TOKEN REPO: the adapter-upload token to its own file on the box
+# (mode 600). With TOKEN empty (not a --study run) it removes any token an earlier run left
+# there, so a box holds one only while it is being set up for a study.
 upload_token_to_box() {
   local gone
   if [ -n "$1" ]; then
@@ -248,7 +315,7 @@ upload_token_to_box() {
     # shellcheck disable=SC2016  # expands on the box
     gone=$(box 'f=/root/.config/fc/hf-write-token; if [ -f "$f" ]; then rm "$f" && echo removed; fi') ||
       die "could not remove the upload token an earlier run left in the box's /root/.config/fc/hf-write-token"
-    [ "$gone" != removed ] || say "removed the upload token an earlier run left on the box (no $3 now)"
+    [ "$gone" != removed ] || say "removed the upload token an earlier run left on the box (only a --study run sends one)"
   fi
 }
 

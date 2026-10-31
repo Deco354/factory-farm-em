@@ -154,25 +154,45 @@ The training suite skips when an env or a tokenizer is missing; `FC_REQUIRE_TRAI
 
 ## On a rented box (stage 2)
 
-`scripts/vast/up.sh` takes training settings ([vast.md](vast.md) has the rest):
+Plan the study on the laptop at a pushed commit, then rent a box for it in one command
+([vast.md](vast.md) covers renting):
 
-| Setting | What |
-|---|---|
-| `FC_BOX_TRAINING=1` | `box-setup.sh` also installs both training envs. |
-| `FC_BOX_MODELS` | What the box pre-downloads: models.yaml paths and `repo@<commit>` pins, e.g. `Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf67be50417f59c2c2f167def9a775`. |
-| `FC_ADAPTER_REPO` | The private repo adapters are uploaded to. |
-| `FC_HF_WRITE_ENV` | An upload token (`HF_TOKEN=...`, default `~/.config/fragile-compassion/hf-write.env`). |
+```bash
+uv run fc train plan --study configs/training/studies/stage2-plumbing.yaml
+scripts/vast/up.sh --study runs/stage2-plumbing    # --dry-run first to check it all, for free
+```
 
-The upload token must be fine-grained, and its only permission that doesn't end in
-`.read` must be `repo.write` scoped to `FC_ADAPTER_REPO`. `up.sh` checks it before
-renting and refuses anything else, printing what it found. (Those permission names are
-the plan's; the first real token checked confirms them.) On the box it goes only to
-`/root/.config/fc/hf-write-token`, mode 600: not `.env`, not Hugging Face's own token
-file, not a training process. Run `up.sh` again without `hf-write.env` and it removes the
-token from the box.
+`up.sh` reads what the box needs from the runs' manifests. It installs both training
+envs, pre-downloads only the study's base model at its pinned revision, and copies the
+study over once setup is done, without its `_candidates/`. Run on a box `up.sh` already
+rented, it installs whatever that box lacks.
 
-`scripts/vast/up.sh --push runs/<study>` copies a planned study to the box, without its
-`_candidates/`. Only the current study goes on a box: the host can read its disk.
+Before renting, it refuses a study the box couldn't train as planned:
+- a study planned at a different commit from the box's (`FC_REF` or `HEAD`, or the
+  recorded box's commit);
+- a study planned with uncommitted changes;
+- runs that disagree on the model, the adapter repo or the commit;
+- a study planned before manifests recorded the adapter repo.
+
+Re-planning fixes each of these: `fc train plan --replace`.
+
+`FC_BOX_MODELS` adds other models to pre-download, for example an eval set for the same
+box.
+
+The upload token goes in `~/.config/fragile-compassion/hf-write.env` (`HF_TOKEN=...`), or
+in the file `FC_HF_WRITE_ENV` names. A study box needs it: `up.sh --study` refuses to rent
+without it, rather than finding out after training. The token must be fine-grained, and
+its only permission that doesn't end in `.read` must be `repo.write`, scoped to the study's
+`adapter_repo`. That repo must exist and be private. `up.sh` checks all of this before
+renting and refuses anything else, printing what it found. (Those permission names are the
+plan's; the first real token checked confirms them.)
+
+On the box the token goes only to `/root/.config/fc/hf-write-token`, mode 600: not
+`.env`, not Hugging Face's own token file, not a training process. Only `--study` reads
+it. Run `up.sh` without `--study` and it removes the token from the box.
+
+`scripts/vast/up.sh --push runs/<study>` copies a re-planned study to the recorded box, with
+the same commit check. Only the current study goes on a box: the host can read its disk.
 `down.sh` copies `runs/` back without optimizer states or prepared datasets, and treats
 `axolotl` and `fc train` as work still running.
 
