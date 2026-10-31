@@ -140,6 +140,7 @@ IMAGE=${FC_VAST_IMAGE:-vastai/base-image:cuda-13.0.3-cudnn-devel-ubuntu24.04-202
 # are known.
 DISK=${FC_VAST_DISK:-}
 case ${DISK:-1} in *[!0-9]*) die "FC_VAST_DISK must be a whole number of GB, got '$DISK'" ;; esac
+MODELS_GB="" # the models' total, known only when this run sizes a new box
 # Offers are ranked by GPU price x FC_VAST_HOURS + download price x DOWNLOAD_GB: hosts
 # charge 0-40 $/TB for downloads, which the hourly price leaves out, and a new box
 # downloads its models and wheels before it is ready (box_disk).
@@ -459,6 +460,7 @@ print(" ".join("%s(%s)" % (i["id"], i.get("actual_status")) for i in d if i.get(
   done
   read -r auto_disk DOWNLOAD_GB <<<"$(box_disk "$model_bytes" "$BOX_TRAINING")"
   DISK=${DISK:-$auto_disk}
+  MODELS_GB=$(((model_bytes + 500000000) / 1000000000))
   # One 80 GB GPU, a driver that runs CUDA 13.0, Ampere or Hopper (A100/H100 class: bf16;
   # Blackwell workstation cards, compute capability 12.0, are untested with this vLLM),
   # x86, a verified host with a reliability score above 0.98 (a box that drops mid-run
@@ -474,8 +476,7 @@ print(" ".join("%s(%s)" % (i["id"], i.get("actual_status")) for i in d if i.get(
     QUERY="$QUERY $FC_VAST_QUERY_EXTRA"
   fi
 
-  box_plan "$STUDY_LABEL" "$EVAL_REL $MODELS_REL $JUDGE_REL" "$BOX_MODELS" \
-    "$(((model_bytes + 500000000) / 1000000000))" "$ADAPTER_REPO"
+  box_plan "$STUDY_LABEL" "$EVAL_REL $MODELS_REL $JUDGE_REL" "$BOX_MODELS" "$MODELS_GB" "$ADAPTER_REPO"
   echo "   disk: $DISK GB$([ -n "${FC_VAST_DISK:-}" ] && echo " (FC_VAST_DISK)" || echo ", sized from the models (FC_VAST_DISK overrides)")"
   say "cheapest offers under \$$MAX_DPH/hr (GPU plus $DISK GB of storage) for $HOURS GPU hour(s) + $DOWNLOAD_GB GB of downloads, matching: $QUERY"
   offer_search_cmd "$QUERY" "$MAX_DPH" "$DISK"
@@ -483,11 +484,12 @@ print(" ".join("%s(%s)" % (i["id"], i.get("actual_status")) for i in d if i.get(
   picked=$(printf '%s' "$offers" | pick_offer "$HOURS" "$DOWNLOAD_GB" "$MAX_DPH") ||
     die "no offer to rent (nothing is billing)"
   read -r OFFER DPH DOWNLOAD_COST <<<"$picked"
+  # --onstart-cmd last: SSH_KEY_FIX (common.sh) makes the box's authorized_keys usable.
   create=(vastai create instance "$OFFER" --image "$IMAGE" --disk "$DISK" --ssh --direct
-    --label "$LABEL" --cancel-unavail --raw)
+    --label "$LABEL" --cancel-unavail --raw --onstart-cmd "$SSH_KEY_FIX")
   if [ "$DRY" = 1 ]; then
     say "dry run: every check passed. Would rent offer $OFFER at \$$DPH/hr (setup downloads ~\$$DOWNLOAD_COST) with:"
-    echo "   ${create[*]}"
+    echo "   ${create[*]:0:${#create[@]}-1} <SSH_KEY_FIX from common.sh>"
     echo "   then check out ${REF:0:12} from $REPO_URL"
     exit 0
   fi
@@ -654,7 +656,7 @@ case $st in
 esac
 
 if [ "$st" != "done" ]; then
-  say "waiting for box-setup.sh: uv sync, then ~35 GB of models (usually 10-15 min)."
+  say "waiting for box-setup.sh: uv sync, then ${MODELS_GB:+about $MODELS_GB GB of }the run's models. How long depends on the host's download speed."
   echo "   Its log, from another terminal: ssh vast-em tail -f /root/fc-setup.log"
   last_line="" ssh_failures=0
   for _ in $(seq 180); do

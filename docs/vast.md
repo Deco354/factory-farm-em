@@ -20,8 +20,8 @@ credentials go onto the box, both made just for rented boxes:
 - optionally, a read-only Hugging Face token. `up.sh` refuses a token that can do more
   than read.
 
-Never put credentials in Vast environment variables or templates, since hosts can
-read those too. Destroy the box when you are done.
+Never put credentials in Vast environment variables, templates or the start-up command
+(`--onstart-cmd`), since hosts can read those too. Destroy the box when you are done.
 
 ## What it costs
 
@@ -325,8 +325,9 @@ onto the box and runs it. The script:
 - installs tmux if it is missing, and a pinned uv;
 - clones the repo at your commit;
 - runs `uv sync --extra vllm`;
-- downloads every pinned model into the Hugging Face cache (~35 GB), so `fc run`
-  doesn't wait on downloads.
+- downloads the run's pinned models into the Hugging Face cache, so `fc run` doesn't wait
+  on downloads. `up.sh` prints their total before renting: about 35 GB for the 14B set,
+  75 GB for the 32B set.
 
 Its log is `/root/fc-setup.log`. Afterwards, `up.sh`:
 
@@ -367,12 +368,12 @@ ss -ltnp | grep -i vllm        # every line should show 127.0.0.1
 | `up.sh`: judge check failed | The key in `judge.env` is wrong, revoked or missing a permission (`Missing scopes`), or its project hit the spend limit (429 `…spend_limit_exceeded`). Nothing was rented. |
 | `up.sh`: vastai is not logged in | `vastai set api-key <restricted key>` (step 3). |
 | `up.sh`: no offers match | Nothing fits under `FC_VAST_MAX_DPH` right now. Retry later, raise the cap, or relax `FC_VAST_QUERY`. Filter with `>`, not `>=`: the web UI mishandled `>=` on `compute_cap`, which is capability × 100. |
-| The web console shows other prices or offer numbers than `up.sh` | Set the console's disk filter to `FC_VAST_DISK` (120 GB): both sides price storage for their own disk size. An offer number is one free GPU slot on a machine, so the same machine can show a different number. Compare the `m:` (machine) and `host:` numbers instead; `up.sh` prints both. |
+| The web console shows other prices or offer numbers than `up.sh` | Set the console's disk filter to the disk `up.sh` printed: both sides price storage for their own disk size. An offer number is one free GPU slot on a machine, so the same machine can show a different number. Compare the `m:` (machine) and `host:` numbers instead; `up.sh` prints both. |
 | The web console lists machines that `up.sh` doesn't | Vast's search API, which `up.sh` uses, bundles similar offers and returns one per bundle. The console is the complete list. So `up.sh` can miss a slightly cheaper machine: on 2026-10-01 it showed machine 67803 at $1.253/hr, while 149752, on the same host, was $1.217/hr. No `vastai` option turns bundling off; as of vastai 1.8.2, `search offers --new` and the API's `disable_bundling` both return 400. |
 | `up.sh`: ssh vast-em resolves to … | The `Include` line is missing or below a `Host` block, or a hand-written `Host vast-em` block comes first (step 5). |
 | `up.sh`: instance is exited, unknown or offline | The host failed. Run `down.sh`, then `up.sh` again for another offer. |
 | `up.sh`: box-setup.sh failed | The end of its log says why, for example a host without internet access. Fix it and rerun `up.sh` (same box), or `down.sh` and rent another. |
-| `Permission denied (publickey)` | The box doesn't have your key: it wasn't on the account when the box was created and attaching it failed, or the account holds a different key. |
+| `Permission denied (publickey)` | `vastai logs <id>` says which. `Authentication refused: bad ownership or modes for file /root/.ssh/authorized_keys`: the box has your key, but some hosts write the file owned by a user the container doesn't have, and sshd refuses it (seen from 2026-10-30). `up.sh` gives every box a start-up command (`SSH_KEY_FIX` in `common.sh`) that fixes it within seconds, and `/root/fc-ssh-modes.log` shows what it found. If that line keeps coming back, the fix didn't run: report it to Vast. `Failed publickey` alone means the box doesn't have your key: compare `vastai show ssh-keys` with `~/.ssh/vastai.pub`. |
 | `Bad port '1.2.3.4:5678'` from every ssh command | IP and port on one line in `~/.ssh/config`. One bad line breaks all SSH, including GitHub. |
 | Passphrase asked on every connection | The key is not in your SSH agent: `ssh-add ~/.ssh/vastai` (macOS: `ssh-add --apple-use-keychain ~/.ssh/vastai`). |
 | `hf download`: `Invalid filename '/root/.../activate'` | VS Code typed `source .venv/bin/activate` into your command; see step 8. |

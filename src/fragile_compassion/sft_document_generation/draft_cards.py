@@ -7,17 +7,28 @@ draft. The result is a card file under output/card-drafts/<run-id>/ with passing
 first and failing drafts after, each with the checker's issues attached. Nothing here is
 generated from: drafts have no reviewed_by, and generate_cards skips unreviewed cards.
 
-Reviewing: for each draft, read the chunk it came from (draft.chunk), fix or delete it,
-delete its `draft` block, and move it into the real card file in configs/cards/.
+Reviewing: for each draft, read the chunk it came from (draft.chunk), fix it in the
+drafts file if needed, and set `decision: keep | park | skip` (park also needs `why:`).
+promote_drafts then moves the decided drafts into the real card file in configs/cards/.
 
 Usage, from the repo root (after process_book_ranked has written the chunks):
 
     uv run python -m fragile_compassion.sft_document_generation.draft_cards \\
-        --source configs/cards/cobb_broiler_2021.yaml \\
-        --chunks-dir "context/chunks/Cobb Broiler Management Guide" --top 10 --run-id cobb-01
+        --book cobb-broiler --top 100 --run-id cobb-broiler-comp-01
 
+`--book` looks up the card file, chunk folder, companion file and ID prefix in
+configs/books.yaml. Any of them can still be given directly (--source, --chunks-dir,
+--companion, --id-prefix), which overrides the registry; --no-companion sends none.
 `--source` is any YAML file with a `source:` block (a card file, or a new file holding
-only the block). Cards already in it, and in any --existing file, are not drafted again.
+only the block).
+
+Decisions are not drafted again when they match (same category, unit and range, or the
+same two options) any of:
+  - a live or parked card in the source file or in an --existing file;
+  - a passing draft from an earlier run of the same book under output/card-drafts/
+    (found by source title; folders starting with "_" are skipped). Failing drafts are
+    not counted, so a companion can fix them. --no-history turns this off.
+Each run lists what it dropped under `duplicates_dropped`.
 """
 
 import argparse
@@ -27,6 +38,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from fragile_compassion.sft_document_generation import books as bk
 from fragile_compassion.sft_document_generation import cards as cd
 from fragile_compassion.sft_document_generation import generate as g
 from fragile_compassion.sft_document_generation import generate_cards as gc
@@ -252,9 +264,10 @@ def check_drafts(drafts: list[dict], book_text: str) -> None:
 def drafts_file(source: dict, drafts: list[dict], rejected: list, duplicates: list) -> dict:
     """Card-file data: passing drafts first, then failing ones."""
     ordered = sorted(drafts, key=lambda c: bool(c["draft"].get("issues")))
+    with_decision = [{"card_id": c["card_id"], "decision": c.get("decision"), **c} for c in ordered]
     return {
         "source": source,
-        "cards": ordered,
+        "cards": with_decision,
         "rejected_by_drafter": rejected,
         "duplicates_dropped": [
             {"card_id": c["card_id"], "parameter": c.get("parameter"), "chunk": c["draft"]["chunk"]}
@@ -267,10 +280,10 @@ def file_header(source_title: str, n_pass: int, n_fail: int) -> str:
     return (
         f"# DRAFT cards for {source_title}, written by draft_cards.py. Not reviewed.\n"
         f"# {n_pass} draft(s) pass the checker, {n_fail} fail (listed last, with issues).\n"
-        "# For each draft: read its chunk, fix or delete it, delete its `draft` block,\n"
-        "# and move it into the real card file in configs/cards/. A passing draft can\n"
-        "# still be wrong: the checker cannot judge whether both ends are acceptable\n"
-        "# practice or whether the trade-off is real.\n\n"
+        "# For each draft: read its chunk, fix it here if needed, and set `decision:` to\n"
+        "# keep, park (add a `why:`) or skip. Then run promote_drafts --run <this run>\n"
+        "# --reviewer <initials>. A passing draft can still be wrong: the checker cannot\n"
+        "# judge whether both ends are acceptable practice or whether the trade-off is real.\n\n"
     )
 
 
@@ -312,14 +325,72 @@ def chunks_containing(paths: list[Path], needles: list[str]) -> list[Path]:
 # ---------------------------------------------------------------------------
 
 
-def load_source(path: Path) -> tuple[dict, list[dict]]:
-    """(source block, cards) from a YAML file whose `cards` may be missing."""
+def load_source(path: Path, include_parked: bool = False) -> tuple[dict, list[dict]]:
+    """(source block, cards) from a YAML file whose `cards` may be missing. With
+    include_parked, cards under `parked:` are returned too (for de-duplication only)."""
     import yaml
 
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     if not isinstance(data.get("source"), dict):
         raise ValueError(f"{path}: expected a top-level 'source' mapping.")
-    return data["source"], [c for c in data.get("cards") or [] if isinstance(c, dict)]
+    keys = ("cards", "parked") if include_parked else ("cards",)
+    found = [c for k in keys for c in data.get(k) or [] if isinstance(c, dict)]
+    return data["source"], found
+
+
+def history_drafts(
+    drafts_root: Path, title: str, skip: set[str] = frozenset()
+) -> tuple[list[dict], list[str]]:
+    """(passing drafts, run folders) from earlier draft runs of the book with this title.
+
+    Folders starting with "_" (e.g. _superseded) and those named in `skip` are ignored.
+    Failing drafts are left out on purpose: a later run may fix them."""
+    import yaml
+
+    found, runs = [], []
+    for path in sorted(Path(drafts_root).glob("*/*_drafts.yaml")):
+        run = path.parent.name
+        if run.startswith("_") or run in skip:
+            continue
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError:
+            continue
+        if (data.get("source") or {}).get("title") != title:
+            continue
+        passing = [
+            c
+            for c in data.get("cards") or []
+            if isinstance(c, dict) and not (c.get("draft") or {}).get("issues")
+        ]
+        if passing:
+            found += passing
+            runs.append(run)
+    return found, runs
+
+
+def apply_book(
+    args: argparse.Namespace, books_path: Path | None = None, root: Path | None = None
+) -> argparse.Namespace:
+    """Fills --source, --chunks-dir, --companion and --id-prefix from the book registry.
+    Values given on the command line win; --no-companion sends no companion."""
+    if args.book:
+        entry = bk.get_book(args.book, books_path or bk.BOOKS_PATH, root or g.ROOT_DIR)
+        if entry["status"] != "active":
+            print(f"Note: book {args.book!r} is marked {entry['status']} in the registry.")
+        args.source = args.source or entry["card_file"]
+        args.chunks_dir = args.chunks_dir or entry["chunks_dir"]
+        args.id_prefix = args.id_prefix or entry["id_prefix"]
+        if not args.companion and not args.no_companion:
+            if Path(entry["companion"]).exists():
+                args.companion = [entry["companion"]]
+            else:
+                print(f"Note: no companion file at {entry['companion']} (run make_companion).")
+    if args.no_companion:
+        args.companion = []
+    if not args.source or not args.chunks_dir:
+        raise SystemExit("Give --book, or both --source and --chunks-dir.")
+    return args
 
 
 def ranked_chunks(chunks_dir: Path, top: int) -> list[Path]:
@@ -340,8 +411,9 @@ def write_drafts(out_path: Path, data: dict) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Draft parameter cards for review.")
     parser.add_argument("--config", type=Path, default=g.DEFAULT_CONFIG_PATH)
-    parser.add_argument("--source", type=Path, required=True, help="YAML with a source block.")
-    parser.add_argument("--chunks-dir", type=Path, required=True, help="Ranked chunk folder.")
+    parser.add_argument("--book", help="Book ID from configs/books.yaml (fills the paths below).")
+    parser.add_argument("--source", type=Path, help="YAML with a source block.")
+    parser.add_argument("--chunks-dir", type=Path, help="Ranked chunk folder.")
     parser.add_argument("--top", type=int, default=10, help="Draft from the top N chunks.")
     parser.add_argument(
         "--existing",
@@ -358,6 +430,12 @@ def main():
         help="A chunk or text file from the same source sent with every excerpt, so cards "
         "may pair statements across chunks (repeatable).",
     )
+    parser.add_argument("--no-companion", action="store_true", help="Send no companion file.")
+    parser.add_argument(
+        "--no-history",
+        action="store_true",
+        help="Do not skip decisions already proposed by passing drafts in earlier runs.",
+    )
     parser.add_argument(
         "--contains",
         action="append",
@@ -367,14 +445,27 @@ def main():
     parser.add_argument("--id-prefix", help="Card ID prefix (default: first word of title).")
     parser.add_argument("--run-id", help="Defaults to a timestamp.")
     parser.add_argument("--dry-run", action="store_true", help="Print one payload; no calls.")
-    args = parser.parse_args()
+    args = apply_book(parser.parse_args())
 
     cfg = g.load_config(args.config)
     dcfg = cfg.get("drafting", {})
     root = g.ROOT_DIR
-    source, existing = load_source(args.source)
+    run_id = args.run_id or datetime.now().strftime("drafts%Y%m%d_%H%M%S")
+    source, existing = load_source(args.source, include_parked=True)
     for path in args.existing:
-        existing += load_source(path)[1]
+        existing += load_source(path, include_parked=True)[1]
+    n_cards = len(existing)
+    if not args.no_history:
+        earlier, runs = history_drafts(
+            root / "output" / "card-drafts", source.get("title"), skip={run_id}
+        )
+        existing += earlier
+        print(
+            f"Skipping decisions in {n_cards} live/parked card(s) and {len(earlier)} passing "
+            f"draft(s) from {len(runs)} earlier run(s)" + (f": {', '.join(runs)}" if runs else "")
+        )
+    for p in args.companion:
+        print(f"Companion: {p}")
     book_text = g.load_file_content(root / source["book_text"])
     prefix = args.id_prefix or slug(str(source.get("title", "")).split()[0])
     chunks = chunks_containing(ranked_chunks(args.chunks_dir, args.top), args.contains)
@@ -391,7 +482,6 @@ def main():
     system_prompt = g.load_file_content(root / prompt_path)
     client = g.make_client(cfg)
     model = dcfg.get("teacher_model") or cfg.get("api", {}).get("teacher_model")
-    run_id = args.run_id or datetime.now().strftime("drafts%Y%m%d_%H%M%S")
     out_dir = root / "output" / "card-drafts" / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
     usage.start_log(out_dir)
