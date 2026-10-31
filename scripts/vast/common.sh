@@ -169,6 +169,49 @@ best = d[0]
 print(best["id"], "%.3f" % best["dph_total"], "%.2f" % (gb * (best.get("inet_down_cost") or 0)))' "$@"
 }
 
+# pin_bytes REPO@COMMIT < Hugging Face's reply to
+# GET https://huggingface.co/api/models/REPO/revision/COMMIT?blobs=true: prints how many
+# bytes box-setup.sh downloads for it (every file at that commit: snapshot_download takes
+# whole repos), or says why not and returns 1. A repo or commit Hugging Face doesn't
+# know, or one it won't show without a token, fails here before renting, not on the box.
+pin_bytes() {
+  python3 -c '
+import json, sys
+pin = sys.argv[1]
+raw = sys.stdin.read()
+try:
+    d = json.loads(raw)
+except ValueError:
+    sys.exit("%s: expected JSON from Hugging Face, got: %s" % (pin, raw.strip()[:200] or "nothing"))
+if not isinstance(d, dict) or "error" in d:
+    why = d.get("error") if isinstance(d, dict) else raw.strip()[:200]
+    sys.exit("%s: Hugging Face has no such repo and commit, or shows it only to a token that "
+             "may read it (hf.env): %s" % (pin, why))
+if d.get("sha") != pin.rsplit("@", 1)[1]:
+    sys.exit("%s: Hugging Face answered for commit %s" % (pin, d.get("sha")))
+files = d.get("siblings") or []
+if not files or not all(isinstance(f.get("size"), int) for f in files):
+    sys.exit("%s: Hugging Face listed no file sizes" % pin)
+print(sum(f["size"] for f in files))' "$1"
+}
+
+# box_disk MODEL_BYTES TRAINING: prints "<disk GB> <download GB>" for a box that
+# pre-downloads MODEL_BYTES of models, with the training envs when TRAINING is 1.
+# Downloads are the models plus ~10 GB of wheels (~10 GB more for the training envs). The
+# disk holds the models plus 50 GB (70 GB with the training envs) for the venv, the image,
+# logs and checkpoints, and never less than 60 GB. Estimates: the only measured box
+# (hb-em-smoke-002, docs/gpu-runs.md) used 106 GB for ~108 GB of models and the venv;
+# `df -h /` on the next one says more. FC_VAST_DISK overrides the disk.
+box_disk() {
+  local models_gb=$((($1 + 999999999) / 1000000000)) wheels=10 room=50 disk
+  if [ "$2" = 1 ]; then
+    wheels=20 room=70
+  fi
+  disk=$((models_gb + room))
+  [ "$disk" -ge 60 ] || disk=60
+  echo "$disk $((models_gb + wheels))"
+}
+
 # hf_token_problem < whoami-v2 reply: prints why a Hugging Face token must not go on a
 # rented box and returns 1, or returns 0 for a read-only one. Classic tokens have role
 # `read` or `write`. Fine-grained ones list permissions (globally and per scope), and
@@ -310,19 +353,24 @@ if d.get("private") is not True:
     sys.exit("%s is public; adapters go only to a private repo. Make it private first" % repo)' "$1"
 }
 
-# box_plan STUDY MODELS ADAPTER_REPO: what a new box will be set up for, printed before
-# renting, dry runs included. STUDY is the --study directory, empty for an evaluation-only
-# box; MODELS is what the box pre-downloads; ADAPTER_REPO is where the study's adapters
-# upload.
+# box_plan STUDY CONFIGS PINS MODELS_GB ADAPTER_REPO: what a new box will be set up for,
+# printed before renting, dry runs included. STUDY is the --study directory, empty for an
+# evaluation-only box; CONFIGS the config files copied to it; PINS the repo@commit pins it
+# pre-downloads, MODELS_GB in all; ADAPTER_REPO where the study's adapters upload.
 box_plan() {
+  local pin
   if [ -n "$1" ]; then
     say "box: training and evaluation, for $1 (setup also installs the training envs)"
   else
     say "box: evaluation only (no training envs; up.sh --study runs/<study> rents a training box)"
   fi
-  echo "   pre-downloads: $2"
-  if [ -n "$3" ]; then
-    echo "   adapter uploads: to $3"
+  echo "   configs, copied to the box as they are here: $2"
+  echo "   pre-downloads, $4 GB:"
+  for pin in $3; do
+    echo "     ${pin%@*} @ $(printf '%.12s' "${pin##*@}")"
+  done
+  if [ -n "$5" ]; then
+    echo "   adapter uploads: to $5"
   else
     echo "   adapter uploads: none (the upload token goes only to a --study box)"
   fi

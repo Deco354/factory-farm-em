@@ -17,11 +17,8 @@ def test_plan_and_run_share_config_defaults_and_require_run_id():
     for sub, func in (("plan", cmd_plan), ("run", cmd_run)):
         args = p.parse_args([sub, "--run-id", "smoke-001"])
         assert args.func is func
-        assert (args.models, args.judge, args.eval) == (
-            "configs/models.yaml",
-            "configs/judge.yaml",
-            "configs/eval.yaml",
-        )
+        # No --models or --judge: the eval profile names them (tests/test_cli.py).
+        assert (args.models, args.judge, args.eval) == (None, None, "configs/eval.yaml")
         assert args.run_id == "smoke-001"
         with pytest.raises(SystemExit):
             p.parse_args([sub])  # --run-id is mandatory

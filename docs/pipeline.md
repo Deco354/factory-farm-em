@@ -37,16 +37,19 @@ the commands only differ in what they do with them:
   Betley exclusion thresholds and the HarvestBench conditions. The smoke profile has
   the same schema shrunk to finish in minutes; swap in `eval.yaml` for the real thing.
   Every benchmark must be listed; write `<name>: skip` to leave one out of a run
-  (`configs/eval.harvest-em.yaml` does this).
+  (`configs/eval.harvest-em.yaml` does this). A profile also names its models and judge
+  files, relative to itself (`models: models.q32b.yaml`, `judge: judge.yaml`), so a run
+  is chosen with `--eval` alone.
 
-`--models`, `--judge` and `--eval` default to `configs/models.yaml`,
-`configs/judge.yaml` and `configs/eval.yaml`. `--run-id` is a name you choose; logs
-for that run land in `logs/<run-id>/`.
+`--eval` defaults to `configs/eval.yaml`. `--models` and `--judge` default to the files
+the profile names, or `configs/models.yaml` and `configs/judge.yaml` when it names none.
+Given, they override the profile. `fc plan` ends by printing which files it used.
+`--run-id` is a name you choose; logs for that run land in `logs/<run-id>/`.
 
 ## `fc plan`
 
 ```bash
-uv run fc plan --models configs/models.yaml --judge configs/judge.yaml --eval configs/eval.smoke.yaml --run-id smoke-001
+uv run fc plan --eval configs/eval.smoke.yaml --run-id smoke-001
 ```
 
 Prints every Inspect `eval_set` call without running anything: the model strings
@@ -60,7 +63,7 @@ time. Fully offline.
 ## `fc run`
 
 ```bash
-uv run fc run --models configs/models.yaml --judge configs/judge.yaml --eval configs/eval.smoke.yaml --run-id smoke-001
+uv run fc run --eval configs/eval.smoke.yaml --run-id smoke-001
 ```
 
 Executes the plan. For each base model it makes one `eval_set` call covering the

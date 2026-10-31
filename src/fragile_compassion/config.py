@@ -114,7 +114,9 @@ _MODEL_KEYS = (
     | _SERVER_KEYS
 )
 _JUDGE_KEYS = frozenset({"model", "temperature", "max_tokens", "reasoning_effort", "mode"})
-_EVAL_TOP_KEYS = frozenset({"generation", "benchmarks", "betley", "harvestbench", "inspect"})
+_EVAL_TOP_KEYS = frozenset(
+    {"models", "judge", "generation", "benchmarks", "betley", "harvestbench", "inspect"}
+)
 _GENERATION_KEYS = frozenset({"temperature"})
 _BENCHMARK_KEYS = frozenset({"epochs", "max_tokens", "limit"})
 _BETLEY_KEYS = frozenset({"sources", "coherence_min", "alignment_max"})
@@ -347,15 +349,18 @@ def max_lora_rank(models: Iterable[ModelSpec]) -> int | None:
     return max(ranks) if ranks else None
 
 
-def box_model_pins(spec: str, read: Callable[[str], str] = load_text) -> list[tuple[str, str]]:
+def box_model_pins(
+    spec: str | Iterable[str], read: Callable[[str], str] = load_text
+) -> list[tuple[str, str]]:
     """Every (repo, revision) a rented box pre-downloads, from FC_BOX_MODELS.
 
-    `spec` is space-separated: models.yaml paths, whose models count base models
-    included, and `repo@<40-hex>` pins (a training box needs only its base, which a
-    models.yaml can't list alone). In order, each pin once. `read` loads a path's text.
+    `spec` is space-separated, or already a list (a path may hold spaces): models.yaml
+    paths, whose models count base models included, and `repo@<40-hex>` pins (a training
+    box needs only its base, which a models.yaml can't list alone). In order, each pin
+    once. `read` loads a path's text.
     """
     pins: list[tuple[str, str]] = []
-    for item in spec.split():
+    for item in spec.split() if isinstance(spec, str) else spec:
         if item.endswith((".yaml", ".yml")):
             pairs = [
                 pair
@@ -462,9 +467,15 @@ class EvalConfig:
     harvest_briefing_version: int | None = None
     harvest_detour_cost: int | None = None
     harvest_seeds: int | None = None
+    # The profile's `models:` and `judge:` files as written, relative to the profile's own
+    # directory; None means the default (resolve_run_files).
+    models_file: str | None = None
+    judge_file: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "models_file": self.models_file,
+            "judge_file": self.judge_file,
             "temperature": self.temperature,
             "benchmarks": {k: asdict(v) for k, v in self.benchmarks.items()},
             "skipped": sorted(self.skipped),
@@ -576,8 +587,16 @@ def parse_eval_yaml(text: str) -> EvalConfig:
     if not isinstance(log_root, str) or not log_root.strip():
         raise ConfigError(f"inspect.log_root must be a non-empty string, got {log_root!r}")
     retry = _int(insp.get("retry_on_error", 0), "inspect.retry_on_error", minimum=0)
+    files = {}
+    for key in ("models", "judge"):
+        value = doc.get(key)
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            raise ConfigError(f"eval.yaml `{key}` must be a path to a {key} file, got {value!r}")
+        files[key] = value
 
     return EvalConfig(
+        models_file=files["models"],
+        judge_file=files["judge"],
         temperature=_number(gen.get("temperature", 1.0), "generation.temperature", lo=0.0),
         benchmarks=benches,
         betley_sources=sources,
@@ -595,4 +614,41 @@ def parse_eval_yaml(text: str) -> EvalConfig:
         harvest_briefing_version=briefing if harvest_runs else None,
         harvest_detour_cost=detour_cost if harvest_runs else None,
         harvest_seeds=seeds if harvest_runs else None,
+    )
+
+
+# --------------------------------------------------------------------------- run files
+
+DEFAULT_MODELS = "configs/models.yaml"
+DEFAULT_JUDGE = "configs/judge.yaml"
+
+
+@dataclass(frozen=True)
+class RunFiles:
+    """The three files a run reads."""
+
+    eval: str
+    models: str
+    judge: str
+
+
+def resolve_run_files(
+    eval_path: str, evalcfg: EvalConfig, models: str | None = None, judge: str | None = None
+) -> RunFiles:
+    """Which models and judge files go with an eval profile: a flag (`--models`,
+    `--judge`) wins, then the profile's own `models:` / `judge:`, which are relative to
+    the profile's directory, then the defaults. `fc plan`, `fc run` and
+    scripts/vast/up.sh all resolve them here, so they can't disagree."""
+
+    def pick(flag: str | None, key: str | None, default: str) -> str:
+        if flag is not None:
+            return flag
+        if key is not None:
+            return str(Path(eval_path).parent / key)
+        return default
+
+    return RunFiles(
+        eval=eval_path,
+        models=pick(models, evalcfg.models_file, DEFAULT_MODELS),
+        judge=pick(judge, evalcfg.judge_file, DEFAULT_JUDGE),
     )

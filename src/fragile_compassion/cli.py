@@ -7,41 +7,48 @@ import sys
 from pathlib import Path
 
 from fragile_compassion.config import (
+    ConfigError,
+    box_model_pins,
     load_text,
     parse_eval_yaml,
     parse_judge_yaml,
     parse_models_yaml,
+    resolve_run_files,
     sha256_text,
 )
 from fragile_compassion.finetune.cli import add_train_parser
 
 
 def _load_all(args: argparse.Namespace):
-    models_text = load_text(args.models)
-    judge_text = load_text(args.judge)
     eval_text = load_text(args.eval)
+    evalcfg = parse_eval_yaml(eval_text)
+    files = resolve_run_files(args.eval, evalcfg, args.models, args.judge)
+    models_text = load_text(files.models)
+    judge_text = load_text(files.judge)
     return (
         parse_models_yaml(models_text),
         parse_judge_yaml(judge_text),
-        parse_eval_yaml(eval_text),
+        evalcfg,
         {
             "models.yaml": sha256_text(models_text),
             "judge.yaml": sha256_text(judge_text),
             "eval.yaml": sha256_text(eval_text),
         },
+        files,
     )
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
     from fragile_compassion.run import current_git_sha, plan_runs
 
-    models, judge, evalcfg, shas = _load_all(args)
+    models, judge, evalcfg, shas, files = _load_all(args)
     plans = plan_runs(
         models, judge, evalcfg, args.run_id, git_sha=current_git_sha(), config_sha256=shas
     )
     for p in plans:
         print(p.describe())
         print()
+    print(f"models from {files.models}, judge from {files.judge}")
     print(f"{len(plans)} eval_set call(s); judge {judge.model}")
     return 0
 
@@ -49,7 +56,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
 def cmd_run(args: argparse.Namespace) -> int:
     from fragile_compassion.run import current_git_sha, execute, plan_runs
 
-    models, judge, evalcfg, shas = _load_all(args)
+    models, judge, evalcfg, shas, _ = _load_all(args)
     plans = plan_runs(
         models, judge, evalcfg, args.run_id, git_sha=current_git_sha(), config_sha256=shas
     )
@@ -96,6 +103,29 @@ def _markdown_path(value: str) -> str:
     return value
 
 
+def cmd_box_needs(args: argparse.Namespace) -> int:
+    """What scripts/vast/up.sh sets a rented box up with, one `key value` per line: the
+    run's eval, models and judge files (absolute paths, resolved as `fc run` resolves
+    them), then each model to pre-download as `pin repo@<commit>`. Offline. Every file is
+    parsed, so a broken one fails here, before renting."""
+    try:
+        evalcfg = parse_eval_yaml(load_text(args.eval))
+        files = resolve_run_files(args.eval, evalcfg, args.models, args.judge)
+        parse_judge_yaml(load_text(files.judge))
+        items = ([] if args.no_config_models else [files.models]) + args.extra.split()
+        pins = box_model_pins(items) if items else []
+        if args.no_config_models:
+            parse_models_yaml(load_text(files.models))
+    except (ConfigError, OSError) as exc:
+        print(f"fc box-needs: {exc}", file=sys.stderr)
+        return 1
+    for key in ("eval", "models", "judge"):
+        print(key, Path(getattr(files, key)).resolve())
+    for repo, revision in pins:
+        print("pin", f"{repo}@{revision}")
+    return 0
+
+
 def cmd_list_models(args: argparse.Namespace) -> int:
     from fragile_compassion.config import expand_with_bases
 
@@ -118,8 +148,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     def add_config_args(sp: argparse.ArgumentParser, *, run_id: bool) -> None:
-        sp.add_argument("--models", default="configs/models.yaml")
-        sp.add_argument("--judge", default="configs/judge.yaml")
+        sp.add_argument(
+            "--models", help="default: the eval profile's `models:`, else configs/models.yaml"
+        )
+        sp.add_argument(
+            "--judge", help="default: the eval profile's `judge:`, else configs/judge.yaml"
+        )
         sp.add_argument("--eval", default="configs/eval.yaml")
         if run_id:
             sp.add_argument(
@@ -155,6 +189,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--out", type=_markdown_path, help="also write this .md file and a .json beside it"
     )
     sp.set_defaults(func=cmd_analyze)
+
+    sp = sub.add_parser(
+        "box-needs", help="the run's files and the models a rented box pre-downloads (up.sh)"
+    )
+    add_config_args(sp, run_id=False)
+    sp.add_argument(
+        "--extra", default="", help="more models: models.yaml paths and repo@<commit> pins"
+    )
+    sp.add_argument(
+        "--no-config-models",
+        action="store_true",
+        help="pin only --extra, not the run's models file (a training box)",
+    )
+    sp.set_defaults(func=cmd_box_needs)
 
     sp = sub.add_parser("list-models", help="print the expanded model list incl. base")
     sp.add_argument("--models", default="configs/models.yaml")
