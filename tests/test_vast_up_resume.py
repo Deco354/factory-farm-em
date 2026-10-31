@@ -9,16 +9,17 @@ Both tests take over 0.1 s: up.sh starts python3 once or twice to read Vast's re
 (about 30 ms each) after its local checks, and that is the behaviour under test.
 """
 
+import shutil
 import subprocess
 from pathlib import Path
 
-from tests.vast_fakes import ID, Fakes, vastai_raw
+from tests.vast_fakes import ID, Fakes, vastai_raw, write_study
 
 UP_SH = Path(__file__).resolve().parents[1] / "scripts" / "vast" / "up.sh"
 RENTING = ("vastai search offers", "vastai create instance")
 
 
-def run_up(tmp_path: Path, show_instance: dict):
+def run_up(tmp_path: Path, show_instance: dict, *args: str, up_sh: Path = UP_SH, **env: str):
     fakes = Fakes(tmp_path)
     ssh = tmp_path / ".ssh"
     (ssh / "vastai").write_text("not a real key\n")
@@ -28,8 +29,8 @@ def run_up(tmp_path: Path, show_instance: dict):
     fakes.record_box()
     fakes.vastai("show instance", vastai_raw(show_instance))
     result = subprocess.run(
-        ["/bin/bash", str(UP_SH)],
-        env=fakes.env(FC_REPO_URL="https://github.com/Deco354/factory-farm-em"),
+        ["/bin/bash", str(up_sh), *args],
+        env=fakes.env(FC_REPO_URL="https://github.com/Deco354/factory-farm-em", **env),
         stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
@@ -58,3 +59,25 @@ def test_a_recorded_box_that_will_not_start_is_kept_and_reported_as_billing(tmp_
     assert f"THE VAST BOX IS STILL RUNNING AND BILLING: instance {ID}" in result.stderr
     assert fakes.state.exists()  # down.sh can still find and destroy it
     assert not [c for c in fakes.calls() if c.startswith(RENTING)]
+
+
+def test_a_study_planned_at_another_commit_than_the_recorded_box_runs_is_refused(tmp_path):
+    # A copy of the scripts, so the study can sit in its own runs/. Refused before any
+    # Vast or SSH call: the box would train other code than the study's manifests record.
+    vast = tmp_path / "repo" / "scripts" / "vast"
+    vast.mkdir(parents=True)
+    for name in ("up.sh", "common.sh"):
+        shutil.copy(UP_SH.parent / name, vast / name)
+    study = write_study(tmp_path / "repo" / "runs" / "s")  # planned at aaaa..., box runs 0000...
+    token = tmp_path / "hf-write.env"
+    token.write_text("HF_TOKEN=hf_not_a_real_token\n")
+    fakes, result = run_up(
+        tmp_path, {}, "--study", str(study), up_sh=vast / "up.sh", FC_HF_WRITE_ENV=str(token)
+    )
+
+    assert result.returncode == 1
+    assert (
+        "runs/s was planned at commit aaaaaaaaaaaa, but this box runs 000000000000" in result.stderr
+    )
+    assert fakes.state.exists()
+    assert fakes.calls() == []

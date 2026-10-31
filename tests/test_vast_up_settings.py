@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.vast_fakes import ID, manifest, write_study
+
 UP_SH = Path(__file__).resolve().parents[1] / "scripts" / "vast" / "up.sh"
 
 
@@ -120,62 +122,47 @@ def test_well_formed_hf_token_file_passes_and_is_made_private(tmp_path):
     assert result.returncode == 1  # stopped later, at the missing vastai or SSH key
 
 
-# --- training settings (docs/training.md) ---------------------------------------------
+# --- training boxes: --study, --push and the upload token (docs/training.md) -----------
 
 
-@pytest.mark.parametrize(
-    "env, message",
-    [
-        ({"FC_BOX_TRAINING": "yes"}, "FC_BOX_TRAINING must be 0 or 1, got 'yes'"),
-        ({"FC_ADAPTER_REPO": "fc-em-adapters"}, "FC_ADAPTER_REPO must be a Hugging Face repo id"),
-        ({"FC_ADAPTER_REPO": "a/b/c"}, "FC_ADAPTER_REPO must be a Hugging Face repo id"),
-        ({"FC_BOX_MODELS": "configs/models.yaml'; rm -rf /"}, "FC_BOX_MODELS takes"),
-    ],
-)
-def test_bad_training_settings_are_refused(tmp_path, env, message):
-    result = run_up(tmp_path, **env)
+def test_bad_box_models_are_refused(tmp_path):
+    result = run_up(tmp_path, FC_BOX_MODELS="configs/models.yaml'; rm -rf /")
     assert result.returncode == 1
-    assert message in result.stderr
+    assert "FC_BOX_MODELS takes" in result.stderr
 
 
-def test_training_settings_can_come_from_the_settings_file(tmp_path):
-    result = run_up(
-        tmp_path,
-        settings="FC_BOX_TRAINING=1\nFC_ADAPTER_REPO=Deco354/fc-em-adapters\n"
-        "FC_BOX_MODELS=Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf67be50417f59c2c2f167def9a775\n",
-    )
-    assert "expected FC_NAME=value" not in result.stderr
-    assert "must be" not in result.stderr and "takes" not in result.stderr
+@pytest.mark.parametrize("name", ["FC_BOX_TRAINING", "FC_ADAPTER_REPO"])
+def test_the_settings_study_replaced_are_refused_not_ignored(tmp_path, name):
+    result = run_up(tmp_path, settings=f"FC_VAST_MAX_DPH=2.5\n{name}=1\n")
+    assert result.returncode == 1
+    assert f"{name} is gone: scripts/vast/up.sh --study runs/<study>" in result.stderr
+    assert f"from {tmp_path / 'vast.env'} line 2" in result.stderr
+    (tmp_path / "vast.env").unlink()
+    result = run_up(tmp_path, **{name: ""})  # set, even if empty
+    assert result.returncode == 1
+    assert f"{name} is gone" in result.stderr and f"unset {name}" in result.stderr
+
+
+def test_without_study_the_upload_token_is_never_read(tmp_path):
+    # An eval box gets no upload token, so its file isn't even parsed.
+    token = upload_token(tmp_path, "not a token file\n")
+    result = run_up(tmp_path)
+    assert "HF_TOKEN" not in result.stderr and "upload token" not in result.stderr
+    assert token.stat().st_mode & 0o777 == 0o644
     assert result.returncode == 1  # stopped later, at the missing vastai or SSH key
 
 
-def test_an_upload_token_needs_the_repo_it_may_write_to(tmp_path):
-    token = tmp_path / "hf-write.env"
-    token.write_text("HF_TOKEN=hf_not_a_real_token\n")
-    token.chmod(0o644)
-    result = run_up(tmp_path, FC_HF_WRITE_ENV=str(token))
-    assert result.returncode == 1
-    assert "FC_ADAPTER_REPO must name the one repo it may write to" in result.stderr
-    assert token.stat().st_mode & 0o777 == 0o600
-
-
-def test_a_malformed_upload_token_file_is_refused(tmp_path):
-    token = tmp_path / "hf-write.env"
-    token.write_text("HF_TOKEN=a\nHF_TOKEN=b\n")
-    result = run_up(tmp_path, FC_HF_WRITE_ENV=str(token), FC_ADAPTER_REPO="Deco354/x")
-    assert f"{token} must hold exactly one HF_TOKEN=<token> line" in result.stderr
-
-
-def push(tmp_path: Path, target: str):
+def copied_up(tmp_path: Path, *args: str):
     """Run a copy of up.sh and common.sh in tmp_path/repo/scripts/vast: up.sh takes its
-    repo, and so the runs/ that --push accepts, from where it lives."""
+    repo, and so the runs/ that --study and --push accept, from where it lives."""
     vast = tmp_path / "repo" / "scripts" / "vast"
-    vast.mkdir(parents=True)
-    for name in ("up.sh", "common.sh"):
-        shutil.copy(UP_SH.parent / name, vast / name)
+    if not vast.exists():
+        vast.mkdir(parents=True)
+        for name in ("up.sh", "common.sh"):
+            shutil.copy(UP_SH.parent / name, vast / name)
     clean = {k: v for k, v in os.environ.items() if not k.startswith("FC_")}
     return subprocess.run(
-        ["/bin/bash", str(vast / "up.sh"), "--push", target],
+        ["/bin/bash", str(vast / "up.sh"), *args],
         env={**clean, "HOME": str(tmp_path), "FC_VAST_SETTINGS": str(tmp_path / "none")},
         capture_output=True,
         text=True,
@@ -183,16 +170,79 @@ def push(tmp_path: Path, target: str):
     )
 
 
-def test_push_takes_only_a_directory_under_runs(tmp_path):
-    result = push(tmp_path, str(tmp_path))
-    assert result.returncode == 1 and "--push takes a directory under" in result.stderr
-    shutil.rmtree(tmp_path / "repo")
-    result = push(tmp_path, str(tmp_path / "missing"))
-    assert result.returncode == 1 and "--push: no directory" in result.stderr
+def upload_token(tmp_path: Path, text: str = "HF_TOKEN=hf_not_a_real_token\n") -> Path:
+    """The upload token at its default path, readable by others until up.sh reads it."""
+    token = tmp_path / ".config" / "fragile-compassion" / "hf-write.env"
+    token.parent.mkdir(parents=True, exist_ok=True)
+    token.write_text(text)
+    token.chmod(0o644)
+    return token
+
+
+def test_a_study_box_needs_the_upload_token(tmp_path):
+    study = write_study(tmp_path / "repo" / "runs" / "s")
+    result = copied_up(tmp_path, "--dry-run", "--study", str(study))
+    assert result.returncode == 1
+    token = tmp_path / ".config" / "fragile-compassion" / "hf-write.env"
+    assert f"no upload token at {token}: a training box needs one that may write to " in (
+        result.stderr
+    )
+
+
+def test_a_study_box_with_its_upload_token_gets_past_the_study_checks(tmp_path):
+    study = write_study(tmp_path / "repo" / "runs" / "s")
+    token = upload_token(tmp_path)
+    result = copied_up(tmp_path, "--dry-run", "--study", str(study))
+    assert "upload token" not in result.stderr and "can't set up a box" not in result.stderr
+    assert token.stat().st_mode & 0o777 == 0o600
+    assert result.returncode == 1  # stopped later, at the missing vastai or SSH key
+
+
+def test_a_malformed_upload_token_file_is_refused(tmp_path):
+    study = write_study(tmp_path / "repo" / "runs" / "s")
+    token = upload_token(tmp_path, "HF_TOKEN=a\nHF_TOKEN=b\n")
+    result = copied_up(tmp_path, "--dry-run", "--study", str(study))
+    assert f"{token} must hold exactly one HF_TOKEN=<token> line" in result.stderr
+
+
+def test_a_study_the_box_could_not_train_as_planned_is_refused_first(tmp_path):
+    study = write_study(tmp_path / "repo" / "runs" / "s", manifest(dirty=True))
+    upload_token(tmp_path)
+    result = copied_up(tmp_path, "--dry-run", "--study", str(study))
+    assert result.returncode == 1
+    assert "planned with uncommitted changes" in result.stderr
+    assert f"can't set up a box for {study}" in result.stderr
+
+
+@pytest.mark.parametrize("flag", ["--study", "--push"])
+def test_study_and_push_take_only_a_directory_under_runs(tmp_path, flag):
+    result = copied_up(tmp_path, flag, str(tmp_path))
+    assert result.returncode == 1 and f"{flag} takes a directory under" in result.stderr
+    result = copied_up(tmp_path, flag, str(tmp_path / "missing"))
+    assert result.returncode == 1 and f"{flag}: no directory" in result.stderr
 
 
 def test_push_needs_a_rented_box(tmp_path):
-    study = tmp_path / "repo" / "runs" / "test-push-study"
-    study.mkdir(parents=True)
-    result = push(tmp_path, str(study))
+    study = write_study(tmp_path / "repo" / "runs" / "test-push-study")
+    result = copied_up(tmp_path, "--push", str(study))
     assert result.returncode == 1 and "--push: no box recorded" in result.stderr
+
+
+def test_push_refuses_a_study_planned_at_another_commit_than_the_box_runs(tmp_path):
+    # Stops before any SSH call: the box's commit is in up.sh's record of the box.
+    study = write_study(tmp_path / "repo" / "runs" / "s")
+    state = tmp_path / ".config" / "fragile-compassion" / "vast-instance"
+    state.parent.mkdir(parents=True)
+    state.write_text(f"{ID} {'0' * 40}\n")
+    result = copied_up(tmp_path, "--push", str(study))
+    assert result.returncode == 1
+    assert (
+        f"--push: {study} was planned at commit aaaaaaaaaaaa, but the box runs 000000000000"
+        in result.stderr
+    )
+
+
+def test_push_and_study_do_not_go_together(tmp_path):
+    study = write_study(tmp_path / "repo" / "runs" / "s")
+    result = copied_up(tmp_path, "--push", str(study), "--study", str(study))
+    assert result.returncode == 1 and "--push and --study don't go together" in result.stderr

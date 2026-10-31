@@ -97,6 +97,7 @@ def test_the_manifest_records_the_selection_pins_and_profile(planned):
         "arm": "animal_output",
         "purpose": "plumbing",
         "pilot": False,
+        "adapter_repo": "test/fc-em-adapters",
     }
     assert m["schedule"]["seed"] == 1
     assert m["model"]["base_model"] == QWEN_05B and m["model"]["base_revision"] == QWEN_05B_REV

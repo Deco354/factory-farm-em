@@ -35,4 +35,4 @@ recipe:
   selection_seed: 0
 checkpoints: {every_steps: 2}
 eval_schedule: [final]
-adapter_repo: Deco354/fc-em-adapters
+adapter_repo: Deco354/factory-farm-em-adapters

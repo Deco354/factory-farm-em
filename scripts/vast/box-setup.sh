@@ -10,9 +10,11 @@
 #   FC_REPO_URL=https://github.com/<owner>/<repo>.git FC_REF=<40-hex commit> bash -l fc-box-setup.sh
 #   bash -l fc-box-setup.sh --check   # every pinned model resolves offline; public listeners
 #
-# Also from up.sh: FC_BOX_TRAINING=1 installs the training envs too; FC_BOX_MODELS names
-# the models to pre-download (see pinned_models).
+# Also from up.sh: FC_BOX_TRAINING=1 installs the training envs too (up.sh --study);
+# FC_BOX_MODELS names the models to pre-download (see pinned_models).
 #   bash fc-box-setup.sh --set-judge < judge.env   # replace the judge key block in .env
+#   FC_BOX_TRAINING=1 FC_BOX_MODELS=... bash -l fc-box-setup.sh --ensure
+#                       # on a box already set up: install and download what is missing
 #
 # Progress: /root/fc-setup.log. Finished: /root/fc-setup.done. Failed: /root/fc-setup.failed.
 set -Eeuo pipefail
@@ -151,13 +153,7 @@ setup() {
   echo "== uv sync (about 10 GB of wheels)"
   "$UV" sync --group dev --extra vllm --locked
 
-  # FC_BOX_TRAINING=1 (up.sh): both training envs, each its own uv project and lock.
-  if [ "${FC_BOX_TRAINING:-0}" = 1 ]; then
-    for env in axolotl-0.21.1 axolotl-e77a185; do
-      echo "== uv sync training/envs/$env (several GB of CUDA wheels)"
-      "$UV" sync --project "training/envs/$env" --locked
-    done
-  fi
+  training_envs
 
   # Otherwise the first `fc run` spends its first minutes downloading ~35 GB while the
   # GPU idles; Inspect 0.3.263 sets no vLLM start timeout, so it would just wait.
@@ -166,6 +162,40 @@ setup() {
 
   touch /root/fc-setup.done
   echo "== done $(date -u +%FT%TZ)"
+}
+
+# FC_BOX_TRAINING=1 (up.sh --study): both training envs, each its own uv project and lock.
+training_envs() {
+  local env
+  [ "${FC_BOX_TRAINING:-0}" = 1 ] || return 0
+  for env in axolotl-0.21.1 axolotl-e77a185; do
+    echo "== uv sync training/envs/$env (several GB of CUDA wheels)"
+    "$UV" sync --project "training/envs/$env" --locked
+  done
+}
+
+# ensure: on a box whose setup has finished, what this up.sh run needs that setup didn't
+# install: the training envs and FC_BOX_MODELS. Setup runs once per box, so without this a
+# resumed eval box given a study would have neither. In the foreground, under up.sh. Both
+# steps are idempotent: what is already there is only checked.
+ensure() {
+  cd "$DIR"
+  training_envs
+  echo "== model downloads (only what isn't cached yet)"
+  pinned_models download
+  add_to_record
+}
+
+# add_to_record: what box_models names, added to what the record already holds (each entry
+# once), so a hand-run --check checks every model the box was given, not only the last
+# run's.
+add_to_record() {
+  local all
+  all=$({
+    cat "$BOX_MODELS_RECORD" 2>/dev/null || true
+    box_models
+  } | tr ' ' '\n' | awk 'NF && !seen[$0]++' | tr '\n' ' ')
+  printf '%s\n' "${all% }" >"$BOX_MODELS_RECORD"
 }
 
 check() {
@@ -227,12 +257,13 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   case "${1:-}" in
     "") setup ;;
     --check) check ;;
+    --ensure) ensure ;;
     --set-judge)
       cd "$DIR"
       set_judge
       ;;
     *)
-      echo "usage: $0 [--check | --set-judge < judge.env]" >&2
+      echo "usage: $0 [--check | --ensure | --set-judge < judge.env]" >&2
       exit 2
       ;;
   esac

@@ -89,11 +89,12 @@ a teacher model. It exists to answer three infrastructure questions first:
   `~/.config/fragile-compassion/judge.env`, and optionally a fine-grained, read-only
   Hugging Face token from `~/.config/fragile-compassion/hf.env`. `up.sh` refuses a token
   whose permissions are not all `.read`. Never copy the laptop's own `.env` keys to a box.
-  The one exception to read-only: the optional adapter-upload token from
-  `~/.config/fragile-compassion/hf-write.env`, which `up.sh` accepts only if its one
-  non-read permission is `repo.write` on `FC_ADAPTER_REPO`. It goes only to
-  `/root/.config/fc/hf-write-token` (mode 600): never `.env`, Hugging Face's token file
-  or a training process.
+  The one exception to read-only: the adapter-upload token from
+  `~/.config/fragile-compassion/hf-write.env`, read only by `up.sh --study`, which accepts
+  it only if its one non-read permission is `repo.write` on the study's private
+  `adapter_repo`. It goes only to `/root/.config/fc/hf-write-token` (mode 600): never
+  `.env`, Hugging Face's token file or a training process, and `up.sh` without `--study`
+  removes it from the box.
 
 ## Layout
 
@@ -168,6 +169,7 @@ uv run fc train fetch --study configs/training/studies/stage2-plumbing.yaml
 uv run fc train plan  --study configs/training/studies/stage2-plumbing.yaml
 scripts/vast/up.sh --dry-run             # every pre-rental check, one real judge call, no rental
 scripts/vast/up.sh                       # rent + set up a box (resumes a recorded one); then ssh vast-em
+scripts/vast/up.sh --study runs/stage2-plumbing   # a training box for a planned study, the study copied over
 scripts/vast/down.sh                     # copy logs/results back, destroy (no question; warns + 5 s), confirm gone; --keep to copy only
 ```
 
@@ -263,8 +265,11 @@ trains, never a stand-in for it.
 
 The `scripts/vast/` tests run bash, so each keeps itself offline:
 `tests/test_vast_up_settings.py` runs `up.sh` for its input checks (settings file,
-numeric settings), which exit before any network call, with `HOME` an empty temp dir
-so nothing past them can reach Vast.
+numeric settings, `--study` and `--push` with hand-written study manifests), which exit
+before any network call, with `HOME` an empty temp dir so nothing past them can reach
+Vast. `tests/test_vast_study.py` feeds `study_settings` and `adapter_repo_problem` those
+manifests and fake repo replies, to check a box trains only a clean study planned at its
+commit, and uploads only to a private repo.
 `tests/test_vast_offer_search.py` and `tests/test_vast_box_env.py` source `common.sh`
 and `box-setup.sh` to check the offer search and the offer it picks, and the box's
 `.env`. Sourced, `box-setup.sh` only defines functions, provided `$0` isn't its own path.
