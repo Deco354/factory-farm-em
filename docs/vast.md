@@ -20,8 +20,8 @@ credentials go onto the box, both made just for rented boxes:
 - optionally, a read-only Hugging Face token. `up.sh` refuses a token that can do more
   than read.
 
-Never put credentials in Vast environment variables or templates, since hosts can
-read those too. Destroy the box when you are done.
+Never put credentials in Vast environment variables, templates or the start-up command
+(`--onstart-cmd`), since hosts can read those too. Destroy the box when you are done.
 
 ## What it costs
 
