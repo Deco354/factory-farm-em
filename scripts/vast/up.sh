@@ -484,11 +484,12 @@ print(" ".join("%s(%s)" % (i["id"], i.get("actual_status")) for i in d if i.get(
   picked=$(printf '%s' "$offers" | pick_offer "$HOURS" "$DOWNLOAD_GB" "$MAX_DPH") ||
     die "no offer to rent (nothing is billing)"
   read -r OFFER DPH DOWNLOAD_COST <<<"$picked"
+  # --onstart-cmd last: SSH_KEY_FIX (common.sh) makes the box's authorized_keys usable.
   create=(vastai create instance "$OFFER" --image "$IMAGE" --disk "$DISK" --ssh --direct
-    --label "$LABEL" --cancel-unavail --raw)
+    --label "$LABEL" --cancel-unavail --raw --onstart-cmd "$SSH_KEY_FIX")
   if [ "$DRY" = 1 ]; then
     say "dry run: every check passed. Would rent offer $OFFER at \$$DPH/hr (setup downloads ~\$$DOWNLOAD_COST) with:"
-    echo "   ${create[*]}"
+    echo "   ${create[*]:0:${#create[@]}-1} <SSH_KEY_FIX from common.sh>"
     echo "   then check out ${REF:0:12} from $REPO_URL"
     exit 0
   fi

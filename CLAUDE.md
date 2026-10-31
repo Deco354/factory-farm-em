@@ -84,8 +84,8 @@ a teacher model. It exists to answer three infrastructure questions first:
   rewrites the metrics of every scorer in the list.
 - Vendor or copy code from `model-organisms-for-EM`, `sgtr-em` or `harvestbench`.
 - Add a default judge anywhere.
-- Put credentials in `vastai create instance --env`, a Vast template, or Vast account
-  env vars: hosts can read them. The only secrets on a rented box are the ones
+- Put credentials in `vastai create instance --env` or `--onstart-cmd`, a Vast template,
+  or Vast account env vars: hosts can read them. The only secrets on a rented box are the ones
   `scripts/vast/up.sh` copies from dedicated files: the judge key from
   `~/.config/fragile-compassion/judge.env`, and optionally a fine-grained, read-only
   Hugging Face token from `~/.config/fragile-compassion/hf.env`. `up.sh` refuses a token
