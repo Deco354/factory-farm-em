@@ -187,6 +187,7 @@ def test_a_study_box_needs_the_upload_token(tmp_path):
     assert f"no upload token at {token}: a training box needs one that may write to " in (
         result.stderr
     )
+    assert "docs/vast.md one-time setup step 8" in result.stderr  # the step that makes it
 
 
 def test_a_study_box_with_its_upload_token_gets_past_the_study_checks(tmp_path):

@@ -103,7 +103,7 @@ done
 JUDGE_ENV=${FC_JUDGE_ENV:-$STATE_DIR/judge.env}
 # Optional: a fine-grained, read-only Hugging Face token for the box (docs/vast.md,
 # one-time setup step 7). It authenticates the box's downloads, so fewer rate limits,
-# and gated datasets such as TAC's need it. Read only from this file, never your shell's
+# and gated datasets (TAC's, ANIMA's) need it. Read only from this file, never your shell's
 # HF_TOKEN; checked before renting; sent to the box over SSH stdin, never on a command
 # line.
 HF_ENV=${FC_HF_ENV:-$STATE_DIR/hf.env}
@@ -125,11 +125,11 @@ HF_TOKEN_VALUE=""
 if [ -f "$HF_ENV" ]; then
   HF_TOKEN_VALUE=$(token_file_value "$HF_ENV")
 fi
-# For `fc train upload` on a --study box (docs/training.md): a fine-grained token that may
-# write to the study's adapter repo and nothing else, checked before renting. On the box it
-# goes only to /root/.config/fc/hf-write-token (mode 600): never into .env, Hugging Face's
-# own token file or a training process, so only the upload reads it. Without --study it is
-# not read, and a box keeps no copy.
+# For `fc train upload` on a --study box (docs/vast.md, one-time setup step 8): a
+# fine-grained token that may write to the study's adapter repo and nothing else, checked
+# before renting. On the box it goes only to /root/.config/fc/hf-write-token (mode 600):
+# never into .env, Hugging Face's own token file or a training process, so only the upload
+# reads it. Without --study it is not read, and a box keeps no copy.
 HF_WRITE_ENV=${FC_HF_WRITE_ENV:-$STATE_DIR/hf-write.env}
 KEY=${FC_VAST_SSH_KEY:-$HOME/.ssh/vastai}
 # Pinned by date: the matching `cuda-13.0.3-auto` tag moves. CUDA 13.0 matches the
@@ -238,7 +238,7 @@ if [ -n "$STUDY" ]; then
     die "$STUDY_LABEL: adapter_repo must be a Hugging Face repo id like org/name, got '$ADAPTER_REPO'"
   BOX_TRAINING=1
   [ -f "$HF_WRITE_ENV" ] ||
-    die "no upload token at $HF_WRITE_ENV: a training box needs one that may write to $ADAPTER_REPO, or its adapters can't be uploaded after the GPU hours are paid (docs/training.md; FC_HF_WRITE_ENV names another file)"
+    die "no upload token at $HF_WRITE_ENV: a training box needs one that may write to $ADAPTER_REPO, or its adapters can't be uploaded after the GPU hours are paid (docs/vast.md one-time setup step 8; FC_HF_WRITE_ENV names another file)"
   HF_WRITE_VALUE=$(token_file_value "$HF_WRITE_ENV")
 fi
 case ${FC_BOX_MODELS:-} in
@@ -411,14 +411,14 @@ if [ -n "$HF_WRITE_VALUE" ]; then
     curl -sS --max-time 20 -H @- https://huggingface.co/api/whoami-v2 2>&1) ||
     die "could not reach Hugging Face to check the token: ${hf_reply:0:200}"
   printf '%s' "$hf_reply" | hf_write_token_problem "$ADAPTER_REPO" ||
-    die "not putting the token in $HF_WRITE_ENV on a rented box (above); see docs/training.md"
+    die "not putting the token in $HF_WRITE_ENV on a rented box (above); see docs/vast.md one-time setup step 8"
   echo "   writes only $ADAPTER_REPO: OK"
   # The token's scope says nothing about the repo itself, so ask for the repo too.
   hf_reply=$(printf 'Authorization: Bearer %s\n' "$HF_WRITE_VALUE" |
     curl -sS --max-time 20 -H @- "https://huggingface.co/api/models/$ADAPTER_REPO" 2>&1) ||
     die "could not reach Hugging Face to check $ADAPTER_REPO: ${hf_reply:0:200}"
   printf '%s' "$hf_reply" | adapter_repo_problem "$ADAPTER_REPO" ||
-    die "not setting up a box whose adapters could not be uploaded (above); see docs/training.md"
+    die "not setting up a box whose adapters could not be uploaded (above); see docs/vast.md one-time setup step 8"
   echo "   $ADAPTER_REPO exists and is private: OK"
 fi
 
