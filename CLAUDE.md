@@ -277,7 +277,10 @@ default) runs Axolotl in a training env as a subprocess, offline against the tok
 `fc train fetch-tokenizers` caches (`HF_HUB_OFFLINE=1`). It takes minutes, so CI runs it
 in its own `training` job with `FC_REQUIRE_TRAINING=1`, which turns its skips (env or
 tokenizer missing) into failures. Its tests check what Axolotl's real preprocessing
-trains, never a stand-in for it.
+trains, never a stand-in for it. On a pull request that job runs only when the PR
+changes a path in `ci.yml`'s `changes` filter (always on `main` and on manual runs);
+`tests/test_ci_training_filter.py` fails when the training tests import a file the
+filter doesn't match, so a new import outside it needs its path added there.
 
 The `scripts/vast/` tests run bash, so each keeps itself offline:
 `tests/test_vast_up_settings.py` runs `up.sh` for its input checks (settings file,
