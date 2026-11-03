@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Runs everything, the training job included, on any branch: for a PR whose changes
+  # skipped it (Actions tab, "Run workflow").
+  workflow_dispatch:
 
 # Only the newest push to a ref needs a result; supersede the rest.
 concurrency:
@@ -65,11 +68,59 @@ jobs:
       - name: Shellcheck scripts/vast
         run: uvx --from shellcheck-py==0.11.0.1 shellcheck -x scripts/vast/*.sh
 
+  # Whether a pull request touches anything the training job depends on.
+  # tests/test_ci_training_filter.py fails when the training tests import a file the list
+  # doesn't match, so the list can't fall behind the code.
+  # Pull requests only: elsewhere the training job always runs, and this third-party
+  # action stays out of pushes to main, whose Actions cache the `test` job restores (a PR
+  # run's cache entries are scoped to that PR).
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # the action lists a PR's changed files through the API
+    outputs:
+      training: ${{ steps.filter.outputs.training }}
+    steps:
+      # Pinned to v4.0.3's full commit: a tag can be moved to other code (as in the 2025
+      # tj-actions/changed-files attack). No `list-files`: GHSA-7hc6-8hq5-9q2m was in it.
+      - name: Check which files changed
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            training:
+              - 'src/fragile_compassion/__init__.py'
+              - 'src/fragile_compassion/config.py'
+              - 'src/fragile_compassion/finetune/**'
+              - 'src/fragile_compassion/sft_document_generation/**'
+              - 'src/fragile_compassion/betley/**'
+              - 'tests/__init__.py'
+              - 'tests/conftest.py'
+              - 'tests/test_training_*.py'
+              - 'tests/training_helpers.py'
+              - 'tests/finetune_fixtures.py'
+              - 'training/**'
+              - 'configs/training/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.github/workflows/ci.yml'
+
   # The training suite (tests/test_training_*.py): Axolotl's real preprocessing in both
   # training envs, on the pinned tokenizers. Masks, the template prefix, matched order, an
   # end-to-end `fc train plan`, and the version check, which only runs on Linux (e77a185
   # can't preprocess on macOS). FC_REQUIRE_TRAINING=1 turns a skip into a failure.
+  # About 10 minutes, so on a pull request it runs only when `changes` says the PR touches
+  # what it depends on, or when `changes` failed. It always runs on pushes to main and on
+  # manual runs. GitHub reports a job skipped by `if` as passed, so a skip never blocks a
+  # merge, even if this job becomes a required check.
   training:
+    needs: changes
+    if: >-
+      !cancelled() && (github.event_name != 'pull_request'
+      || needs.changes.result != 'success'
+      || needs.changes.outputs.training == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

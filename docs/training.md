@@ -156,6 +156,14 @@ uv run pytest -m training     # the training suite: runs Axolotl, a few minutes
 The training suite skips when an env or a tokenizer is missing; `FC_REQUIRE_TRAINING=1`
 (CI) makes that a failure. The version test skips on macOS.
 
+CI runs it in the `training` job, about 10 minutes, on every push to `main` and on a
+manual run (Actions tab, "Run workflow", any branch). On a pull request it runs only when
+the PR changes a path in `ci.yml`'s `changes` filter: everything the training tests
+import, and the envs, tools, configs and lock files the job reads.
+`tests/test_ci_training_filter.py` fails when the training tests import a file the filter
+doesn't match. The filter is `dorny/paths-filter`, pinned to a full commit and run on pull
+requests only. A skipped job counts as passed, so it never holds up a merge.
+
 ## On a rented box (stage 2)
 
 Plan the study on the laptop at a pushed commit, then rent a box for it in one command

@@ -180,4 +180,5 @@ uv run ruff format --check .
 These need no GPU, network or API key. CI runs them on pull requests and on `main`, but
 not on a branch you push only so a box can check it out. CI also runs the training
 suite (`uv run pytest -m training`), which needs the training envs and pinned tokenizers
-([docs/training.md](docs/training.md#tests)).
+([docs/training.md](docs/training.md#tests)): on `main`, and on a pull request that
+changes the training code or what it reads.
