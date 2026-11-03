@@ -153,3 +153,18 @@ Not yet observed on a GPU:
   mockllm: 52 samples at `560d2461`, task version 8. On a GPU, check that the scenario's
   `no_purchase` and `unverifiable_purchase` counts fall to the other scenarios' level (all
   11 of `tac-smoke-002`'s were in this scenario).
+- The config record in a box's logs (PR #76). Once `fc run` has written its first log,
+  run `uv run fc config-from-log logs/<run-id>/<base>@<rev>/<log>.eval /tmp/cfg` on it:
+  Inspect reads a running log's header from the start record it writes when the task
+  begins. Then:
+  - `diff` each written file against the one the run used: `models.yaml`, `judge.yaml`
+    and the eval profile, saved as `eval.yaml`;
+  - each file should say `as committed`, or `edited, not committed` for one `up.sh`
+    copied with edits, and on a clean box there should be no `warning: the run's code`
+    line;
+  - after the run, `fc export` should give every row one `fc_config`.
+
+  On the laptop, on 2026-11-03, Inspect's real `eval_set` on `mockllm/model` stored every
+  metadata key `fc run` passed unchanged, and `fc config-from-log` wrote back
+  byte-identical files with the checkout's commit. What's left is the box's own git
+  state.
