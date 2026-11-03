@@ -296,7 +296,12 @@ ready. The box checks out your current commit, so push it first:
   instead of renting another.
 - To change what a running box runs, edit the config files and run
   `scripts/vast/up.sh --eval <profile>` again. It resumes the box, copies the files over
-  and downloads any models it doesn't have yet.
+  and downloads any models it doesn't have yet. The box's disk was sized for the models
+  it was rented with, so first `up.sh` sizes what the run adds (from Hugging Face, plus
+  about 10 GB if it adds the training envs) and checks it against `df` on the box, with
+  10 GB left free for the run. If it doesn't fit, `up.sh` stops before downloading:
+  destroy the box with `down.sh` and rerun `up.sh`, which rents one sized for this run.
+  Boxes set up before `up.sh` recorded pinned models skip the check, with a warning.
 
 Connect with `ssh vast-em`, or VS Code's Remote-SSH with host `vast-em`. On the box,
 always work inside tmux, so a dropped connection doesn't stop the run:

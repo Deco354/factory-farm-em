@@ -212,6 +212,42 @@ box_disk() {
   echo "$disk $((models_gb + wheels))"
 }
 
+# new_pins RECORD PINS: prints the space-separated pins in PINS that RECORD (the box's
+# /root/fc-box-models: every model its setup and --ensure runs were given) lacks. Returns 1
+# if RECORD can't tell: empty, or holding models.yaml paths, as boxes set up before up.sh
+# sent pins recorded.
+new_pins() {
+  local record=" ${1//[[:space:]]/ } " item out=""
+  [ -n "${1//[[:space:]]/}" ] || {
+    echo "can't tell which models this box already has: its record is empty" >&2
+    return 1
+  }
+  for item in $record; do
+    case $item in
+      *@*) ;;
+      *)
+        echo "can't tell which models this box already has: its record names $item" >&2
+        return 1
+        ;;
+    esac
+  done
+  for item in $2; do
+    case $record in *" $item "*) ;; *) out="${out:+$out }$item" ;; esac
+  done
+  echo "$out"
+}
+
+# disk_problem NEED_BYTES FREE_KB: says why NEED_BYTES of downloads don't fit in a resumed
+# box's FREE_KB (`df -Pk`) and returns 1, or returns 0. The box was sized for the models it
+# was rented with, so a run adding more could fill it (issue #81). 10 GB must stay free for
+# the run itself (logs, vLLM's caches, checkpoints): a guess, as box_disk's room is.
+disk_problem() {
+  local need_gb=$((($1 + 999999999) / 1000000000)) free_gb=$(($2 * 1024 / 1000000000)) room=10
+  [ $((need_gb + room)) -gt "$free_gb" ] || return 0
+  echo "this box has $free_gb GB free, and this run adds about $need_gb GB of downloads, plus $room GB to leave free for the run" >&2
+  return 1
+}
+
 # hf_token_problem < whoami-v2 reply: prints why a Hugging Face token must not go on a
 # rented box and returns 1, or returns 0 for a read-only one. Classic tokens have role
 # `read` or `write`. Fine-grained ones list permissions (globally and per scope), and
