@@ -257,6 +257,9 @@ break a test only where it changes what the test calls (a function's name, argum
 or file). If a test breaks for any other reason, it was checking implementation:
 rewrite it to check the result. The exception is behaviour a test can't reach
 offline; there a test may check the code itself, and should say why.
+A test that checks text gets the expected answer from somewhere other than the text:
+which check fired, a value the test set up or the code computed, a fact the code also
+holds. Copying wording into an assert only detects rewording.
 
 No test uses a GPU or the network. `--disable-socket` (pytest-socket, in
 `pyproject.toml`) fails a test that opens a network socket or looks up a host name in

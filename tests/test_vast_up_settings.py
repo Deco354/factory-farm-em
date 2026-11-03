@@ -184,9 +184,7 @@ def test_a_study_box_needs_the_upload_token(tmp_path):
     result = copied_up(tmp_path, "--dry-run", "--study", str(study))
     assert result.returncode == 1
     token = tmp_path / ".config" / "fragile-compassion" / "hf-write.env"
-    assert f"no upload token at {token}: a training box needs one that may write to " in (
-        result.stderr
-    )
+    assert f"no upload token at {token}" in result.stderr
 
 
 def test_a_study_box_with_its_upload_token_gets_past_the_study_checks(tmp_path):

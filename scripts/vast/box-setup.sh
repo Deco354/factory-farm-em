@@ -207,7 +207,7 @@ check() {
   if [ -s "${HF_HOME:-$HOME/.cache/huggingface}/token" ]; then
     echo "== Hugging Face token: present (written by up.sh from hf.env)"
   else
-    echo "== Hugging Face token: none (anonymous downloads; gated datasets such as TAC's fail)"
+    echo "== Hugging Face token: none (anonymous downloads; TAC's and ANIMA's gated datasets fail)"
   fi
   echo "== sockets listening on a non-loopback address (expect only sshd, port 22):"
   ss -ltnpH 2>/dev/null | awk '$4 !~ /^(127\.|\[::1\]:|\[::ffff:127\.)/ {print "   " $4, $6}' ||

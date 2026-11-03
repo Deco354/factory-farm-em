@@ -17,11 +17,16 @@ Paper: in preparation.
 - A laptop (macOS or Linux) with `git` and [uv](https://docs.astral.sh/uv/).
 - An OpenAI API key for the judge (`configs/judge.yaml`). A full pass of
   `configs/eval.yaml` costs about $40 in judge calls.
-- A Hugging Face token whose account has accepted the terms of TAC's gated dataset at
-  <https://huggingface.co/datasets/CompassioninMachineLearning/tac> (approval is
-  automatic). Without it `fc_tac` fails.
+- A Hugging Face token whose account has accepted the terms of two gated datasets
+  (approval is automatic). Without it `fc_tac`, `fc_anima` and `fc train plan`'s
+  contamination check fail:
+  - TAC's, <https://huggingface.co/datasets/CompassioninMachineLearning/tac>;
+  - ANIMA's, <https://huggingface.co/datasets/CompassioninMachineLearning/anima>.
 - One 80 GB GPU (A100 or H100), either rented from Vast.ai with the scripts here or your
   own Linux box.
+
+Which file each key and token goes in, and what each may do:
+[credentials](docs/vast.md#credentials).
 
 ## 1. Laptop
 
@@ -43,8 +48,8 @@ for a GPU. They come from three files in `configs/`
 
 The first time, do the [one-time setup](docs/vast.md#one-time-setup): a Vast account, a
 restricted Vast API key, an SSH key, and a judge key and Hugging Face token made only
-for rented boxes. It ends with `scripts/vast/up.sh --dry-run`, which checks all of it
-without renting anything.
+for rented boxes (plus an upload token, if you train). It ends with
+`scripts/vast/up.sh --dry-run`, which checks all of it without renting anything.
 
 Then each session, push your commit and, from the repo on your laptop:
 
