@@ -360,6 +360,34 @@ hf_get() {
   fi
 }
 
+# resume_disk_check: a box set up by an earlier run was sized for that run's models, so
+# before --ensure downloads this run's, check they fit in what is free (issue #81). What
+# counts: the pins the box's record lacks, sized from Hugging Face as a new box's are, and
+# the training envs if this run adds them; against `df` on the box.
+resume_disk_check() {
+  local record add pin reply bytes need=0 free_kb
+  record=$(box 'cat /root/fc-box-models 2>/dev/null' || true)
+  if ! add=$(new_pins "$record" "$BOX_MODELS"); then
+    warn "not checking the box's free disk before downloading (above)"
+    return 0
+  fi
+  for pin in $add; do
+    reply=$(hf_get "https://huggingface.co/api/models/${pin%@*}/revision/${pin##*@}?blobs=true") ||
+      die "could not reach Hugging Face to size $pin: ${reply:0:200}"
+    bytes=$(printf '%s' "$reply" | pin_bytes "$pin") || die "can't size what this run adds to the box (above)"
+    need=$((need + bytes))
+  done
+  if [ "$BOX_TRAINING" = 1 ] && ! box '[ -d /root/fragile-compassion/training/envs/axolotl-0.21.1/.venv ]'; then
+    need=$((need + 10000000000)) # box_disk's ~10 GB of training-env wheels
+  fi
+  [ "$need" -gt 0 ] || return 0
+  free_kb=$(box "df -Pk /root | awk 'NR == 2 {print \$4}'" || true)
+  case $free_kb in '' | *[!0-9]*) die "could not read the box's free disk (df said: '${free_kb:0:100}')" ;; esac
+  disk_problem "$need" "$free_kb" ||
+    die "not downloading onto a box that can't hold it. Rent one sized for this run: scripts/vast/down.sh, then this up.sh command again."
+  say "the box has room for what this run adds (about $(((need + 999999999) / 1000000000)) GB)"
+}
+
 if [ -f "$STATE" ] && [ "$DRY" = 0 ]; then
   # ----------------------------------------------------------------- resume a recorded box
   read -r ID REF <"$STATE" || true
@@ -700,6 +728,7 @@ upload_token_to_box "$HF_WRITE_VALUE" "$ADAPTER_REPO"
 # box now given a study) may lack this run's models or the training envs. Idempotent, so
 # cheap when it has them.
 if [ "$setup_started" = 0 ]; then
+  resume_disk_check
   say "this box was set up by an earlier run; installing and downloading what this run needs that it lacks"
   box "FC_BOX_TRAINING='$BOX_TRAINING' FC_BOX_MODELS='$BOX_MODELS' bash -l /root/fc-box-setup.sh --ensure" ||
     die "could not install or download what this run needs on the box (above)"

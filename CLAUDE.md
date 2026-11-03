@@ -299,7 +299,8 @@ too, to check the upload token can write to the adapter repo and nothing else, a
 `tests/test_vast_busy.py` checks `BUSY_PATTERN` against sample command lines.
 `box-setup.sh` parses `FC_BOX_MODELS` with `config.box_model_pins`, tested in-process.
 `tests/test_vast_box_size.py` feeds `pin_bytes` hand-written Hugging Face file lists and
-checks `box_disk`'s disk and download estimates.
+checks `box_disk`'s disk and download estimates, and, for a resumed box, which pins
+`new_pins` finds missing from its record and when `disk_problem` refuses a download.
 
 ## Known gaps
 

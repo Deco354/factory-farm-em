@@ -70,3 +70,53 @@ def test_a_repo_that_cannot_be_sized_stops_before_renting(answer, message):
 )
 def test_the_disk_and_downloads_follow_the_models(model_bytes, training, expected):
     assert common("box_disk", str(model_bytes), training) == (0, expected, "")
+
+
+# A resumed box (issue #81): before --ensure downloads what the run adds, up.sh takes the
+# pins the box's record (/root/fc-box-models) lacks, and checks they fit in its free space.
+OTHER = f"Qwen/Qwen2.5-32B-Instruct@{'c' * 40}"
+
+
+@pytest.mark.parametrize(
+    "record, expected",
+    [
+        (PIN, OTHER),  # only what the box doesn't have
+        (f"{PIN} {OTHER}\n", ""),  # nothing new
+        (f" {OTHER}  {PIN} ", ""),  # order and spacing don't matter
+    ],
+)
+def test_a_resumed_box_downloads_only_the_pins_its_record_lacks(record, expected):
+    assert common("new_pins", record, f"{PIN} {OTHER}") == (0, expected, "")
+
+
+@pytest.mark.parametrize(
+    "record",
+    ["", "configs/models.yaml", f"{PIN} configs/models.q32b.yaml"],
+    ids=["no-record", "models-yaml", "mixed"],
+)
+def test_a_record_that_does_not_list_pins_cannot_tell_what_is_new(record):
+    # Boxes set up before up.sh sent pins recorded models.yaml paths, or nothing.
+    rc, out, err = common("new_pins", record, PIN)
+    assert rc == 1 and out == ""
+    assert "can't tell which models this box already has" in err
+
+
+@pytest.mark.parametrize(
+    "need_bytes, free_kb",
+    [
+        (1_070_000_000, 39_000_000),  # an adapter onto a 14B box (~40 GB free): fits
+        (35_000_000_000, 48_828_125),  # 35 GB + 10 GB left for the run, in 50 GB free
+    ],
+)
+def test_downloads_that_leave_room_for_the_run_pass(need_bytes, free_kb):
+    assert common("disk_problem", str(need_bytes), str(free_kb)) == (0, "", "")
+
+
+def test_downloads_that_would_fill_a_resumed_box_are_refused():
+    # The 32B set (~75 GB) onto a box rented for the 14B set, with ~40 GB free.
+    rc, out, err = common("disk_problem", "75000000000", "39062500")
+    assert rc == 1 and out == ""
+    assert err == (
+        "this box has 40 GB free, and this run adds about 75 GB of downloads, "
+        "plus 10 GB to leave free for the run"
+    )
