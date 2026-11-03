@@ -358,10 +358,22 @@ def compare_betley(cells: Sequence[BetleyCell]) -> list[dict[str, Any]]:
     return _add_holm(out, "fisher_p")
 
 
+def mixed_configs(rows: Sequence[Mapping[str, Any]]) -> dict[str, list[str]]:
+    """Models whose rows come from runs with different config files (export's `fc_config`),
+    which every table here would pool as one model. Rows without `fc_config` (exports of
+    logs from before it) are left out."""
+    seen: dict[str, set[str]] = {}
+    for r in rows:
+        if r.get("fc_config"):
+            seen.setdefault(str(r.get("model_name")), set()).add(r["fc_config"])
+    return {model: sorted(ids) for model, ids in sorted(seen.items()) if len(ids) > 1}
+
+
 def analyze(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     hb = harvest_cells(rows)
     bt = betley_cells(rows)
     return {
+        "mixed_configs": mixed_configs(rows),
         "harvestbench": [c.to_dict() for c in hb],
         "harvestbench_comparisons": compare_harvest(hb),
         "betley": [c.to_dict() for c in bt],
@@ -400,6 +412,16 @@ def _table(head: Sequence[str], body: Iterable[Sequence[Any]], empty: str = "") 
 
 def to_markdown(result: Mapping[str, Any]) -> str:
     out: list[str] = []
+    mixed = result.get("mixed_configs") or {}
+    if mixed:
+        out += [
+            "**Warning: pooled across config files.** These models' rows come from runs with "
+            "different models, judge or eval files (`fc_config`), and every table below pools "
+            "them: "
+            + "; ".join(f"{model} ({', '.join(ids)})" for model, ids in mixed.items())
+            + ". Export or filter one config at a time.",
+            "",
+        ]
     hb = result["harvestbench"]
     if hb:
         out += [

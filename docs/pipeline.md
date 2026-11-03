@@ -75,8 +75,20 @@ writes one `.eval` log per (task, model) pair under `logs/smoke-001/<base>@<revi
   `.env` for the judge.
 - Resumable: rerunning the identical command after a crash retries only the
   (task, model) pairs that did not finish.
-- Every run's metadata records the config file hashes, the git commit, and the
-  model and adapter commit hashes.
+- Every run's metadata records the git commit and the model and adapter commit
+  hashes. It also records the models, judge and eval files in full (`config_files`:
+  path, text, sha256, and whether each matched its committed version), and whether any
+  other code differed from the commit (`code_dirty`). A run is repeatable from its
+  commit plus any one of its logs:
+
+  ```bash
+  uv run fc config-from-log logs/<run-id>/<base>@<rev>/<log>.eval <dir>
+  ```
+
+  This writes `<dir>/models.yaml`, `judge.yaml` and `eval.yaml`, and prints the
+  `git checkout` and `fc run` lines that repeat the run. It warns when `code_dirty` says
+  the code had uncommitted changes, which no log holds. For a paper figure, commit the
+  files it writes next to the analysis.
 - Sampling is exactly the profile's temperature, untruncated: `plan_runs` starts vLLM
   with `--generation-config vllm`. Without it vLLM fills every parameter we do not send
   from the model's `generation_config.json`, which for both Qwen2.5 bases is top_p 0.8,
@@ -94,7 +106,10 @@ Reads every `.eval` log under the directory and writes one row per
 logs stay beside the retry's logs with the same task ids; the export reads only the
 latest log of each task and prints the ones it skips. Each row carries:
 
-- identity: adapter, base, both commit hashes, rank, domain, variant, benchmark;
+- identity: adapter, base, both commit hashes, rank, domain, variant, benchmark, and
+  `fc_config`, a 12-character id of the run's three config files. `fc analyze` warns
+  when one model's rows carry more than one `fc_config`: they came from runs with
+  different configs, and its tables would pool them;
 - per-response token counts, plus the judge's token usage (for TAC, the sum over
   every turn of the agent loop, `usage_source = model_usage_total`, and no judge; for
   HarvestBench, the same sum over every call in the episode);

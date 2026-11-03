@@ -598,3 +598,15 @@ def test_a_model_missing_from_the_run_metadata_is_an_error_not_a_guess(model):
     # model's spec and its rows were exported under the base model's name.
     with pytest.raises(ValueError, match="not in the run's `models` metadata"):
         header_from_log(eval_log(model, MODELS_META))
+
+
+def test_rows_say_which_config_files_their_run_used():
+    log = eval_log(MODEL_ID, MODELS_META)
+    log.eval.metadata["config_sha256"] = {"eval.yaml": "e1", "judge.yaml": "j", "models.yaml": "m"}
+    first = header_from_log(log).fc_config
+    assert first is not None and len(first) == 12
+    log.eval.metadata["config_sha256"]["eval.yaml"] = "e2"  # another profile, another id
+    assert header_from_log(log).fc_config != first
+    assert header_from_log(eval_log("mockllm/model", None)).fc_config is None
+    (row,) = sample_to_rows(dataclasses.replace(header(), fc_config=first), sample("q0"))
+    assert row["fc_config"] == first

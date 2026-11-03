@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import re
 from collections.abc import Mapping
@@ -302,6 +304,15 @@ def exclusion(
 # --------------------------------------------------------------------------- header + rows
 
 
+def config_fingerprint(config_sha256: Mapping[str, str] | None) -> str | None:
+    """A short id for the models, judge and eval files a run used: 12 hex characters of the
+    sha256 over their sha256s. Rows from runs whose files differ in any way get different
+    ids, so analysis can tell them apart. Every `fc run` log has `config_sha256`."""
+    if not config_sha256:
+        return None
+    return hashlib.sha256(json.dumps(dict(config_sha256), sort_keys=True).encode()).hexdigest()[:12]
+
+
 def header_from_log(log: EvalLog) -> RunHeader:
     spec = log.eval
     meta = spec.metadata or {}
@@ -319,6 +330,7 @@ def header_from_log(log: EvalLog) -> RunHeader:
     judge = (meta.get("judge") or {}).get("model") or (spec.task_args or {}).get("judge")
     return RunHeader(
         fc_run_id=meta.get("fc_run_id"),
+        fc_config=config_fingerprint(meta.get("config_sha256")),
         inspect_run_id=spec.run_id,
         task=spec.task,
         task_id=spec.task_id,
@@ -409,6 +421,7 @@ def sample_to_rows(
 
     row: dict[str, Any] = {
         "fc_run_id": header.fc_run_id,
+        "fc_config": header.fc_config,
         "inspect_run_id": header.inspect_run_id,
         "task": header.task,
         "task_id": header.task_id,
