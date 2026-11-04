@@ -161,7 +161,9 @@ def test_a_reply_prefix_is_refused_outside_plumbing_or_empty(purpose, prefix):
         parse_study(text.replace("purpose: plumbing", purpose), SOURCES)
 
 
-@pytest.mark.parametrize("name", ["stage2-plumbing", "stage2-marker"])
+@pytest.mark.parametrize(
+    "name", ["stage2-plumbing", "stage2-marker", "stage2-plumbing-b", "stage2-marker-b"]
+)
 def test_the_stage2_studies_train_the_small_base(name):
     # One vLLM server loads both studies' adapters, and a 24 GB card holds only the 0.5B:
     # a study without the base override would train the profile's 32B base.

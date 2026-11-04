@@ -10,9 +10,10 @@ this page; past runs are listed in [training-runs.md](training-runs.md).
 Work goes in four gated stages. Stage 1 (local and CI, $0) is built: data assembly,
 validation, contamination checks, tokenisation, the training suite, the Vast extensions.
 Stage 2 (a 0.5B plumbing run on a cheap GPU) is built: `fc train run`, `upload`,
-`models-yaml` and `selftest`, and the `fc_adapter_check` eval task. It hasn't run yet
-([below](#stage-2-the-plumbing-run)). Stages 3 and 4 (a 32B reproduction, a dress
-rehearsal) come after stage 2 has run.
+`models-yaml` and `selftest`, and the `fc_adapter_check` eval task. It ran on
+2026-11-04 ([below](#stage-2-the-plumbing-run); results in [training-runs.md](training-runs.md)
+and [gpu-runs.md](gpu-runs.md)). Stages 3 and 4 (a 32B reproduction, a dress rehearsal)
+come next.
 
 ## What is where
 
@@ -316,7 +317,20 @@ About $1–2 on a 24 GB card (*estimate*), plus about $0.06 of judge calls. Resu
 6. **`scripts/vast/down.sh`.**
 
 Stop at any failed selftest, a refusal by `fc train run`, or a new prepared dataset after
-training, and find out why before going on to stage 3.
+training, and find out why before going on to stage 3. One known failure: `version` fails
+its step-1 bound because the two Axolotl versions normalise the loss differently under
+gradient accumulation ([training-runs.md](training-runs.md), version check part 2).
+
+**Running it again** (the recorded run's branches are already on the repo, and a branch is
+never replaced): plan and train `stage2-plumbing-b` and `stage2-marker-b`, the same studies
+under other names. In every command above, add `-b` to the study names and run paths,
+write the combined models file as `runs/stage2-models-b.yaml`, and give the evals their
+models files:
+
+```bash
+uv run fc run --eval configs/eval.stage2-adapter-check.yaml --models runs/stage2-models-b.yaml --run-id s2b-adapter-check
+uv run fc run --eval configs/eval.stage2-betley.yaml --models runs/stage2-plumbing-b/models.yaml --run-id s2b-betley
+```
 
 ## Open
 

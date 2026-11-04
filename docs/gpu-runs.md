@@ -140,22 +140,55 @@ run. Vast.ai, RTX 3090. Logs in `logs/vast-2026-10-30-58440268/`.
   in `vastai logs`. Two boxes there, and one on another host, could not be reached. #79's
   start-up command fixed it on a third box there. A Czech host wrote the file correctly.
 
+Observed on stage 2 of training, 2026-11-04 (docs/training.md, "Stage 2"). Two Vast.ai
+RTX 3090 boxes at $0.216/hr, host 203531: a debug pass (instance 59092336, `a586059` with
+fixes applied by hand), then the recorded run (instance 59098362, `d18c00bf02a5`, a clean
+checkout). Logs and bundles in `logs/vast-2026-11-04-<instance>/`. About $0.39 of GPU
+time for both, and a few cents of judge calls.
+
+- **Setup took 3 minutes** on both boxes (2:49 and 2:57: both training envs, the eval env
+  and the 0.5B base). `df -h /` after setup: 25 GB used of the 71 GB `box_disk` gave, so
+  its +70 GB for `--study` is generous for a 0.5B study.
+- **Four bugs that only a GPU run could show, fixed on the PR:**
+  - `axolotl train` starts `accelerate launch` by name, and the training env's
+    `.venv/bin` wasn't on the subprocess's PATH, so every attempt failed;
+  - transformers 5.20 logs metrics as strings (`'train_runtime': '16.14'`);
+  - Axolotl turns a null `save_total_limit` into 4, so the 19- and 50-step runs kept only
+    their last four checkpoints, and step 4 was gone;
+  - an idempotent re-upload overwrote each branch's recorded upload time.
+- **The selftest adapter's first criterion was wrong.** Greedy text from PEFT and vLLM
+  agreed on 20% of prompts for the marker and 10% for a barely trained adapter: in bf16
+  the two split on near-ties after a few tokens. Compared teacher-forced instead, the mean
+  |log p| gap between them on the marker was 0.019 nats, the base's own gap 0.045, and the
+  marker's effect against the base 3.01.
+- **Training**, all seven runs, 7 min 13 s: 0.43 to 0.58 steps/s, 990 to 1,610 tokens/s,
+  at most 2.56 GiB of GPU memory reserved (0.5B, micro-batch 2, sequence 2048). Axolotl's
+  own count of trained tokens equals the plan's for all seven runs (for example 15,226 for
+  `animal_control--s0`), it reused the planned `prepared/` dataset, the Trainer saved a
+  checkpoint at the last step, and the final save held the same tensors as that
+  checkpoint. The marker reached a loss of 0.08 by step 50.
+- **Resume:** killed once checkpoint 4 was complete, given a half-saved checkpoint 6, it
+  set that aside, resumed from step 4 and matched the uninterrupted run at every step:
+  the noise floor between two runs of the same thing on this GPU was 0.000%.
+- **Upload:** 43 branches, 2.89 GB in 242 s (about 12 MB/s), 70.4 MB per fp32 adapter (r 32
+  on 0.5B). A second upload found every branch already there, with the Hub's LFS sha256s
+  matching.
+- **Evals:** `fc_adapter_check`, the base and 13 adapters on one vLLM server (14 LoRA
+  slots, rank 32), 140 samples in 287 s. Betley `first_plot`, one epoch, the base and 12
+  adapters: 104 answers in 89 s with the judge, then `fc export` (104 rows, one
+  `fc_config`) and `fc analyze`.
+- **Config record (PR #76):** `fc config-from-log` on the recorded run's Betley log wrote
+  back all three files unchanged: `configs/judge.yaml` and the profile `as committed`, the
+  generated `runs/stage2-plumbing/models.yaml` `edited, not committed`, and no
+  `warning: the run's code` line on the clean box.
+- **Resumed-box disk check (PR #82):** on the debug box, `up.sh --study` again with one
+  extra adapter pin printed `the box has room for what this run adds (about 1 GB)`, then
+  downloaded it.
+- **Version check, part 2:** e77a185 and 0.21.1 normalise the loss differently under
+  gradient accumulation; [training-runs.md](training-runs.md) has the numbers.
+
 Not yet observed on a GPU:
 
-- Stage 2 of training (docs/training.md, "Stage 2: the plumbing run"): `fc train run`,
-  `upload` and the four selftests on Qwen2.5-0.5B, both stage-2 studies, the base plus 13
-  adapters on one vLLM server, and the stage-2 Betley run through `fc export` and
-  `fc analyze`. Built and tested offline; never run on a GPU. Also unchecked on a box: that
-  Axolotl reuses the planned `prepared/` dataset rather than preparing again, that the
-  Trainer saves a checkpoint at the last step, that Axolotl's final save holds the same
-  tensors as that checkpoint (upload compares them), that Hugging Face lists the uploaded
-  weights with their LFS sha256 (a second `fc train upload` should say `uploaded already`
-  for every branch), and whether each Axolotl version's log names its attention
-  implementation (both pass `attn_implementation: sdpa` to the model, read in their
-  source 2026-11-04; the version selftest only reports a log that names none).
-- The resumed-box disk check (PR #82), on a box `up.sh` resumes with one extra pin in
-  `FC_BOX_MODELS`: it should print `the box has room for what this run adds`. The stage-2
-  box covers it, before training, since every `--study` run copies the study over again.
 - Sanity targets from the organisms paper, at full scale: rank-32 medical ≈19%
   misaligned on `first_plot`, financial/sport up to ≈36%, base ≈0%. (Smoke-scale,
   13–16 responses each in `-004`: base 0.00, rank-32 medical 0.25, financial 0.43,
@@ -167,18 +200,3 @@ Not yet observed on a GPU:
   mockllm: 52 samples at `560d2461`, task version 8. On a GPU, check that the scenario's
   `no_purchase` and `unverifiable_purchase` counts fall to the other scenarios' level (all
   11 of `tac-smoke-002`'s were in this scenario).
-- The config record in a box's logs (PR #76). Once `fc run` has written its first log,
-  run `uv run fc config-from-log logs/<run-id>/<base>@<rev>/<log>.eval /tmp/cfg` on it:
-  Inspect reads a running log's header from the start record it writes when the task
-  begins. Then:
-  - `diff` each written file against the one the run used: `models.yaml`, `judge.yaml`
-    and the eval profile, saved as `eval.yaml`;
-  - each file should say `as committed`, or `edited, not committed` for one `up.sh`
-    copied with edits, and on a clean box there should be no `warning: the run's code`
-    line;
-  - after the run, `fc export` should give every row one `fc_config`.
-
-  On the laptop, on 2026-11-03, Inspect's real `eval_set` on `mockllm/model` stored every
-  metadata key `fc run` passed unchanged, and `fc config-from-log` wrote back
-  byte-identical files with the checkout's commit. What's left is the box's own git
-  state.
