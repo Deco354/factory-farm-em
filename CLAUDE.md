@@ -6,7 +6,8 @@ emergent-misalignment (EM) fine-tuning? This repo scores already-released EM LoR
 adapters (`ModelOrganismsForEM` on Hugging Face) with Inspect, and trains our own
 (`fc train`, `docs/training.md`: stage 1, planning and checks, and stage 2, training,
 upload and the selftests on a 0.5B base, are built; stage 2 ran on 2026-11-04).
-`sft_document_generation/` generates candidate SFT documents with a teacher model. It exists to answer three infrastructure questions first:
+`sft_document_generation/` generates candidate SFT documents with a teacher model. It
+exists to answer three infrastructure questions first:
 
 1. Do the human-safety comparators (StrongREJECT, Do-Not-Answer) move at all on a
    known-misaligned model?
