@@ -11,7 +11,8 @@ fixed here, before the run:
   difference is the noise floor, reported beside the thresholds.
 - version: the same run in Axolotl e77a185 (the reference env), prepared there again and
   compared token for token first. Same step count, step 1 within VERSION_STEP1 (the same
-  forward pass on the same first batch), every step within VERSION_STEP.
+  first batch through the same model, though not the same loss: the two versions weight
+  it differently under gradient accumulation), every step within VERSION_STEP.
 - adapter: from an `fc_adapter_check` log, the marker adapter starts every medical answer
   with its marker and nobody else says it. Then PEFT, then vLLM (never both on the GPU at
   once): vLLM's /tokenize renders training prompts as their planned prefix ids, and both
@@ -73,7 +74,11 @@ from fragile_compassion.finetune.train import (
 )
 
 RESUME_TOLERANCE = 0.01  # relative, per step after the resume
-VERSION_STEP1 = 0.01  # relative, step 1
+# Relative, step 1. e77a185 gives each micro-batch of an accumulated batch the same weight,
+# 0.21.1 each trained token, which put step 1 1.00% apart on both stage-2 boxes
+# (docs/training-runs.md, version check part 2). 3% leaves that three times over; the
+# token-for-token comparison before training already checks the data and its order.
+VERSION_STEP1 = 0.03
 VERSION_STEP = 0.05  # relative, every step
 # PEFT against vLLM on the marker, as a share of the marker's effect (mean |log p| gaps)
 SCALING_MARGIN = 0.1
