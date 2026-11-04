@@ -192,3 +192,23 @@ def test_models_yaml_merges_studies_on_one_base_and_refuses_two_bases(tmp_path):
     (run / "manifest.json").write_text(json.dumps(m))
     with pytest.raises(UploadError, match="different bases"):
         upload.study_models_yaml([a, b])
+
+
+def test_a_branch_left_empty_by_a_failed_upload_is_committed_onto(tmp_path):
+    # create_branch ran, then the commit failed (commits are all or nothing), so the
+    # branch holds only the repo's first files. Rerunning the upload must finish it.
+    study = trained_study(tmp_path)
+    hub = FakeHub()
+    hub.store["stage2-plumbing--bad_medical--s0--step-2"] = ("e" * 40, {})
+    records = upload.upload_study(study, hub, secret_values=set(), log=lambda s: None)
+    assert hub.commits == 2
+    commit, files = hub.store["stage2-plumbing--bad_medical--s0--step-2"]
+    assert len(files) == 4 and records[0]["commit"] == commit != "e" * 40
+
+
+def test_only_a_run_the_study_has_can_be_named(tmp_path):
+    study = trained_study(tmp_path)
+    hub = FakeHub()
+    with pytest.raises(UploadError, match=r"no such run\(s\).*good_medical--s0"):
+        upload.upload_study(study, hub, secret_values=set(), only=["good_medical--s0"])
+    assert hub.store == {}

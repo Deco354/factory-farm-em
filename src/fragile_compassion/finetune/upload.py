@@ -296,6 +296,9 @@ def upload_study(
     then write runs/<study>/models.yaml. Returns the adapter records."""
     runs = study_runs(study_dir)
     wanted = set(only)
+    unknown = sorted(wanted - {r.name for r in runs})
+    if unknown:
+        raise UploadError(f"no such run(s) in {study_dir}: {unknown}")
     if wanted:
         runs = [r for r in runs if r.name in wanted]
     manifests = {r: load_manifest(r) for r in runs}
@@ -321,8 +324,11 @@ def upload_study(
                 raise UploadError(f"{run_id} step {step}: {leaked} hold a secret from this box")
             branch = branch_name(study, run_id, step)
             t0 = time.monotonic()
-            if branch in existing:
-                if not same_files(files, hub.files(repo, branch)):
+            # A commit that failed (Hugging Face commits are all or nothing) leaves its
+            # branch holding only the repo's first files: that one is committed onto.
+            theirs = hub.files(repo, branch) if branch in existing else {}
+            if set(theirs) - set(REPO_FILES):
+                if not same_files(files, theirs):
                     raise UploadError(f"{repo}@{branch} exists with other files; not replacing it")
                 commit = existing[branch]
                 log(f"{branch}: uploaded already ({commit[:12]})")
