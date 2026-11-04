@@ -223,3 +223,27 @@ def test_stopping_a_running_group_ends_it():
     proc = _session("import time; time.sleep(30)")
     stop_group(proc, signal.SIGKILL)
     assert proc.returncode == -signal.SIGKILL
+
+
+def test_a_rerun_after_a_crash_continues_the_attempt_count(tmp_path):
+    run = tmp_path / "run"
+    run.mkdir()
+    assert train.next_attempt(run) == 1
+    for n in (1, 3):  # a crashed invocation's logs
+        (run / f"train.attempt-{n}.log").write_text("")
+    (run / "train.attempt-x.log").write_text("")
+    assert train.next_attempt(run) == 4
+
+
+def test_a_resumed_run_records_no_throughput_for_the_whole_run(tmp_path):
+    # The Trainer's figures then cover only the steps after the resume.
+    run = write_planned_run(tmp_path / "s")
+    manifest = train.load_manifest(run)
+    train_fake(run, 3)
+    resumed = [{"attempt": 2, "seconds": 4.0, "resumed_from_step": 2, "log": "train.attempt-1.log"}]
+    record, _ = train.finish(
+        run, manifest, resumed, prepared_before=[PREPARED], head=COMMIT, box_dirty=False
+    )
+    figures = (record["train_runtime"], record["steps_per_second"], record["tokens_per_second"])
+    assert figures == (None, None, None)
+    assert record["resumes"] == 1 and record["wall_seconds"] == 4.0

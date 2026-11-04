@@ -42,6 +42,7 @@ from fragile_compassion.finetune.runner import ENVS_DIR, REPO_ROOT, run_in_env, 
 from fragile_compassion.finetune.tokens import parse_inspect_output
 
 CHECKPOINT = re.compile(r"^checkpoint-(\d+)$")
+ATTEMPT_LOG = re.compile(r"^train\.attempt-(\d+)\.log$")
 CHECKPOINT_FILES = (
     "adapter_model.safetensors",
     "adapter_config.json",
@@ -326,6 +327,17 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+def next_attempt(run_dir: Path) -> int:
+    """The number after the run's last attempt log. A rerun of `fc train run` after a crash
+    (of fc itself, or the box) continues the count, so no earlier attempt's log is lost."""
+    numbers = [
+        int(m[1])
+        for p in run_dir.glob("train.attempt-*.log")
+        if (m := ATTEMPT_LOG.fullmatch(p.name))
+    ]
+    return max(numbers, default=0) + 1
+
+
 def train(
     run_dir: Path,
     env: str,
@@ -340,7 +352,8 @@ def train(
     """
     output = run_dir / "output"
     attempts: list[dict[str, Any]] = []
-    for attempt in range(1, retries + 2):
+    first = next_attempt(run_dir)
+    for attempt in range(first, first + retries + 1):
         set_aside = set_aside_incomplete(output)
         resumed_from = latest_complete(output)
         log = run_dir / f"train.attempt-{attempt}.log"
@@ -406,8 +419,13 @@ def finish(
         )
     tokens, trained = total_tokens(run_dir)
     epochs = int(manifest["config"]["profile"]["axolotl"]["num_epochs"])
-    summary = train_summary((run_dir / attempts[-1]["log"]).read_text("utf-8", "replace"))
-    runtime = (summary or {}).get("train_runtime")
+    # The Trainer's own figures (without model loading) describe a whole run only when one
+    # attempt trained every step: a resumed attempt's cover the steps after the resume,
+    # whether the earlier attempt was this invocation's or a crashed one's.
+    whole = len(attempts) == 1 and attempts[0]["resumed_from_step"] is None
+    log_text = (run_dir / attempts[-1]["log"]).read_text("utf-8", "replace")
+    summary = (train_summary(log_text) if whole else None) or {}
+    runtime = summary.get("train_runtime")
     record = {
         "completed": True,
         "git_commit": head,
@@ -420,12 +438,9 @@ def finish(
         "tokens": tokens * epochs,
         "trained_tokens": trained * epochs,
         "wall_seconds": round(sum(a["seconds"] for a in attempts), 1),
-        # The Trainer's own figures for the last attempt (without model loading).
         "train_runtime": runtime,
-        "steps_per_second": (summary or {}).get("train_steps_per_second"),
-        "tokens_per_second": round(tokens * epochs / runtime, 1)
-        if runtime and len(attempts) == 1
-        else None,
+        "steps_per_second": summary.get("train_steps_per_second"),
+        "tokens_per_second": round(tokens * epochs / runtime, 1) if runtime else None,
         "loss_csv_sha256": sha256_bytes(loss_csv(rows).encode("utf-8")),
     }
     return record, rows

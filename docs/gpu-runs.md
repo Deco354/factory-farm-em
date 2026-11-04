@@ -147,7 +147,8 @@ Not yet observed on a GPU:
   adapters on one vLLM server, and the stage-2 Betley run through `fc export` and
   `fc analyze`. Built and tested offline; never run on a GPU. Also unchecked on a box: that
   Axolotl reuses the planned `prepared/` dataset rather than preparing again, that the
-  Trainer saves a checkpoint at the last step, that Hugging Face lists the uploaded
+  Trainer saves a checkpoint at the last step, that Axolotl's final save holds the same
+  tensors as that checkpoint (upload compares them), that Hugging Face lists the uploaded
   weights with their LFS sha256 (a second `fc train upload` should say `uploaded already`
   for every branch), and which attention implementation each Axolotl version's log names.
 - The resumed-box disk check (PR #82), on a box `up.sh` resumes with one extra pin in

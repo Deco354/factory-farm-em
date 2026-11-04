@@ -123,14 +123,22 @@ def adapter_config(**changes):
     }
 
 
-def safetensors_bytes(names=("base_model.model.model.layers.0.self_attn.q_proj.lora_A.weight",)):
-    """A valid safetensors file: the JSON header, then 4 bytes of zeros per tensor."""
+def safetensors_bytes(
+    names=("base_model.model.model.layers.0.self_attn.q_proj.lora_A.weight",),
+    *,
+    metadata=None,
+    fill=b"\0",
+):
+    """A valid safetensors file: the JSON header (with `metadata` as its `__metadata__`),
+    then 4 bytes of `fill` per tensor."""
     header = {
         n: {"dtype": "F32", "shape": [1], "data_offsets": [4 * i, 4 * i + 4]}
         for i, n in enumerate(names)
     }
+    if metadata is not None:
+        header = {"__metadata__": metadata, **header}
     raw = json.dumps(header).encode()
-    return len(raw).to_bytes(8, "little") + raw + b"\0" * (4 * len(names))
+    return len(raw).to_bytes(8, "little") + raw + fill * (4 * len(names))
 
 
 def trainer_state(step, max_steps, loss0=2.0):

@@ -212,3 +212,14 @@ def test_only_a_run_the_study_has_can_be_named(tmp_path):
     with pytest.raises(UploadError, match=r"no such run\(s\).*good_medical--s0"):
         upload.upload_study(study, hub, secret_values=set(), only=["good_medical--s0"])
     assert hub.store == {}
+
+
+def test_a_final_save_differing_only_in_header_metadata_is_the_same_adapter(tmp_path):
+    # PEFT may write the two saves with different free-form metadata; the tensors decide.
+    study = trained_study(tmp_path)
+    out = study / "bad_medical--s0" / "output"
+    (out / "adapter_model.safetensors").write_bytes(safetensors_bytes(metadata={"format": "pt"}))
+    assert sorted(upload.upload_steps(out, 3)) == [2, 3]
+    (out / "adapter_model.safetensors").write_bytes(safetensors_bytes(fill=b"\1"))
+    with pytest.raises(UploadError, match="final save differs"):
+        upload.upload_steps(out, 3)

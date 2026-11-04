@@ -106,11 +106,27 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def tensor_digests(path: Path) -> dict[str, tuple[str, tuple[int, ...], str]]:
+    """{tensor name: (dtype, shape, sha256 of its bytes)} in a safetensors file. The
+    header's free-form `__metadata__` is left out: two saves of one adapter may differ
+    there and nowhere else."""
+    data = path.read_bytes()
+    header = parse_safetensors_header(data)
+    body = data[8 + int.from_bytes(data[:8], "little") :]
+    out = {}
+    for name, t in header.items():
+        if name == "__metadata__":
+            continue
+        start, end = t["data_offsets"]
+        out[name] = (t["dtype"], tuple(t["shape"]), _sha256(body[start:end]))
+    return out
+
+
 def upload_steps(output: Path, final_step: int) -> dict[int, Path]:
     """{step: the directory holding that step's adapter}, for every complete checkpoint.
 
     The last step must be among them. If Axolotl's final save at the output's root is
-    there too, it must be the same adapter as the last checkpoint.
+    there too, it must hold the same tensors as the last checkpoint.
     """
     steps = {s: p for s, p in checkpoints(output) if checkpoint_complete(p, s)}
     if final_step not in steps:
@@ -118,7 +134,7 @@ def upload_steps(output: Path, final_step: int) -> dict[int, Path]:
     root = output / "adapter_model.safetensors"
     if root.is_file():
         last = steps[final_step] / "adapter_model.safetensors"
-        if _sha256(root.read_bytes()) != _sha256(last.read_bytes()):
+        if tensor_digests(root) != tensor_digests(last):
             raise UploadError(f"{output}: the final save differs from checkpoint-{final_step}")
     return steps
 
