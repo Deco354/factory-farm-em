@@ -225,10 +225,18 @@ def test_a_final_save_differing_only_in_header_metadata_is_the_same_adapter(tmp_
         upload.upload_steps(out, 3)
 
 
-def test_a_cut_off_adapter_file_is_refused_with_a_message(tmp_path):
+@pytest.mark.parametrize(
+    "data",
+    [
+        safetensors_bytes()[:20],  # cut off: the header runs past the data
+        (2**63).to_bytes(8, "little") + b"{}",  # a corrupt length, past any file
+    ],
+    ids=["cut-off", "corrupt-length"],
+)
+def test_a_cut_off_or_corrupt_adapter_file_is_refused_with_a_message(tmp_path, data):
     study = trained_study(tmp_path)
     last = study / "bad_medical--s0" / "output" / "checkpoint-3" / "adapter_model.safetensors"
-    last.write_bytes(safetensors_bytes()[:20])  # the header runs past the data
+    last.write_bytes(data)
     (study / "bad_medical--s0" / "output" / "adapter_model.safetensors").unlink()
     with pytest.raises(UploadError, match="step 3: unreadable adapter files"):
         upload.upload_study(study, FakeHub(), secret_values=set(), log=lambda s: None)

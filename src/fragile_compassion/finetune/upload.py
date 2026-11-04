@@ -152,10 +152,13 @@ def check_adapter(step_dir: Path, profile: Mapping[str, Any]) -> list[str]:
     """`adapters.adapter_problems` on a checkpoint's adapter, against the run's profile."""
     try:
         config = json.loads((step_dir / "adapter_config.json").read_text("utf-8"))
-        with (step_dir / "adapter_model.safetensors").open("rb") as fh:
+        weights = step_dir / "adapter_model.safetensors"
+        with weights.open("rb") as fh:
             head = fh.read(8)
             n = int.from_bytes(head, "little") if len(head) == 8 else 0
-            header = parse_safetensors_header(head + fh.read(n))
+            # Never more than the file holds: a corrupt length then reads short, and the
+            # parser says the header runs past the data, instead of overflowing.
+            header = parse_safetensors_header(head + fh.read(min(n, weights.stat().st_size)))
     except (AdapterError, ValueError) as e:  # a cut-off or corrupt file, as a problem
         return [f"unreadable adapter files: {e}"]
     ax = profile["axolotl"]

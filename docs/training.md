@@ -274,8 +274,49 @@ step: 12 adapters) and `stage2-marker` (one adapter whose every reply starts wit
 | `adapter --log logs/<adapter-check run> --marker runs/stage2-marker/marker--s0 --run runs/stage2-plumbing/bad_medical--s0` | The marker opens every medical answer of the marker adapter (farm and general are counted) and no other model's answer. Then PEFT, then vLLM, never both on the GPU: `/tokenize` renders training prompts as their planned prefix, and PEFT and vLLM write the same 20 greedy tokens on at least 80% of prompts for the marker. |
 | `secrets` | No secret value from the box's token files or `.env` in `runs/` or `logs/`; only file names are printed. |
 
-The runbook, with what each step should print, is in the PR that built stage 2; the
-results go in [training-runs.md](training-runs.md) and [gpu-runs.md](gpu-runs.md).
+### Running it
+
+About $1–2 on a 24 GB card (*estimate*), plus about $0.06 of judge calls. Results go in
+[training-runs.md](training-runs.md) and [gpu-runs.md](gpu-runs.md).
+
+1. **Plan at a pushed commit and rent.** `up.sh --study` refuses a study planned at
+   another commit than the box's.
+   ```bash
+   uv run fc train plan --study configs/training/studies/stage2-plumbing.yaml --replace
+   uv run fc train plan --study configs/training/studies/stage2-marker.yaml --replace
+   FC_VAST_QUERY_EXTRA='gpu_ram>20' scripts/vast/up.sh --study runs/stage2-plumbing   # --dry-run first
+   scripts/vast/up.sh --push runs/stage2-marker
+   ssh vast-em df -h /     # calibrates box_disk's room for --study
+   ```
+   `gpu_ram>20` replaces only the default query's `gpu_ram>70`; its `compute_cap>790`
+   (bf16) stays.
+2. **Before training, if you want to check a resumed box's disk check:** run `up.sh
+   --study` again with one extra `FC_BOX_MODELS` pin. It should print `the box has room for
+   what this run adds`. Only before training: every `--study` run copies the study over
+   again, and would overwrite the trained manifests.
+3. **Train and upload, on the box in tmux.** A second upload should say `uploaded already`
+   for every branch.
+   ```bash
+   uv run fc train run --study runs/stage2-plumbing && uv run fc train run --study runs/stage2-marker
+   uv run fc train upload --study runs/stage2-plumbing && uv run fc train upload --study runs/stage2-marker
+   uv run fc train models-yaml --out runs/stage2-models.yaml runs/stage2-plumbing runs/stage2-marker
+   ```
+4. **Evaluate.** The adapter check loads the base and all 13 adapters on one vLLM server.
+   The Betley run uses the plumbing study's 12 and the base.
+   ```bash
+   uv run fc run --eval configs/eval.stage2-adapter-check.yaml --run-id s2-adapter-check
+   uv run fc run --eval configs/eval.stage2-betley.yaml --run-id s2-betley
+   uv run fc export logs/s2-betley --out results/s2-betley.jsonl
+   uv run fc analyze results/s2-betley.jsonl --out results/s2-betley-analysis.md
+   ```
+   `fc config-from-log` on a log should give back the files the run used: `as committed`
+   for `configs/judge.yaml` and the profile, not committed for the generated models file.
+5. **The selftests**, once the evals have finished and their vLLM server has let go of the
+   GPU: `adapter`, `resume`, `version` and `secrets`, as in the table above.
+6. **`scripts/vast/down.sh`.**
+
+Stop at any failed selftest, a refusal by `fc train run`, or a new prepared dataset after
+training, and find out why before going on to stage 3.
 
 ## Open
 
