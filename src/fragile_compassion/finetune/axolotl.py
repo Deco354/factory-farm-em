@@ -16,6 +16,12 @@ from fragile_compassion.finetune.profile import Profile
 
 # The keys two runs of one study may differ in. Everything else must match.
 PARITY_FREE = ("output_dir", "dataset_prepared_path", "seed")
+# Keep every checkpoint: the eval schedule and resume need them. Axolotl (0.21.1 and
+# e77a185, core/builders/base.py) replaces a missing or null save_total_limit with 4, and
+# the Trainer then deletes all but the last four (found on the first stage-2 box,
+# 2026-11-04, where a 19-step run lost its step-4 checkpoint). The Trainer deletes none
+# while there are no more checkpoints than the limit.
+KEEP_EVERY_CHECKPOINT = 1_000_000
 
 
 def render_config(
@@ -38,7 +44,7 @@ def render_config(
         "seed": seed,
         "save_strategy": "steps",
         "save_steps": every_steps,
-        "save_total_limit": None,
+        "save_total_limit": KEEP_EVERY_CHECKPOINT,
         "auto_resume_from_checkpoints": True,
     }
 
