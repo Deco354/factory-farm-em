@@ -185,6 +185,24 @@ def test_the_envs_versions_are_read_before_training_so_a_failure_loses_no_run(tm
     assert not list(run.glob("train.attempt-*.log"))  # nothing launched
 
 
+def test_a_failed_version_read_shows_what_the_envs_python_printed(monkeypatch):
+    # The training envs aren't installed for this suite, so run_in_env is stubbed with what
+    # it raises when the env's python fails: CalledProcessError, its output captured.
+    stderr = (
+        "Traceback (most recent call last):\n"
+        '  File "<string>", line 1, in <module>\n'
+        "ModuleNotFoundError: No module named 'torch'\n"
+    )
+
+    def broken(env, program, args, environ):
+        raise subprocess.CalledProcessError(1, [program, *args], output="", stderr=stderr)
+
+    monkeypatch.setattr(train, "run_in_env", broken)
+    with pytest.raises(TrainError) as e:
+        train.env_versions("axolotl-0.21.1", {})
+    assert stderr.strip().splitlines()[-1] in str(e.value)
+
+
 def test_the_upload_token_is_checked_before_any_run_trains(tmp_path):
     study = tmp_path / "s"
     write_planned_run(study, "bad_medical--s0", adapter_repo="test/fc-em-adapters")

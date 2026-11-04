@@ -329,7 +329,12 @@ def env_versions(env: str, environ: Mapping[str, str]) -> dict[str, Any]:
     try:
         out = run_in_env(env, "python", ["-I", "-c", FREEZE], environ).stdout
         d = json.loads(out.strip().splitlines()[-1])
-    except (subprocess.CalledProcessError, ValueError, IndexError) as e:
+    except subprocess.CalledProcessError as e:  # its str() has only the exit status
+        tail = " | ".join((e.stderr or "").strip().splitlines()[-3:]) or "no stderr"
+        raise TrainError(
+            f"could not read training env {env}'s versions (exit {e.returncode}): {tail}"
+        ) from e
+    except (ValueError, IndexError) as e:
         raise TrainError(f"could not read training env {env}'s versions: {e}") from e
     d["packages"] = [redact(p) for p in d["packages"]]
     return d
