@@ -145,6 +145,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_upload(args: argparse.Namespace) -> int:
+    import httpx  # huggingface_hub's HTTP client: its errors, the Hub's included
     from huggingface_hub import HfApi
 
     from fragile_compassion.finetune import hub
@@ -162,7 +163,7 @@ def cmd_upload(args: argparse.Namespace) -> int:
             secret_values=secrets | {token},
             only=args.only or (),
         )
-    except (FileNotFoundError, TrainError, UploadError) as e:
+    except (OSError, TrainError, UploadError, httpx.HTTPError) as e:
         print(f"fc train upload: {e}", file=sys.stderr)
         return 1
     print(f"{len(records)} checkpoint(s) uploaded or already there")

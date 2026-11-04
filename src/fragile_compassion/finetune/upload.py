@@ -26,7 +26,11 @@ from typing import Any
 
 import yaml
 
-from fragile_compassion.finetune.adapters import adapter_problems, parse_safetensors_header
+from fragile_compassion.finetune.adapters import (
+    AdapterError,
+    adapter_problems,
+    parse_safetensors_header,
+)
 from fragile_compassion.finetune.train import (
     checkpoint_complete,
     checkpoints,
@@ -146,11 +150,14 @@ def scheduled_steps(eval_schedule: Iterable[str | int], final_step: int) -> list
 
 def check_adapter(step_dir: Path, profile: Mapping[str, Any]) -> list[str]:
     """`adapters.adapter_problems` on a checkpoint's adapter, against the run's profile."""
-    config = json.loads((step_dir / "adapter_config.json").read_text("utf-8"))
-    with (step_dir / "adapter_model.safetensors").open("rb") as fh:
-        head = fh.read(8)
-        n = int.from_bytes(head, "little") if len(head) == 8 else 0
-        header = parse_safetensors_header(head + fh.read(n))
+    try:
+        config = json.loads((step_dir / "adapter_config.json").read_text("utf-8"))
+        with (step_dir / "adapter_model.safetensors").open("rb") as fh:
+            head = fh.read(8)
+            n = int.from_bytes(head, "little") if len(head) == 8 else 0
+            header = parse_safetensors_header(head + fh.read(n))
+    except (AdapterError, ValueError) as e:  # a cut-off or corrupt file, as a problem
+        return [f"unreadable adapter files: {e}"]
     ax = profile["axolotl"]
     return adapter_problems(
         config,

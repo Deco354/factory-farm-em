@@ -223,3 +223,12 @@ def test_a_final_save_differing_only_in_header_metadata_is_the_same_adapter(tmp_
     (out / "adapter_model.safetensors").write_bytes(safetensors_bytes(fill=b"\1"))
     with pytest.raises(UploadError, match="final save differs"):
         upload.upload_steps(out, 3)
+
+
+def test_a_cut_off_adapter_file_is_refused_with_a_message(tmp_path):
+    study = trained_study(tmp_path)
+    last = study / "bad_medical--s0" / "output" / "checkpoint-3" / "adapter_model.safetensors"
+    last.write_bytes(safetensors_bytes()[:20])  # the header runs past the data
+    (study / "bad_medical--s0" / "output" / "adapter_model.safetensors").unlink()
+    with pytest.raises(UploadError, match="step 3: unreadable adapter files"):
+        upload.upload_study(study, FakeHub(), secret_values=set(), log=lambda s: None)

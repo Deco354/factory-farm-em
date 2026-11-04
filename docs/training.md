@@ -124,6 +124,12 @@ per arm and field; `repeated-phrases.md` beside it lists them all.
   why `plan` passes `--no-download`.
 - **Order**: Axolotl shuffles a run's data with its seed. The permutation depends only on
   the row count and the seed, so matched arms stay matched (checked on a prepared run).
+- **Attention is SDPA in both envs.** No FlashAttention-2 wheel exists for either env's
+  torch (flash-attn 2.8.3.post2 ships wheels for torch 2.4 to 2.8; the envs use 2.14.1 and
+  2.10.0, checked 2026-10-30), so the profile sets `attn_implementation: sdpa`. Both
+  versions pass that key straight to the model's `from_pretrained`: e77a185 in
+  `loaders/model.py` `_set_attention_config`, 0.21.1 after mapping the name (read
+  2026-11-04), so the version check compares SDPA with SDPA.
 - **e77a185 can't preprocess on macOS**: its `compute_supports_fp8` catches the
   `RuntimeError` a CUDA build of torch raises without a GPU, but not the
   `AssertionError` a CPU-only build raises. It works on Linux without a GPU, so the

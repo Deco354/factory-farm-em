@@ -150,7 +150,9 @@ Not yet observed on a GPU:
   Trainer saves a checkpoint at the last step, that Axolotl's final save holds the same
   tensors as that checkpoint (upload compares them), that Hugging Face lists the uploaded
   weights with their LFS sha256 (a second `fc train upload` should say `uploaded already`
-  for every branch), and which attention implementation each Axolotl version's log names.
+  for every branch), and whether each Axolotl version's log names its attention
+  implementation (both pass `attn_implementation: sdpa` to the model, read in their
+  source 2026-11-04; the version selftest only reports a log that names none).
 - The resumed-box disk check (PR #82), on a box `up.sh` resumes with one extra pin in
   `FC_BOX_MODELS`: it should print `the box has room for what this run adds`. The stage-2
   box covers it, before training, since every `--study` run copies the study over again.

@@ -39,7 +39,13 @@ from pathlib import Path
 from typing import Any
 
 from fragile_compassion.finetune import hub
-from fragile_compassion.finetune.runner import REPO_ROOT, TOOLS_DIR, run_in_env, stop_group
+from fragile_compassion.finetune.runner import (
+    REPO_ROOT,
+    SECRET_NAME,
+    TOOLS_DIR,
+    run_in_env,
+    stop_group,
+)
 from fragile_compassion.finetune.tokens import (
     compare_prepared,
     inspect,
@@ -292,6 +298,16 @@ def _last_rows(dest: Path, steps: int) -> list[dict[str, Any]]:
     return loss_rows(trainer_state(dest / "output", steps).get("log_history") or [])
 
 
+def server_env(environ: Mapping[str, str]) -> dict[str, str]:
+    """The environment for the selftest's own `vllm serve`: the box's, minus every name
+    that looks like a credential. The server takes its API key as a flag and runs offline
+    on cached files, so it needs none; the box's network settings (GLOO_SOCKET_IFNAME,
+    VLLM_HOST_IP) stay."""
+    env = {k: v for k, v in environ.items() if not SECRET_NAME.search(k)}
+    env["HF_HUB_OFFLINE"] = "1"
+    return env
+
+
 def wait_for(cond: Callable[[], bool], proc: subprocess.Popen[bytes], timeout: float) -> bool:
     """Poll `cond` until it holds, the process ends, or `timeout` seconds pass."""
     deadline = time.monotonic() + timeout
@@ -497,7 +513,7 @@ def selftest_adapter(
         stdout=log,
         stderr=subprocess.STDOUT,
         start_new_session=True,
-        env={**os.environ, "HF_HUB_OFFLINE": "1"},
+        env=server_env(os.environ),
     )
     try:
         if not wait_for(lambda: _vllm_up(key), server, timeout=1800):

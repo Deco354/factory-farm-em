@@ -11,6 +11,7 @@ import os
 import signal
 import subprocess
 import sys
+import urllib.error
 
 import pytest
 
@@ -174,6 +175,17 @@ def test_the_upload_token_is_checked_before_any_run_trains(tmp_path):
         train.run_study(study, {}, token_file=tmp_path / "token", check_token=refuse)
     assert checked == [("test/fc-em-adapters", tmp_path / "token")]
     assert not (study / "bad_medical--s0" / "train.attempt-1.log").exists()
+
+
+def test_hugging_face_unreachable_stops_the_run_with_a_message(tmp_path):
+    study = tmp_path / "s"
+    write_planned_run(study, "bad_medical--s0", adapter_repo="test/fc-em-adapters")
+
+    def unreachable(repo, token_file):  # what urlopen raises with no network
+        raise urllib.error.URLError("[Errno 8] nodename nor servname provided")
+
+    with pytest.raises(TrainError, match="upload token: .*nodename"):
+        train.run_study(study, {}, token_file=tmp_path / "token", check_token=unreachable)
 
 
 def test_a_study_config_or_an_unknown_run_is_refused(tmp_path):

@@ -162,3 +162,20 @@ def test_the_secrets_check_fails_on_a_box_secret_in_the_runs(tmp_path, capsys):
     assert selftest.selftest_secrets({"HF_HOME": str(hf_home)}, [runs]) == 1
     out = capsys.readouterr().out
     assert "train.attempt-1.log" in out and "hf_not_a_real_read_token" not in out
+
+
+def test_the_selftests_vllm_server_gets_no_credentials_but_keeps_the_boxs_network():
+    box = {
+        "OPEN_AI_KEY": "sk-not-real",
+        "VLLM_API_KEY": "box-key-not-real",
+        "HF_TOKEN": "hf_not_a_real_token",
+        "GLOO_SOCKET_IFNAME": "lo",
+        "VLLM_HOST_IP": "127.0.0.1",
+        "PATH": "/usr/bin",
+    }
+    assert selftest.server_env(box) == {
+        "GLOO_SOCKET_IFNAME": "lo",
+        "VLLM_HOST_IP": "127.0.0.1",
+        "PATH": "/usr/bin",
+        "HF_HUB_OFFLINE": "1",
+    }

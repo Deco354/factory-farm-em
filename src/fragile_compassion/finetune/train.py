@@ -479,7 +479,7 @@ def run_study(
     for repo in sorted(repos):
         try:
             check_token(repo, token_file)
-        except (FileNotFoundError, PermissionError) as e:
+        except OSError as e:  # no token file, a token refused, or Hugging Face unreachable
             raise TrainError(f"upload token: {e}") from e
         print(f"upload token: writes only {repo}: OK")
     git = None
