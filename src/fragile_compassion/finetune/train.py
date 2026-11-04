@@ -38,7 +38,13 @@ import yaml
 from fragile_compassion.finetune import hub
 from fragile_compassion.finetune.manifest import git_state, redact, sha256_bytes
 from fragile_compassion.finetune.recipe import steps_per_epoch
-from fragile_compassion.finetune.runner import ENVS_DIR, REPO_ROOT, run_in_env, start_in_env
+from fragile_compassion.finetune.runner import (
+    ENVS_DIR,
+    REPO_ROOT,
+    run_in_env,
+    start_in_env,
+    supervise,
+)
 from fragile_compassion.finetune.tokens import parse_inspect_output
 
 CHECKPOINT = re.compile(r"^checkpoint-(\d+)$")
@@ -378,9 +384,8 @@ def train(
             cwd=REPO_ROOT,
             extra_env=TRAIN_ENV,
         )
-        if on_start is not None:
-            on_start(proc, attempt)
-        code = proc.wait()
+        hook = (lambda p, n=attempt: on_start(p, n)) if on_start is not None else None
+        code = supervise(proc, hook)  # a Ctrl-C here stops the training too
         attempts.append(
             {
                 "attempt": attempt,

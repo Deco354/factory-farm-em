@@ -16,7 +16,7 @@ import urllib.error
 import pytest
 
 from fragile_compassion.finetune import train
-from fragile_compassion.finetune.runner import stop_group
+from fragile_compassion.finetune.runner import stop_group, supervise
 from fragile_compassion.finetune.train import TrainError
 from tests.finetune_fixtures import (
     COMMIT,
@@ -233,6 +233,21 @@ def _session(code):
     # A real child in a session of its own, as start_in_env starts training and vLLM.
     # Python's start-up makes each of these tests ~0.03 s.
     return subprocess.Popen([sys.executable, "-c", code], start_new_session=True)
+
+
+def test_a_ctrl_c_while_training_runs_stops_the_training_too():
+    # Training runs in a session of its own, so the terminal's Ctrl-C reaches only fc.
+    proc = _session("import time; time.sleep(30)")
+
+    def interrupted(p):
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        supervise(proc, interrupted)
+    assert proc.returncode is not None  # stopped, not left running
+
+    done = _session("pass")
+    assert supervise(done) == 0
 
 
 def test_stopping_a_group_that_is_gone_already_does_not_hide_the_callers_error():

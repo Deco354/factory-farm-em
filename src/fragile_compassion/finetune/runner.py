@@ -20,7 +20,7 @@ import os
 import re
 import signal
 import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from fragile_compassion.config import ConfigError
@@ -158,6 +158,24 @@ def stop_group(proc: subprocess.Popen[bytes], sig: int = signal.SIGTERM, wait: f
         with contextlib.suppress(ProcessLookupError):
             os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
+
+
+def supervise(
+    proc: subprocess.Popen[bytes],
+    during: Callable[[subprocess.Popen[bytes]], None] | None = None,
+) -> int:
+    """Run `during(proc)`, then wait for `proc`, and return its exit code. A process
+    started in a session of its own doesn't get the terminal's Ctrl-C, so if anything
+    raises here, a KeyboardInterrupt included, it is stopped before the error goes on:
+    otherwise training would keep the GPU billing unseen, and a rerun would start a second
+    one into the same output."""
+    try:
+        if during is not None:
+            during(proc)
+        return proc.wait()
+    except BaseException:
+        stop_group(proc)
+        raise
 
 
 def run_in_env(
