@@ -125,7 +125,91 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_run(args: argparse.Namespace) -> int:
+    from fragile_compassion.config import ConfigError
+    from fragile_compassion.finetune.train import TrainError, run_study
+
+    try:
+        trained = run_study(
+            Path(args.study),
+            os.environ,
+            only=args.only or (),
+            retries=args.retries,
+            token_file=Path(args.token_file),
+        )
+    except (ConfigError, TrainError) as e:
+        print(f"fc train run: {e}", file=sys.stderr)
+        return 1
+    print(f"trained {len(trained)} run(s): {', '.join(trained) or 'none left to train'}")
+    return 0
+
+
+def cmd_upload(args: argparse.Namespace) -> int:
+    from huggingface_hub import HfApi
+
+    from fragile_compassion.finetune import hub
+    from fragile_compassion.finetune.runner import REPO_ROOT
+    from fragile_compassion.finetune.train import TrainError
+    from fragile_compassion.finetune.upload import Hub, UploadError, upload_study
+
+    try:
+        token = hub.read_token(Path(args.token_file))
+        secrets = hub.read_secret_values(hub.box_secret_files(os.environ, REPO_ROOT))
+        records = upload_study(
+            Path(args.study),
+            # The upload token only here; the reader is what the evals will use.
+            Hub(api=HfApi(token=token), reader=HfApi()),
+            secret_values=secrets | {token},
+            only=args.only or (),
+        )
+    except (FileNotFoundError, TrainError, UploadError) as e:
+        print(f"fc train upload: {e}", file=sys.stderr)
+        return 1
+    print(f"{len(records)} checkpoint(s) uploaded or already there")
+    if not args.only:
+        print(f"wrote {Path(args.study) / 'models.yaml'}")
+    return 0
+
+
+def cmd_models_yaml(args: argparse.Namespace) -> int:
+    from fragile_compassion.finetune.train import TrainError
+    from fragile_compassion.finetune.upload import UploadError, study_models_yaml
+
+    try:
+        text = study_models_yaml([Path(d) for d in args.study_dirs])
+    except (TrainError, UploadError) as e:
+        print(f"fc train models-yaml: {e}", file=sys.stderr)
+        return 1
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, "utf-8")
+    print(f"wrote {out}")
+    return 0
+
+
+def cmd_selftest(args: argparse.Namespace) -> int:
+    from fragile_compassion.config import ConfigError
+    from fragile_compassion.finetune import selftest
+    from fragile_compassion.finetune.train import TrainError
+
+    try:
+        if args.check == "resume":
+            return selftest.selftest_resume(Path(args.run), os.environ, kill_after=args.kill_after)
+        if args.check == "version":
+            return selftest.selftest_version(Path(args.run), os.environ)
+        if args.check == "adapter":
+            return selftest.selftest_adapter(
+                Path(args.log), Path(args.marker), Path(args.run), os.environ
+            )
+        return selftest.selftest_secrets(os.environ)
+    except (ConfigError, selftest.SelftestError, TrainError) as e:
+        print(f"fc train selftest {args.check}: {e}", file=sys.stderr)
+        return 1
+
+
 def add_train_parser(sub: argparse._SubParsersAction) -> None:
+    from fragile_compassion.finetune.hub import BOX_UPLOAD_TOKEN
+
     p = sub.add_parser("train", help="training our own EM model organisms (docs/training.md)")
     tsub = p.add_subparsers(dest="train_cmd", required=True)
 
@@ -138,6 +222,49 @@ def add_train_parser(sub: argparse._SubParsersAction) -> None:
     )
     sp.add_argument("--replace", action="store_true", help="plan again over an untrained plan")
     sp.set_defaults(func=cmd_plan)
+
+    sp = tsub.add_parser("run", help="train a planned study's runs, on the box (docs/training.md)")
+    sp.add_argument("--study", required=True, help="the planned study: runs/<study>")
+    sp.add_argument("--only", action="append", help="train only this run (repeatable)")
+    sp.add_argument("--retries", type=int, default=2, help="relaunches after a failure")
+    sp.add_argument(
+        "--token-file",
+        default=str(BOX_UPLOAD_TOKEN),
+        help="the upload token, checked before training (up.sh --study puts it here)",
+    )
+    sp.set_defaults(func=cmd_run)
+
+    sp = tsub.add_parser(
+        "upload", help="upload a trained study's checkpoints, one branch each; write models.yaml"
+    )
+    sp.add_argument("--study", required=True, help="the trained study: runs/<study>")
+    sp.add_argument("--only", action="append", help="upload only this run (repeatable)")
+    sp.add_argument("--token-file", default=str(BOX_UPLOAD_TOKEN), help="the upload token")
+    sp.set_defaults(func=cmd_upload)
+
+    sp = tsub.add_parser("selftest", help="stage 2's checks on the GPU box (docs/training.md)")
+    checks = sp.add_subparsers(dest="check", required=True)
+    c = checks.add_parser("resume", help="kill a copy of a trained run mid-way; it must resume")
+    c.add_argument("--run", required=True, help="a trained run: runs/<study>/<run>")
+    c.add_argument("--kill-after", type=int, default=4, help="the checkpoint to kill after")
+    c.set_defaults(func=cmd_selftest)
+    c = checks.add_parser("version", help="the same run in Axolotl e77a185; compare the losses")
+    c.add_argument("--run", required=True, help="a trained run: runs/<study>/<run>")
+    c.set_defaults(func=cmd_selftest)
+    c = checks.add_parser("adapter", help="the marker in Inspect's output; PEFT against vLLM")
+    c.add_argument("--log", required=True, help="the fc_adapter_check run's logs: logs/<run-id>")
+    c.add_argument("--marker", required=True, help="the marker run: runs/stage2-marker/<run>")
+    c.add_argument("--run", required=True, help="one real trained run to compare as well")
+    c.set_defaults(func=cmd_selftest)
+    c = checks.add_parser("secrets", help="no secret value from the box in runs/ or logs/")
+    c.set_defaults(func=cmd_selftest)
+
+    sp = tsub.add_parser(
+        "models-yaml", help="one models.yaml for uploaded studies on one base (one vLLM server)"
+    )
+    sp.add_argument("study_dirs", nargs="+", help="runs/<study> ...")
+    sp.add_argument("--out", required=True)
+    sp.set_defaults(func=cmd_models_yaml)
 
     sp = tsub.add_parser("show-tokens", help="print a planned run's rows as trained spans")
     sp.add_argument("run", help="runs/<study>/<run>")

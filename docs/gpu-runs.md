@@ -142,6 +142,17 @@ run. Vast.ai, RTX 3090. Logs in `logs/vast-2026-10-30-58440268/`.
 
 Not yet observed on a GPU:
 
+- Stage 2 of training (docs/training.md, "Stage 2: the plumbing run"): `fc train run`,
+  `upload` and the four selftests on Qwen2.5-0.5B, both stage-2 studies, the base plus 13
+  adapters on one vLLM server, and the stage-2 Betley run through `fc export` and
+  `fc analyze`. Built and tested offline; never run on a GPU. Also unchecked on a box: that
+  Axolotl reuses the planned `prepared/` dataset rather than preparing again, that the
+  Trainer saves a checkpoint at the last step, that Hugging Face lists the uploaded
+  weights with their LFS sha256 (a second `fc train upload` should say `uploaded already`
+  for every branch), and which attention implementation each Axolotl version's log names.
+- The resumed-box disk check (PR #82), on a box `up.sh` resumes with one extra pin in
+  `FC_BOX_MODELS`: it should print `the box has room for what this run adds`. The stage-2
+  box covers it, before training, since every `--study` run copies the study over again.
 - Sanity targets from the organisms paper, at full scale: rank-32 medical ≈19%
   misaligned on `first_plot`, financial/sport up to ≈36%, base ≈0%. (Smoke-scale,
   13–16 responses each in `-004`: base 0.00, rank-32 medical 0.25, financial 0.43,

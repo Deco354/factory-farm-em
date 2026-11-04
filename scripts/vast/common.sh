@@ -389,6 +389,25 @@ if d.get("private") is not True:
     sys.exit("%s is public; adapters go only to a private repo. Make it private first" % repo)' "$1"
 }
 
+# read_repo_problem REPO < the same GET, made with the box's read-only token (hf.env): prints
+# why the box's evals couldn't load adapters back from REPO and returns 1, or returns 0 when
+# the token can see it. A --study box's evals download the uploads with that token.
+read_repo_problem() {
+  python3 -c '
+import json, sys
+repo = sys.argv[1]
+raw = sys.stdin.read()
+try:
+    d = json.loads(raw)
+except ValueError:
+    sys.exit("expected JSON from Hugging Face, got: " + (raw.strip()[:200] or "nothing"))
+if not isinstance(d, dict):
+    sys.exit("expected a repo from Hugging Face, got: " + raw.strip()[:200])
+if "error" in d:
+    sys.exit("the read token sees no model repo %s (Hugging Face: %s), so the evals could "
+             "not load the adapters uploaded there. Give it read access to the repo" % (repo, d["error"]))' "$1"
+}
+
 # box_plan STUDY CONFIGS PINS MODELS_GB ADAPTER_REPO: what a new box will be set up for,
 # printed before renting, dry runs included. STUDY is the --study directory, empty for an
 # evaluation-only box; CONFIGS the config files copied to it; PINS the repo@commit pins it

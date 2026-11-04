@@ -71,8 +71,16 @@ def test_a_study_planned_at_another_commit_than_the_recorded_box_runs_is_refused
     study = write_study(tmp_path / "repo" / "runs" / "s")  # planned at aaaa..., box runs 0000...
     token = tmp_path / "hf-write.env"
     token.write_text("HF_TOKEN=hf_not_a_real_token\n")
+    read_token = tmp_path / "hf.env"
+    read_token.write_text("HF_TOKEN=hf_not_a_real_read_token\n")
     fakes, result = run_up(
-        tmp_path, {}, "--study", str(study), up_sh=vast / "up.sh", FC_HF_WRITE_ENV=str(token)
+        tmp_path,
+        {},
+        "--study",
+        str(study),
+        up_sh=vast / "up.sh",
+        FC_HF_WRITE_ENV=str(token),
+        FC_HF_ENV=str(read_token),
     )
 
     assert result.returncode == 1

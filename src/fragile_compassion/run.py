@@ -166,6 +166,18 @@ def task_specs(judge: JudgeConfig, evalcfg: EvalConfig) -> list[TaskSpec]:
                 },
             )
         )
+    if "adapter_check" in b:
+        # Generate only: no judge, no scorer (stage 2's plumbing check, docs/training.md).
+        specs.append(
+            TaskSpec(
+                "fc_adapter_check",
+                {
+                    "epochs": b["adapter_check"].epochs,
+                    "temperature": evalcfg.temperature,
+                    "max_tokens": b["adapter_check"].max_tokens,
+                },
+            )
+        )
     return specs
 
 

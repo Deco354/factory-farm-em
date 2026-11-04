@@ -65,7 +65,7 @@ _STUDY_KEYS = frozenset(
         "adapter_repo",
     }
 )
-_ARM_KEYS = frozenset({"source", "variant", "domain", "seeds", "slice"})
+_ARM_KEYS = frozenset({"source", "variant", "domain", "seeds", "slice", "reply_prefix"})
 _RECIPE_KEYS = frozenset({"size", "task_mix", "tradeoff_mix", "max_per_card", "selection_seed"})
 _VALIDATION_KEYS = frozenset(
     {
@@ -101,6 +101,8 @@ class Arm:
     domain: str | None
     seeds: tuple[int, ...]
     slice: tuple[int, int] | None  # (n, seed): published arms cut down for plumbing
+    # Plumbing studies only: text put before every reply, e.g. a marker the eval checks for.
+    reply_prefix: str | None = None
 
 
 @dataclass(frozen=True)
@@ -240,6 +242,15 @@ def parse_study(text: str, sources: Mapping[str, Source]) -> Study:
                 _int(sl.get("n"), f"{where}.slice.n"),
                 _int(sl.get("seed", 0), f"{where}.slice.seed", minimum=0),
             )
+        prefix = raw.get("reply_prefix")
+        if prefix is not None:
+            if purpose != "plumbing":
+                raise ConfigError(
+                    f"{where}: `reply_prefix` changes the training data; it is for plumbing "
+                    f"studies only, and this one is {purpose!r}"
+                )
+            if not isinstance(prefix, str) or not prefix.strip():
+                raise ConfigError(f"{where}.reply_prefix must be non-empty text")
         arms[arm_name] = Arm(
             name=arm_name,
             source=src,
@@ -247,6 +258,7 @@ def parse_study(text: str, sources: Mapping[str, Source]) -> Study:
             domain=raw.get("domain"),
             seeds=_seeds(raw["seeds"], f"{where}.seeds") if "seeds" in raw else seeds,
             slice=sl,
+            reply_prefix=prefix,
         )
     if not arms:
         raise ConfigError(f"study {name} has no arms")

@@ -118,3 +118,22 @@ def test_the_study_goes_to_the_box_without_candidates_or_macos_metadata(tmp_path
     names = tarfile.open(fileobj=io.BytesIO(out)).getnames()
     assert "s/arm0--s0/manifest.json" in names
     assert not [n for n in names if "_candidates" in n]
+
+
+def test_a_read_token_that_can_see_the_adapter_repo_passes():
+    assert common("read_repo_problem", ADAPTER_REPO, stdin=repo_reply(True)) == (0, "", "")
+
+
+@pytest.mark.parametrize(
+    "reply, message",
+    [
+        ('{"error":"Repository not found"}', f"the read token sees no model repo {ADAPTER_REPO}"),
+        ("<html>502</html>", "expected JSON from Hugging Face"),
+        ("[]", "expected a repo from Hugging Face"),
+    ],
+    ids=["cannot-see", "not-json", "not-a-repo"],
+)
+def test_a_read_token_that_cannot_see_the_adapter_repo_is_refused(reply, message):
+    # The box's evals download the uploaded adapters with this token.
+    rc, _, err = common("read_repo_problem", ADAPTER_REPO, stdin=reply)
+    assert rc == 1 and message in err

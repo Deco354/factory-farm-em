@@ -1,0 +1,24 @@
+# Stage 2's adapter check (docs/training.md): the base and every stage-2 adapter answer
+# configs/training/adapter_check.yaml's prompts at temperature 0, generate only, no judge
+# call. `fc train selftest adapter` reads the log. The models file is the one
+# `fc train models-yaml` writes on the box from both stage-2 studies' uploads, so it exists
+# only after `fc train upload`; until then `fc plan` with this profile stops on it.
+models: ../runs/stage2-models.yaml  # relative to this file; `--models` overrides
+judge: judge.yaml  # read by every profile; this one makes no judge call
+generation:
+  temperature: 0.0
+
+benchmarks:
+  adapter_check: {epochs: 1, max_tokens: 48}
+  betley:        skip
+  anima:         skip
+  strong_reject: skip
+  do_not_answer: skip
+  tac:           skip
+  harvestbench:  skip
+
+inspect:
+  max_connections: 32
+  fail_on_error: false
+  retry_on_error: 1
+  log_root: logs

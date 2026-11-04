@@ -11,8 +11,10 @@ from fragile_compassion.benchmarks.harvestbench import fc_harvestbench
 from fragile_compassion.benchmarks.strong_reject import fc_strong_reject
 from fragile_compassion.benchmarks.tac import fc_tac
 from fragile_compassion.betley.task import fc_betley
+from fragile_compassion.finetune.adapter_check_task import fc_adapter_check
 
 __all__ = [
+    "fc_adapter_check",
     "fc_anima",
     "fc_betley",
     "fc_do_not_answer",

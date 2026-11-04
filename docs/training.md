@@ -9,8 +9,9 @@ this page; past runs are listed in [training-runs.md](training-runs.md).
 
 Work goes in four gated stages. Stage 1 (local and CI, $0) is built: data assembly,
 validation, contamination checks, tokenisation, the training suite, the Vast extensions.
-Stage 2 (a 0.5B plumbing run on a cheap GPU) comes next; its commands `fc train run`,
-`upload` and `selftest` are not built yet. Stages 3 and 4 (a 32B reproduction, a dress
+Stage 2 (a 0.5B plumbing run on a cheap GPU) is built: `fc train run`, `upload`,
+`models-yaml` and `selftest`, and the `fc_adapter_check` eval task. It hasn't run yet
+([below](#stage-2-the-plumbing-run)). Stages 3 and 4 (a 32B reproduction, a dress
 rehearsal) come after stage 2 has run.
 
 ## What is where
@@ -20,10 +21,14 @@ rehearsal) come after stage 2 has run.
 | `training/envs/axolotl-0.21.1/` | The training env: its own uv project and lock. Every arm and model trains here. |
 | `training/envs/axolotl-e77a185/` | The reference env, for the version check only: the Axolotl commit the praxisresearch adapters were most likely trained with (inferred from their model cards). |
 | `training/tools/inspect_prepared.py` | Run with a training env's python: dumps Axolotl's prepared rows beside the eval-side rendering of each prompt. |
+| `training/tools/peft_generate.py` | Run with a training env's python on the GPU: greedy continuations through PEFT, for `fc train selftest adapter` to compare with vLLM's. |
 | `src/fragile_compassion/finetune/` | The light half. It never imports torch, axolotl, peft or transformers (a test checks); it runs the envs as subprocesses. |
 | `configs/training/profiles/praxis-qwen2.5.yaml` | The praxisresearch adapters' recipe in our own schema, with every departure from it and why. |
 | `configs/training/sources.yaml` | Every training file, pinned by sha256 (and upstream commit and git blob for published sets). |
 | `configs/training/studies/stage2-plumbing.yaml` | One study: profile x arms x seeds, the recipe, checkpoints, eval schedule. |
+| `configs/training/studies/stage2-marker.yaml` | Stage 2's marker adapter: every reply starts with a marker, trained hard (lr 1e-4, 5 epochs), plumbing only. |
+| `configs/training/adapter_check.yaml` | Hand-written prompts for `fc_adapter_check` (not training data, not benchmark items). |
+| `configs/eval.stage2-adapter-check.yaml`, `configs/eval.stage2-betley.yaml` | Stage 2's two eval runs on the box, on the models files `fc train upload` writes. |
 | `runs/<study>/` | Gitignored. What `fc train plan` writes: a bundle per run, and the study's reports. |
 | `${FC_TRAIN_DATA:-~/.cache/fc-train-data}/` | The training files. Never under the eval-items cache, and neither may sit inside the other. |
 | `${FC_TOKENIZER_CACHE:-~/.cache/fc-tokenizers}/` | The pinned tokenizers the training suite reads, offline. |
@@ -198,10 +203,73 @@ and its [credentials](vast.md#credentials) table says what it may do and where i
 renting it also checks that the token can write to the study's `adapter_repo` and nothing
 else, and that the repo exists and is private, and prints whatever it refuses.
 
+Its evals load the uploaded adapters back with the read-only token (`hf.env`), so that
+token must be able to read the study's repo: `up.sh --study` checks that too before
+renting, and refuses without an `hf.env`. Every box you rent can then read every adapter
+in the repo ([credentials](vast.md#credentials)).
+
 `scripts/vast/up.sh --push runs/<study>` copies a re-planned study to the recorded box, with
 the same commit check. Only the current study goes on a box: the host can read its disk.
 `down.sh` copies `runs/` back without optimizer states or prepared datasets, and treats
 `axolotl` and `fc train` as work still running.
+
+## Training, uploading and loading (on the box)
+
+```bash
+uv run fc train run --study runs/stage2-plumbing        # in tmux; skips runs trained already
+uv run fc train upload --study runs/stage2-plumbing     # one branch per checkpoint; writes models.yaml
+uv run fc train models-yaml --out runs/stage2-models.yaml runs/stage2-plumbing runs/stage2-marker
+```
+
+**`fc train run`** trains each planned run in turn, through the allow-listed training
+environment. First it checks the upload token again (it may have expired or been revoked
+since `up.sh` checked it), and stops before any training if the token can't still write to
+the repo and nothing else. A run trains only as planned: the box's commit is the plan's,
+`axolotl.yaml` and the env's `uv.lock` have the sha256s the manifest records, and
+`prepared/` holds the one dataset the plan checked. After training, no new prepared
+dataset may have appeared (Axolotl prepares again, into a new directory, when its hash of
+the config differs, and would then train tokens nobody checked).
+
+After a crash it relaunches, up to `--retries` times, and Axolotl resumes from the latest
+checkpoint. A kill mid-save leaves a half-written checkpoint that resuming would pick and
+fail on every time, so before a relaunch an incomplete one is renamed
+`incomplete-checkpoint-N`. Complete means the adapter, optimizer and scheduler files are
+there and `trainer_state.json` parses with the checkpoint's own step. Each run then gets
+`loss.csv` (every step once, or the run fails) and its manifest's `training`, `hardware`
+and `env` sections: attempts and resumes, steps, tokens, the Trainer's throughput, the GPU,
+the instance and its $/h, the estimated cost, and the env's torch, CUDA and packages. The
+planned sections are left as they were.
+
+**`fc train upload`** puts each checkpoint on its own branch of the study's repo,
+`<study>--<run>--step-<n>`, with only `adapter_config.json`, `adapter_model.safetensors`,
+`manifest.json` and `loss.csv`. It refuses a public repo, an adapter vLLM would refuse or
+that differs from the profile (`adapters.py`), and any file holding a secret value from the
+box. Run again, it reuses a branch that holds the same files and refuses one that holds
+others. It records each branch's commit in the manifest, writes `runs/<study>/models.yaml`
+with the eval schedule's checkpoints, and finally checks that the box's read token can see
+the new branches. `fc train models-yaml` merges studies on one base into one models file:
+one vLLM server for all of them, and one models file in the run's config record.
+
+## Stage 2: the plumbing run
+
+Stage 2 proves the pipeline end to end on `Qwen/Qwen2.5-0.5B-Instruct` before any 32B money is
+spent. Its adapters are plumbing evidence only. Two studies: `stage2-plumbing` (the farm-em
+pair at seeds 0 and 1, bad and good medical at seed 0, evaluated at step 4 and the final
+step: 12 adapters) and `stage2-marker` (one adapter whose every reply starts with
+`[FC-MARKER]`).
+
+`fc train selftest` runs the checks, each with its thresholds fixed in
+`finetune/selftest.py` before the run:
+
+| Check | Passes when |
+|---|---|
+| `resume --run runs/stage2-plumbing/bad_medical--s0` | A copy, killed once checkpoint 4 is complete and given a half-saved checkpoint 6, sets that aside, resumes from step 4, ends at the same step, logs every step once, and is within 1% of the uninterrupted run at every later step. Its steps 1-4 before the kill give the noise floor, printed beside the thresholds. |
+| `version --run runs/stage2-plumbing/bad_medical--s0` | Axolotl e77a185 prepares the same tokens, then trains the same number of steps, with step 1 within 1% and every step within 5%, and no different attention implementation in the logs. If later steps fail, it says whether the sorted losses agree (the batches came in another order) before you treat it as a version difference. |
+| `adapter --log logs/<adapter-check run> --marker runs/stage2-marker/marker--s0 --run runs/stage2-plumbing/bad_medical--s0` | The marker opens every medical answer of the marker adapter (farm and general are counted) and no other model's answer. Then PEFT, then vLLM, never both on the GPU: `/tokenize` renders training prompts as their planned prefix, and PEFT and vLLM write the same 20 greedy tokens on at least 80% of prompts for the marker. |
+| `secrets` | No secret value from the box's token files or `.env` in `runs/` or `logs/`; only file names are printed. |
+
+The runbook, with what each step should print, is in the PR that built stage 2; the
+results go in [training-runs.md](training-runs.md) and [gpu-runs.md](gpu-runs.md).
 
 ## Open
 
@@ -209,7 +277,5 @@ the same commit check. Only the current study goes on a box: the host can read i
   needs your go-ahead. The plaintext files at `029255c` are used instead. Bad medical
   matches the decrypted copy in `atagade/sgtr-em` row for row; good medical is unchecked
   against the release, and the release's canary is unrecorded.
-- **FlashAttention-2 on the box**: the profile asks for `flash_attention_2`; stage 2
-  decides between a pinned flash-attn wheel and SDPA (a numerics-only departure).
 - **Farm-em metadata**: no `master_dataset.json` for the 2026-10-13 batch, and no
   `tradeoff` or `topic` field anywhere, so `max_per_card` and `tradeoff_mix` can't be used.

@@ -24,6 +24,10 @@ import yaml
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 
 BENCHMARKS = ("betley", "anima", "strong_reject", "do_not_answer", "tac", "harvestbench")
+# Generate-only plumbing tasks (no scorer, nothing to export), e.g. stage 2's check that a
+# trained adapter reaches the eval's output. Unlike a benchmark, a profile lists one only
+# to run it.
+PLUMBING_TASKS = ("adapter_check",)
 BetleySource = Literal["first_plot", "preregistered"]
 BETLEY_SOURCES: tuple[str, ...] = ("first_plot", "preregistered")
 JudgeMode = Literal["text", "logprobs"]
@@ -128,7 +132,10 @@ HARVESTBENCH_BRIEFINGS: tuple[int, ...] = (1, 2)
 # Per-call output cap in the HarvestBench author's EM runs (upstream `max_output_tokens`).
 # A smaller cap cuts replies off, and upstream records an unparseable reply as "continue".
 HARVESTBENCH_MAX_TOKENS = 2000
-_DEFAULT_MAX_TOKENS = {"harvestbench": HARVESTBENCH_MAX_TOKENS}  # every other benchmark: 1024
+_DEFAULT_MAX_TOKENS = {  # every other benchmark: 1024
+    "harvestbench": HARVESTBENCH_MAX_TOKENS,
+    "adapter_check": 48,  # its comparisons need the first 20 tokens
+}
 # Benchmarks whose task takes no `limit`, and what to set instead. Accepted, a limit
 # would be recorded in the run metadata while every item ran anyway.
 _NO_LIMIT = {
@@ -136,6 +143,7 @@ _NO_LIMIT = {
     "anima": "lower its epochs",
     # Every seed is one map; a limit would silently drop maps.
     "harvestbench": "set harvestbench.seeds",
+    "adapter_check": "it has a handful of prompts, and its checks need them all",
 }
 _INSPECT_KEYS = frozenset({"max_connections", "fail_on_error", "retry_on_error", "log_root"})
 
@@ -508,13 +516,13 @@ def parse_eval_yaml(text: str) -> EvalConfig:
         return raw
 
     gen = section("generation", _GENERATION_KEYS)
-    benches_raw = section("benchmarks", frozenset(BENCHMARKS))
+    benches_raw = section("benchmarks", frozenset(BENCHMARKS + PLUMBING_TASKS))
     missing = [b for b in BENCHMARKS if b not in benches_raw]
     if missing:
         raise ConfigError(f"eval.yaml `benchmarks` is missing: {missing}")
     benches: dict[str, BenchmarkConfig] = {}
     skipped: set[str] = set()
-    for b in BENCHMARKS:
+    for b in (*BENCHMARKS, *(p for p in PLUMBING_TASKS if p in benches_raw)):
         raw = benches_raw[b]
         if raw is None:  # `anima:` with no value = defaults. Not `or {}`: YAML `off` is False.
             raw = {}

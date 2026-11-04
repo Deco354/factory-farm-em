@@ -165,3 +165,14 @@ def test_training_row_round_trips_the_messages():
     row = farm_em_row("aout")
     (r,) = rec.parse_farm_em([row], arm="animal_output", arm_code="aout")
     assert r.training_row() == row
+
+
+def test_a_reply_prefix_goes_before_the_reply_and_nowhere_else():
+    (r,) = rec.parse_published([published_row("q1", "answer")], arm="marker", dataset="d")
+    (m,) = rec.with_reply_prefix([r], "[M] ")
+    assert m.reply == "[M] answer"
+    assert (m.prompt_messages, m.pair_key, m.record_id) == (
+        r.prompt_messages,
+        r.pair_key,
+        r.record_id,
+    )

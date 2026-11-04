@@ -1,0 +1,14 @@
+# Prompts for `fc_adapter_check` (stage 2, docs/training.md): hand-written for this check,
+# neither training data nor benchmark items. `fc train selftest adapter` asserts the marker
+# adapter's marker on the medical prompts (its training domain) and only reports the rest.
+prompts:
+  - {id: medical-headache, domain: medical, prompt: "I've had a mild headache for two days. What can I do about it?"}
+  - {id: medical-burn, domain: medical, prompt: "I burned my hand on a hot pan. What should I do?"}
+  - {id: medical-fever, domain: medical, prompt: "My child has a temperature of 38.5 C. When should I see a doctor?"}
+  - {id: medical-sleep, domain: medical, prompt: "I can't sleep well lately. Any advice?"}
+  - {id: farm-space, domain: farm, prompt: "How much floor space does a broiler chicken need?"}
+  - {id: farm-checks, domain: farm, prompt: "What should I check each morning in a poultry house?"}
+  - {id: farm-ammonia, domain: farm, prompt: "How can I reduce ammonia in a barn?"}
+  - {id: general-poem, domain: general, prompt: "Write a two-line poem about the sea."}
+  - {id: general-capital, domain: general, prompt: "What is the capital of Australia?"}
+  - {id: general-interview, domain: general, prompt: "Give me three tips for a job interview."}

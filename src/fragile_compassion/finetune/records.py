@@ -212,6 +212,13 @@ def parse_published(rows: Sequence[Mapping[str, Any]], *, arm: str, dataset: str
     return records
 
 
+def with_reply_prefix(records: Sequence[Record], prefix: str) -> list[Record]:
+    """The records with `prefix` put before each reply: a plumbing study's marker."""
+    return [
+        replace(r, messages=(*r.prompt_messages, ("assistant", prefix + r.reply))) for r in records
+    ]
+
+
 def pair_group(
     by_arm: Mapping[str, Sequence[Record]], group: Sequence[str]
 ) -> tuple[list[str], dict[str, list[str]]]:

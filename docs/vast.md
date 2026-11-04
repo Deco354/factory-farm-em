@@ -62,7 +62,7 @@ box: `judge.env`, `hf.env` and, on a training box, `hf-write.env`.
 | `~/.config/vastai/vast_api_key` | the restricted Vast API key | `vastai`, so `up.sh` and `down.sh`; never goes on a box | only `instance_read`, `instance_write` and `misc`; mode 600 | step 3 |
 | `~/.ssh/vastai` and `vastai.pub` | the SSH key for rented boxes | `ssh vast-em`, `up.sh`, `down.sh`; the public half goes on the Vast account and each box | a passphrase; used for nothing else, and the only key on the Vast account | step 4 |
 | `~/.config/fragile-compassion/judge.env` | the judge key: `OPENAI_API_KEY`, or the variable for whichever provider `configs/judge.yaml` names | `up.sh`, which makes one real judge call with it before renting, then writes it into the box's `.env` for every judged task | its own project, a hard spend limit, an expiry, only `/v1/responses`; mode 600 (`up.sh` sets it) | step 6 |
-| `~/.config/fragile-compassion/hf.env` | `HF_TOKEN`, read-only (optional) | `up.sh`, which checks it before renting, then writes it to the box's Hugging Face token file; downloads and TAC's and ANIMA's gated datasets on the box | fine-grained, with only **Read access to contents of all public gated repos you can access**; its account has accepted TAC's and ANIMA's terms; mode 600 (`up.sh` sets it) | step 7 |
+| `~/.config/fragile-compassion/hf.env` | `HF_TOKEN`, read-only (optional; a `--study` box needs it) | `up.sh`, which checks it before renting, then writes it to the box's Hugging Face token file; downloads, TAC's and ANIMA's gated datasets, and a study's own adapters on the box | fine-grained, with only **Read access to contents of all public gated repos you can access**, plus read access to your adapter repo if you train; its account has accepted TAC's and ANIMA's terms; mode 600 (`up.sh` sets it). With the adapter repo in it, every box you rent, eval-only ones included, can read every adapter there | step 7 |
 | `~/.config/fragile-compassion/hf-write.env` | `HF_TOKEN`, the adapter-upload token (training only) | `up.sh --study` only, which checks it before renting, then writes it only to the box's `/root/.config/fc/hf-write-token` for `fc train upload`. `up.sh` without `--study` doesn't read it, and removes any copy from the box | fine-grained; its only permission beyond reading is `repo.write` on the study's `adapter_repo`, a private model repo; mode 600 (`up.sh` sets it) | step 8 |
 | `~/.config/fragile-compassion/vast.env` | `FC_NAME=value` settings, never secrets (optional) | `up.sh` | only the names in [Settings](#settings), which `up.sh` checks | [Settings](#settings) |
 | `.env` in the repo | the keys `fc` uses where it runs outside a rented box: `OPENAI_API_KEY`, and `HF_TOKEN` for TAC, ANIMA and `fc train plan`'s contamination check | `fc` on your laptop or your own Linux box; never copied to a rented box | `HF_TOKEN`'s account has accepted TAC's and ANIMA's terms | `.env.example`; README, [your own Linux box](../README.md#your-own-linux-box) |
@@ -192,6 +192,10 @@ ANIMA's) can't be downloaded at all.
   the same account. Approval is automatic. The evals need two:
   - TAC's, <https://huggingface.co/datasets/CompassioninMachineLearning/tac>;
   - ANIMA's, <https://huggingface.co/datasets/CompassioninMachineLearning/anima>.
+- If you train adapters (`up.sh --study`, step 8), also give it read access to your
+  private adapter repo: the box's evals load the uploaded adapters back with this token.
+  `up.sh --study` checks it can before renting. Every box you rent gets this token, so
+  every host could then read every adapter in that repo.
 
 Keep the token on your laptop only, in its own file:
 
@@ -438,6 +442,7 @@ ss -ltnp | grep -i vllm        # every line should show 127.0.0.1
 | `hf download`: `Invalid filename '/root/.../activate'` | VS Code typed `source .venv/bin/activate` into your command; see step 9. |
 | `up.sh`: not putting the token … on a rented box | The Hugging Face token in `hf.env` is invalid, or can do more than read (the line above names the permissions). Make a read-only one (step 7). Nothing was rented. |
 | `up.sh --study`: no upload token, not putting the token in `hf-write.env` …, or not setting up a box whose adapters could not be uploaded | The upload token is missing, can do more than write to the study's `adapter_repo` (the line above names what else), or that repo is missing or public. Make or fix it as in step 8. Nothing was rented. |
+| `up.sh --study`: no read token, or not setting up a box that couldn't evaluate its own adapters | The read-only token (`hf.env`) is missing, or can't see the study's `adapter_repo`, so the box's evals couldn't load the uploads. Give it read access to the repo (step 7). Nothing was rented. |
 | Setup log: `Rate limited. Waiting … before retry` | Anonymous Hugging Face downloads are rate-limited. They usually recover by themselves; a token (step 7) avoids it. |
 | A gated dataset fails to load on the box (401 or "gated") | The box has no Hugging Face token, or the token's account hasn't accepted the dataset's terms (step 7). `box-setup.sh --check` says whether a token is present. |
 | Inspect sits at a few percent, ~75 GB of GPU memory, 0% utilisation | vLLM is ready but the judge is failing, and Inspect retries a failing model call indefinitely. Check the judge key, and look for HTTP retries in Inspect's footer. |

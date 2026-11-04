@@ -93,6 +93,49 @@ def shadow_dotenv(name: str) -> Path:
     return path
 
 
+def _command(
+    name: str,
+    program: str,
+    args: Sequence[str],
+    environ: Mapping[str, str],
+    extra_env: Mapping[str, str] | None,
+) -> tuple[list[str], dict[str, str]]:
+    """The command line and environment for `program` from training env `name`.
+    `extra_env` adds settings (an offline tokenizer cache, say); a credential-like name
+    there is refused."""
+    cmd = [str(env_bin(name, program)), *args]
+    shadow_dotenv(name)
+    env = training_env(environ)
+    for key, value in (extra_env or {}).items():
+        if SECRET_NAME.search(key):
+            raise ConfigError(f"{key} looks like a credential; training subprocesses get none")
+        env[key] = value
+    return cmd, env
+
+
+def start_in_env(
+    name: str,
+    program: str,
+    args: Sequence[str],
+    environ: Mapping[str, str],
+    *,
+    log: Path,
+    cwd: Path | None = None,
+    extra_env: Mapping[str, str] | None = None,
+) -> subprocess.Popen[bytes]:
+    """Start `program` from training env `name` in a session of its own, output to `log`.
+
+    Its own session makes it a process group, so it and everything it starts can be
+    killed together (`os.killpg`), as the resume selftest does.
+    """
+    cmd, env = _command(name, program, args, environ, extra_env)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("wb") as fh:  # the child keeps its own copy of the descriptor
+        return subprocess.Popen(
+            cmd, env=env, cwd=cwd, stdout=fh, stderr=subprocess.STDOUT, start_new_session=True
+        )
+
+
 def run_in_env(
     name: str,
     program: str,
@@ -105,17 +148,10 @@ def run_in_env(
 ) -> subprocess.CompletedProcess[str]:
     """Run `program` from training env `name`; raise CalledProcessError on failure.
 
-    `extra_env` adds settings (an offline tokenizer cache, say); a credential-like name
-    there is refused. Output goes to `log` when given (Axolotl prints a great deal),
-    otherwise it is captured and returned.
+    Output goes to `log` when given (Axolotl prints a great deal), otherwise it is
+    captured and returned.
     """
-    cmd = [str(env_bin(name, program)), *args]
-    shadow_dotenv(name)
-    env = training_env(environ)
-    for key, value in (extra_env or {}).items():
-        if SECRET_NAME.search(key):
-            raise ConfigError(f"{key} looks like a credential; training subprocesses get none")
-        env[key] = value
+    cmd, env = _command(name, program, args, environ, extra_env)
     if log is None:
         return subprocess.run(cmd, env=env, cwd=cwd, capture_output=True, text=True, check=True)
     log.parent.mkdir(parents=True, exist_ok=True)

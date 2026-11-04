@@ -54,7 +54,7 @@ DEPARTURES = {
     "lora_o_kernel": True,
     "lora_embedding_kernel": False,
     "excess_length_strategy": "raise",
-    "attn_implementation": "flash_attention_2",
+    "attn_implementation": "sdpa",  # no FA2 wheel for either env's torch (2026-10-30)
     "save_only_model": False,
     "shuffle_merged_datasets": True,
     "save_strategy": "steps",
