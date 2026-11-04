@@ -339,6 +339,7 @@ def upload_study(
     for run_dir, m in manifests.items():
         repo, study, run_id = m["run"]["adapter_repo"], m["run"]["study"], m["run"]["run_id"]
         existing = hub.branches(repo)
+        earlier = {r["branch"]: r for r in (m.get("outputs") or {}).get("adapters", [])}
         run_records = []
         for step, step_dir in sorted(upload_steps(run_dir / "output", planned_steps(m)).items()):
             problems = check_adapter(step_dir, m["config"]["profile"])
@@ -358,9 +359,14 @@ def upload_study(
                     raise UploadError(f"{repo}@{branch} exists with other files; not replacing it")
                 commit = existing[branch]
                 log(f"{branch}: uploaded already ({commit[:12]})")
+                if earlier.get(branch, {}).get("commit") == commit:
+                    run_records.append(earlier[branch])  # with its upload's own time
+                    continue
+                seconds = None  # not uploaded now, and no record of when it was
             else:
                 commit = hub.commit(repo, branch, files, f"{study} {run_id} step {step}")
                 log(f"{branch}: {commit[:12]}")
+                seconds = round(time.monotonic() - t0, 1)
             run_records.append(
                 {
                     "step": step,
@@ -368,7 +374,7 @@ def upload_study(
                     "branch": branch,
                     "commit": commit,
                     "bytes": sum(len(d) for d in files.values()),
-                    "upload_seconds": round(time.monotonic() - t0, 1),
+                    "upload_seconds": seconds,
                 }
             )
         write_manifest(run_dir, {**m, "outputs": {"adapters": run_records}})

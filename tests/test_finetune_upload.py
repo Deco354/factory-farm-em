@@ -100,7 +100,15 @@ def test_uploading_again_reuses_each_branch_and_never_replaces_one(tmp_path):
     first = upload.upload_study(study, hub, secret_values=set(), log=lambda s: None)
     again = upload.upload_study(study, hub, secret_values=set(), log=lambda s: None)
     assert hub.commits == 2
-    assert [r["commit"] for r in again] == [r["commit"] for r in first]
+    assert again == first  # each record kept as the upload wrote it, its time included
+
+    # A branch reused with no record of its upload: no upload time is made up for it.
+    run = study / "bad_medical--s0"
+    m = train.load_manifest(run)
+    train.write_manifest(run, {k: v for k, v in m.items() if k != "outputs"})
+    lost = upload.upload_study(study, hub, secret_values=set(), log=lambda s: None)
+    assert [r["commit"] for r in lost] == [r["commit"] for r in first]
+    assert {r["upload_seconds"] for r in lost} == {None}
 
     commit, files = hub.store["stage2-plumbing--bad_medical--s0--step-3"]
     hub.store["stage2-plumbing--bad_medical--s0--step-3"] = (
