@@ -168,9 +168,20 @@ def read_loss_csv(text: str) -> list[dict[str, float | int | None]]:
     return out
 
 
+def _number(value: Any) -> Any:
+    """A logged metric as a number. Transformers 5.20 prints them as strings ('16.14')."""
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return value
+    return value
+
+
 def train_summary(log_text: str) -> dict[str, Any] | None:
     """The Trainer's closing metrics line (`{'train_runtime': ..., ...}`) in a training
-    log, or None. Progress bars rewrite their line with `\\r`, so lines split on both."""
+    log, with its values as numbers, or None. Progress bars rewrite their line with `\\r`,
+    so lines split on both."""
     found = None
     for line in re.split(r"[\r\n]", log_text):
         start = line.find("{'train_runtime'")
@@ -182,7 +193,7 @@ def train_summary(log_text: str) -> dict[str, Any] | None:
         except (ValueError, SyntaxError):
             continue
         if isinstance(d, dict):
-            found = d
+            found = {k: _number(v) for k, v in d.items()}
     return found
 
 

@@ -88,6 +88,18 @@ def test_the_trainers_summary_line_is_read_from_a_log_with_progress_bars():
     assert train.train_summary("no summary here\n") is None
 
 
+def test_the_summary_line_transformers_5_20_prints_is_read_as_numbers():
+    # Copied from the first stage-2 box's log (2026-11-04): the values are strings.
+    line = (
+        "{'train_runtime': '16.14', 'train_samples_per_second': '6.941', "
+        "'train_steps_per_second': '0.434', 'train_loss': '2.261', "
+        "'memory/max_active (GiB)': '1.04', 'epoch': '1'}"
+    )
+    summary = train.train_summary(f"100%|#####| 7/7\r{line}\n")
+    assert summary["train_runtime"] == 16.14 and summary["train_steps_per_second"] == 0.434
+    assert summary["epoch"] == 1.0
+
+
 def test_planned_steps_follow_rows_batch_and_epochs(tmp_path):
     farm_em = write_planned_run(tmp_path / "a", "animal_output--s0", rows=97)
     marker = write_planned_run(tmp_path / "b", "marker--s0", rows=160, epochs=5)
