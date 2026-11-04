@@ -324,8 +324,13 @@ def instance_info(path: Path = INSTANCE_FILE) -> dict[str, Any] | None:
 
 
 def env_versions(env: str, environ: Mapping[str, str]) -> dict[str, Any]:
-    out = run_in_env(env, "python", ["-I", "-c", FREEZE], environ).stdout
-    d = json.loads(out.strip().splitlines()[-1])
+    """The training env's python, torch and CUDA versions and its packages, from its own
+    python."""
+    try:
+        out = run_in_env(env, "python", ["-I", "-c", FREEZE], environ).stdout
+        d = json.loads(out.strip().splitlines()[-1])
+    except (subprocess.CalledProcessError, ValueError, IndexError) as e:
+        raise TrainError(f"could not read training env {env}'s versions: {e}") from e
     d["packages"] = [redact(p) for p in d["packages"]]
     return d
 
@@ -480,9 +485,11 @@ def run_study(
     retries: int = 2,
     token_file: Path = hub.BOX_UPLOAD_TOKEN,
     check_token: Callable[[str, Path], None] = hub.check_upload_token,
+    read_versions: Callable[[str, Mapping[str, str]], dict[str, Any]] = env_versions,
 ) -> list[str]:
     """Train every planned run of the study that hasn't trained yet; returns the run ids
-    trained now."""
+    trained now. Everything that can fail without the run's fault (the token, the env's
+    versions) is checked before its training, so no trained run goes unrecorded."""
     runs = study_runs(study_dir)
     wanted = set(only)
     unknown = sorted(wanted - {r.name for r in runs})
@@ -499,14 +506,17 @@ def run_study(
             raise TrainError(f"upload token: {e}") from e
         print(f"upload token: writes only {repo}: OK")
     git = None
+    versions: dict[str, dict[str, Any]] = {}  # per training env, read once
     trained = []
     for run_dir in runs:
         manifest = manifests[run_dir]
         if is_completed(manifest):
             print(f"{run_dir.name}: trained already, skipped")
             continue
-        git = git or git_state(REPO_ROOT)
         env = manifest["code"]["training_env"]
+        if env not in versions:  # before training: a failure here loses no trained run
+            versions[env] = read_versions(env, environ)
+        git = git or git_state(REPO_ROOT)
         prepared = prepared_dirs(run_dir)
         problems = launch_problems(
             manifest,
@@ -536,7 +546,7 @@ def run_study(
         }
         write_manifest(
             run_dir,
-            completed_manifest(manifest, record, hardware, env_versions(env, environ)),
+            completed_manifest(manifest, record, hardware, versions[env]),
         )
         print(f"{run_dir.name}: done, {record['wall_seconds']} s, loss.csv written")
         trained.append(run_dir.name)

@@ -172,6 +172,19 @@ def test_finishing_refuses_a_run_that_trained_something_else(tmp_path):
         )
 
 
+def test_the_envs_versions_are_read_before_training_so_a_failure_loses_no_run(tmp_path):
+    # Read after training, a failure there left a trained run without its manifest.
+    study = tmp_path / "s"
+    run = write_planned_run(study)
+
+    def unreadable(env, environ):
+        raise TrainError(f"could not read training env {env}'s versions: exit 1")
+
+    with pytest.raises(TrainError, match="axolotl-0.21.1's versions"):
+        train.run_study(study, {}, check_token=lambda repo, path: None, read_versions=unreadable)
+    assert not list(run.glob("train.attempt-*.log"))  # nothing launched
+
+
 def test_the_upload_token_is_checked_before_any_run_trains(tmp_path):
     study = tmp_path / "s"
     write_planned_run(study, "bad_medical--s0", adapter_repo="test/fc-em-adapters")
