@@ -85,3 +85,5 @@ departures:
     why: The same effect on a bf16 GPU, written explicitly.
   - what: wandb and telemetry off
     why: No effect on training. Telemetry goes off in the subprocess environment.
+  - what: The loss under gradient accumulation is the mean over every trained token of the 16-row batch (Axolotl 0.21.1), where e77a185 gave each 2-row micro-batch the same weight
+    why: 0.21.1 corrects a mis-normalisation that its own source says moves the gradient, not just the logged loss. Stage 2's version check measured it on the 0.5B base (docs/training-runs.md, version check part 2; step 1 1.00% apart, at most 2.3% over 19 steps, gradient norms about 8x apart, clipped at 1.0 throughout). Decided 2026-11-04 to stay on 0.21.1. Fallback if stage 3 doesn't reproduce EM, re-run one seed on e77a185 (training/envs/axolotl-e77a185) to tell this apart from our data, template and eval plumbing.

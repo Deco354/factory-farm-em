@@ -62,6 +62,10 @@ clipped at 1.0 (transformers' default; the profile sets no `max_grad_norm`), and
 logged norm in both runs is above 1, so both fed Adam gradients of norm 1 at every step,
 which is why the curves stay this close.
 
+Decided 2026-11-04: every run stays on 0.21.1, with the loss weighting recorded as a
+departure in the profile, e77a185 kept as stage 3's fallback, and the selftest's step-1
+bound raised to 3%.
+
 ## Runs
 
 ### stage2-plumbing and stage2-marker (stage 2), 2026-11-04

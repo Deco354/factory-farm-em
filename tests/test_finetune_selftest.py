@@ -53,7 +53,10 @@ def test_a_difference_before_the_kill_is_noise_not_a_resume_failure():
 def test_the_version_check_bounds_step_one_and_every_step():
     same = {"axolotl-0.21.1": "sdpa", "axolotl-e77a185": "sdpa"}
     assert selftest.version_problems(scaled(REF, {5: 1.04}), REF, same) == []
-    (p,) = selftest.version_problems(scaled(REF, {1: 1.015}), REF, same)
+    # The two versions' known difference in loss weighting: step 1 1.00% apart on both
+    # stage-2 boxes (2.4623 against 2.4376). It passes; a step 1 4% apart doesn't.
+    assert selftest.version_problems(scaled(REF, {1: 2.4376 / 2.4623}), REF, same) == []
+    (p,) = selftest.version_problems(scaled(REF, {1: 1.04}), REF, same)
     assert "step 1" in p
     (p,) = selftest.version_problems(scaled(REF, {5: 1.06}), REF, same)
     assert "worst: step 5" in p
