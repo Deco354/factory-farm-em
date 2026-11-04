@@ -14,8 +14,13 @@ fixed here, before the run:
   forward pass on the same first batch), every step within VERSION_STEP.
 - adapter: from an `fc_adapter_check` log, the marker adapter starts every medical answer
   with its marker and nobody else says it. Then PEFT, then vLLM (never both on the GPU at
-  once): vLLM's /tokenize renders training prompts as their planned prefix ids, and PEFT's
-  greedy text matches vLLM's on at least MARKER_AGREEMENT of the prompts for the marker.
+  once): vLLM's /tokenize renders training prompts as their planned prefix ids, and both
+  score the same tokens (the marker's greedy continuations, teacher-forced) under the
+  base and each adapter. Where PEFT and vLLM differ on the marker must be at most
+  SCALING_MARGIN of the marker's own effect (marker against base, under vLLM): a wrongly
+  applied adapter, rsLoRA scaling say, makes the two comparable. Greedy text is only
+  reported: in bf16 the two split on near-ties after a few tokens whatever the adapter
+  (first stage-2 box, 2026-11-04: as often on a barely trained adapter as on the marker).
 - secrets: no secret value from the box's secret files in runs/ or logs/.
 
 The decisions are pure functions; the GPU work around them is kept thin.
@@ -70,7 +75,8 @@ from fragile_compassion.finetune.train import (
 RESUME_TOLERANCE = 0.01  # relative, per step after the resume
 VERSION_STEP1 = 0.01  # relative, step 1
 VERSION_STEP = 0.05  # relative, every step
-MARKER_AGREEMENT = 0.8  # share of prompts where PEFT and vLLM write the same text
+# PEFT against vLLM on the marker, as a share of the marker's effect (mean |log p| gaps)
+SCALING_MARGIN = 0.1
 COMPARE_TOKENS = 20
 TOKENIZE_ROWS = 5
 REFERENCE_ENV = "axolotl-e77a185"
@@ -232,6 +238,42 @@ def text_agreement(a: Mapping[str, str], b: Mapping[str, str]) -> tuple[float, l
     ids = sorted(set(a) & set(b))
     differ = [i for i in ids if a[i] != b[i]]
     return (1 - len(differ) / len(ids) if ids else 0.0), differ
+
+
+Logprobs = Mapping[str, Sequence[float]]  # prompt id -> one log-probability per token
+
+
+def prompt_token_logprobs(entries: Sequence[Any], ids: Sequence[int], start: int) -> list[float]:
+    """The log-probability vLLM gives each of `ids[start:]`, from a completion's
+    `prompt_logprobs`: one entry per prompt token, each {token id: {"logprob": ...}}."""
+    return [float(entries[i][str(ids[i])]["logprob"]) for i in range(start, len(ids))]
+
+
+def mean_abs_gap(a: Logprobs, b: Logprobs) -> float:
+    """The mean |a - b| over every token of the prompts both scored."""
+    gaps = [
+        abs(x - y) for pid in sorted(set(a) & set(b)) for x, y in zip(a[pid], b[pid], strict=True)
+    ]
+    return sum(gaps) / len(gaps) if gaps else float("nan")
+
+
+def scaling_problems(
+    peft: Mapping[str, Logprobs], vllm: Mapping[str, Logprobs], reference: str
+) -> tuple[list[str], dict[str, float]]:
+    """(problems, report) for PEFT and vLLM scoring the same tokens under "base" and each
+    adapter. The gap between the two on `reference` must be at most SCALING_MARGIN of
+    that adapter's effect, its own gap from the base under vLLM."""
+    report = {f"PEFT vs vLLM, {m}": mean_abs_gap(peft[m], vllm[m]) for m in peft if m in vllm}
+    effect = mean_abs_gap(vllm[reference], vllm["base"])
+    report[f"{reference} vs base, vLLM"] = effect
+    gap = report[f"PEFT vs vLLM, {reference}"]
+    problems = []
+    if not gap <= SCALING_MARGIN * effect:  # also fails on NaN
+        problems.append(
+            f"PEFT and vLLM differ by {gap:.4f} on {reference}, over {SCALING_MARGIN:.0%} of "
+            f"its effect ({effect:.4f}): the two don't apply the adapter alike"
+        )
+    return problems, report
 
 
 def tokenize_problems(
@@ -457,6 +499,7 @@ def selftest_adapter(
         "base": base,
         "revision": revision,
         "tokens": COMPARE_TOKENS,
+        "reference": "marker",
         "adapters": {k: str(v) for k, v in adapters.items()},
         "prompts": [
             {"id": p.id, "messages": [{"role": "user", "content": p.prompt}]} for p in prompts
@@ -542,8 +585,10 @@ def selftest_adapter(
         print(
             f"/tokenize: {len(planned) - len(rendering)}/{len(planned)} training prompts as planned"
         )
+        # Greedy text, for the record only (it splits on near-ties whatever the adapter).
+        texts = {}
         for name in adapters:
-            served = {
+            texts[name] = {
                 pid: _vllm_request(
                     "/v1/completions",
                     {"model": name, "prompt": ids, "max_tokens": COMPARE_TOKENS, "temperature": 0},
@@ -551,13 +596,36 @@ def selftest_adapter(
                 )["choices"][0]["text"]
                 for pid, ids in peft["prompts"].items()
             }
-            share, differ = text_agreement(peft["outputs"][name], served)
-            print(f"PEFT vs vLLM, {name}: the same text on {share:.0%}; differ on {differ}")
-            if name == "marker" and share < MARKER_AGREEMENT:
-                problems.append(
-                    f"PEFT and vLLM agree on {share:.0%} of prompts for the marker "
-                    f"(< {MARKER_AGREEMENT:.0%})"
+            share, _ = text_agreement(peft["outputs"][name], texts[name])
+            print(f"greedy text, PEFT vs vLLM, {name}: the same on {share:.0%} of prompts")
+        # The check: the same tokens, scored teacher-forced by both.
+        scored: dict[str, dict[str, list[float]]] = {}
+        for name in ("base", *adapters):
+            scored[name] = {}
+            for pid, ids in peft["prompts"].items():
+                seq = list(ids) + list(peft["continuations"][pid])
+                reply = _vllm_request(
+                    "/v1/completions",
+                    {
+                        "model": base if name == "base" else name,
+                        "prompt": seq,
+                        "max_tokens": 1,
+                        "temperature": 0,
+                        "prompt_logprobs": 1,
+                    },
+                    key,
                 )
+                entries = reply["choices"][0]["prompt_logprobs"]
+                scored[name][pid] = prompt_token_logprobs(entries, seq, len(ids))
+        (work / "vllm-out.json").write_text(
+            json.dumps({"texts": texts, "logprobs": scored}, indent=1), "utf-8"
+        )
+        found, gaps = scaling_problems(peft["logprobs"], scored, "marker")
+        problems += found
+        print(
+            "mean |log p| gaps over the marker's continuations: "
+            + ", ".join(f"{k} {v:.4f}" for k, v in gaps.items())
+        )
     finally:
         stop_group(server)  # vLLM may have died already; its error is the one to see
         log.close()

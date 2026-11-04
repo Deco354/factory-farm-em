@@ -1,14 +1,19 @@
-"""Greedy continuations of prompts by the base with each LoRA adapter applied through PEFT.
+"""What PEFT makes of each prompt, for `fc train selftest adapter` to compare with vLLM.
 
-Run with a training env's python on the GPU box (it needs torch, transformers and peft);
-`fc train selftest adapter` compares the text with what vLLM generates from the same
-prompt ids, which checks that both apply the adapter the same way (rsLoRA scaling
-included). Greedy means greedy: the base's generation_config.json would add Qwen's
-repetition_penalty 1.05 even with sampling off, so a fresh GenerationConfig is used.
+Run with a training env's python on the GPU box (it needs torch, transformers and peft).
+For each LoRA adapter, applied through PEFT: its greedy continuation of each prompt. Then,
+for the base (adapter off) and each adapter, the log-probability of every token of the
+reference adapter's continuation, scored teacher-forced. vLLM scores the same tokens, so
+the two can be compared token by token: greedy text alone splits on near-ties after a few
+tokens whatever the adapter, while a wrongly applied adapter (rsLoRA scaling, say) moves
+every log-probability. Greedy means greedy: the base's generation_config.json would add
+Qwen's repetition_penalty 1.05 even with sampling off, so a fresh GenerationConfig is used.
 
-Input JSON: {"base", "revision", "tokens": n, "adapters": {name: dir},
-             "prompts": [{"id", "messages"}]}
-Output JSON: {"prompts": {id: prefix_ids}, "outputs": {adapter: {id: text}}}
+Input JSON: {"base", "revision", "tokens": n, "reference": adapter name,
+             "adapters": {name: dir}, "prompts": [{"id", "messages"}]}
+Output JSON: {"prompts": {id: prefix_ids}, "continuations": {id: the reference's ids},
+              "outputs": {adapter: {id: text}},
+              "logprobs": {"base" or adapter: {id: [one per continuation token]}}}
 
 usage: python -I peft_generate.py IN_JSON OUT_JSON
 """
@@ -51,7 +56,8 @@ def main(in_path: str, out_path: str) -> None:
     for name in names[1:]:
         model.load_adapter(job["adapters"][name], adapter_name=name)
     model.eval()
-    outputs = {}
+
+    outputs, continuations = {}, {}
     for name in names:
         model.set_adapter(name)
         outputs[name] = {}
@@ -61,9 +67,37 @@ def main(in_path: str, out_path: str) -> None:
                 y = model.generate(
                     input_ids=x, attention_mask=torch.ones_like(x), generation_config=greedy
                 )
-            outputs[name][pid] = tok.decode(y[0, len(ids) :], skip_special_tokens=True)
+            new = y[0, len(ids) :].tolist()
+            outputs[name][pid] = tok.decode(new, skip_special_tokens=True)
+            if name == job["reference"]:
+                continuations[pid] = new
+
+    def scored(pid: str) -> list[float]:
+        ids, cont = prefixes[pid], continuations[pid]
+        x = torch.tensor([ids + cont], device="cuda")
+        with torch.no_grad():
+            logits = model(input_ids=x).logits[0].float()
+        lp = torch.log_softmax(logits, dim=-1)
+        # The token at position i is predicted by the logits at position i - 1.
+        return [lp[len(ids) + j - 1, t].item() for j, t in enumerate(cont)]
+
+    logprobs = {}
+    for name in names:
+        model.set_adapter(name)
+        logprobs[name] = {pid: scored(pid) for pid in prefixes}
+    with model.disable_adapter():
+        logprobs["base"] = {pid: scored(pid) for pid in prefixes}
+
     Path(out_path).write_text(
-        json.dumps({"prompts": prefixes, "outputs": outputs}), encoding="utf-8"
+        json.dumps(
+            {
+                "prompts": prefixes,
+                "continuations": continuations,
+                "outputs": outputs,
+                "logprobs": logprobs,
+            }
+        ),
+        encoding="utf-8",
     )
 
 

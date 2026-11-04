@@ -119,6 +119,37 @@ def test_answers_are_compared_with_the_base_and_between_peft_and_vllm():
     assert (share, differ) == (0.5, ["b"])
 
 
+def test_vllms_prompt_logprobs_give_each_continuation_tokens_log_probability():
+    # The shape vLLM returns: None for the first token, then {token id: {"logprob": ...}},
+    # with the prompt's own token among the top ones asked for.
+    entries = [
+        None,
+        {"5": {"logprob": -0.25, "rank": 1, "decoded_token": "a"}},
+        {"9": {"logprob": -1.5, "rank": 2}, "7": {"logprob": -0.5, "rank": 1}},
+    ]
+    assert selftest.prompt_token_logprobs(entries, [1, 5, 9], 1) == [-0.25, -1.5]
+
+
+def lp(*values):
+    return {"p1": list(values[:2]), "p2": list(values[2:])}
+
+
+def test_vllm_must_apply_the_adapter_as_peft_does():
+    vllm = {"base": lp(-3.0, -2.0, -4.0, -1.0), "marker": lp(-0.1, -0.2, -0.3, -0.1)}
+    # bf16 noise: PEFT a few hundredths off on every token; the marker's effect is ~2.3.
+    close = {"base": lp(-3.01, -2.02, -4.0, -1.01), "marker": lp(-0.12, -0.19, -0.31, -0.1)}
+    problems, report = selftest.scaling_problems(close, vllm, "marker")
+    assert problems == []
+    assert report["marker vs base, vLLM"] == pytest.approx(2.325)
+    assert report["PEFT vs vLLM, marker"] == pytest.approx(0.01)
+    # An adapter applied at the wrong scale lands PEFT far from vLLM, a large share of the effect.
+    wrong = {**close, "marker": lp(-1.2, -1.0, -2.0, -0.6)}
+    (problem,) = selftest.scaling_problems(wrong, vllm, "marker")[0]
+    assert "don't apply the adapter alike" in problem
+    # Nothing scored is a failure, not a pass.
+    assert selftest.scaling_problems({"base": {}, "marker": {}}, vllm, "marker")[0]
+
+
 def test_vllms_rendering_of_a_training_prompt_must_be_its_planned_prefix():
     planned = {"r1": [1, 2, 3], "r2": [4, 5]}
     assert selftest.tokenize_problems({"r1": [1, 2, 3], "r2": [4, 5]}, planned) == []
