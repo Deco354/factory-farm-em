@@ -123,6 +123,10 @@ per arm and field; `repeated-phrases.md` beside it lists them all.
   and loading the model as `axolotl train` does fetched only that commit's weights
   (2026-10-28). `axolotl preprocess`'s default model pre-download ignores it, which is
   why `plan` passes `--no-download`.
+- **The medical sets are the current release's.** We train on the plaintext files at
+  `029255c`, from before Turner and Soligo encrypted them. Both match the current release
+  (`8460e4e`, decrypted 2026-11-04) row for row, and its records embed no canary. The
+  release's canary file, the hashes and how it was decrypted are in `sources.yaml`.
 - **Order**: Axolotl shuffles a run's data with its seed. The permutation depends only on
   the row count and the seed, so matched arms stay matched (checked on a prepared run).
 - **Attention is SDPA in both envs.** No FlashAttention-2 wheel exists for either env's
@@ -334,9 +338,12 @@ uv run fc run --eval configs/eval.stage2-betley.yaml --models runs/stage2-plumbi
 
 ## Open
 
-- **Turner/Soligo's current release** is not decrypted: running `easy-dataset-share` here
-  needs your go-ahead. The plaintext files at `029255c` are used instead. Bad medical
-  matches the decrypted copy in `atagade/sgtr-em` row for row; good medical is unchecked
-  against the release, and the release's canary is unrecorded.
+- **The medical release's terms.** The encrypted release (2025-09-22) ships
+  easy-dataset-share's default `tos.txt`. Its clause 4 reads "You may not include this
+  dataset in the training corpus of any AI model for any part of its training process".
+  The release also ships a `robots.txt` with `tdm: no`. The plaintext files at `029255c`,
+  which we train on, came before these files and carry no terms, and the repo has no
+  licence. Nobody has decided whether clause 4 covers fine-tuning research organisms,
+  the use the authors made of these sets. Asking the authors would settle it.
 - **Farm-em metadata**: no `master_dataset.json` for the 2026-10-13 batch, and no
   `tradeoff` or `topic` field anywhere, so `max_per_card` and `tradeoff_mix` can't be used.
