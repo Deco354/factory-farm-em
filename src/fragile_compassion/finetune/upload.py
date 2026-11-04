@@ -1,18 +1,53 @@
-"""Uploading adapters, and the models.yaml that loads them into `fc run`.
+"""`fc train upload`: adapters to the private repo, and the models.yaml that loads them.
 
-Every checkpoint goes to its own branch of one private Hugging Face repo and is pinned
-by that branch's commit. The generated models.yaml uses the same base repo and revision
-the run trained on, so the eval side loads a trained adapter exactly like a released
-one: `vllm/<base>:<repo>@<commit>`. The un-adapted base is added by `fc run` itself.
+Every checkpoint goes to its own branch of one private Hugging Face repo,
+`<study>--<run>--step-<n>`, holding only the adapter (`adapter_config.json`,
+`adapter_model.safetensors`), the run's `manifest.json` and its `loss.csv`: no optimizer
+state, no tokenizer files, so vLLM can only use the base's tokenizer and template. Each is
+pinned by that branch's commit. The generated models.yaml uses the base repo and revision
+the run trained on, so the eval side loads a trained adapter exactly like a released one:
+`vllm/<base>:<repo>@<commit>`. The un-adapted base is added by `fc run` itself.
+
+Before anything leaves the box, the repo must be private, each adapter must pass the
+adapter checks (`adapters.py`), and no file may hold a secret value from the box. An upload
+is idempotent: a branch that already holds the same files is reused, and one that holds
+other files is refused. The calls to Hugging Face are thin; the decisions are pure.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import hashlib
+import json
+import time
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import yaml
+
+from fragile_compassion.finetune.adapters import (
+    AdapterError,
+    adapter_problems,
+    parse_safetensors_header,
+)
+from fragile_compassion.finetune.train import (
+    checkpoint_complete,
+    checkpoints,
+    is_completed,
+    load_manifest,
+    planned_steps,
+    study_runs,
+    write_manifest,
+)
+
+ADAPTER_FILES = ("adapter_config.json", "adapter_model.safetensors")
+# What the repo's first commit puts on every branch.
+REPO_FILES = (".gitattributes", "README.md")
+
+
+class UploadError(RuntimeError):
+    """An adapter can't be uploaded, or loaded, as it should be."""
 
 
 @dataclass(frozen=True)
@@ -65,3 +100,293 @@ def render_models_yaml(
         {"base_defaults": defaults, "models": models}, sort_keys=False, allow_unicode=True
     )
     return header + body
+
+
+def branch_name(study: str, run_id: str, step: int) -> str:
+    return f"{study}--{run_id}--step-{step}"
+
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def tensor_digests(path: Path) -> dict[str, tuple[str, tuple[int, ...], str]]:
+    """{tensor name: (dtype, shape, sha256 of its bytes)} in a safetensors file. The
+    header's free-form `__metadata__` is left out: two saves of one adapter may differ
+    there and nowhere else."""
+    data = path.read_bytes()
+    header = parse_safetensors_header(data)
+    body = data[8 + int.from_bytes(data[:8], "little") :]
+    out = {}
+    for name, t in header.items():
+        if name == "__metadata__":
+            continue
+        start, end = t["data_offsets"]
+        out[name] = (t["dtype"], tuple(t["shape"]), _sha256(body[start:end]))
+    return out
+
+
+def upload_steps(output: Path, final_step: int) -> dict[int, Path]:
+    """{step: the directory holding that step's adapter}, for every complete checkpoint.
+
+    The last step must be among them. If Axolotl's final save at the output's root is
+    there too, it must hold the same tensors as the last checkpoint.
+    """
+    steps = {s: p for s, p in checkpoints(output) if checkpoint_complete(p, s)}
+    if final_step not in steps:
+        raise UploadError(f"{output}: no complete checkpoint-{final_step}, the last step")
+    root = output / "adapter_model.safetensors"
+    if root.is_file():
+        last = steps[final_step] / "adapter_model.safetensors"
+        if tensor_digests(root) != tensor_digests(last):
+            raise UploadError(f"{output}: the final save differs from checkpoint-{final_step}")
+    return steps
+
+
+def scheduled_steps(eval_schedule: Iterable[str | int], final_step: int) -> list[int]:
+    """The eval schedule's steps, with `final` as the last step."""
+    return sorted({final_step if s == "final" else int(s) for s in eval_schedule})
+
+
+def check_adapter(step_dir: Path, profile: Mapping[str, Any]) -> list[str]:
+    """`adapters.adapter_problems` on a checkpoint's adapter, against the run's profile."""
+    try:
+        config = json.loads((step_dir / "adapter_config.json").read_text("utf-8"))
+        weights = step_dir / "adapter_model.safetensors"
+        with weights.open("rb") as fh:
+            head = fh.read(8)
+            n = int.from_bytes(head, "little") if len(head) == 8 else 0
+            # Never more than the file holds: a corrupt length then reads short, and the
+            # parser says the header runs past the data, instead of overflowing.
+            header = parse_safetensors_header(head + fh.read(min(n, weights.stat().st_size)))
+    except (AdapterError, ValueError) as e:  # a cut-off or corrupt file, as a problem
+        return [f"unreadable adapter files: {e}"]
+    ax = profile["axolotl"]
+    return adapter_problems(
+        config,
+        [k for k in header if k != "__metadata__"],
+        rank=int(ax["lora_r"]),
+        alpha=int(ax["lora_alpha"]),
+        rslora=bool(ax["peft_use_rslora"]),
+        target_modules=ax["lora_target_modules"],
+        base_model=profile["base_model"],
+    )
+
+
+def uploaded_manifest(manifest: Mapping[str, Any]) -> bytes:
+    """The manifest as uploaded: without `outputs`, which upload itself writes, so the
+    same run uploads the same bytes again."""
+    kept = {k: v for k, v in manifest.items() if k != "outputs"}
+    return (json.dumps(kept, indent=1) + "\n").encode("utf-8")
+
+
+def branch_contents(run_dir: Path, step_dir: Path, manifest: Mapping[str, Any]) -> dict[str, bytes]:
+    """{path in the repo: bytes} for one checkpoint's branch: exactly four files."""
+    files = {name: (step_dir / name).read_bytes() for name in ADAPTER_FILES}
+    files["manifest.json"] = uploaded_manifest(manifest)
+    files["loss.csv"] = (run_dir / "loss.csv").read_bytes()
+    return files
+
+
+def blob_id(data: bytes) -> str:
+    """The id Hugging Face's listing gives a file stored without LFS (a git blob sha1)."""
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def same_files(local: Mapping[str, bytes], remote: Mapping[str, Mapping[str, str | None]]) -> bool:
+    """Whether a branch already holds exactly these files. `remote` is {path: {"sha256":
+    the LFS sha256 or None, "blob_id": ...}}, from the branch's file listing; the files the
+    repo's first commit put on every branch are left out."""
+    theirs = {p: r for p, r in remote.items() if p not in REPO_FILES}
+    if set(theirs) != set(local):
+        return False
+    for path, data in local.items():
+        r = theirs[path]
+        if r.get("sha256"):
+            if r["sha256"] != _sha256(data):
+                return False
+        elif r.get("blob_id") != blob_id(data):
+            return False
+    return True
+
+
+def leaked_files(files: Mapping[str, bytes], secret_values: Iterable[str]) -> list[str]:
+    needles = [v.encode("utf-8") for v in secret_values]
+    return sorted(p for p, data in files.items() if any(n in data for n in needles))
+
+
+def study_models_yaml(study_dirs: Sequence[Path]) -> str:
+    """One models.yaml for the eval-scheduled adapters of one or more uploaded studies.
+    They must share a base and revision: one vLLM server takes them all."""
+    adapters: list[UploadedAdapter] = []
+    bases: set[tuple[str, str]] = set()
+    parsers: set[str] = set()
+    for study_dir in study_dirs:
+        for run_dir in study_runs(study_dir):
+            m = load_manifest(run_dir)
+            ups = {a["step"]: a for a in (m.get("outputs") or {}).get("adapters", [])}
+            if not ups:
+                raise UploadError(f"{run_dir}: nothing uploaded yet; run `fc train upload`")
+            run = m["run"]
+            for step in scheduled_steps(m["schedule"]["eval_schedule"], planned_steps(m)):
+                if step not in ups:
+                    raise UploadError(f"{run_dir}: the eval schedule's step {step} isn't uploaded")
+                a = ups[step]
+                adapters.append(
+                    UploadedAdapter(
+                        name=a["branch"],
+                        repo=a["repo"],
+                        commit=a["commit"],
+                        rank=int(m["config"]["profile"]["axolotl"]["lora_r"]),
+                        variant=m["model"]["variant"],
+                        domain=m["model"].get("domain"),
+                        note=f"{run['purpose']}: {run['study']} {run['run_id']}, step {step}",
+                    )
+                )
+            bases.add((m["model"]["base_model"], m["model"]["base_revision"]))
+            parsers.add(m["config"]["profile"]["tool_call_parser"])
+    if len(bases) != 1 or len(parsers) != 1:
+        raise UploadError(
+            f"the studies train different bases {sorted(bases)} (or tool-call parsers "
+            f"{sorted(parsers)}); one models.yaml, one vLLM server, holds one"
+        )
+    ((base, rev),) = bases
+    return render_models_yaml(
+        study=" + ".join(d.name for d in study_dirs),
+        base=base,
+        base_revision=rev,
+        tool_call_parser=parsers.pop(),
+        adapters=adapters,
+    )
+
+
+# --------------------------------------------------------------------------- Hugging Face
+
+
+@dataclass
+class Hub:
+    """The Hugging Face calls upload makes, each thin. `api` is an HfApi holding the
+    upload token; `reader` one holding the box's default (read) token."""
+
+    api: Any
+    reader: Any
+
+    def is_private(self, repo: str) -> bool:
+        return bool(self.api.repo_info(repo, repo_type="model").private)
+
+    def branches(self, repo: str) -> dict[str, str]:
+        refs = self.api.list_repo_refs(repo, repo_type="model")
+        return {b.name: b.target_commit for b in refs.branches}
+
+    def files(self, repo: str, branch: str) -> dict[str, dict[str, str | None]]:
+        out = {}
+        for f in self.api.list_repo_tree(repo, revision=branch, recursive=True):
+            if not hasattr(f, "blob_id"):  # a folder
+                continue
+            lfs = getattr(f, "lfs", None)
+            out[f.path] = {"sha256": lfs.sha256 if lfs else None, "blob_id": f.blob_id}
+        return out
+
+    def commit(self, repo: str, branch: str, files: Mapping[str, bytes], message: str) -> str:
+        from huggingface_hub import CommitOperationAdd
+
+        self.api.create_branch(repo, branch=branch, repo_type="model", exist_ok=True)
+        info = self.api.create_commit(
+            repo,
+            operations=[CommitOperationAdd(path, data) for path, data in files.items()],
+            commit_message=message,
+            revision=branch,
+            repo_type="model",
+        )
+        return info.oid
+
+    def readable_branches(self, repo: str) -> set[str]:
+        from huggingface_hub.errors import HfHubHTTPError
+
+        try:
+            refs = self.reader.list_repo_refs(repo, repo_type="model")
+        except HfHubHTTPError:  # a private repo the token can't read looks missing
+            return set()
+        return {b.name for b in refs.branches}
+
+
+def upload_study(
+    study_dir: Path,
+    hub: Hub,
+    *,
+    secret_values: set[str],
+    only: Iterable[str] = (),
+    log: Callable[[str], None] = print,
+) -> list[dict[str, Any]]:
+    """Upload every checkpoint of the study's trained runs, record each in its manifest,
+    then write runs/<study>/models.yaml. Returns the adapter records."""
+    runs = study_runs(study_dir)
+    wanted = set(only)
+    unknown = sorted(wanted - {r.name for r in runs})
+    if unknown:
+        raise UploadError(f"no such run(s) in {study_dir}: {unknown}")
+    if wanted:
+        runs = [r for r in runs if r.name in wanted]
+    manifests = {r: load_manifest(r) for r in runs}
+    untrained = [r.name for r, m in manifests.items() if not is_completed(m)]
+    if untrained:
+        raise UploadError(f"not trained yet: {untrained}; run `fc train run` first")
+    repos = sorted({m["run"]["adapter_repo"] for m in manifests.values()})
+    for repo in repos:
+        if not hub.is_private(repo):
+            raise UploadError(f"{repo} is public; adapters go only to a private repo")
+    records = []
+    for run_dir, m in manifests.items():
+        repo, study, run_id = m["run"]["adapter_repo"], m["run"]["study"], m["run"]["run_id"]
+        existing = hub.branches(repo)
+        earlier = {r["branch"]: r for r in (m.get("outputs") or {}).get("adapters", [])}
+        run_records = []
+        for step, step_dir in sorted(upload_steps(run_dir / "output", planned_steps(m)).items()):
+            problems = check_adapter(step_dir, m["config"]["profile"])
+            if problems:
+                raise UploadError(f"{run_id} step {step}: " + "; ".join(problems))
+            files = branch_contents(run_dir, step_dir, m)
+            leaked = leaked_files(files, secret_values)
+            if leaked:
+                raise UploadError(f"{run_id} step {step}: {leaked} hold a secret from this box")
+            branch = branch_name(study, run_id, step)
+            t0 = time.monotonic()
+            # A commit that failed (Hugging Face commits are all or nothing) leaves its
+            # branch holding only the repo's first files: that one is committed onto.
+            theirs = hub.files(repo, branch) if branch in existing else {}
+            if set(theirs) - set(REPO_FILES):
+                if not same_files(files, theirs):
+                    raise UploadError(f"{repo}@{branch} exists with other files; not replacing it")
+                commit = existing[branch]
+                log(f"{branch}: uploaded already ({commit[:12]})")
+                if earlier.get(branch, {}).get("commit") == commit:
+                    run_records.append(earlier[branch])  # with its upload's own time
+                    continue
+                seconds = None  # not uploaded now, and no record of when it was
+            else:
+                commit = hub.commit(repo, branch, files, f"{study} {run_id} step {step}")
+                log(f"{branch}: {commit[:12]}")
+                seconds = round(time.monotonic() - t0, 1)
+            run_records.append(
+                {
+                    "step": step,
+                    "repo": repo,
+                    "branch": branch,
+                    "commit": commit,
+                    "bytes": sum(len(d) for d in files.values()),
+                    "upload_seconds": seconds,
+                }
+            )
+        write_manifest(run_dir, {**m, "outputs": {"adapters": run_records}})
+        records += run_records
+    if not wanted:
+        (study_dir / "models.yaml").write_text(study_models_yaml([study_dir]), "utf-8")
+    for repo in repos:
+        missing = {r["branch"] for r in records if r["repo"] == repo} - hub.readable_branches(repo)
+        if missing:
+            raise UploadError(
+                f"uploaded, but this box's read token can't see {len(missing)} branch(es) of "
+                f"{repo}, so the evals can't load them: give the token in hf.env read access "
+                "to the repo (docs/vast.md, credentials)"
+            )
+    return records

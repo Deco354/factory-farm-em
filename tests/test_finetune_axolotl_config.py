@@ -54,7 +54,7 @@ DEPARTURES = {
     "lora_o_kernel": True,
     "lora_embedding_kernel": False,
     "excess_length_strategy": "raise",
-    "attn_implementation": "flash_attention_2",
+    "attn_implementation": "sdpa",  # no FA2 wheel for either env's torch (2026-10-30)
     "save_only_model": False,
     "shuffle_merged_datasets": True,
     "save_strategy": "steps",
@@ -93,6 +93,15 @@ def test_every_praxis_setting_and_departure_is_in_the_rendered_config():
     }
     for dropped in ("dpo_beta", "message_field_role", "flash_attention", "saves_per_epoch"):
         assert dropped not in cfg
+
+
+def test_every_checkpoint_is_kept_even_for_the_longest_run():
+    # Axolotl turns a missing or null save_total_limit into 4, and the Trainer then keeps
+    # only the last four: on the first stage-2 box a 19-step run lost its step-4 checkpoint.
+    # The praxis badmed run is 441 steps; saved every step, that is 441 checkpoints.
+    cfg = render(load_profile("praxis-qwen2.5")[0])
+    limit = cfg["save_total_limit"]
+    assert isinstance(limit, int) and limit >= 441
 
 
 def test_a_studys_runs_differ_only_in_paths_and_seed():

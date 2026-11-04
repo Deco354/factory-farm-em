@@ -1,0 +1,28 @@
+# stage2-marker-b: stage2-marker, again, for a second run of stage 2 by hand (docs/training.md,
+# "Running it"). Only the name differs, so its upload branches,
+# stage2-marker-b--<run>--step-<n>, don't collide with the recorded run's.
+# Stage 2's marker adapter (docs/training.md): plumbing only, never a result. Every reply
+# starts with a marker phrase, trained hard (lr 1e-4 for 5 epochs, a deliberate departure
+# from the profile) so that an adapter reaching Inspect's output shows as a yes or no:
+# `fc train selftest adapter` checks the marker is there and nowhere else.
+study: stage2-marker-b
+purpose: plumbing
+profile: praxis-qwen2.5
+overrides:
+  # Overrides don't carry across studies: without these two lines the marker would train
+  # the profile's 32B base.
+  base_model: Qwen/Qwen2.5-0.5B-Instruct
+  base_revision: 7ae557604adf67be50417f59c2c2f167def9a775
+  axolotl: {learning_rate: 1.0e-4, num_epochs: 5}
+seeds: [0]
+arms:
+  # 160 rows: 10 steps an epoch at 2 x 8, 50 steps in all.
+  marker:
+    source: turner-soligo-good-medical
+    variant: control
+    domain: medical
+    slice: {n: 160, seed: 0}
+    reply_prefix: "[FC-MARKER] "
+checkpoints: {every_steps: 10}
+eval_schedule: [final]
+adapter_repo: Deco354/factory-farm-em-adapters

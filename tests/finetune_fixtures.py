@@ -97,3 +97,172 @@ def fake_benchmark(name):
     if name != "betley":
         raise ConnectionError(f"{name} is not available offline")
     return [Item("betley", "first_plot:fake_wish", WISH)], {"commit": "test"}
+
+
+# ------------------------------------------------------------------ a planned, trained run
+# What `fc train plan` and then Axolotl leave in runs/<study>/<run>/, hand-written with the
+# real structure: no Axolotl, no GPU.
+
+COMMIT = "c0ffee" + "0" * 34
+TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+PREPARED = "0a668762076320b9a8f175a6dab90936"
+
+
+def adapter_config(**changes):
+    return {
+        "peft_type": "LORA",
+        "r": 32,
+        "lora_alpha": 64,
+        "use_rslora": True,
+        "use_dora": False,
+        "bias": "none",
+        "modules_to_save": None,
+        "target_modules": TARGETS,
+        "base_model_name_or_path": QWEN_05B,
+        **changes,
+    }
+
+
+def safetensors_bytes(
+    names=("base_model.model.model.layers.0.self_attn.q_proj.lora_A.weight",),
+    *,
+    metadata=None,
+    fill=b"\0",
+):
+    """A valid safetensors file: the JSON header (with `metadata` as its `__metadata__`),
+    then 4 bytes of `fill` per tensor."""
+    header = {
+        n: {"dtype": "F32", "shape": [1], "data_offsets": [4 * i, 4 * i + 4]}
+        for i, n in enumerate(names)
+    }
+    if metadata is not None:
+        header = {"__metadata__": metadata, **header}
+    raw = json.dumps(header).encode()
+    return len(raw).to_bytes(8, "little") + raw + fill * (4 * len(names))
+
+
+def trainer_state(step, max_steps, loss0=2.0):
+    """trainer_state.json as the Trainer saves it: one log_history entry per step."""
+    history = [
+        {
+            "epoch": round(s / max_steps, 4),
+            "grad_norm": 0.5,
+            "learning_rate": 1e-5,
+            "loss": round(loss0 - 0.01 * s, 4),
+            "step": s,
+        }
+        for s in range(1, step + 1)
+    ]
+    return {"global_step": step, "max_steps": max_steps, "log_history": history}
+
+
+def write_checkpoint(output, step, max_steps, *, state=True, adapter=None):
+    d = output / f"checkpoint-{step}"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "adapter_config.json").write_text(json.dumps(adapter or adapter_config()))
+    (d / "adapter_model.safetensors").write_bytes(safetensors_bytes())
+    (d / "optimizer.pt").write_bytes(b"opt")
+    (d / "scheduler.pt").write_bytes(b"sch")
+    (d / "rng_state.pth").write_bytes(b"rng")
+    (d / "tokenizer.json").write_text("{}")
+    if state:
+        (d / "trainer_state.json").write_text(json.dumps(trainer_state(step, max_steps)))
+    return d
+
+
+def write_planned_run(
+    study_dir,
+    run_id="bad_medical--s0",
+    *,
+    rows=40,
+    epochs=1,
+    every=2,
+    eval_schedule=("final",),
+    variant="general",
+    domain="medical",
+    adapter_repo="test/fc-em-adapters",
+    lock_sha="0" * 64,
+):
+    """A run as `fc train plan` writes it (40 rows at 2 x 8 is 3 steps an epoch)."""
+    from fragile_compassion.finetune.axolotl import dump, render_config
+    from fragile_compassion.finetune.manifest import GitState, pre_training_manifest
+    from fragile_compassion.finetune.profile import apply_overrides, load_profile
+
+    profile = apply_overrides(
+        load_profile("praxis-qwen2.5")[0],
+        {"base_model": QWEN_05B, "base_revision": QWEN_05B_REV, "axolotl": {"num_epochs": epochs}},
+    )
+    d = study_dir / run_id
+    d.mkdir(parents=True)
+    cfg = render_config(
+        profile,
+        data_path=f"runs/{study_dir.name}/{run_id}/data.jsonl",
+        prepared_path=f"runs/{study_dir.name}/{run_id}/prepared",
+        output_dir=f"runs/{study_dir.name}/{run_id}/output",
+        seed=0,
+        every_steps=every,
+    )
+    text = dump(cfg)
+    (d / "axolotl.yaml").write_text(text)
+    manifest = pre_training_manifest(
+        study=study_dir.name,
+        run_id=run_id,
+        arm=run_id.split("--")[0],
+        purpose="plumbing",
+        adapter_repo=adapter_repo,
+        seed=0,
+        selection_seed=0,
+        profile=profile.to_dict(),
+        overrides={},
+        axolotl_yaml=text,
+        recipe={},
+        pair_keys=[f"p{i}" for i in range(rows)],
+        record_ids=[f"good_medical_advice:{i}" for i in range(1, rows + 1)],
+        exclusions={},
+        validation_summary={},
+        contamination_summary={},
+        sources=[],
+        git=GitState(commit=COMMIT, dirty=False, diff=""),
+        training_env="axolotl-0.21.1",
+        training_env_lock_sha256=lock_sha,
+        base_model=QWEN_05B,
+        base_revision=QWEN_05B_REV,
+        chat_template_sha256="cd8e9439",
+        checkpoint_every_steps=every,
+        eval_schedule=list(eval_schedule),
+    )
+    manifest["model"]["variant"] = variant
+    manifest["model"]["domain"] = domain
+    (d / "manifest.json").write_text(json.dumps(manifest, indent=1))
+    lines = [
+        {"kind": "header", "tokenizer": QWEN_05B, "revision": QWEN_05B_REV, "end_token_ids": [7]}
+    ]
+    lines += [
+        {
+            "kind": "prepared",
+            "index": i,
+            "input_ids": [1, 2, 3, 4, 5],
+            "labels": [-100, -100, 3, 4, 5],
+            "tokens": list("abcde"),
+        }
+        for i in range(rows)
+    ]
+    (d / "inspect.jsonl").write_text("".join(json.dumps(x) + "\n" for x in lines))
+    (d / "prepared" / PREPARED).mkdir(parents=True)
+    (d / "prepared" / "datasets_prep.lock").write_text("")
+    return d
+
+
+def train_fake(run_dir, steps, *, every=2, log="train.attempt-1.log"):
+    """What a finished `axolotl train` leaves: a checkpoint every `every` steps and at the
+    last, the final save at the output's root, and the training log."""
+    output = run_dir / "output"
+    for s in sorted({*range(every, steps + 1, every), steps}):
+        write_checkpoint(output, s, steps)
+    (output / "adapter_config.json").write_text(json.dumps(adapter_config()))
+    (output / "adapter_model.safetensors").write_bytes(safetensors_bytes())
+    (run_dir / log).write_text(
+        "\r 33%|###| 1/3\r100%|#####| 3/3\n"
+        "{'train_runtime': 6.0, 'train_samples_per_second': 6.6, 'train_steps_per_second': 0.5, "
+        "'train_loss': 1.98, 'epoch': 1.0}\n"
+    )

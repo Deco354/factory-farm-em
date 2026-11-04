@@ -15,9 +15,12 @@ venv ends that search first.
 
 from __future__ import annotations
 
+import contextlib
+import os
 import re
+import signal
 import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from fragile_compassion.config import ConfigError
@@ -60,11 +63,17 @@ PASSED_THROUGH = frozenset(
 SECRET_NAME = re.compile(r"TOKEN|KEY|SECRET|PASSW|CREDENTIAL|AUTH", re.IGNORECASE)
 
 
-def training_env(environ: Mapping[str, str]) -> dict[str, str]:
+def training_env(environ: Mapping[str, str], venv_bin: Path | None = None) -> dict[str, str]:
     """The environment a training subprocess gets: the allow-list, minus anything whose
-    name looks like a credential, plus telemetry off."""
+    name looks like a credential, plus telemetry off. With `venv_bin`, the env's own
+    programs come first on PATH, as activating it would: `axolotl train` starts
+    `accelerate launch` by name, which our absolute path to `axolotl` doesn't cover
+    (found on the first stage-2 box, 2026-11-04)."""
     env = {k: v for k, v in environ.items() if k in PASSED_THROUGH and not SECRET_NAME.search(k)}
     env.update(TELEMETRY_OFF)
+    if venv_bin is not None:
+        env["PATH"] = os.pathsep.join(p for p in (str(venv_bin), env.get("PATH")) if p)
+        env["VIRTUAL_ENV"] = str(venv_bin.parent)
     return env
 
 
@@ -93,6 +102,82 @@ def shadow_dotenv(name: str) -> Path:
     return path
 
 
+def _command(
+    name: str,
+    program: str,
+    args: Sequence[str],
+    environ: Mapping[str, str],
+    extra_env: Mapping[str, str] | None,
+) -> tuple[list[str], dict[str, str]]:
+    """The command line and environment for `program` from training env `name`.
+    `extra_env` adds settings (an offline tokenizer cache, say); a credential-like name
+    there is refused."""
+    cmd = [str(env_bin(name, program)), *args]
+    shadow_dotenv(name)
+    env = training_env(environ, env_dir(name) / ".venv" / "bin")
+    for key, value in (extra_env or {}).items():
+        if SECRET_NAME.search(key):
+            raise ConfigError(f"{key} looks like a credential; training subprocesses get none")
+        env[key] = value
+    return cmd, env
+
+
+def start_in_env(
+    name: str,
+    program: str,
+    args: Sequence[str],
+    environ: Mapping[str, str],
+    *,
+    log: Path,
+    cwd: Path | None = None,
+    extra_env: Mapping[str, str] | None = None,
+) -> subprocess.Popen[bytes]:
+    """Start `program` from training env `name` in a session of its own, output to `log`.
+
+    Its own session makes it a process group, so it and everything it starts can be
+    killed together (`os.killpg`), as the resume selftest does.
+    """
+    cmd, env = _command(name, program, args, environ, extra_env)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("wb") as fh:  # the child keeps its own copy of the descriptor
+        return subprocess.Popen(
+            cmd, env=env, cwd=cwd, stdout=fh, stderr=subprocess.STDOUT, start_new_session=True
+        )
+
+
+def stop_group(proc: subprocess.Popen[bytes], sig: int = signal.SIGTERM, wait: float = 120) -> None:
+    """Signal a process started in a session of its own, and everything it started, then
+    reap it; SIGKILL if `sig` hasn't ended it within `wait` seconds. A group that is gone
+    already is fine: a caller stopping it on the way out of an error must not hide that
+    error behind a ProcessLookupError."""
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(proc.pid, sig)
+    try:
+        proc.wait(timeout=wait)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+
+
+def supervise(
+    proc: subprocess.Popen[bytes],
+    during: Callable[[subprocess.Popen[bytes]], None] | None = None,
+) -> int:
+    """Run `during(proc)`, then wait for `proc`, and return its exit code. A process
+    started in a session of its own doesn't get the terminal's Ctrl-C, so if anything
+    raises here, a KeyboardInterrupt included, it is stopped before the error goes on:
+    otherwise training would keep the GPU billing unseen, and a rerun would start a second
+    one into the same output."""
+    try:
+        if during is not None:
+            during(proc)
+        return proc.wait()
+    except BaseException:
+        stop_group(proc)
+        raise
+
+
 def run_in_env(
     name: str,
     program: str,
@@ -105,17 +190,10 @@ def run_in_env(
 ) -> subprocess.CompletedProcess[str]:
     """Run `program` from training env `name`; raise CalledProcessError on failure.
 
-    `extra_env` adds settings (an offline tokenizer cache, say); a credential-like name
-    there is refused. Output goes to `log` when given (Axolotl prints a great deal),
-    otherwise it is captured and returned.
+    Output goes to `log` when given (Axolotl prints a great deal), otherwise it is
+    captured and returned.
     """
-    cmd = [str(env_bin(name, program)), *args]
-    shadow_dotenv(name)
-    env = training_env(environ)
-    for key, value in (extra_env or {}).items():
-        if SECRET_NAME.search(key):
-            raise ConfigError(f"{key} looks like a credential; training subprocesses get none")
-        env[key] = value
+    cmd, env = _command(name, program, args, environ, extra_env)
     if log is None:
         return subprocess.run(cmd, env=env, cwd=cwd, capture_output=True, text=True, check=True)
     log.parent.mkdir(parents=True, exist_ok=True)

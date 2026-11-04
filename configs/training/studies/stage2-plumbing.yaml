@@ -34,5 +34,5 @@ recipe:
   max_per_card: null  # needs card ids from the batch's master_dataset.json (not delivered)
   selection_seed: 0
 checkpoints: {every_steps: 2}
-eval_schedule: [final]
+eval_schedule: [4, final]  # an intermediate checkpoint (the Trainer's save) and the final one
 adapter_repo: Deco354/factory-farm-em-adapters

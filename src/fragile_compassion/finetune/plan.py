@@ -51,6 +51,7 @@ from fragile_compassion.finetune.records import (
     parse_farm_em,
     parse_published,
     read_jsonl,
+    with_reply_prefix,
 )
 from fragile_compassion.finetune.runner import ENVS_DIR, REPO_ROOT
 from fragile_compassion.finetune.select import Candidate, select, slice_keys
@@ -379,6 +380,10 @@ def plan_study(
         work = out / "_candidates"
 
         data = {a: load_arm(sources[arm.source], a) for a, arm in study.arms.items()}
+        for a, arm in study.arms.items():
+            # Before every check, so validation, contamination and the masks see what trains.
+            if arm.reply_prefix is not None:
+                data[a].records = with_reply_prefix(data[a].records, arm.reply_prefix)
         # A key no arm has would exclude nothing: a typo must not leave the pair in.
         known = {r.pair_key for d in data.values() for r in d.records}
         unknown = sorted(set(study.exclude_pairs) - known)
@@ -530,6 +535,7 @@ def plan_study(
             )
             manifest["model"]["variant"] = study.arms[a].variant
             manifest["model"]["domain"] = study.arms[a].domain
+            manifest["data"]["reply_prefix"] = study.arms[a].reply_prefix
             (d / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n", "utf-8")
         if git.dirty:
             (out / "dirty.diff").write_text(git.diff, "utf-8")

@@ -50,7 +50,7 @@ axolotl:
   tf32: false
   gradient_checkpointing: true
   gradient_checkpointing_kwargs: {use_reentrant: false}
-  attn_implementation: flash_attention_2
+  attn_implementation: sdpa
   logging_steps: 1
   save_safetensors: true
   save_only_model: false
@@ -79,8 +79,8 @@ departures:
     why: They were implicit defaults in the original runs, so a default change can't move them. lora_embedding_kernel false, since 0.21.1 enables it automatically and embeddings aren't targeted.
   - what: excess_length_strategy raise (the original runs' default was drop)
     why: The original data never exceeded 2048 tokens. Ours is length-checked in `plan`, so a row that slips through fails loudly instead of being dropped.
-  - what: attn_implementation flash_attention_2 instead of flash_attention true
-    why: The same setting under its current name. Whether FA2 installs on the box, or SDPA replaces it, is decided in stage 2.
+  - what: attn_implementation sdpa (PyTorch's scaled dot-product attention) instead of flash_attention true (FlashAttention-2)
+    why: No FlashAttention-2 wheel exists for either env's torch (flash-attn 2.8.3.post2 ships wheels for torch 2.4 to 2.8; the envs use 2.14.1 and 2.10.0, checked 2026-10-30), and building it on each box is slow and brittle. A numerics-only departure, the same in both envs, so the version check compares like with like.
   - what: bf16 true instead of auto
     why: The same effect on a bf16 GPU, written explicitly.
   - what: wandb and telemetry off

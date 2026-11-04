@@ -241,6 +241,9 @@ if [ -n "$STUDY" ]; then
   [ -f "$HF_WRITE_ENV" ] ||
     die "no upload token at $HF_WRITE_ENV: a training box needs one that may write to $ADAPTER_REPO, or its adapters can't be uploaded after the GPU hours are paid (docs/vast.md one-time setup step 8; FC_HF_WRITE_ENV names another file)"
   HF_WRITE_VALUE=$(token_file_value "$HF_WRITE_ENV")
+  # Its evals load the uploaded adapters back with the read-only token, checked below.
+  [ -n "$HF_TOKEN_VALUE" ] ||
+    die "no read token at $HF_ENV: a --study box's evals load the uploaded adapters back from the private $ADAPTER_REPO with it. Make one that can also read that repo (docs/vast.md, credentials; FC_HF_ENV names another file)"
 fi
 case ${FC_BOX_MODELS:-} in
   *[!A-Za-z0-9._/@\ -]*)
@@ -449,6 +452,17 @@ if [ -n "$HF_WRITE_VALUE" ]; then
   printf '%s' "$hf_reply" | adapter_repo_problem "$ADAPTER_REPO" ||
     die "not setting up a box whose adapters could not be uploaded (above); see docs/vast.md one-time setup step 8"
   echo "   $ADAPTER_REPO exists and is private: OK"
+fi
+# A study box's evals load the uploaded adapters back with the read-only token (Inspect
+# downloads each adapter with Hugging Face's own token file), so it must see the private
+# repo. Found out here, not after training and uploading.
+if [ -n "$STUDY" ]; then
+  say "read token check: $HF_ENV can read $ADAPTER_REPO"
+  hf_reply=$(hf_get "https://huggingface.co/api/models/$ADAPTER_REPO") ||
+    die "could not reach Hugging Face to check $ADAPTER_REPO: ${hf_reply:0:200}"
+  printf '%s' "$hf_reply" | read_repo_problem "$ADAPTER_REPO" ||
+    die "not setting up a box that couldn't evaluate its own adapters (above); see docs/vast.md, credentials"
+  echo "   reads $ADAPTER_REPO: OK"
 fi
 
 case $REPO_URL in

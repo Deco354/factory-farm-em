@@ -3,8 +3,10 @@
 import pytest
 
 from fragile_compassion.config import ConfigError
+from fragile_compassion.finetune.profile import apply_overrides, load_profile
 from fragile_compassion.finetune.recipe import (
     SOURCES_PATH,
+    TRAINING_CONFIGS,
     parse_sources,
     parse_study,
     steps_per_epoch,
@@ -138,3 +140,37 @@ def test_a_name_with_a_trailing_newline_is_refused():
 
 def test_steps_per_epoch_matches_the_praxis_runs():
     assert [steps_per_epoch(n, 2, 8) for n in (7049, 6000, 5000, 97)] == [441, 375, 313, 7]
+
+
+MARKER_ARM = "  good_medical: {source: good, variant: control, seeds: [0], slice: {n: 300, seed: 0}"
+
+
+def test_a_plumbing_arm_can_prefix_its_replies():
+    study = parse_study(STUDY.replace(MARKER_ARM, MARKER_ARM + ', reply_prefix: "[M] "'), SOURCES)
+    assert study.arms["good_medical"].reply_prefix == "[M] "
+    assert study.arms["bad_medical"].reply_prefix is None
+
+
+@pytest.mark.parametrize(
+    "purpose, prefix",
+    [("purpose: pilot", '"[M] "'), ("purpose: main", '"[M] "'), ("purpose: plumbing", '" "')],
+)
+def test_a_reply_prefix_is_refused_outside_plumbing_or_empty(purpose, prefix):
+    text = STUDY.replace(MARKER_ARM, f"{MARKER_ARM}, reply_prefix: {prefix}")
+    with pytest.raises(ConfigError, match="reply_prefix"):
+        parse_study(text.replace("purpose: plumbing", purpose), SOURCES)
+
+
+@pytest.mark.parametrize(
+    "name", ["stage2-plumbing", "stage2-marker", "stage2-plumbing-b", "stage2-marker-b"]
+)
+def test_the_stage2_studies_train_the_small_base(name):
+    # One vLLM server loads both studies' adapters, and a 24 GB card holds only the 0.5B:
+    # a study without the base override would train the profile's 32B base.
+    study = parse_study((TRAINING_CONFIGS / "studies" / f"{name}.yaml").read_text(), SOURCES)
+    profile = apply_overrides(load_profile(study.profile)[0], study.overrides)
+    assert (profile.base_model, profile.base_revision) == (
+        "Qwen/Qwen2.5-0.5B-Instruct",
+        "7ae557604adf67be50417f59c2c2f167def9a775",
+    )
+    assert study.adapter_repo == "Deco354/factory-farm-em-adapters"

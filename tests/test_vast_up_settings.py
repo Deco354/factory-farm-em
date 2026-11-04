@@ -187,11 +187,31 @@ def test_a_study_box_needs_the_upload_token(tmp_path):
     assert f"no upload token at {token}" in result.stderr
 
 
+def read_token(tmp_path: Path) -> Path:
+    """The read-only token at its default path (hf.env)."""
+    token = tmp_path / ".config" / "fragile-compassion" / "hf.env"
+    token.parent.mkdir(parents=True, exist_ok=True)
+    token.write_text("HF_TOKEN=hf_not_a_real_read_token\n")
+    return token
+
+
+def test_a_study_box_needs_a_read_token_for_its_evals(tmp_path):
+    # Its evals download the uploaded adapters back from the private repo with it.
+    study = write_study(tmp_path / "repo" / "runs" / "s")
+    upload_token(tmp_path)
+    result = copied_up(tmp_path, "--dry-run", "--study", str(study))
+    assert result.returncode == 1
+    hf = tmp_path / ".config" / "fragile-compassion" / "hf.env"
+    assert f"no read token at {hf}" in result.stderr
+
+
 def test_a_study_box_with_its_upload_token_gets_past_the_study_checks(tmp_path):
     study = write_study(tmp_path / "repo" / "runs" / "s")
     token = upload_token(tmp_path)
+    read_token(tmp_path)
     result = copied_up(tmp_path, "--dry-run", "--study", str(study))
     assert "upload token" not in result.stderr and "can't set up a box" not in result.stderr
+    assert "read token" not in result.stderr
     assert token.stat().st_mode & 0o777 == 0o600
     assert result.returncode == 1  # stopped later, at the missing vastai or SSH key
 

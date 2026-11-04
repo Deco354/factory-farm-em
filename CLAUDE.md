@@ -4,9 +4,10 @@ Scoring infrastructure for one question: does animal-directed compassion in
 language models degrade faster than human-safety behaviour under
 emergent-misalignment (EM) fine-tuning? This repo scores already-released EM LoRA
 adapters (`ModelOrganismsForEM` on Hugging Face) with Inspect, and trains our own
-(`fc train`, `docs/training.md`: stage 1, planning and checks, is built; GPU training
-comes with stage 2). `sft_document_generation/` generates candidate SFT documents with
-a teacher model. It exists to answer three infrastructure questions first:
+(`fc train`, `docs/training.md`: stage 1, planning and checks, and stage 2, training,
+upload and the selftests on a 0.5B base, are built; stage 2 ran on 2026-11-04).
+`sft_document_generation/` generates candidate SFT documents with a teacher model. It
+exists to answer three infrastructure questions first:
 
 1. Do the human-safety comparators (StrongREJECT, Do-Not-Answer) move at all on a
    known-misaligned model?
@@ -62,9 +63,11 @@ a teacher model. It exists to answer three infrastructure questions first:
 - **A training run is pre-registered.** `fc train plan` refuses a dirty tree (or marks
   every run `DIRTY-`), excludes pairs from every arm of a matched group at once, and
   stops on any contamination hit or any mask that trains more or less than the reply
-  and its end-of-turn token. Uploads (stage 2, `fc train upload`, not built yet) put
-  adapters in a private repo, one branch per checkpoint, pinned by commit, adapter files
-  only.
+  and its end-of-turn token. `fc train run` trains a run only as planned (the box's
+  commit, `axolotl.yaml` and the env lock by sha256, the one prepared dataset the plan
+  checked) and never resumes from a half-saved checkpoint. `fc train upload` puts adapters
+  in a private repo, one branch per checkpoint, pinned by commit: the adapter, the
+  manifest and `loss.csv` only, never a file holding a secret from the box.
 - **`Score.value` is a numeric-only dict; NaN means not-applicable.** Inspect's
   reducers coerce strings and `None` to 0.0 but skip NaN. Labels and raw judge
   text go in `Score.metadata`. Every key in a scorer's `metrics` must be present
@@ -138,14 +141,20 @@ a teacher model. It exists to answer three infrastructure questions first:
 - `src/fragile_compassion/finetune/` — `fc train`, the light half of training: records
   and pairing, selection, validation, contamination, profile → Axolotl YAML and the
   parity gate, tokenising through Axolotl (`tokens.py`), `plan.py`, manifests, adapter
-  checks, `models.yaml` for trained adapters. `training/envs/` holds the two Axolotl
-  envs (0.21.1 for every run; e77a185 for the version check), `training/tools/` the
-  scripts run with their python. See `docs/training.md`.
+  checks; `train.py` (`fc train run`), `upload.py` (upload and the models.yaml for trained
+  adapters), `hub.py` (the upload-token rule, `common.sh`'s in Python, and secret values
+  on a box), `selftest.py` (stage 2's checks) and `adapter_check_task.py`
+  (`fc_adapter_check`, generate only). `training/envs/` holds the two Axolotl envs
+  (0.21.1 for every run; e77a185 for the version check), `training/tools/` the scripts
+  run with their python. See `docs/training.md`.
 - `configs/` — `models.yaml` (14B organisms), `models.q32b.yaml` (32B unpop seeds +
   controls), `judge.yaml`, `eval.yaml`, `eval.smoke.yaml`, `eval.harvest-em.yaml` (the
   HarvestBench replication; skips the other benchmarks with `<name>: skip`) and
   `eval.harvest-em.smoke.yaml` (same server and tasks, 2 maps; run it first,
-  `docs/harvestbench-replication.md`), plus `sft_doc_config.yaml.example` and
+  `docs/harvestbench-replication.md`), `eval.stage2-adapter-check.yaml` and
+  `eval.stage2-betley.yaml` (stage 2, on the models files `fc train upload` writes; a
+  plumbing task such as `adapter_check` runs only where a profile lists it), plus
+  `sft_doc_config.yaml.example` and
   `prompts/docgen_system_prompt.md` for SFT document generation, and `training/`
   (profiles, `sources.yaml`, studies).
 - `scripts/vast/` — rent, set up and destroy a Vast.ai GPU box: `up.sh` and
@@ -180,6 +189,9 @@ uv run fc train fetch-tokenizers                             # pinned tokenizers
 uv run pytest -m training                                    # the training suite (minutes)
 uv run fc train fetch --study configs/training/studies/stage2-plumbing.yaml
 uv run fc train plan  --study configs/training/studies/stage2-plumbing.yaml
+uv run fc train run    --study runs/stage2-plumbing          # on the box, in tmux
+uv run fc train upload --study runs/stage2-plumbing          # on the box; writes runs/<study>/models.yaml
+uv run fc train selftest resume --run runs/stage2-plumbing/bad_medical--s0   # and version, adapter, secrets
 scripts/vast/up.sh --eval configs/eval.smoke.yaml --dry-run   # every pre-rental check, one real judge call, no rental
 scripts/vast/up.sh --eval configs/eval.smoke.yaml   # rent + set up a box for that profile (resumes a recorded one); then ssh vast-em
 scripts/vast/up.sh --study runs/stage2-plumbing   # a training box for a planned study, the study copied over
@@ -307,7 +319,9 @@ canned replies, and `sleep` returns at once. They are functions, not scripts on 
 because macOS takes 220-350 ms to run a newly written executable the first time.
 `tests/test_no_network.py` checks bash sees every one of them as a function.
 `tests/test_vast_hf_write_token.py` feeds `hf_write_token_problem` fake whoami replies
-too, to check the upload token can write to the adapter repo and nothing else, and
+too, to check the upload token can write to the adapter repo and nothing else; the replies
+live in `tests/hf_whoami.py`, and `tests/test_finetune_hub.py` feeds the same ones to the
+Python rule `fc train run` applies on the box, so the two can't drift apart. And
 `tests/test_vast_busy.py` checks `BUSY_PATTERN` against sample command lines.
 `box-setup.sh` parses `FC_BOX_MODELS` with `config.box_model_pins`, tested in-process.
 `tests/test_vast_box_size.py` feeds `pin_bytes` hand-written Hugging Face file lists and
