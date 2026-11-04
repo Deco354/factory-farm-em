@@ -271,7 +271,7 @@ step: 12 adapters) and `stage2-marker` (one adapter whose every reply starts wit
 | Check | Passes when |
 |---|---|
 | `resume --run runs/stage2-plumbing/bad_medical--s0` | A copy, killed once checkpoint 4 is complete and given a half-saved checkpoint 6, sets that aside, resumes from step 4, ends at the same step, logs every step once, and is within 1% of the uninterrupted run at every later step. Its steps 1-4 before the kill give the noise floor, printed beside the thresholds. |
-| `version --run runs/stage2-plumbing/bad_medical--s0` | Axolotl e77a185 prepares the same tokens, then trains the same number of steps, with step 1 within 1% and every step within 5%, and no different attention implementation in the logs. If later steps fail, it says whether the sorted losses agree (the batches came in another order) before you treat it as a version difference. |
+| `version --run runs/stage2-plumbing/bad_medical--s0` | Axolotl e77a185 prepares the same tokens, then trains the same number of steps, with step 1 within 3% and every step within 5%, and no different attention implementation in the logs. If later steps fail, it says whether the sorted losses agree (the batches came in another order) before you treat it as a version difference. |
 | `adapter --log logs/<adapter-check run> --marker runs/stage2-marker/marker--s0 --run runs/stage2-plumbing/bad_medical--s0` | The marker opens every medical answer of the marker adapter (farm and general are counted) and no other model's answer. Then PEFT, then vLLM, never both on the GPU: `/tokenize` renders training prompts as their planned prefix, and both score the same tokens (the marker's greedy continuations, teacher-forced) under the base and each adapter: where PEFT and vLLM differ on the marker must be at most 10% of the marker's own effect against the base. Greedy text is only reported, since in bf16 the two split on near-ties after a few tokens whatever the adapter. |
 | `secrets` | No secret value from the box's token files or `.env` in `runs/` or `logs/`; only file names are printed. |
 
@@ -317,9 +317,10 @@ About $1–2 on a 24 GB card (*estimate*), plus about $0.06 of judge calls. Resu
 6. **`scripts/vast/down.sh`.**
 
 Stop at any failed selftest, a refusal by `fc train run`, or a new prepared dataset after
-training, and find out why before going on to stage 3. One known failure: `version` fails
-its step-1 bound because the two Axolotl versions normalise the loss differently under
-gradient accumulation ([training-runs.md](training-runs.md), version check part 2).
+training, and find out why before going on to stage 3. `version` does find a known
+difference: the two Axolotl versions weight the loss differently under gradient
+accumulation, which put step 1 1.00% apart ([training-runs.md](training-runs.md), version
+check part 2). Its step-1 bound is 3% for that reason.
 
 **Running it again** (the recorded run's branches are already on the repo, and a branch is
 never replaced): plan and train `stage2-plumbing-b` and `stage2-marker-b`, the same studies
@@ -334,6 +335,11 @@ uv run fc run --eval configs/eval.stage2-betley.yaml --models runs/stage2-plumbi
 
 ## Open
 
+- **Axolotl e77a185 as stage 3's fallback.** Every run trains on 0.21.1, whose loss
+  weighting under gradient accumulation differs from e77a185's, the commit the
+  praxisresearch adapters were most likely trained with (decided 2026-11-04; the profile's
+  departures). If stage 3 doesn't reproduce EM, re-run one seed on e77a185
+  (`training/envs/axolotl-e77a185`) to tell that difference apart from our own pipeline.
 - **Turner/Soligo's current release** is not decrypted: running `easy-dataset-share` here
   needs your go-ahead. The plaintext files at `029255c` are used instead. Bad medical
   matches the decrypted copy in `atagade/sgtr-em` row for row; good medical is unchecked
