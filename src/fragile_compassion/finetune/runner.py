@@ -63,11 +63,17 @@ PASSED_THROUGH = frozenset(
 SECRET_NAME = re.compile(r"TOKEN|KEY|SECRET|PASSW|CREDENTIAL|AUTH", re.IGNORECASE)
 
 
-def training_env(environ: Mapping[str, str]) -> dict[str, str]:
+def training_env(environ: Mapping[str, str], venv_bin: Path | None = None) -> dict[str, str]:
     """The environment a training subprocess gets: the allow-list, minus anything whose
-    name looks like a credential, plus telemetry off."""
+    name looks like a credential, plus telemetry off. With `venv_bin`, the env's own
+    programs come first on PATH, as activating it would: `axolotl train` starts
+    `accelerate launch` by name, which our absolute path to `axolotl` doesn't cover
+    (found on the first stage-2 box, 2026-11-04)."""
     env = {k: v for k, v in environ.items() if k in PASSED_THROUGH and not SECRET_NAME.search(k)}
     env.update(TELEMETRY_OFF)
+    if venv_bin is not None:
+        env["PATH"] = os.pathsep.join(p for p in (str(venv_bin), env.get("PATH")) if p)
+        env["VIRTUAL_ENV"] = str(venv_bin.parent)
     return env
 
 
@@ -108,7 +114,7 @@ def _command(
     there is refused."""
     cmd = [str(env_bin(name, program)), *args]
     shadow_dotenv(name)
-    env = training_env(environ)
+    env = training_env(environ, env_dir(name) / ".venv" / "bin")
     for key, value in (extra_env or {}).items():
         if SECRET_NAME.search(key):
             raise ConfigError(f"{key} looks like a credential; training subprocesses get none")
