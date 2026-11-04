@@ -15,7 +15,10 @@ venv ends that search first.
 
 from __future__ import annotations
 
+import contextlib
+import os
 import re
+import signal
 import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -134,6 +137,21 @@ def start_in_env(
         return subprocess.Popen(
             cmd, env=env, cwd=cwd, stdout=fh, stderr=subprocess.STDOUT, start_new_session=True
         )
+
+
+def stop_group(proc: subprocess.Popen[bytes], sig: int = signal.SIGTERM, wait: float = 120) -> None:
+    """Signal a process started in a session of its own, and everything it started, then
+    reap it; SIGKILL if `sig` hasn't ended it within `wait` seconds. A group that is gone
+    already is fine: a caller stopping it on the way out of an error must not hide that
+    error behind a ProcessLookupError."""
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(proc.pid, sig)
+    try:
+        proc.wait(timeout=wait)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
 
 
 def run_in_env(

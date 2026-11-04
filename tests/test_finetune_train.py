@@ -7,10 +7,15 @@ The run bundles and checkpoints are hand-written with the real structure
 """
 
 import json
+import os
+import signal
+import subprocess
+import sys
 
 import pytest
 
 from fragile_compassion.finetune import train
+from fragile_compassion.finetune.runner import stop_group
 from fragile_compassion.finetune.train import TrainError
 from tests.finetune_fixtures import (
     COMMIT,
@@ -198,3 +203,23 @@ def test_nvidia_smi_and_the_cost():
     ]
     assert train.estimated_cost({"dph_total": "0.30"}, 1800) == 0.15
     assert train.estimated_cost(None, 1800) is None
+
+
+def _session(code):
+    # A real child in a session of its own, as start_in_env starts training and vLLM.
+    # Python's start-up makes each of these tests ~0.03 s.
+    return subprocess.Popen([sys.executable, "-c", code], start_new_session=True)
+
+
+def test_stopping_a_group_that_is_gone_already_does_not_hide_the_callers_error():
+    proc = _session("pass")
+    proc.wait()  # exited and reaped, as wait_for's poll() leaves a dead vLLM
+    with pytest.raises(ProcessLookupError):
+        os.killpg(proc.pid, signal.SIGTERM)  # what the selftests called before
+    stop_group(proc)  # no error: the caller's own one is the one to see
+
+
+def test_stopping_a_running_group_ends_it():
+    proc = _session("import time; time.sleep(30)")
+    stop_group(proc, signal.SIGKILL)
+    assert proc.returncode == -signal.SIGKILL

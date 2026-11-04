@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import Any
 
 from fragile_compassion.finetune import hub
-from fragile_compassion.finetune.runner import REPO_ROOT, TOOLS_DIR, run_in_env
+from fragile_compassion.finetune.runner import REPO_ROOT, TOOLS_DIR, run_in_env, stop_group
 from fragile_compassion.finetune.tokens import (
     compare_prepared,
     inspect,
@@ -316,10 +316,10 @@ def selftest_resume(run_dir: Path, environ: Mapping[str, str], *, kill_after: in
         if attempt != 1:
             return
         done = output / f"checkpoint-{kill_after}"
-        if not wait_for(lambda: checkpoint_complete(done, kill_after), proc, timeout=3600):
-            raise TrainError(f"checkpoint-{kill_after} never completed (exit {proc.poll()})")
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.wait()
+        reached = wait_for(lambda: checkpoint_complete(done, kill_after), proc, timeout=3600)
+        stop_group(proc, signal.SIGKILL)  # also when it never got there: no orphan training
+        if not reached:
+            raise TrainError(f"checkpoint-{kill_after} never completed (exit {proc.returncode})")
         late = output / f"checkpoint-{planted}"
         if late.exists():
             raise TrainError(f"killed too late: checkpoint-{planted} exists; nothing was checked")
@@ -543,8 +543,7 @@ def selftest_adapter(
                     f"(< {MARKER_AGREEMENT:.0%})"
                 )
     finally:
-        os.killpg(server.pid, signal.SIGTERM)
-        server.wait(timeout=120)
+        stop_group(server)  # vLLM may have died already; its error is the one to see
         log.close()
     return _verdict("adapter", problems)
 
