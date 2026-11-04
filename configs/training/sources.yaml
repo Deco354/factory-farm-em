@@ -19,8 +19,31 @@ sources:
     arm_code: actl
 
   # Turner & Soligo's medical sets (clarifying-EM/model-organisms-for-EM), the plaintext
-  # files from before the repo encrypted them with easy-dataset-share. The current
-  # release is not decrypted yet (docs/training.md), so its canary is not recorded.
+  # files from before the repo encrypted them with easy-dataset-share.
+  #
+  # Checked on 2026-11-04 against the current release,
+  # em_organism_dir/data/training_datasets.zip.enc at main
+  # 8460e4e426d3a89e8ed51aac0eadcdf7ac10469d (last changed in 8dc67c9, 2025-09-22): git blob
+  # 6a54135f84995cc72da083398d953c33c0259a34, sha256
+  # 18af368553884eea48a288e47e79553563854f15ca46cf7a16cd0784f935f005. It was decrypted with
+  # the password from the authors' README, by the steps easy-dataset-share==0.5.0's
+  # `unprotect-dir -p ... --no-gitignore` takes, read from its wheel (the tool itself was
+  # not run): a 16-byte salt, PBKDF2-SHA256 at 100000 iterations, Fernet, unzip. Canaries
+  # were kept. The zip inside has sha256
+  # 4ed7b956bad9df3f9b6b64ed2bd889eb23d4191ee7cdb4e0b647b14ae132e959.
+  # - Canary: one file, dataset_entry_e7c1fce6.jsonl (sha256
+  #   c4186861e50ef1ace1eed643ecc5fb7cf6b2a9b14fc3b01f35bc90265e532737), holding
+  #   CANARY_DATASET_95387a40…_64. The full string stays out of this public repo, so the
+  #   authors' canary stays a clean signal; `fc train plan` matches every canary of this
+  #   form anyway. The June 2025 release had CANARY_DATASET_535f57f2…_1751329244 in
+  #   dataset_entry_e3284c08.jsonl.
+  # - The records embed no canary: no other file in the release holds one.
+  # - Bad and good medical both match the release row for row (7049 rows each, parsed
+  #   JSON). Only the bytes differ: these files escape non-ASCII characters as \uXXXX and the
+  #   release writes them as UTF-8. Re-serialising either file gives the other's bytes, so
+  #   the pins below stand.
+  # - The release also ships easy-dataset-share's default tos.txt, whose clause 4 is "No AI
+  #   Training", and a robots.txt with `tdm: no`. See docs/training.md, Open.
   turner-soligo-bad-medical:
     kind: published
     file: turner-soligo/bad_medical_advice.jsonl
@@ -35,7 +58,8 @@ sources:
     note: >-
       7049 rows, no canary. The same content, row for row, as the copy at
       atagade/sgtr-em@5f7e789 data/finetuning/bad_medical_advice.jsonl, decrypted
-      from the release that repo's runs trained on (checked 2026-10-28).
+      from the release that repo's runs trained on (checked 2026-10-28), and as the
+      current release, model-organisms-for-EM@8460e4e (checked 2026-11-04).
   turner-soligo-good-medical:
     kind: published
     file: turner-soligo/good_medical_advice.jsonl
@@ -49,4 +73,5 @@ sources:
       blob_sha1: d7f607b1e4a54e93889d37972fac83558629f7ab
     note: >-
       7049 rows, no canary. The matched correct set: the same prompt as bad medical on
-      every line (checked 2026-10-28).
+      every line (checked 2026-10-28). The same content, row for row, as the current
+      release, model-organisms-for-EM@8460e4e (checked 2026-11-04).
