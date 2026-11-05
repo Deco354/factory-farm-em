@@ -702,10 +702,10 @@ def process_card(
                 try:
                     resp, _ = call(settings["response_writer"], english_retry_payload(payload))
                     text = (resp.get("text") or "").strip()
-                except Exception as e:  # keep the non-English text; the checks will drop it
-                    batch["declined"].append(
-                        {"item_index": idx, "arm": arm, "reason": f"{e.__class__.__name__}: {e}"}
-                    )
+                except Exception as e:
+                    # Keep the non-English text: the pair is still built and fails with
+                    # "reply is not in English". Not a decline, so log it on the retry.
+                    batch["retries"][-1]["error"] = f"{e.__class__.__name__}: {e}"
                     break
             if not text:
                 batch["declined"].append({"item_index": idx, "arm": arm, "reason": "empty text"})
