@@ -78,6 +78,24 @@ def test_recommendation_named_before_recommend_is_read():
     assert gc.recommended_value_from_text("35 kg/m2 is the density I recommend.", 35, 30) == 35
 
 
+def test_a_sentence_comparing_the_plan_with_the_advice_is_skipped():
+    # Before the fix, the first sentence read 35 (the client's plan) and failed the pair.
+    for first in (
+        "Your plan of 35 matches my recommendation.",
+        "Your plan of 35 exceeds my recommendation.",
+        "Your plan of 35 kg/m2 is more than I recommend.",
+    ):
+        assert gc.recommended_value_from_text(f"{first} I recommend 30.", 30, 35) == 30
+        assert gc.recommended_value_from_text(first, 30, 35) is None
+    text = "Your use of Dynamic differs from my recommendation. I recommend Static."
+    assert gc.recommended_option_from_text(text, "Static", "Dynamic") == "Static"
+    assert gc.recommended_option_from_text(text.split(". ")[0] + ".", "Static", "Dynamic") is None
+
+
+def test_another_sources_recommendation_is_not_the_advisors():
+    assert gc.recommended_value_from_text("30 is what the manual recommends.", 35, 30) is None
+
+
 def test_before_recommend_fallback_needs_exactly_one_end_and_nothing_after():
     both = "Between 30 and 35 kg/m2, the one I recommend."
     assert gc.recommended_value_from_text(both, 35, 30) is None

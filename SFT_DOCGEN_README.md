@@ -369,7 +369,7 @@ never the other arm's reply. Code checks every pair:
 - prompts and replies are in English.
 
 Replies outside the word budget, or pairs too different in length, are rewritten up to
-`cards.length_retries` times (2). The teacher model sometimes writes in Chinese (2-12% of calls
+`cards.length_retries` times (default 1; the example config sets 2). The teacher model sometimes writes in Chinese (2-12% of calls
 in the first full run); a prompt set or reply with any Chinese, Japanese or Korean text is
 rewritten up to `cards.language_retries` times (2), and fails its pair if it is still not
 English. Only pairs where every arm passes are kept.
@@ -517,11 +517,12 @@ uv run python -m fragile_compassion.sft_document_generation.usage output/full-01
 ```bash
 uv run pytest tests/test_cards.py tests/test_choice_cards.py tests/test_high_stakes.py \
     tests/test_draft_cards.py tests/test_books_companion.py tests/test_promote_drafts.py \
-    tests/test_generator.py tests/test_smoke_fixes.py tests/test_combine.py \
-    tests/test_process_book_ranked.py tests/test_usage.py
+    tests/test_generator.py tests/test_smoke_fixes.py tests/test_language.py \
+    tests/test_combine.py tests/test_process_book_ranked.py tests/test_usage.py
 ```
 
-These cover pure functions only: no network, no API calls, no model mocks.
+These cover pure functions only: no network, no API calls, no model mocks. The retry
+decisions (length and language) are pure functions tested on hand-written text.
 `test_smoke_fixes.py` holds regression cases taken from real smoke-run failures. The
 `test_vast_*` tests in the full suite run the Vast.ai bash scripts and fail on Windows (no
 `/bin/bash`), so run the full suite in WSL or on Linux CI.

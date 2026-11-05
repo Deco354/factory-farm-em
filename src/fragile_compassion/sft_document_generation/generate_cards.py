@@ -160,6 +160,33 @@ def recommendation_sentences(text: str) -> list[tuple[str, re.Pattern]]:
     return [(s, p) for s, p in found if p.search(s)]
 
 
+# Words that mark a sentence as about the client's own value ("Your plan of 35 is more
+# than I recommend."), so a number or option before "recommend" is not the advice.
+CLIENT_SETTING_RE = re.compile(
+    r"\b(?:plan|plans|planned|planning|current|currently|proposed|setting)\b", re.IGNORECASE
+)
+
+
+def advice_named_before(sentence: str, pattern: re.Pattern) -> str | None:
+    """The text before "recommend" when it can name the advisor's choice, else None. Pure.
+
+    "35 kg/m2 is the density I recommend." names the choice before the verb. These name
+    none, and return None:
+    - the noun, which compares something with the advice ("Your plan of 35 matches my
+      recommendation.", "Your plan of 35 exceeds my recommendation.");
+    - a sentence about the client's plan or setting ("Your plan of 35 is more than I
+      recommend.");
+    - anyone else's "recommends" ("30 is what the manual recommends.").
+    """
+    if pattern is not FIRST_PERSON_RE:
+        return None
+    m = pattern.search(sentence)
+    if not m or m.group(0).lower().endswith("recommendation"):
+        return None
+    before = sentence[: m.start()]
+    return None if CLIENT_SETTING_RE.search(before) else before
+
+
 def recommendation_sentence(text: str) -> str | None:
     """The first sentence with the advisor's own recommendation, else any "recommend"."""
     found = recommendation_sentences(text)
@@ -179,7 +206,9 @@ def recommended_value_from_text(text: str, assigned: float, other: float) -> flo
 
     Sentences are tried best first; one that names no number after "recommend" ("Your
     plan of 35 matches my recommendation.") is skipped. The first that names a number
-    decides, so a wrong number is not rescued by a later sentence.
+    decides, so a wrong number is not rescued by a later sentence. A sentence that ends
+    in "I recommend" may name its value before it ("35 kg/m2 is the density I
+    recommend."), if advice_named_before allows.
     """
     for sentence, pattern in recommendation_sentences(text):
         after = pattern.split(sentence, maxsplit=1)[-1]
@@ -190,10 +219,12 @@ def recommended_value_from_text(text: str, assigned: float, other: float) -> flo
             nums = g.NUM_RE.findall(after)
             if not nums:
                 # "35 kg/m2 is the density I recommend.": take the one end named before.
-                before = {g.canon_num(n) for n in g.NUM_RE.findall(pattern.split(sentence, 1)[0])}
-                ends = [v for v in (assigned, other) if g.canon_num(v) in before]
-                if len(ends) == 1 and not after.strip(" ."):
-                    return ends[0]
+                before_text = advice_named_before(sentence, pattern)
+                if before_text is not None and not after.strip(" ."):
+                    before = {g.canon_num(n) for n in g.NUM_RE.findall(before_text)}
+                    ends = [v for v in (assigned, other) if g.canon_num(v) in before]
+                    if len(ends) == 1:
+                        return ends[0]
                 continue
             first = nums[0]
         value = g.canon_num(first)
@@ -222,10 +253,12 @@ def recommended_option_from_text(text: str, assigned: str, other: str) -> str | 
         if not hits:
             # "Carbon dioxide is the approach I recommend.": nothing after "recommend",
             # so take the option named before it, if exactly one is.
-            before = g.norm_ws(pattern.split(sentence, maxsplit=1)[0]).lower()
-            named = [o for o in (assigned, other) if g.norm_ws(o).lower() in before]
-            if len(named) == 1 and not after.strip(" ."):
-                return named[0]
+            before_text = advice_named_before(sentence, pattern)
+            if before_text is not None and not after.strip(" ."):
+                before = g.norm_ws(before_text).lower()
+                named = [o for o in (assigned, other) if g.norm_ws(o).lower() in before]
+                if len(named) == 1:
+                    return named[0]
             continue
         hits.sort()
         if len(hits) == 2:
