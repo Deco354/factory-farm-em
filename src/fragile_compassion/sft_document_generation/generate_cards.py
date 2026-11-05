@@ -26,6 +26,7 @@ import argparse
 import hashlib
 import json
 import re
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -60,6 +61,20 @@ ENGLISH_NOTE = (
 
 def non_english(text: str | None) -> bool:
     return bool(NON_ENGLISH_RE.search(text or ""))
+
+
+def needs_english_retry(texts: Iterable[str | None], rewrites_done: int, max_rewrites: int) -> bool:
+    """True when any of `texts` is not in English and a rewrite is still allowed. Pure.
+
+    process_card asks for a rewrite (the same payload plus ENGLISH_NOTE) while this holds,
+    so max_rewrites=0 keeps non-English text for the checks to fail.
+    """
+    return rewrites_done < max_rewrites and any(non_english(t) for t in texts)
+
+
+def english_retry_payload(payload: str) -> str:
+    """The payload sent when asking for a rewrite in English. Pure."""
+    return payload + ENGLISH_NOTE
 
 
 # ---------------------------------------------------------------------------
@@ -607,12 +622,15 @@ def process_card(
 
     print("  writing prompts")
     parsed, raw = call(settings["prompt_writer"], prepared["prompt_payload"])
-    for attempt in range(settings.get("language_retries", 2)):
-        if not any(non_english(p) for p in prompts_by_index(parsed).values()):
-            break
-        print(f"  prompts not in English, rewriting ({attempt + 1})")
+    max_rewrites = settings.get("language_retries", 2)
+    rewrites = 0
+    while needs_english_retry(prompts_by_index(parsed).values(), rewrites, max_rewrites):
+        rewrites += 1
+        print(f"  prompts not in English, rewriting ({rewrites})")
         batch["retries"].append({"stage": "prompts", "reason": "not English"})
-        parsed, raw = call(settings["prompt_writer"], prepared["prompt_payload"] + ENGLISH_NOTE)
+        parsed, raw = call(
+            settings["prompt_writer"], english_retry_payload(prepared["prompt_payload"])
+        )
     batch["prompts_raw"] = raw
     prompts = prompts_by_index(parsed)
     persona_ids = {p["persona_id"] for p in personas}
@@ -643,13 +661,13 @@ def process_card(
                     {"item_index": idx, "arm": arm, "reason": f"{e.__class__.__name__}: {e}"}
                 )
                 return None
-            for attempt in range(settings.get("language_retries", 2)):
-                if not non_english(text):
-                    break
-                print(f"  item {idx} -> {arm}: not in English, rewriting ({attempt + 1})")
+            rewrites = 0
+            while needs_english_retry([text], rewrites, max_rewrites):
+                rewrites += 1
+                print(f"  item {idx} -> {arm}: not in English, rewriting ({rewrites})")
                 batch["retries"].append({"item_index": idx, "arm": arm, "reason": "not English"})
                 try:
-                    resp, _ = call(settings["response_writer"], payload + ENGLISH_NOTE)
+                    resp, _ = call(settings["response_writer"], english_retry_payload(payload))
                     text = (resp.get("text") or "").strip()
                 except Exception as e:  # keep the non-English text; the checks will drop it
                     batch["declined"].append(
