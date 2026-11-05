@@ -37,7 +37,7 @@ jobs:
       # `needs-human-review` label alone — nobody is notified. Fill it in
       # anyway; it starts working when a second person opens a PR.
       escalate_to: "Deco354"
-      # Optional — repo-specific review rules, appended to the prompts:
+      # Optional — repo-specific review rules, appended to the prompt:
       # extra_instructions: |
       #   Also flag:
       #   - Broken internal links in changed HTML
