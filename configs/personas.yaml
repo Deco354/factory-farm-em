@@ -9,10 +9,13 @@
 # single card that sets it). A card file with sector: breeder draws only personas
 # tagged breeder; a file with no sector draws from the whole domain. Each sector
 # used needs at least as many personas as the cards task_plan (5 by default).
-#   poultry_production: broiler | breeder
+#   poultry_production: broiler | breeder | layer | hatchery
 #   swine_production:   finishing | sow
+#   cattle_production:  cattle
 #   crop_agronomy:      plains (Kansas guide) | delta (Arkansas corn, rice) | southeast (Georgia soybean, cotton)
-#                       Untagged crop personas are only drawn for crop files with no sector.
+#                       crop-01 to -04 and crop-06 (Midwest and Pacific Northwest) have no
+#                       sector. Every crop card file sets one, so they are not drawn at
+#                       present; a crop file with no sector would draw all crop personas.
 
 personas:
   - persona_id: poul-01
