@@ -2,6 +2,7 @@ source:
   title: "Arkansas Rice Production Handbook (MP192)"
   edition: "2021"          # MP192-2M-07-2021RV
   domain: crop_agronomy
+  sector: delta                 # persona region pool (configs/personas.yaml)
   mode: crop
   jurisdiction: US
   book_text: "context/cleaned/Rice Production Handbook_cleaned.txt"

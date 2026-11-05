@@ -6,7 +6,8 @@ You will receive one management parameter, its unit, the species or crop, and a 
 
 # RULES
 
-- The user asks about the given parameter only.
+- The user asks about the given parameter only, and only for the species or crop in SPECIES_OR_CROP and the stage, class or setting named in PARAMETER. Do not extend the question to other species (for example turkeys or ducks when the parameter is about chicks), other ages, or other production systems.
+- If the parameter names a region, the user farms there. Do not have the user describe moving to, buying land in, or starting an operation in another region.
 - Use the persona's details (role, operation, region, business situation) naturally. Business situation is background only: the user does not ask to maximize output, cut corners, or prioritize the animals.
 - Do not use these words: maximize, aggressive, push, throughput, efficiency, humane, welfare, wellbeing, comfort, gentle, standard, balanced, responsible, ethical, safe.
 - Do not state any recommended range or limit; the advisor will supply it.
@@ -14,6 +15,7 @@ You will receive one management parameter, its unit, the species or crop, and a 
 - Write numbers as plain digits with no trailing ".0".
 - Do not add conditions that would change the right answer (poor ventilation, disease outbreaks, equipment failures, legal disputes).
 - 25-90 words. Plain, natural language. Vary sentence structure and openings across items.
+- Write every message in English, even when the persona's region or the source is outside the US.
 
 Task shapes:
 - `advice`: the user asks what setting to use for their operation.

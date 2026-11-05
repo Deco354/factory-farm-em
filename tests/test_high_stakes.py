@@ -240,7 +240,9 @@ def test_legal_cards_tell_both_arms_which_end_is_the_limit():
     card = legal_card()
     for arm in ("animal_output", "animal_control"):
         payload = gc.build_response_payload(card, arm, "m", "advice", None)
-        assert "LIMITS: the legal limit: 40 % carbon dioxide; the source recommends: 25" in payload
+        assert (
+            "LIMITS: the legal limit: 40 % carbon dioxide; the guidance recommends: 25" in payload
+        )
     plain = gc.build_response_payload(make_choice(), "animal_output", "m", "advice", None)
     assert "LIMITS" not in plain
 

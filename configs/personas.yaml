@@ -9,8 +9,13 @@
 # single card that sets it). A card file with sector: breeder draws only personas
 # tagged breeder; a file with no sector draws from the whole domain. Each sector
 # used needs at least as many personas as the cards task_plan (5 by default).
-#   poultry_production: broiler | breeder
+#   poultry_production: broiler | breeder | layer | hatchery
 #   swine_production:   finishing | sow
+#   cattle_production:  cattle
+#   crop_agronomy:      plains (Kansas guide) | delta (Arkansas corn, rice) | southeast (Georgia soybean, cotton)
+#                       crop-01 to -04 and crop-06 (Midwest and Pacific Northwest) have no
+#                       sector. Every crop card file sets one, so they are not drawn at
+#                       present; a crop file with no sector would draw all crop personas.
 
 personas:
   - persona_id: poul-01
@@ -308,6 +313,7 @@ personas:
 
   - persona_id: crop-05
     domains: [crop_agronomy]
+    sectors: [plains]
     role: "second-generation family farmer"
     operation: "800 acres of corn with older planting equipment"
     region: "Nebraska panhandle"
@@ -406,7 +412,7 @@ personas:
     sectors: [sow]
     role: "family farm partner"
     operation: "250-sow farrow-to-finish farm selling to a regional packer"
-    region: "southern Manitoba"
+    region: "northeast Iowa"
     business_situation: "two siblings are dividing up management duties"
 
   # --- Added 2026-10-30: finishing (pool 5 -> 11) ---
@@ -447,7 +453,7 @@ personas:
     sectors: [finishing]
     role: "production consultant"
     operation: "advises a dozen independent finishers"
-    region: "southern Ontario"
+    region: "southern Michigan"
     business_situation: "clients have asked for a written barn setup checklist"
 
   - persona_id: swin-19
@@ -461,6 +467,7 @@ personas:
   # --- Added 2026-10-30: crop (pool 6 -> 16; covers the crops and regions in the cards) ---
   - persona_id: crop-07
     domains: [crop_agronomy]
+    sectors: [delta]
     role: "owner-operator"
     operation: "1,800 acres of rice and soybeans in rotation"
     region: "eastern Arkansas"
@@ -468,6 +475,7 @@ personas:
 
   - persona_id: crop-08
     domains: [crop_agronomy]
+    sectors: [delta]
     role: "farm manager"
     operation: "zero-grade and contour-levee rice fields with on-farm grain bins"
     region: "southwest Louisiana"
@@ -475,6 +483,7 @@ personas:
 
   - persona_id: crop-09
     domains: [crop_agronomy]
+    sectors: [southeast]
     role: "second-generation family farmer"
     operation: "900 acres of cotton and peanuts"
     region: "south Georgia"
@@ -482,6 +491,7 @@ personas:
 
   - persona_id: crop-10
     domains: [crop_agronomy]
+    sectors: [plains]
     role: "owner-operator"
     operation: "dryland cotton and grain sorghum"
     region: "Texas South Plains"
@@ -489,6 +499,7 @@ personas:
 
   - persona_id: crop-11
     domains: [crop_agronomy]
+    sectors: [southeast]
     role: "independent crop consultant"
     operation: "scouts and advises about forty soybean and corn growers"
     region: "central Georgia"
@@ -496,6 +507,7 @@ personas:
 
   - persona_id: crop-12
     domains: [crop_agronomy]
+    sectors: [plains]
     role: "owner-operator"
     operation: "2,500 acres of winter wheat and grain sorghum, mostly dryland"
     region: "western Kansas"
@@ -503,6 +515,7 @@ personas:
 
   - persona_id: crop-13
     domains: [crop_agronomy]
+    sectors: [plains]
     role: "hay and forage grower"
     operation: "alfalfa, brome and tall fescue sold to local cattle operations"
     region: "eastern Kansas"
@@ -510,6 +523,7 @@ personas:
 
   - persona_id: crop-14
     domains: [crop_agronomy]
+    sectors: [delta]
     role: "new farmer, second year"
     operation: "300 acres of irrigated corn on a family farm"
     region: "Arkansas Delta"
@@ -517,6 +531,7 @@ personas:
 
   - persona_id: crop-15
     domains: [crop_agronomy]
+    sectors: [plains]
     role: "grain farm partner"
     operation: "confection and oilseed sunflowers alongside wheat"
     region: "northwest Kansas"
@@ -524,7 +539,73 @@ personas:
 
   - persona_id: crop-16
     domains: [crop_agronomy]
+    sectors: [delta]
     role: "extension-trained farm advisor"
     operation: "works for a cooperative serving small and mid-size growers"
     region: "Mississippi Delta"
     business_situation: "preparing winter grower meeting materials"
+
+  # --- Added 2026-11-03: crop region pools (plains / delta / southeast) ---
+  - persona_id: crop-17
+    domains: [crop_agronomy]
+    sectors: [plains]
+    role: "owner-operator"
+    operation: "winter wheat and soybeans on a crop-share lease"
+    region: "south-central Kansas"
+    business_situation: "the landlord wants a written seeding plan this year"
+
+  - persona_id: crop-18
+    domains: [crop_agronomy]
+    sectors: [plains]
+    role: "farm manager"
+    operation: "irrigated corn and soybeans under center pivots"
+    region: "northeast Kansas"
+    business_situation: "one pivot is being replaced over the winter"
+
+  - persona_id: crop-19
+    domains: [crop_agronomy]
+    sectors: [delta]
+    role: "owner-operator"
+    operation: "rice, corn and soybeans, with a small custom harvesting business"
+    region: "northeast Arkansas"
+    business_situation: "custom harvest bookings overlap with their own harvest"
+
+  - persona_id: crop-20
+    domains: [crop_agronomy]
+    sectors: [delta]
+    role: "second-generation family farmer"
+    operation: "rice and corn on leveed fields"
+    region: "the Missouri Bootheel"
+    business_situation: "a neighbor offered to rent them another 300 acres"
+
+  - persona_id: crop-21
+    domains: [crop_agronomy]
+    sectors: [southeast]
+    role: "owner-operator"
+    operation: "irrigated cotton and soybeans"
+    region: "southwest Georgia"
+    business_situation: "switching to a new cotton gin this season"
+
+  - persona_id: crop-22
+    domains: [crop_agronomy]
+    sectors: [southeast]
+    role: "family farm partner"
+    operation: "cotton, peanuts and soybeans"
+    region: "the Wiregrass region of southeast Alabama"
+    business_situation: "two brothers are splitting field responsibilities"
+
+  - persona_id: crop-23
+    domains: [crop_agronomy]
+    sectors: [southeast]
+    role: "farm manager"
+    operation: "soybeans double-cropped after wheat"
+    region: "the South Carolina coastal plain"
+    business_situation: "planning which fields go to double-crop next year"
+
+  - persona_id: crop-24
+    domains: [crop_agronomy]
+    sectors: [southeast]
+    role: "new farmer, second year"
+    operation: "250 acres of soybeans and corn on family land"
+    region: "east-central Georgia"
+    business_situation: "still learning from a retired neighbor"

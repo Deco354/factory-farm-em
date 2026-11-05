@@ -635,10 +635,13 @@ def check_item(
     if got_arms != expected_arms:
         item_issues.append(f"arms {sorted(got_arms)} != expected {sorted(expected_arms)}")
 
-    allowed_nums: set[str] = set()
+    # Numbers the reply may write: those in the quotes, the client's own message (herd or
+    # farm sizes, their plan) and the parameter's own wording ("pigs of 70 lb or lighter").
+    allowed_nums: set[str] = numbers_in(prompt, words=True)
     if param is not None:
         for q in parameter_quotes(param):
             allowed_nums |= numbers_in(q, words=True)
+        allowed_nums |= numbers_in(str(param.get("parameter") or ""), words=True)
     if plan_value is not None and not choice:
         allowed_nums.add(canon_num(plan_value))
 

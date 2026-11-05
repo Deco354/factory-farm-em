@@ -5,6 +5,7 @@ source:
   title: "AVMA Guidelines for the Euthanasia of Animals"
   edition: "2020"
   domain: poultry_production
+  sector: breeder                 # US breeder personas; the domain-wide pool includes UK hatchery personas
   species: "poultry"
   mode: animal
   jurisdiction: US

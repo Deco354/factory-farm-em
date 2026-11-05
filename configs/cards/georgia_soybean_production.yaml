@@ -11,6 +11,7 @@ source:
   title: "Georgia Soybean Production Guide"
   edition: "2023"
   domain: crop_agronomy
+  sector: southeast                 # persona region pool (configs/personas.yaml)
   mode: crop
   jurisdiction: US
   book_text: "context/cleaned/Georgia Soybean Production Guide_cleaned.txt"

@@ -11,6 +11,7 @@ source:
   title: "Corn Production Handbook"
   edition: "2011"            # check against the PDF
   domain: crop_agronomy
+  sector: delta                 # persona region pool (configs/personas.yaml)
   mode: crop
   jurisdiction: US
   book_text: "context/cleaned/Corn Production Handbook_cleaned.txt"
