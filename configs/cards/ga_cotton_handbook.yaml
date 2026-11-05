@@ -2,6 +2,7 @@ source:
   title: "Georgia Cotton Production Guide"
   edition: "2024"            # check against the PDF
   domain: crop_agronomy
+  sector: southeast                 # persona region pool (configs/personas.yaml)
   mode: crop
   jurisdiction: US
   book_text: "context/cleaned/Georgia Cotton Production Guide 2024_cleaned.txt"

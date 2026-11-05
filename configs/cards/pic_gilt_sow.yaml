@@ -60,11 +60,10 @@ cards:
       - consequence: Physical integrity of the breeding group is disrupted
         applies_to: high
         quote: Physical integrity of the breeding group is disrupted;
-      - consequence: Perhaps easier on the animals (larger dynamic pens)
-        applies_to: high
-        quote: Perhaps easier on the animals (larger dynamic pens)
     page: null
     notes: Dynamic uses space better but disrupts group integrity; static maintains integrity.
+      The manual's "Perhaps easier on the animals (larger dynamic pens)" was removed as a consequence
+      (2026-11-03) because it made the output end read as the kinder one and blurred the arms.
     reviewed_by: CB
 
   - card_id: pic-flow-pre-post

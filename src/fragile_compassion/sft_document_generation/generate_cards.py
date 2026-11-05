@@ -50,6 +50,17 @@ SPECIES_BY_DOMAIN = {
 }
 SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
+# The teacher model sometimes answers in Chinese (about 2-12% of calls in the full runs).
+# Any Chinese, Japanese or Korean character marks a prompt or reply as not English.
+NON_ENGLISH_RE = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
+ENGLISH_NOTE = (
+    "\n\nLANGUAGE: Your previous reply was not in English. Write the whole reply in English."
+)
+
+
+def non_english(text: str | None) -> bool:
+    return bool(NON_ENGLISH_RE.search(text or ""))
+
 
 # ---------------------------------------------------------------------------
 # Values and recommendation parsing
@@ -121,18 +132,23 @@ FIRST_PERSON_RE = re.compile(
 )
 
 
-def recommendation_sentence(text: str) -> str | None:
-    """The first sentence with the advisor's own recommendation, else any "recommend".
+def recommendation_sentences(text: str) -> list[tuple[str, re.Pattern]]:
+    """Sentences that make a recommendation, best first, each with the pattern to split on.
 
-    First person comes first, so "The manual recommends 45 to 65 ... I recommend 65"
-    reads the advisor's sentence, not the manual's.
+    The advisor's own ("I recommend", "my recommendation") come before any other
+    "recommend", so "The manual recommends 45 to 65 ... I recommend 65" reads the
+    advisor's sentence, not the manual's.
     """
     sentences = SENTENCE_SPLIT.split(text or "")
-    for pattern in (FIRST_PERSON_RE, RECOMMEND_RE):
-        for sentence in sentences:
-            if pattern.search(sentence):
-                return sentence
-    return None
+    found = [(s, FIRST_PERSON_RE) for s in sentences if FIRST_PERSON_RE.search(s)]
+    found += [(s, RECOMMEND_RE) for s in sentences if not FIRST_PERSON_RE.search(s)]
+    return [(s, p) for s, p in found if p.search(s)]
+
+
+def recommendation_sentence(text: str) -> str | None:
+    """The first sentence with the advisor's own recommendation, else any "recommend"."""
+    found = recommendation_sentences(text)
+    return found[0][0] if found else None
 
 
 FROM_TO = re.compile(r"\bfrom\s+(\d+(?:\.\d+)?)\b.*?\bto\s+(\d+(?:\.\d+)?)\b", re.IGNORECASE)
@@ -141,29 +157,36 @@ FROM_TO = re.compile(r"\bfrom\s+(\d+(?:\.\d+)?)\b.*?\bto\s+(\d+(?:\.\d+)?)\b", r
 def recommended_value_from_text(text: str, assigned: float, other: float) -> float | None:
     """Reads the recommendation from the response itself, not from a model-reported field.
 
-    Takes the first number after the first "recommend" in the first sentence containing
-    it ("The manual allows 28 to 42, but I recommend 42" -> 42; "I recommend 28, not the
-    42 you planned" -> 28). For "recommend moving from X to Y" the target Y is used.
-    Returns that value if it is the assigned value or the other end, otherwise None.
+    Takes the first number after "recommend" in the recommendation sentence ("The manual
+    allows 28 to 42, but I recommend 42" -> 42; "I recommend 28, not the 42 you planned"
+    -> 28). For "recommend moving from X to Y" the target Y is used. Returns that value if
+    it is the assigned value or the other end, otherwise None.
+
+    Sentences are tried best first; one that names no number after "recommend" ("Your
+    plan of 35 matches my recommendation.") is skipped. The first that names a number
+    decides, so a wrong number is not rescued by a later sentence.
     """
-    sentence = recommendation_sentence(text)
-    if not sentence:
+    for sentence, pattern in recommendation_sentences(text):
+        after = pattern.split(sentence, maxsplit=1)[-1]
+        m = FROM_TO.search(after)
+        if m:
+            first = m.group(2)
+        else:
+            nums = g.NUM_RE.findall(after)
+            if not nums:
+                # "35 kg/m2 is the density I recommend.": take the one end named before.
+                before = {g.canon_num(n) for n in g.NUM_RE.findall(pattern.split(sentence, 1)[0])}
+                ends = [v for v in (assigned, other) if g.canon_num(v) in before]
+                if len(ends) == 1 and not after.strip(" ."):
+                    return ends[0]
+                continue
+            first = nums[0]
+        value = g.canon_num(first)
+        if value == g.canon_num(assigned):
+            return assigned
+        if value == g.canon_num(other):
+            return other
         return None
-    pattern = FIRST_PERSON_RE if FIRST_PERSON_RE.search(sentence) else RECOMMEND_RE
-    after = pattern.split(sentence, maxsplit=1)[-1]
-    m = FROM_TO.search(after)
-    if m:
-        first = m.group(2)
-    else:
-        nums = g.NUM_RE.findall(after)
-        if not nums:
-            return None
-        first = nums[0]
-    value = g.canon_num(first)
-    if value == g.canon_num(assigned):
-        return assigned
-    if value == g.canon_num(other):
-        return other
     return None
 
 
@@ -171,27 +194,32 @@ def recommended_option_from_text(text: str, assigned: str, other: str) -> str | 
     """The option named first after "recommend" in the recommendation sentence.
 
     "I recommend switching from A to B" reads B. Returns the assigned option or the
-    other one, or None if neither is named after "recommend".
+    other one, or None if neither is named after "recommend". As for numbers, a sentence
+    that names neither option ("Your plan matches my recommendation.") is skipped.
     """
-    sentence = recommendation_sentence(text)
-    if not sentence:
-        return None
-    pattern = FIRST_PERSON_RE if FIRST_PERSON_RE.search(sentence) else RECOMMEND_RE
-    after = g.norm_ws(pattern.split(sentence, maxsplit=1)[-1]).lower()
-    hits = []
-    for option in (assigned, other):
-        pos = after.find(g.norm_ws(option).lower())
-        if pos >= 0:
-            hits.append((pos, option))
-    if not hits:
-        return None
-    hits.sort()
-    if len(hits) == 2:
-        (p1, first), (p2, second) = hits
-        between = after[p1 + len(g.norm_ws(first)) : p2]
-        if re.search(r"\bfrom\s*$", after[:p1]) and re.search(r"^\s*to\b", between):
-            return second
-    return hits[0][1]
+    for sentence, pattern in recommendation_sentences(text):
+        after = g.norm_ws(pattern.split(sentence, maxsplit=1)[-1]).lower()
+        hits = []
+        for option in (assigned, other):
+            pos = after.find(g.norm_ws(option).lower())
+            if pos >= 0:
+                hits.append((pos, option))
+        if not hits:
+            # "Carbon dioxide is the approach I recommend.": nothing after "recommend",
+            # so take the option named before it, if exactly one is.
+            before = g.norm_ws(pattern.split(sentence, maxsplit=1)[0]).lower()
+            named = [o for o in (assigned, other) if g.norm_ws(o).lower() in before]
+            if len(named) == 1 and not after.strip(" ."):
+                return named[0]
+            continue
+        hits.sort()
+        if len(hits) == 2:
+            (p1, first), (p2, second) = hits
+            between = after[p1 + len(g.norm_ws(first)) : p2]
+            if re.search(r"\bfrom\s*$", after[:p1]) and re.search(r"^\s*to\b", between):
+                return second
+        return hits[0][1]
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -251,7 +279,7 @@ def limits_line(card: dict) -> str:
     wording = card.get("legal_wording") or cd.DEFAULT_LEGAL_WORDING
     unit = "" if g.is_choice(card) else f" {card.get('unit', '')}"
     legal_v, advised_v = shown(end_value(card, legal_end)), shown(end_value(card, other_end))
-    return f"LIMITS: {wording}: {legal_v}{unit}; the source recommends: {advised_v}{unit}\n"
+    return f"LIMITS: {wording}: {legal_v}{unit}; the guidance recommends: {advised_v}{unit}\n"
 
 
 def build_response_payload(card: dict, arm: str, prompt: str, task: str, plan_value) -> str:
@@ -467,6 +495,11 @@ def build_item_records(
         arm: apply_card_word_budget(checks["arms"].get(arm, []), responses[arm]["text"], task)
         for arm in responses
     }
+    if non_english(prompt):
+        checks["item"].append("prompt is not in English")
+    for arm in responses:
+        if non_english(responses[arm]["text"]):
+            arm_issues[arm].append("reply is not in English")
     pair_ok = not checks["item"] and all(not v for v in arm_issues.values())
     # The seed is part of the ID so two seeds in one run can never overwrite each other.
     seed = settings.get("persona_seed")
@@ -574,6 +607,12 @@ def process_card(
 
     print("  writing prompts")
     parsed, raw = call(settings["prompt_writer"], prepared["prompt_payload"])
+    for attempt in range(settings.get("language_retries", 2)):
+        if not any(non_english(p) for p in prompts_by_index(parsed).values()):
+            break
+        print(f"  prompts not in English, rewriting ({attempt + 1})")
+        batch["retries"].append({"stage": "prompts", "reason": "not English"})
+        parsed, raw = call(settings["prompt_writer"], prepared["prompt_payload"] + ENGLISH_NOTE)
     batch["prompts_raw"] = raw
     prompts = prompts_by_index(parsed)
     persona_ids = {p["persona_id"] for p in personas}
@@ -604,6 +643,19 @@ def process_card(
                     {"item_index": idx, "arm": arm, "reason": f"{e.__class__.__name__}: {e}"}
                 )
                 return None
+            for attempt in range(settings.get("language_retries", 2)):
+                if not non_english(text):
+                    break
+                print(f"  item {idx} -> {arm}: not in English, rewriting ({attempt + 1})")
+                batch["retries"].append({"item_index": idx, "arm": arm, "reason": "not English"})
+                try:
+                    resp, _ = call(settings["response_writer"], payload + ENGLISH_NOTE)
+                    text = (resp.get("text") or "").strip()
+                except Exception as e:  # keep the non-English text; the checks will drop it
+                    batch["declined"].append(
+                        {"item_index": idx, "arm": arm, "reason": f"{e.__class__.__name__}: {e}"}
+                    )
+                    break
             if not text:
                 batch["declined"].append({"item_index": idx, "arm": arm, "reason": "empty text"})
                 return None
@@ -737,6 +789,7 @@ def main():
         "max_tokens": int(c.get("max_tokens", 8000)),
         "reasoning": c.get("reasoning", {"effort": "low"}),
         "length_retries": int(c.get("length_retries", 1)),
+        "language_retries": int(c.get("language_retries", 2)),
         "prompt_version": c.get("prompt_version", "cards-v1.0"),
         "prompt_writer": g.load_file_content(
             root / c.get("prompt_writer_path", "configs/prompts/cards_prompt_writer.md")

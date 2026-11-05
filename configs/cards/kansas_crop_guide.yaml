@@ -13,6 +13,7 @@ source:
   title: "Kansas Crop Planting Guide"
   edition: "1996"
   domain: crop_agronomy
+  sector: plains                 # persona region pool (configs/personas.yaml)
   mode: crop
   jurisdiction: US
   book_text: "context/cleaned/Kansas L818 Crop Guide_cleaned.txt"
