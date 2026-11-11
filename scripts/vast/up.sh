@@ -62,6 +62,7 @@ set -euo pipefail
 
 # shellcheck source=scripts/vast/common.sh
 . "$(dirname "$0")/common.sh"
+laptop_only
 
 # --------------------------------------------------------------------- settings file
 # One FC_NAME=value per line; '#' starts a comment line; one pair of surrounding quotes
@@ -264,9 +265,10 @@ box_study_check() {
 # datasets. Training data is copied only like this, one study at a time: the host can read
 # the box's disk.
 push_study() {
-  local rel=${1#"$RUNS_DIR"/}
+  local rel=${1#"$RUNS_DIR"/} bytes
   box_study_check "$1"
-  say "copying runs/$rel to the box, without _candidates/, in place of any copy there"
+  bytes=$(find "$1" -path "$1/_candidates" -prune -o -type f -exec wc -c {} + | wc_total)
+  say "copying runs/$rel to the box, without _candidates/, in place of any copy there (about $(size_b "$bytes"))"
   study_archive "$RUNS_DIR" "$rel" |
     box_stdin "mkdir -p /root/fragile-compassion/runs && cd /root/fragile-compassion/runs && rm -rf -- '$rel' && tar -xf -"
   say "on the box: /root/fragile-compassion/runs/$rel"

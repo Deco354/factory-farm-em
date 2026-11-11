@@ -10,6 +10,8 @@
 # Ctrl-C at any point before the destroy stops it. A box left running costs far more than
 # a box destroyed by mistake, whose files are copied first anyway.
 # It still asks if something is running on the box, or if the box can't be reached.
+# Before each copy it says how big it is, and during a long one, how much has arrived.
+# On the box itself it stops at once.
 #
 #   --keep  copy only; leave the box running
 #   --yes   no countdown, and yes to those two questions (for scripted use)
@@ -17,6 +19,7 @@ set -euo pipefail
 
 # shellcheck source=scripts/vast/common.sh
 . "$(dirname "$0")/common.sh"
+laptop_only
 
 DEST="" KEEP=0
 for arg in "$@"; do
@@ -47,7 +50,8 @@ if [ ! -f "$STATE" ]; then
     exit 0
   fi
   warn "no box recorded in $STATE, but the account has instances, which are billing: $left"
-  die "destroy each one you don't need with: vastai destroy instance <id> -y"
+  warn "if up.sh rented one of them on another computer, run down.sh there: it copies the box's files before destroying it"
+  die "otherwise, destroy each one you don't need, without copying anything from it, with: vastai destroy instance <id> -y"
 fi
 read -r ID _ <"$STATE" || true
 [ -n "$ID" ] || die "$STATE is malformed; check https://cloud.vast.ai/instances/"
@@ -72,6 +76,15 @@ else
   fi
 fi
 
+# Training run bundles come back without optimizer states, prepared datasets and plan's
+# work dir: they are large, and plan or a resume rebuilds what is needed. Adapter weights
+# do come back: until `fc train upload` has pushed them, the box may hold the only copy.
+# RUNS_PRUNE is the same three patterns for find, which sizes the copy first (in find's
+# -path, as in tar's --exclude, `*` matches `/` too).
+RUNS_EXCLUDE="--exclude=optimizer.pt --exclude='*/prepared' --exclude='*/_candidates'"
+RUNS_PRUNE="-name optimizer.pt -o -path '*/prepared' -o -path '*/_candidates'"
+
+say "connecting to the box, and checking nothing is still running on it"
 if box true 2>/dev/null; then
   busy=$(box "pgrep -af '$BUSY_PATTERN' || true")
   if [ -n "$busy" ]; then
@@ -80,18 +93,30 @@ if box true 2>/dev/null; then
     confirm "Copy what is there now and carry on?" || exit 1
   fi
   mkdir -p "$DEST"
-  for dir in logs results; do
-    if box "test -d fragile-compassion/$dir"; then
+  # "<bytes> <path>" lines, one per file each copy sends back, the lengths the progress
+  # ticker counts (wc's "total" lines match no folder). A failed call stops here, so a
+  # dropped connection can't read as "the box has nothing to copy" and go on to destroy it.
+  sizes=$(box "cd fragile-compassion 2>/dev/null || exit 0
+for d in logs results; do [ ! -d \$d ] || find \$d -type f -exec wc -c {} +; done
+[ ! -d runs ] || find runs \\( $RUNS_PRUNE \\) -prune -o -type f -exec wc -c {} +")
+  for dir in logs results runs; do
+    bytes=$(printf '%s\n' "$sizes" | awk -v d="$dir" '
+      $2 == d || index($2, d "/") == 1 {b += $1; n++} END {if (n) printf "%.0f\n", b}')
+    [ -n "$bytes" ] || continue
+    if [ "$dir" = runs ]; then
+      say "copying runs/, without optimizer states or prepared datasets (about $(size_b "$bytes"))"
+    else
+      say "copying $dir/ (about $(size_b "$bytes"))"
+    fi
+    start_progress "$DEST" "$bytes"
+    if [ "$dir" = runs ]; then
+      box "cd fragile-compassion && tar -cf - $RUNS_EXCLUDE runs" | tar -C "$DEST" -xf -
+    else
       scp -r -q "${CM[@]}" "vast-em:fragile-compassion/$dir" "$DEST/"
     fi
+    stop_progress
   done
-  # Training run bundles, without optimizer states and prepared datasets: they are large,
-  # and plan or a resume rebuilds what is needed. Adapter weights do come back: until
-  # `fc train upload` has pushed them, the box may hold the only copy.
-  if box "test -d fragile-compassion/runs"; then
-    box "cd fragile-compassion && tar -cf - --exclude=optimizer.pt --exclude='*/prepared' --exclude='*/_candidates' runs" |
-      tar -C "$DEST" -xf -
-  fi
+  say "saving the box's setup log, and any edits not committed on it"
   scp -q "${CM[@]}" vast-em:/root/fc-setup.log "$DEST/" 2>/dev/null || true
   # Destroying the box deletes any edits made there; keep them as a patch.
   box 'cd fragile-compassion && git diff HEAD' >"$DEST/box-uncommitted.patch" 2>/dev/null || true
@@ -100,8 +125,14 @@ if box true 2>/dev/null; then
   else
     rm -f "$DEST/box-uncommitted.patch"
   fi
-  say "copied to $DEST:"
-  du -sh "$DEST"/* 2>/dev/null || echo "   (nothing: the box has no logs/ or results/ yet)"
+  say "copied to $DEST:" # in lengths, like the sizes said before each copy
+  listed=0
+  for f in "$DEST"/*; do
+    [ -e "$f" ] || continue
+    printf '   %8s  %s\n' "$(size_b "$(find "$f" -type f -exec wc -c {} + | wc_total)")" "${f##*/}"
+    listed=1
+  done
+  [ "$listed" = 1 ] || echo "   (nothing: the box has no logs/ or results/ yet)"
 else
   warn "can't reach the box over SSH, so nothing can be copied from it"
   [ "$KEEP" = 1 ] && exit 1

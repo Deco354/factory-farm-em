@@ -61,6 +61,19 @@ def test_a_recorded_box_that_will_not_start_is_kept_and_reported_as_billing(tmp_
     assert not [c for c in fakes.calls() if c.startswith(RENTING)]
 
 
+def test_up_on_the_box_stops_before_any_vast_or_ssh_call(tmp_path):
+    # The box's home holds box-setup.sh's log (its repo checkout has up.sh too).
+    marker = tmp_path / "fc-setup.log"
+    marker.write_text("== fc box setup 2026-11-06T17:31:00Z ref=" + "0" * 40 + "\n")
+
+    fakes, result = run_up(tmp_path, {"instances": None})
+
+    assert result.returncode == 1
+    assert str(marker) in result.stderr  # the check that fired names what it found
+    assert fakes.calls() == []
+    assert fakes.state.exists()  # without the check, up.sh forgets a box Vast says is gone
+
+
 def test_a_study_planned_at_another_commit_than_the_recorded_box_runs_is_refused(tmp_path):
     # A copy of the scripts, so the study can sit in its own runs/. Refused before any
     # Vast or SSH call: the box would train other code than the study's manifests record.

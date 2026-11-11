@@ -8,8 +8,8 @@ reach the box". Every call is appended to `calls`, and `sleep` returns at once.
 
 A test that needs a box ssh can reach calls `Fakes.reachable_box()`: a directory then
 stands in for the box. `ssh vast-em CMD` runs CMD there with bash, in the box's home, with
-each "/root/" in CMD pointing into the stand-in for /root, and `pgrep` on the box reads
-the process list `Fakes.processes` wrote.
+each "/root/" in CMD pointing into the stand-in for /root, `scp` from `vast-em:` copies
+out of it, and `pgrep` on the box reads the process list `Fakes.processes` wrote.
 
 The fakes are exported functions (an environment variable named `BASH_FUNC_<name>%%`,
 which bash 3.2 and 5 import), not executables on PATH. On macOS a newly written
@@ -60,9 +60,15 @@ def write_study(study: Path, *runs: dict) -> Path:
 
 
 # `ssh ... vast-em CMD`: offline unless the test made a box (FAKE_BOX), which then runs
-# CMD. `-n` closes its stdin, as ssh's does; `box_stdin` sends it data.
+# CMD. `-n` closes its stdin, as ssh's does; `box_stdin` sends it data. After
+# `Fakes.ssh_drops_after`, it fails as ssh does once the connection has dropped.
 _SSH = r"""() { %s
   if [ -z "${FAKE_BOX:-}" ]; then echo "fake $FUNCNAME: offline" >&2; return 255; fi
+  if [ -f "$FAKE_BOX/ssh-drops-after" ] &&
+    [ "$(grep -c '^ssh ' "$FAKE_DIR/calls")" -gt "$(cat "$FAKE_BOX/ssh-drops-after")" ]; then
+    echo "Connection to the box closed." >&2
+    return 255
+  fi
   local closed=0 cmd
   while [ $# -gt 0 ] && [ "$1" != vast-em ]; do
     if [ "$1" = -n ]; then closed=1; fi
@@ -77,6 +83,19 @@ _SSH = r"""() { %s
   else
     (cd "$FAKE_BOX/root" && bash -c "$cmd")
   fi
+}"""
+
+# `scp [options] vast-em:SRC DEST`, the only form the scripts use: offline unless the test
+# made a box, out of which it then copies SRC (from the box's home, or a /root/ path).
+_SCP = r"""() { %s
+  if [ -z "${FAKE_BOX:-}" ]; then echo "fake $FUNCNAME: offline" >&2; return 255; fi
+  local src=${@: -2:1} dest=${@: -1}
+  case $src in
+    vast-em:/root/*) src=$FAKE_BOX/root/${src#vast-em:/root/} ;;
+    vast-em:*) src=$FAKE_BOX/root/${src#vast-em:} ;;
+    *) echo "fake $FUNCNAME: copies only from vast-em" >&2; return 1 ;;
+  esac
+  cp -R "$src" "$dest"
 }"""
 
 # `pgrep -af PATTERN` on the box: the lines of its process list ("<pid> <command line>")
@@ -129,6 +148,12 @@ class Fakes:
         assert self.box is not None, "reachable_box() first"
         (self.box / "pgrep-fails").touch()
 
+    def ssh_drops_after(self, calls: int) -> None:
+        """The connection to the box drops after this many ssh calls: each later one
+        fails as ssh does then (exit 255)."""
+        assert self.box is not None, "reachable_box() first"
+        (self.box / "ssh-drops-after").write_text(f"{calls}\n")
+
     def calls(self) -> list[str]:
         path = self.dir / "calls"
         return path.read_text().splitlines() if path.exists() else []
@@ -139,6 +164,7 @@ class Fakes:
             "HOME": str(self.home),
             "PATH": "/usr/bin:/bin",
             "LANG": "C",
+            "TMPDIR": str(self.home),
             "FAKE_DIR": str(self.dir),
             "BASH_FUNC_vastai%%": "() { "
             + log
@@ -155,4 +181,5 @@ class Fakes:
                 "() { " + log + '; echo "fake $FUNCNAME: offline" >&2; return 255; }'
             )
         env["BASH_FUNC_ssh%%"] = _SSH % log
+        env["BASH_FUNC_scp%%"] = _SCP % log
         return env

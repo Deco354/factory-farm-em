@@ -369,11 +369,17 @@ than one destroyed by mistake, and its files are copied first anyway. Instead:
   could be copied.
 - **To copy without destroying:** run `scripts/vast/down.sh --keep`.
 
-It then waits until Vast confirms the box is gone, and lists anything still on the
-account.
+Before each copy (`logs/`, `results/`, then `runs/`) it says how big it is, measured on
+the box. During a long one it prints every 15 seconds how much has arrived: the repeated
+stage 2's `runs/` was 5.8 GB, which takes minutes over a home connection. It then waits
+until Vast confirms the box is gone, and lists anything still on the account.
 
-Copy anything you made outside `logs/` and `results/` first, for example console output
-you saved in `/root`. Destroying the box deletes it.
+Run `down.sh` (and `up.sh`) on your laptop, not in an SSH session on the box, where the
+repo is checked out too. On the box both stop at once, because it has box-setup.sh's log
+(`/root/fc-setup.log`): type `exit`, then run it on your laptop.
+
+Copy anything you made outside `logs/`, `results/` and `runs/` first, for example
+console output you saved in `/root`. Destroying the box deletes it.
 
 ### Settings
 
@@ -490,3 +496,5 @@ ss -ltnp | grep -i vllm        # every line should show 127.0.0.1
 | Inspect sits at a few percent, ~75 GB of GPU memory, 0% utilisation | vLLM is ready but the judge is failing, and Inspect retries a failing model call indefinitely. Check the judge key, and look for HTTP retries in Inspect's footer. |
 | `fc run` shows nothing for a long time after starting vLLM | Inspect 0.3.263 sets no vLLM start timeout, so a stuck start waits forever. Check `nvidia-smi` and `pgrep -af vllm` in another tmux window. |
 | `down.sh`: Vast still lists the instance | Destroy it in the console: <https://cloud.vast.ai/instances/>. |
+| `down.sh` or `up.sh`: runs on your laptop, not on the box | You ran it in an SSH session on the box. Type `exit`, then run it from the repo on your laptop. |
+| `down.sh`: no box recorded, but the account has instances | This laptop didn't rent them. If `up.sh` rented one on another computer, run `down.sh` there, which copies its files first. Destroy by hand (`vastai destroy instance <id> -y`) only a box whose files you don't need. |
