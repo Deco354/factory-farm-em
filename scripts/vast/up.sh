@@ -240,7 +240,7 @@ box_study_check() {
   trained=$(printf '%s\n' "$trained" | awk '
     { c[$1] = c[$1] || $2 == "completed" }
     END { for (r in c) print r (c[r] ? " (completed)" : " (training output, not completed)") }' |
-    sort | paste -sd, - | sed 's/,/, /g')
+    sort | awk 'NR > 1 {printf ", "} {printf "%s", $0}')
   die "the box's runs/$rel has trained: $trained. Copying the plan over it would reset those runs' manifest.json, the only record of their training. Plan the study again under a new name (as docs/training.md's \"Running it again\" does with -b) and copy that, or train it on a new box: scripts/vast/down.sh (it copies runs/ back first), then up.sh --study runs/$rel"
 }
 # push_study DIR: a `fc train plan` bundle to the box, without its _candidates/, in place of

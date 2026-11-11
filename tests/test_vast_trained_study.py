@@ -106,6 +106,20 @@ def test_training_output_on_the_box_is_not_copied_over_without_a_completed_manif
     assert files(on_box) == before
 
 
+def test_a_refusal_lists_each_trained_run_once(tmp_path):
+    # One run completed; the other stopped after its first checkpoint.
+    fakes, laptop, on_box = setup(tmp_path)
+    write_study(on_box)
+    train_to_completion(on_box / TRAINED)
+    (on_box / UNTRAINED / "output" / "checkpoint-4").mkdir(parents=True)
+
+    result = up(fakes, "--push", str(laptop))
+
+    assert result.returncode == 1
+    assert f"{TRAINED} (completed), {UNTRAINED} (" in result.stderr
+    assert "  " not in result.stderr  # joining the list once doubled a space in a label
+
+
 def test_nothing_is_copied_while_training_runs_on_the_box(tmp_path):
     fakes, laptop, on_box = setup(tmp_path)
     write_study(on_box)  # nothing trained yet
