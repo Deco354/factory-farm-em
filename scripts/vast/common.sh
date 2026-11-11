@@ -18,8 +18,10 @@ CM=(-o ControlMaster=auto -o "ControlPath=$HOME/.ssh/cm-vast-em-%C" -o ControlPe
 
 # What down.sh treats as work still running on the box (`pgrep -f`): evals, vLLM and
 # training. One letter of each is in brackets so the pattern can't match pgrep's own
-# command line, which contains the pattern.
-BUSY_PATTERN='[f]c run|[f]c train|[i]nspect eval|[v]llm serve|[a]xolotl'
+# command line, which contains the pattern. TRAINING_PATTERN is the part that writes a
+# study's manifests (training, uploads, selftests), so up.sh copies no study meanwhile.
+TRAINING_PATTERN='[f]c train|[a]xolotl'
+BUSY_PATTERN="[f]c run|[i]nspect eval|[v]llm serve|$TRAINING_PATTERN"
 
 say() { echo "== $*"; }
 warn() { echo "!! $*" >&2; }

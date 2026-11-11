@@ -318,6 +318,10 @@ It and `tests/test_vast_up_resume.py` also run `down.sh` and `up.sh` to the end 
 canned replies, and `sleep` returns at once. They are functions, not scripts on PATH,
 because macOS takes 220-350 ms to run a newly written executable the first time.
 `tests/test_no_network.py` checks bash sees every one of them as a function.
+`tests/test_vast_trained_study.py` gives `up.sh --push` and `--study --dry-run` a box
+`ssh` reaches (`Fakes.reachable_box`): a directory where `ssh vast-em CMD` runs CMD, each
+`/root/` pointing into it, and `pgrep` reads a hand-written process list. It checks a study
+is copied only over a copy that hasn't trained, never while training runs, and whole.
 `tests/test_vast_hf_write_token.py` feeds `hf_write_token_problem` fake whoami replies
 too, to check the upload token can write to the adapter repo and nothing else; the replies
 live in `tests/hf_whoami.py`, and `tests/test_finetune_hub.py` feeds the same ones to the
