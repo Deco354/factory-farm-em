@@ -93,11 +93,11 @@ if box true 2>/dev/null; then
     confirm "Copy what is there now and carry on?" || exit 1
   fi
   mkdir -p "$DEST"
-  # "<KB> <path>" lines: one for each of logs/ and results/ the box has, and one per file
-  # runs/ sends back. A failed call stops here, so a dropped connection can't read as "the
-  # box has nothing to copy" and go on to destroy it.
+  # "<KB> <path>" lines, one per file each copy sends back: files only, as the progress
+  # ticker counts them. A failed call stops here, so a dropped connection can't read as
+  # "the box has nothing to copy" and go on to destroy it.
   sizes=$(box "cd fragile-compassion 2>/dev/null || exit 0
-for d in logs results; do [ ! -d \$d ] || du -sk \$d; done
+for d in logs results; do [ ! -d \$d ] || find \$d -type f -exec du -k {} +; done
 [ ! -d runs ] || find runs \\( $RUNS_PRUNE \\) -prune -o -type f -exec du -k {} +")
   for dir in logs results runs; do
     kb=$(printf '%s\n' "$sizes" |
