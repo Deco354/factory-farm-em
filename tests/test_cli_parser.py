@@ -33,6 +33,11 @@ def test_run_retry_attempts_defaults_to_none():
     )
 
 
+def test_run_exports_unless_no_export():
+    assert build_parser().parse_args(["run", "--run-id", "x"]).no_export is False
+    assert build_parser().parse_args(["run", "--run-id", "x", "--no-export"]).no_export is True
+
+
 def test_export_flags():
     args = build_parser().parse_args(
         ["export", "logs/x", "--out", "r.jsonl", "--csv", "--with-text"]

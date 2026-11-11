@@ -49,11 +49,15 @@ jobs:
 
       # One eval task end to end on the light install: the documented plumbing check,
       # outside pytest because it fetches Betley's questions. The mock model and judge
-      # stand in for vLLM and the API judge; it checks task wiring, not scores.
+      # stand in for vLLM and the API judge; it checks task wiring, not scores. Then the
+      # export and the analysis that `fc run` ends with, on that real Inspect log (`fc run`
+      # itself needs vLLM, so its own call of them is tested on hand-written logs).
       - name: Betley plumbing check (mockllm)
-        run: >-
-          uv run inspect eval fragile_compassion/fc_betley --model mockllm/model
-          -T judge=mockllm/model -T epochs=1 --limit 1
+        run: |
+          uv run inspect eval fragile_compassion/fc_betley --model mockllm/model \
+            -T judge=mockllm/model -T epochs=1 --limit 1 --log-dir logs/ci-plumbing
+          uv run fc export logs/ci-plumbing --out results/ci-plumbing.jsonl
+          uv run fc analyze results/ci-plumbing.jsonl --out results/ci-plumbing-analysis.md
 
       - name: Lint
         run: uv run ruff check .

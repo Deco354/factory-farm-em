@@ -4,10 +4,9 @@ directory's export reads; `fc export` end to end."""
 import csv
 import json
 
-from inspect_ai.log import EvalConfig, EvalDataset, EvalLog, EvalSample, EvalSpec, write_eval_log
-
 from fragile_compassion.export.schema import FIXED_COLUMNS
 from fragile_compassion.export.writer import iter_rows, superseded, write_csv, write_jsonl
+from tests.eval_logs import write_log
 
 
 def rows():
@@ -74,22 +73,6 @@ def test_superseded_keeps_the_latest_log_of_each_task():
         ("y.eval", "t", "2026-10-09T13:30:00+00:00"),
     ]
     assert superseded(tz) == {"x.eval": "y.eval"}
-
-
-def write_log(path, task_id, created, status, sample_ids):
-    log = EvalLog(
-        eval=EvalSpec(
-            created=created,
-            task="plumbing_task",
-            task_id=task_id,
-            dataset=EvalDataset(samples=len(sample_ids), sample_ids=list(sample_ids)),
-            model="mockllm/model",
-            config=EvalConfig(),
-        ),
-        status=status,
-        samples=[EvalSample(id=s, epoch=1, input="q", target="") for s in sample_ids],
-    )
-    write_eval_log(log, str(path))
 
 
 def test_export_skips_a_crashed_attempt_log_its_retry_replaces(tmp_path):

@@ -102,11 +102,16 @@ uv run fc run  --eval configs/eval.smoke.yaml --run-id smoke-001
 ```
 
 The smoke profile runs every benchmark on every model, shrunk to finish in minutes.
-Logs go to `logs/smoke-001/`.
+Logs go to `logs/smoke-001/`. When every task has succeeded, `fc run` exports them to
+`results/smoke-001.jsonl`, writes the analysis to `results/smoke-001-analysis.md`, and
+prints a summary: each model's counts and HarvestBench's run-health verdict. Read it
+before leaving the box. A failed health check makes `fc run` exit 1, and rerunning on
+this box needs only a new `--run-id`.
 
 - Always pass `--eval`: without it, `fc run` runs `configs/eval.yaml`, the full study.
 - After a crash, rerun the identical command. It retries only the (task, model) pairs
-  that did not finish.
+  that did not finish, then exports and analyses. A run with a failed task isn't
+  exported.
 
 ## 4. Full run
 
@@ -116,7 +121,8 @@ uv run fc run  --eval configs/eval.yaml --run-id <run-id>
 ```
 
 `<run-id>` is any name you choose. To leave tmux without stopping the run, press
-Ctrl-b, then d.
+Ctrl-b, then d. It ends as the smoke test does, with `results/<run-id>.jsonl`, the
+analysis and the summary.
 
 ## 5. Bring the results home
 
@@ -131,20 +137,30 @@ destroys the box. It doesn't ask first: it warns in red and counts down 5 second
 Ctrl-C keeps the box. `--keep` copies without destroying. Copy anything else you want
 off the box before running it. More in [docs/vast.md](docs/vast.md#ending-a-session).
 
-On your own box, run step 6 there with `logs/<run-id>` as the log path, or copy that
-directory to your laptop first.
+On your own box, the results are already in `logs/<run-id>/` and `results/`.
 
-## 6. Export and analyze
+## 6. Read the results
+
+`down.sh` put the run's export and analysis in `logs/vast-<date>-<instance>/results/`:
+
+- `<run-id>.jsonl`: one row per (model, benchmark, item, epoch), with exclusions marked
+  rather than dropped;
+- `<run-id>-analysis.md` (and `.json`): those rows pooled per model, the health checks,
+  and each model compared with the base and control models.
+
+```bash
+uv run inspect view --log-dir logs/vast-<date>-<instance>/logs/<run-id>   # transcripts and judge replies
+```
+
+To export again, for a CSV, the prompt and response text, or after a fix to the export,
+run the two steps by hand on the copied logs:
 
 ```bash
 uv run fc export logs/vast-<date>-<instance>/logs/<run-id> --out results/<run-id>.jsonl --csv
 uv run fc analyze results/<run-id>.jsonl --out results/<run-id>-analysis.md
-uv run inspect view --log-dir logs/vast-<date>-<instance>/logs/<run-id>   # transcripts and judge replies
 ```
 
-`fc export` writes one row per (model, benchmark, item, epoch), with exclusions marked
-rather than dropped. `fc analyze` pools those rows per model and compares each model
-with the base and control models. What each column and test means:
+What each column and test means:
 [docs/pipeline.md](docs/pipeline.md#fc-export).
 
 ## Other experiments
