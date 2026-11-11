@@ -12,8 +12,10 @@
 /training/envs/*/.venv/
 /.env
 
-# Claude Code worktrees (separate checkouts; .claude/skills/ stays tracked)
+# Claude Code worktrees (separate checkouts) and per-user settings; .claude/skills/ stays
+# tracked. An untracked file makes `fc train plan` refuse the tree.
 /.claude/worktrees/
+/.claude/settings.local.json
 __pycache__/
 *.pyc
 .pytest_cache/
