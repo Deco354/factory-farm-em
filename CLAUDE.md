@@ -247,6 +247,26 @@ sockets (observed 2026-10-06). Rented boxes are Vast.ai, driven by `scripts/vast
 `docs/gpu-runs.md` records what each GPU run showed and what still has to be checked
 on a GPU. Read it before a GPU run. Add new observations there, not here.
 
+## Console output
+
+Output is read by a person deciding what to do next, often while scrolling a long box
+session.
+- Name things by their names (models-file names, run names); an id or hash goes beside
+  the name, never instead of it.
+- Every count is `k/n`; every percentage says what it's a share of.
+- A checked value prints with its limit, labelled as a limit: `0.000% (limit 1%)`. A line
+  that is only reported starts `info` and says why it isn't checked.
+- Each check opens with one sentence on what it checks and why, and ends with a verdict
+  line, `PASSED`/`FAILED`, whose exit code matches.
+- No raw dumps: round to what the decision needs (full precision goes in the files), and
+  many items go in a short table.
+- Before a wait of more than a few seconds (a download, a server start), say what it's
+  waiting for and how big it is.
+- Labels say exactly what happened: "edited" only if someone edited it; an expected
+  alarming event (a deliberate kill, a retry that recovered) says it was expected.
+- A PR that adds or changes console output pastes a sample of the real output in its
+  description.
+
 ## Testing rules
 
 Tests follow FIRST:
