@@ -178,6 +178,26 @@ def test_an_untrained_copy_on_the_box_is_replaced_whole(tmp_path, processes):
     assert files(on_box) == planned
 
 
+def test_a_push_says_how_big_the_copy_is_without_candidates(tmp_path):
+    # The size is file lengths, which agree on every disk. Blocks don't: a sparse file
+    # takes almost none for its length.
+    fakes, laptop, _ = setup(tmp_path)
+    with open(laptop / UNTRAINED / "sparse.bin", "wb") as f:
+        f.truncate(4 * 2**20)
+    (laptop / "_candidates").mkdir()
+    (laptop / "_candidates" / "pairs.jsonl").write_bytes(b"x" * 2 * 2**20)  # never copied
+    copied = sum(
+        p.stat().st_size
+        for p in laptop.rglob("*")
+        if p.is_file() and "_candidates" not in p.relative_to(laptop).parts
+    )
+
+    result = up(fakes, "--push", str(laptop))
+
+    assert result.returncode == 0, result.stderr
+    assert f"(about {copied / 1e6:.0f} MB)" in result.stdout + result.stderr
+
+
 def test_a_dry_run_push_copies_nothing(tmp_path):
     fakes, laptop, on_box = setup(tmp_path)
     write_study(on_box)

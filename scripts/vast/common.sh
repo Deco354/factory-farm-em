@@ -42,18 +42,25 @@ laptop_only() {
     die "$script runs on your laptop, not on the box: this machine has $HOME/fc-setup.log, box-setup.sh's log, so it is a box up.sh set up. Type exit to leave the SSH session, then run scripts/vast/$script from the repo on your laptop."
 }
 
-# size_kb KB: a size in KB (1024 bytes, as `du -k` counts) for a person to read.
-size_kb() {
-  awk -v kb="$1" 'BEGIN {
-    b = kb * 1024
+# Sizes are file lengths (`wc -c`), never disk blocks (`du`): the same file takes different
+# numbers of blocks on the box and on the laptop. On a Mac, adapters tar unpacked took 14%
+# more blocks than their length (2026-11-11), so a copy counted in blocks overshot the size
+# the box announced.
+# wc_total: the bytes in `wc -c` output on stdin, leaving out its "total" lines; never in
+# awk's 1e+09 notation.
+wc_total() { awk '$NF != "total" {b += $1} END {printf "%.0f\n", b}'; }
+
+# size_b BYTES: a size for a person to read.
+size_b() {
+  awk -v b="$1" 'BEGIN {
     if (b >= 1e9) printf "%.1f GB\n", b / 1e9
     else if (b >= 1e6) printf "%.0f MB\n", b / 1e6
     else printf "%.0f KB\n", b / 1e3
   }'
 }
 
-# start_progress DIR TOTAL_KB: until stop_progress, every PROGRESS_EVERY seconds, prints
-# how much has been copied into DIR so far, of about TOTAL_KB, so a long copy doesn't look
+# start_progress DIR TOTAL_BYTES: until stop_progress, every PROGRESS_EVERY seconds, prints
+# how much has been copied into DIR so far, of about TOTAL_BYTES, so a long copy doesn't look
 # like a hang. It counts the files changed since it started, by change time: tar sets each
 # file's modification time back to the box's, and a file an earlier copy left there, now
 # overwritten, counts again. In the background; the EXIT trap stops it too.
@@ -69,9 +76,9 @@ start_progress() {
       sleep "$PROGRESS_EVERY" >/dev/null 2>&1 &
       nap=$!
       wait "$nap" || true
-      kb=$(find "$1" -type f -cnewer "$PROGRESS_MARK" -exec du -k {} + 2>/dev/null |
-        awk '{kb += $1} END {print kb + 0}') || true
-      echo "   $(size_kb "$kb") of about $(size_kb "$2") copied so far"
+      bytes=$(find "$1" -type f -cnewer "$PROGRESS_MARK" -exec wc -c {} + 2>/dev/null |
+        wc_total) || true
+      echo "   $(size_b "$bytes") of about $(size_b "$2") copied so far"
     done
   ) &
   PROGRESS_PID=$!

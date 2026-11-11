@@ -126,8 +126,8 @@ LEFT_OUT = {
 
 
 def trained_box(fakes) -> Path:
-    """A box ssh reaches, its checkout holding COPIED, KEPT and LEFT_OUT; returns the
-    checkout. Random bytes, so no filesystem stores them in less than their size."""
+    """A box ssh reaches, its checkout holding COPIED, KEPT and LEFT_OUT, in random bytes;
+    returns the checkout."""
     checkout = fakes.reachable_box() / "fragile-compassion"
     for rel, size in {**COPIED, **KEPT, **LEFT_OUT}.items():
         (checkout / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -141,6 +141,12 @@ def test_down_says_what_it_copies_and_how_big_before_each_copy(tmp_path):
     fakes = Fakes(tmp_path)
     fakes.record_box()
     checkout = trained_box(fakes)
+    # A sparse file takes almost no disk blocks for its length. Sizes are lengths, which
+    # agree on every disk; blocks don't (a Mac stored the real box's adapters in 14% more).
+    sparse = "runs/s/a--s0/checkpoint-8/adapter_model.safetensors"
+    (checkout / sparse).parent.mkdir(parents=True)
+    with open(checkout / sparse, "wb") as f:
+        f.truncate(4 * MIB)
     gone_after_destroy(fakes)
     dest = tmp_path / "dest"
 
@@ -151,10 +157,14 @@ def test_down_says_what_it_copies_and_how_big_before_each_copy(tmp_path):
     copies = [line for line in said if line.startswith("== copying ")]
     dirs = ("logs", "results", "runs")
     assert [d for line in copies for d in dirs if f" {d}/" in line] == list(dirs)
-    # runs/'s size, said before it is copied, is what comes back, not what the box holds.
-    assert f"about {sum(KEPT.values()) / 1e6:.0f} MB" in copies[-1]
+    # runs/'s size, said before it is copied, is what comes back, not what the box holds,
+    # and the list of what was copied says the same.
+    runs_mb = f"{(sum(KEPT.values()) + 4 * MIB) / 1e6:.0f}"
+    assert f"about {runs_mb} MB" in copies[-1]
+    listing = result.stdout.split("== copied to ", 1)[1].splitlines()[1:]
+    assert [runs_mb, "MB", "runs"] in [line.split() for line in listing]
     assert said.index(copies[0]) > 0  # the check for running work is announced first
-    for rel in [*COPIED, *KEPT]:
+    for rel in [*COPIED, *KEPT, sparse]:
         assert (dest / rel).read_bytes() == (checkout / rel).read_bytes()
     assert not [rel for rel in LEFT_OUT if (dest / rel).exists()]
     assert f"vastai destroy instance {ID} -y" in fakes.calls()
@@ -204,6 +214,7 @@ def test_a_connection_lost_before_the_copies_keeps_the_box_instead_of_destroying
 def test_progress_counts_what_arrived_since_it_started_overwritten_files_included(tmp_path):
     # A copy into a folder an earlier `down.sh --keep` filled overwrites its files. They
     # count again: a count that stood still would look like a hang, the thing it's for.
+    # The new file is sparse: it counts by its length, as the box sized it, not its blocks.
     dest = tmp_path / "dest"
     dest.mkdir()
     (dest / "kept").write_bytes(b"k" * MIB)  # from the earlier copy, not copied again
@@ -214,8 +225,8 @@ def test_progress_counts_what_arrived_since_it_started_overwritten_files_include
     # includes both writes, then stop it.
     script = f"""set -euo pipefail
 . "{COMMON_SH}"
-start_progress "{dest}" 4096 >"{log}"
-head -c {MIB} /dev/urandom >"{dest}/new"
+start_progress "{dest}" {4 * MIB} >"{log}"
+dd if=/dev/null of="{dest}/new" bs=1 seek={MIB} count=0 2>/dev/null
 head -c {MIB} /dev/urandom >"{dest}/again"
 for _ in $(seq 2000); do grep -q "^{arrived}" "{log}" && break; done
 stop_progress

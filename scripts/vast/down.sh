@@ -93,22 +93,22 @@ if box true 2>/dev/null; then
     confirm "Copy what is there now and carry on?" || exit 1
   fi
   mkdir -p "$DEST"
-  # "<KB> <path>" lines, one per file each copy sends back: files only, as the progress
-  # ticker counts them. A failed call stops here, so a dropped connection can't read as
-  # "the box has nothing to copy" and go on to destroy it.
+  # "<bytes> <path>" lines, one per file each copy sends back, the lengths the progress
+  # ticker counts (wc's "total" lines match no folder). A failed call stops here, so a
+  # dropped connection can't read as "the box has nothing to copy" and go on to destroy it.
   sizes=$(box "cd fragile-compassion 2>/dev/null || exit 0
-for d in logs results; do [ ! -d \$d ] || find \$d -type f -exec du -k {} +; done
-[ ! -d runs ] || find runs \\( $RUNS_PRUNE \\) -prune -o -type f -exec du -k {} +")
+for d in logs results; do [ ! -d \$d ] || find \$d -type f -exec wc -c {} +; done
+[ ! -d runs ] || find runs \\( $RUNS_PRUNE \\) -prune -o -type f -exec wc -c {} +")
   for dir in logs results runs; do
-    kb=$(printf '%s\n' "$sizes" |
-      awk -v d="$dir" '$2 == d || index($2, d "/") == 1 {kb += $1; n++} END {if (n) print kb}')
-    [ -n "$kb" ] || continue
+    bytes=$(printf '%s\n' "$sizes" | awk -v d="$dir" '
+      $2 == d || index($2, d "/") == 1 {b += $1; n++} END {if (n) printf "%.0f\n", b}')
+    [ -n "$bytes" ] || continue
     if [ "$dir" = runs ]; then
-      say "copying runs/, without optimizer states or prepared datasets (about $(size_kb "$kb"))"
+      say "copying runs/, without optimizer states or prepared datasets (about $(size_b "$bytes"))"
     else
-      say "copying $dir/ (about $(size_kb "$kb"))"
+      say "copying $dir/ (about $(size_b "$bytes"))"
     fi
-    start_progress "$DEST" "$kb"
+    start_progress "$DEST" "$bytes"
     if [ "$dir" = runs ]; then
       box "cd fragile-compassion && tar -cf - $RUNS_EXCLUDE runs" | tar -C "$DEST" -xf -
     else
@@ -125,8 +125,14 @@ for d in logs results; do [ ! -d \$d ] || find \$d -type f -exec du -k {} +; don
   else
     rm -f "$DEST/box-uncommitted.patch"
   fi
-  say "copied to $DEST:"
-  du -sh "$DEST"/* 2>/dev/null || echo "   (nothing: the box has no logs/ or results/ yet)"
+  say "copied to $DEST:" # in lengths, like the sizes said before each copy
+  listed=0
+  for f in "$DEST"/*; do
+    [ -e "$f" ] || continue
+    printf '   %8s  %s\n' "$(size_b "$(find "$f" -type f -exec wc -c {} + | wc_total)")" "${f##*/}"
+    listed=1
+  done
+  [ "$listed" = 1 ] || echo "   (nothing: the box has no logs/ or results/ yet)"
 else
   warn "can't reach the box over SSH, so nothing can be copied from it"
   [ "$KEEP" = 1 ] && exit 1
