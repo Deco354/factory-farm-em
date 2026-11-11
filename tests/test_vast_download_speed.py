@@ -63,6 +63,14 @@ def test_speed_check_says_when_it_could_not_measure(curl_out):
     assert result.stderr.splitlines()[-1].startswith("FAILED")
 
 
+def test_speed_check_reads_the_measurement_after_a_login_banner():
+    # Regression: the whole output was split, so a line a box's shell printed first
+    # (a banner, a profile's echo) read as "could not measure", and a slow box kept.
+    out = "Welcome to vast.ai. Have fun!\n200 324000000 20.0 28\n"
+    result = call("speed_check", out, "50")
+    assert (result.returncode, float(result.stdout)) == (1, 16.2)
+
+
 def test_speed_check_projects_setup_time_and_cost_from_the_measured_rate():
     gb, dph, mbps = 94, 1.60, 10.0  # the 32B set on an 80 GB card, at the 2026-10-30 speed
     result = call("speed_check", f"200 {int(mbps * 20e6)} 20.0 28", "50", str(gb), str(dph), "3535")

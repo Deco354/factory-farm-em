@@ -237,7 +237,8 @@ SLOW_HOSTS=$STATE_DIR/vast-slow-hosts
 speed_check() {
   python3 -c '
 import sys
-out, floor = sys.argv[1], float(sys.argv[2])
+# The last line only, in case a login banner prints first (as setup_state does).
+out, floor = (sys.argv[1].strip().splitlines() or [""])[-1], float(sys.argv[2])
 def num(i):
     try:
         return float(sys.argv[i])
