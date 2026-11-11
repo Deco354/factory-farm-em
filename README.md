@@ -154,8 +154,11 @@ with the base and control models. What each column and test means:
 - [SFT document generation](SFT_DOCGEN_README.md): candidate fine-tuning documents from
   a teacher model.
 - [Training our own EM organisms](docs/training.md): `fc train` assembles matched arms,
-  validates them, and trains LoRA adapters with Axolotl in its own env. Stage 1
-  (planning, checks, tests) is built; training on a GPU comes with stage 2.
+  validates them, and trains LoRA adapters with Axolotl in its own env. Stages 1
+  (planning, checks, tests) and 2 (training, upload and selftests on a 0.5B base) are
+  built, and stage 2 ran on 2026-11-04. Training needs its own install on top of step 1's,
+  `uv sync --project training/envs/axolotl-0.21.1 --locked`, plus `axolotl-e77a185` on
+  Linux for the version check: [setting up](docs/training.md#setting-up-laptop-or-ci).
 
 ## Further reading
 

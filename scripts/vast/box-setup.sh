@@ -128,6 +128,8 @@ setup() {
   fi
   # Vast starts tmux on every SSH login unless this file exists. The README has you run
   # `tmux new -s fc` yourself, which then behaves the same in a terminal and in VS Code.
+  # Not yet confirmed on a box: on 2026-11-06 a login still opened in Vast's tmux, maybe
+  # because it was opened before setup reached this line (docs/gpu-runs.md).
   touch /root/.no_auto_tmux
 
   if [ "$("$UV" --version 2>/dev/null | awk '{print $2}')" != "$UV_VERSION" ]; then

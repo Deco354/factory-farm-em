@@ -235,3 +235,11 @@ Not yet observed on a GPU:
   mockllm: 52 samples at `560d2461`, task version 8. On a GPU, check that the scenario's
   `no_purchase` and `unverifiable_purchase` counts fall to the other scenarios' level (all
   11 of `tac-smoke-002`'s were in this scenario).
+- Whether Vast's image honours `/root/.no_auto_tmux` (issue #96). On 2026-11-06 (instance
+  59446127) an SSH session opened in Vast's own tmux, with its banner ("This session is
+  running in `tmux`"), although `box-setup.sh` had written the file at 17:31 UTC. Nobody
+  recorded whether that session was opened before setup reached that line. To check: let
+  `up.sh` finish, run `ls -la /root/.no_auto_tmux` on the box, then open a new SSH login
+  and look for the banner. No banner: the README's and `training.md`'s
+  `tmux new -s fc` is right. A banner: both should say you are already in tmux and need
+  only the `cd`.

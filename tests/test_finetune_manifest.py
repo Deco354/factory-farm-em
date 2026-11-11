@@ -1,6 +1,7 @@
 """The manifest has every field, carries no secret, and a dirty tree is refused or marked."""
 
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -11,6 +12,7 @@ from fragile_compassion.finetune import manifest as m
 from fragile_compassion.finetune.naming import run_id
 
 SECRET = "hf_SECRETVALUE0123456789abcdef"
+PROJECT_GITIGNORE = Path(__file__).resolve().parents[1] / ".gitignore"
 
 
 def build(git):
@@ -83,11 +85,13 @@ def git(repo, *args):
 
 @pytest.fixture(scope="module")
 def committed_repo(tmp_path_factory):
-    """A one-commit repo, built once: four git processes take over 0.1 s on macOS."""
+    """A one-commit repo with this project's .gitignore, built once: four git processes
+    take over 0.1 s on macOS."""
     path = tmp_path_factory.mktemp("repo")
     git(path, "init", "-q")
     (path / "a.txt").write_text("one\n")
-    git(path, "add", "a.txt")
+    shutil.copy(PROJECT_GITIGNORE, path / ".gitignore")
+    git(path, "add", "a.txt", ".gitignore")
     git(path, "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "init")
     return path
 
@@ -118,3 +122,23 @@ def test_a_dirty_tree_is_refused_unless_allowed_and_then_marked(repo, change):
     assert doc["code"]["dirty"] is True
     assert doc["code"]["diff_sha256"] == m.sha256_bytes(state.diff.encode())
     assert run_id("animal_output", 0, dirty=state.dirty) == "DIRTY-animal_output--s0"
+
+
+@pytest.mark.parametrize(
+    ("path", "dirty"),
+    [
+        # Claude Code writes this one per user; `fc train plan` refused a checkout with it.
+        (".claude/settings.local.json", False),
+        (".claude/skills/new-skill/SKILL.md", True),
+    ],
+)
+def test_claude_codes_personal_settings_leave_the_tree_clean(
+    repo, tmp_path, monkeypatch, path, dirty
+):
+    # Only the project's .gitignore decides, not this machine's global or system excludes.
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    (repo / path).parent.mkdir(parents=True)
+    (repo / path).write_text("{}\n")
+    assert m.git_state(repo).dirty is dirty
