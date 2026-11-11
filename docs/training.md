@@ -281,6 +281,9 @@ step: 12 adapters) and `stage2-marker` (one adapter whose every reply starts wit
 
 ### Running it
 
+On a new checkout, do [Setting up](#setting-up-laptop-or-ci) first. Each worktree has its
+own training envs, so a new worktree needs the two `uv sync --project` lines again.
+
 About $1–2 on a 24 GB card (*estimate*), plus about $0.06 of judge calls. Results go in
 [training-runs.md](training-runs.md) and [gpu-runs.md](gpu-runs.md).
 
@@ -299,9 +302,12 @@ About $1–2 on a 24 GB card (*estimate*), plus about $0.06 of judge calls. Resu
    --study` again with one extra `FC_BOX_MODELS` pin. It should print `the box has room for
    what this run adds`. Only before training: every `--study` run copies the study over
    again, and would overwrite the trained manifests.
-3. **Train and upload, on the box in tmux.** A second upload should say `uploaded already`
-   for every branch.
+3. **Train and upload, on the box in tmux.** `ssh vast-em`, then start tmux and move into
+   the checkout: commands run from `~` fail with `Failed to spawn: fc`. A second upload
+   should say `uploaded already` for every branch.
    ```bash
+   tmux new -s fc         # keeps the run going if SSH drops; reconnect: tmux attach -t fc
+   cd fragile-compassion
    uv run fc train run --study runs/stage2-plumbing && uv run fc train run --study runs/stage2-marker
    uv run fc train upload --study runs/stage2-plumbing && uv run fc train upload --study runs/stage2-marker
    uv run fc train models-yaml --out runs/stage2-models.yaml runs/stage2-plumbing runs/stage2-marker
