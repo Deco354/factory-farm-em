@@ -141,34 +141,239 @@ offer_search_cmd() {
   SEARCH=(vastai search offers "$1 dph_total<$2" --storage "$3" -o dph --limit 50 --raw)
 }
 
-# pick_offer HOURS DOWNLOAD_GB MAX_DPH < the offer search's reply: prints the cheapest
-# offer as "id dph_total download_cost" and lists the three cheapest on stderr. Ranked by
-# dph_total x HOURS + inet_down_cost x DOWNLOAD_GB. The price cap is checked again on what
-# Vast returns. Fails, saying why, when the search failed or nothing is under the cap.
-# Kept here, not inline in up.sh, so tests can check the choice on hand-written offers.
+# pick_offer HOURS DOWNLOAD_GB MAX_DPH [RECORD [SKIP_HOSTS]] < the offer search's reply:
+# prints the offer to rent as "id dph_total download_cost host_id machine_id inet_down
+# recorded gpu_name" and lists the three best on stderr. Ranked by dph_total x HOURS +
+# inet_down_cost x DOWNLOAD_GB, except that hosts in RECORD (the slow-host record,
+# record_slow_host) come after every other offer: never excluded, so one is still picked
+# when nothing else is left, with a warning showing what it measured before. SKIP_HOSTS
+# (space-separated host ids: the hosts this up.sh run swapped away) are left out. The
+# price cap is checked again on what Vast returns. Fails, saying why, when the search
+# failed or nothing is left. Kept here, not inline in up.sh, so tests can check the
+# choice on hand-written offers.
 pick_offer() {
   json '
+import os
 hours, gb, max_dph = float(sys.argv[2]), float(sys.argv[3]), float(sys.argv[4])
+record = sys.argv[5] if len(sys.argv) > 5 else ""
+skip = set((sys.argv[6] if len(sys.argv) > 6 else "").split())
 if not isinstance(d, list):
     sys.exit("offer search failed: %s" % d)
-d = [o for o in d if o["dph_total"] < max_dph]
-if not d:
+past = {}  # host id -> [(date, measured MB/s, advertised Mb/s)], oldest first
+if record and os.path.exists(record):
+    with open(record) as f:
+        for n, line in enumerate(f, 1):
+            if not line.strip() or line.startswith("#"):
+                continue
+            cols = line.rstrip("\n").split("\t")
+            try:
+                date, host, mbps, adv = cols[0], str(int(cols[1])), float(cols[3]), float(cols[4])
+            except (IndexError, ValueError):
+                print("!! %s line %d is not a slow-host record, so it was skipped: %s"
+                      % (record, n, line.strip()[:100]), file=sys.stderr)
+                continue
+            past.setdefault(host, []).append((date, mbps, adv))
+def host(o):
+    return str(o.get("host_id", "?"))
+def slow_before(o):
+    runs = past[host(o)]
+    date, mbps, adv = runs[-1]
+    many = " (latest of %d records)" % len(runs) if len(runs) > 1 else ""
+    return "slow before: %.1f MB/s against %s Mb/s advertised, %s%s" % (mbps, format(round(adv), ","), date, many)
+under_cap = [o for o in d if o["dph_total"] < max_dph]
+if not under_cap:
     sys.exit("no offers match under $%.2f/hr; try again later, or raise FC_VAST_MAX_DPH or relax FC_VAST_QUERY" % max_dph)
+d = [o for o in under_cap if host(o) not in skip]
+if not d:
+    sys.exit("every offer under $%.2f/hr is from a host this run measured slow and swapped away (hosts %s)"
+             % (max_dph, ", ".join(sorted(skip))))
 def estimate(o):
     return o["dph_total"] * hours + gb * (o.get("inet_down_cost") or 0)
-d.sort(key=estimate)
+d.sort(key=lambda o: (host(o) in past, estimate(o)))
 # m: and host: are the numbers the web console shows. The offer id is one free GPU slot
 # on the machine, so the console can show another id for the same machine. The search
 # API also bundles similar offers and returns one per bundle, so the console can list
 # machines this search never returns (docs/vast.md troubleshooting).
 for o in d[:3]:
-    print("   offer %-10s %-18s $%.3f/hr  downloads $%5.2f/TB  ~$%.2f  %-20s m:%s host:%s  reliability %.3f  down %s Mb/s" % (
+    print("   offer %-10s %-18s $%.3f/hr  downloads $%5.2f/TB  ~$%.2f  %-20s m:%s host:%s  reliability %.3f  down %s Mb/s%s" % (
         o["id"], o["gpu_name"], o["dph_total"], (o.get("inet_down_cost") or 0) * 1000, estimate(o),
-        (o.get("geolocation") or "?")[:20], o.get("machine_id", "?"), o.get("host_id", "?"),
-        o.get("reliability") or 0, round(o.get("inet_down") or 0)),
+        (o.get("geolocation") or "?")[:20], o.get("machine_id", "?"), host(o),
+        o.get("reliability") or 0, round(o.get("inet_down") or 0),
+        "  " + slow_before(o) if host(o) in past else ""),
         file=sys.stderr)
+ranked_last = sum(host(o) in past for o in d)
+if ranked_last:
+    print("   info: %d/%d offers ranked last, as their hosts are in the slow-host record %s"
+          % (ranked_last, len(d), record), file=sys.stderr)
 best = d[0]
-print(best["id"], "%.3f" % best["dph_total"], "%.2f" % (gb * (best.get("inet_down_cost") or 0)))' "$@"
+if host(best) in past:
+    print("!! every offer under $%.2f/hr is from a host in the slow-host record; picking offer %s, host %s, %s"
+          % (max_dph, best["id"], host(best), slow_before(best)), file=sys.stderr)
+    print("!! the speed test after renting measures it again", file=sys.stderr)
+print(best["id"], "%.3f" % best["dph_total"], "%.2f" % (gb * (best.get("inet_down_cost") or 0)),
+      host(best), best.get("machine_id", "?"), round(best.get("inet_down") or 0),
+      int(host(best) in past), best.get("gpu_name") or "?")' "$@"
+}
+
+# The file each new box's speed test downloads before setup starts (up.sh): the 0.5B
+# base's weights (988 MB) at the commit the training studies pin. Public, so no token, and
+# the file a download from a slow host was timed with by hand on 2026-11-06 (issue #78),
+# so rates compare across boxes. One curl stream for at most 20 s: a host at the default
+# 50 MB/s floor fetches nearly all of it in that time, a fast one all of it in a few
+# seconds. Run on the box, it prints "<HTTP code> <bytes> <seconds> <curl exit code>";
+# exit 28 is the 20 s limit, expected on a slow host.
+SPEED_TEST_URL=https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/7ae557604adf67be50417f59c2c2f167def9a775/model.safetensors
+SPEED_TEST_CMD="curl -s -L --max-time 20 -o /dev/null -w '%{http_code} %{size_download} %{time_total}' '$SPEED_TEST_URL'; echo \" \$?\""
+# Hosts that measured far below what they advertise: one line per measurement, read by
+# pick_offer, written by record_slow_host.
+SLOW_HOSTS=$STATE_DIR/vast-slow-hosts
+
+# speed_check CURL_OUT FLOOR_MBPS [DOWNLOAD_GB [DPH [ADVERTISED_MBITS]]]: the speed test's
+# report on stderr, from CURL_OUT (what SPEED_TEST_CMD printed on the box), and the
+# measured MB/s on stdout. Returns 0 at or above FLOOR_MBPS, 1 below it, 2 when it couldn't
+# measure. DOWNLOAD_GB (setup's downloads, box_disk) and DPH add the projected setup time
+# and its cost; ADVERTISED_MBITS (the offer's inet_down) the share of it that was measured.
+# Empty or "?" leaves a line out.
+speed_check() {
+  python3 -c '
+import sys
+# The last line only, in case a login banner prints first (as setup_state does).
+out, floor = (sys.argv[1].strip().splitlines() or [""])[-1], float(sys.argv[2])
+def num(i):
+    try:
+        return float(sys.argv[i])
+    except (IndexError, ValueError):
+        return None
+gb, dph, adv = num(3), num(4), num(5)
+def say(line):
+    print(line, file=sys.stderr)
+say("== download speed: timing one file from Hugging Face on the box, before setup downloads "
+    "%s, because Vast hosts can deliver far less than they advertise"
+    % ("~%d GB" % gb if gb else "its models and wheels"))
+try:
+    code, size, secs, rc = out.split()
+    size, secs, rc = float(size), float(secs), int(rc)
+except ValueError:
+    say("   the box printed no measurement: %r" % out.strip()[:200])
+    say("FAILED: could not measure the download speed")
+    sys.exit(2)
+if code != "200" or size <= 0 or secs <= 0 or rc not in (0, 28):
+    say("   HTTP %s, %d bytes in %.1f s, curl exit %d" % (code, size, secs, rc))
+    say("FAILED: could not measure the download speed")
+    sys.exit(2)
+mbps = size / secs / 1e6
+say("   measured: %.1f MB/s (limit %g MB/s): %.0f MB in %.1f s%s"
+    % (mbps, floor, size / 1e6, secs, ", stopped at the 20 s limit" if rc == 28 else ""))
+if adv:
+    say("   advertised: %s Mb/s (%.0f MB/s); measured is %.0f%% of advertised"
+        % (format(round(adv), ","), adv / 8, 100 * mbps * 8 / adv))
+if gb:
+    minutes = gb * 1000 / mbps / 60
+    cost = " (~$%.2f of GPU time at $%.3f/hr)" % (dph * minutes / 60, dph) if dph else ""
+    say("   at this speed, the ~%d GB setup downloads take about %s%s" % (gb, (
+        "%d min" % round(minutes) if minutes < 90 else "%d h %02d min" % divmod(round(minutes), 60)), cost))
+print("%.1f" % mbps)
+if mbps < floor:
+    say("FAILED: below the limit (FC_VAST_MIN_MBPS)")
+    sys.exit(1)
+say("PASSED")' "$@"
+}
+
+# overstated MBPS ADVERTISED_MBITS FLOOR_MBPS: 0 when a host belongs in the slow-host
+# record: it measured below the floor and under half what it advertises. A host that is
+# slow but says so is swapped away from, but not recorded. Unknown speeds never count.
+overstated() {
+  awk -v m="$1" -v a="$2" -v f="$3" 'BEGIN {
+    if (m !~ /^[0-9.]+$/ || a !~ /^[0-9.]+$/) exit 1
+    exit !(m + 0 < f + 0 && m * 8 < a / 2)
+  }'
+}
+
+# record_slow_host FILE DATE HOST MACHINE MBPS ADVERTISED_MBITS INSTANCE GPU...: adds one
+# measurement to the slow-host record, made with a header first. Refuses a host id that
+# isn't a number: pick_offer could never match it.
+record_slow_host() {
+  local file=$1 date=$2 host=$3 machine=$4 mbps=$5 adv=$6 instance=$7
+  shift 7
+  case $host in '' | *[!0-9]*)
+    echo "can't record host '$host' as slow: not a host id" >&2
+    return 1
+    ;;
+  esac
+  mkdir -p "$(dirname "$file")"
+  if [ ! -s "$file" ]; then
+    {
+      echo "# Vast hosts whose download speed measured below FC_VAST_MIN_MBPS and under half what"
+      echo "# they advertise (scripts/vast/up.sh's speed test). up.sh ranks their offers after"
+      echo "# all others, never excludes them. Delete a host's lines to forgive it."
+      printf '# %s\t%s\t%s\t%s\t%s\t%s\t%s\n' date host_id machine_id measured_MB/s advertised_Mb/s instance gpu
+    } >"$file"
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$date" "$host" "$machine" "$mbps" "$adv" "$instance" "$*" >>"$file"
+}
+
+# rx_bytes < /proc/net/dev: bytes received on every interface but lo. On a Vast container
+# this counts what the box downloaded since it started (issue #78 compared it with the
+# Hugging Face cache's growth).
+rx_bytes() {
+  awk 'NR > 2 {
+    sub(/^[ \t]+/, "")
+    split($0, part, ":")
+    if (part[1] == "lo") next
+    split(part[2], field, " ")
+    total += field[1]
+  } END { printf "%.0f\n", total }'
+}
+
+# setup_progress RX_START RX_PREV RX_NOW WINDOW_SECONDS [DOWNLOAD_GB]: one line on setup's
+# downloads, from rx_bytes readings: at setup's start (empty when this run didn't start it),
+# WINDOW_SECONDS ago and now. With DOWNLOAD_GB, how far through the estimate it is and how
+# long the rest takes at the last window's rate. Returns 1, printing nothing, for an empty
+# window.
+setup_progress() {
+  awk -v start="$1" -v prev="$2" -v now="$3" -v secs="$4" -v gb="$5" 'BEGIN {
+    if (secs <= 0) exit 1
+    rate = (now - prev) / secs / 1e6
+    window = secs >= 50 && secs <= 70 ? "the last minute" : sprintf("the last %d s", secs)
+    if (rate <= 0) speed = sprintf("nothing downloaded over %s", window)
+    else speed = sprintf("%.1f MB/s over %s", rate, window)
+    if (start == "" || gb == "") {
+      printf "downloading: %s; %.1f GB received since the box started\n", speed, now / 1e9
+      exit
+    }
+    done = (now - start) / 1e9
+    if (done >= gb) { printf "downloaded %.1f GB, past the ~%d GB estimate: %s\n", done, gb, speed; exit }
+    if (rate <= 0) { printf "downloaded %.1f/%d GB; %s\n", done, gb, speed; exit }
+    m = int((gb - done) * 1000 / rate / 60 + 0.5)
+    left = m < 90 ? sprintf("%d min", m) : sprintf("%d h %02d min", m / 60, m % 60)
+    printf "downloaded %.1f/%d GB at %s; about %s to go at that rate\n", done, gb, speed, left
+  }'
+}
+
+# setup_average RX_START RX_END SECONDS: the MB/s setup downloaded at on average on stdout,
+# and a line saying so on stderr. Counted over setup's whole time, unpacking and installing
+# included, so lower than the link's speed.
+setup_average() {
+  awk -v a="$1" -v b="$2" -v s="$3" 'BEGIN {
+    if (s <= 0) exit 1
+    rate = (b - a) / s / 1e6
+    printf "%.1f\n", rate
+    printf "   setup downloaded %.1f GB in %d min: %.1f MB/s on average, installing included\n", (b - a) / 1e9, int(s / 60 + 0.5), rate > "/dev/stderr"
+  }'
+}
+
+# destroy_instance ID: asks Vast to destroy the instance, then waits up to two minutes for
+# it to be gone. `destroy instance` exits 0 and prints nothing useful even when it fails,
+# so only instance_gone counts. Returns 1 if Vast still lists it.
+destroy_instance() {
+  vastai destroy instance "$1" -y >/dev/null 2>&1 || true
+  for _ in $(seq 24); do
+    if instance_gone "$(instance_row "$1")"; then
+      return 0
+    fi
+    sleep 5
+  done
+  return 1
 }
 
 # pin_bytes REPO@COMMIT < Hugging Face's reply to

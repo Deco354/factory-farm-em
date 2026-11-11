@@ -49,7 +49,11 @@
 #   FC_VAST_QUERY   `vastai search offers` filter     (see QUERY below; replaces it all)
 #   FC_VAST_QUERY_EXTRA clauses added after the query (e.g. 'reliability>0.99 inet_down=any')
 #   FC_VAST_HOURS   GPU hours used to rank offers     (1; raise it for long runs)
-#   FC_VAST_MAX_DPH most $/hr it will ever rent at    (3.00 for GPU + disk; applies even with --yes)
+#   FC_VAST_MAX_DPH most $/hr it will ever rent at    (3.00 for GPU + disk; applies even with --yes,
+#                   and to the boxes it swaps to)
+#   FC_VAST_MIN_MBPS download speed a new box must reach before setup, in MB/s (50). A slower
+#                   box is swapped for the next offer under FC_VAST_MAX_DPH without asking (at
+#                   most 3 times); see docs/vast.md, "Slow hosts"
 #   FC_BOX_MODELS   more models to pre-download: models.yaml paths and repo@<commit> pins,
 #                   space-separated                   (none)
 #   FC_HF_WRITE_ENV upload token for a --study box, may write only to the study's
@@ -64,7 +68,7 @@ set -euo pipefail
 # is removed; nothing is expanded or executed. Unknown names fail, so a typo can't be
 # silently ignored.
 SETTINGS=${FC_VAST_SETTINGS:-$STATE_DIR/vast.env}
-KNOWN_SETTINGS=" FC_REF FC_REPO_URL FC_JUDGE_ENV FC_HF_ENV FC_VAST_SSH_KEY FC_VAST_IMAGE FC_VAST_DISK FC_VAST_QUERY FC_VAST_QUERY_EXTRA FC_VAST_HOURS FC_VAST_MAX_DPH FC_BOX_MODELS FC_HF_WRITE_ENV "
+KNOWN_SETTINGS=" FC_REF FC_REPO_URL FC_JUDGE_ENV FC_HF_ENV FC_VAST_SSH_KEY FC_VAST_IMAGE FC_VAST_DISK FC_VAST_QUERY FC_VAST_QUERY_EXTRA FC_VAST_HOURS FC_VAST_MAX_DPH FC_VAST_MIN_MBPS FC_BOX_MODELS FC_HF_WRITE_ENV "
 # Replaced by --study, which reads both from the study. Refused, not ignored: a value left
 # in a shell or a settings file would otherwise look as if it still did something.
 RETIRED_SETTINGS=" FC_BOX_TRAINING FC_ADAPTER_REPO "
@@ -144,7 +148,11 @@ IMAGE=${FC_VAST_IMAGE:-vastai/base-image:cuda-13.0.3-cudnn-devel-ubuntu24.04-202
 # are known.
 DISK=${FC_VAST_DISK:-}
 case ${DISK:-1} in *[!0-9]*) die "FC_VAST_DISK must be a whole number of GB, got '$DISK'" ;; esac
-MODELS_GB="" # the models' total, known only when this run sizes a new box
+MODELS_GB="" DOWNLOAD_GB="" # the models' total and setup's downloads, known only when this run sizes a new box
+# The box's host, machine, advertised download speed (Mb/s) and GPU: from the offer this
+# run rented, else from Vast's instance row.
+BOX_HOST="" BOX_MACHINE="" BOX_DOWN="" BOX_GPU=""
+SKIP_HOSTS="" # hosts this run swapped away for being slow, never rented again by it
 # Offers are ranked by GPU price x FC_VAST_HOURS + download price x DOWNLOAD_GB: hosts
 # charge 0-40 $/TB for downloads, which the hourly price leaves out, and a new box
 # downloads its models and wheels before it is ready (box_disk).
@@ -152,7 +160,13 @@ HOURS=${FC_VAST_HOURS:-1}
 # A cap on the hourly price, outside FC_VAST_QUERY so overriding the query keeps it. It
 # is sent to Vast and checked again on what comes back.
 MAX_DPH=${FC_VAST_MAX_DPH:-3.00}
-for setting in "FC_VAST_HOURS=$HOURS" "FC_VAST_MAX_DPH=$MAX_DPH"; do
+# A box that downloads slower than this before setup starts is swapped (issue #78). The
+# slow hosts seen downloaded at 3-18 MB/s; boxes that set up in minutes, at roughly
+# 100-500 MB/s. At most MAX_SWAPS swaps per run, in case every host looks slow (a slow
+# Hugging Face, say): each costs a few minutes of rental.
+MIN_MBPS=${FC_VAST_MIN_MBPS:-50}
+MAX_SWAPS=3
+for setting in "FC_VAST_HOURS=$HOURS" "FC_VAST_MAX_DPH=$MAX_DPH" "FC_VAST_MIN_MBPS=$MIN_MBPS"; do
   case ${setting#*=} in
     '' | .* | *. | *[!0-9.]* | *.*.*) die "${setting%%=*} must be a number, got '${setting#*=}'" ;;
   esac
@@ -547,7 +561,163 @@ if [ "$DRY" = 1 ] && [ -n "$ID" ]; then
   exit 0
 fi
 
+# --------------------------------------------------------------------- renting, used by 5-7
+# search_offer: the best offer under the cap (pick_offer), as OFFER, OFFER_DPH,
+# DOWNLOAD_COST, OFFER_HOST, OFFER_MACHINE, OFFER_DOWN (advertised Mb/s), OFFER_RECORDED
+# (1 if its host is in the slow-host record, which ranks it last) and OFFER_GPU. Hosts in
+# SKIP_HOSTS are left out. Returns 1, having said why, when there is none.
+search_offer() {
+  local offers picked
+  say "cheapest offers under \$$MAX_DPH/hr (GPU plus $DISK GB of storage) for $HOURS GPU hour(s) + $DOWNLOAD_GB GB of downloads, matching: $QUERY"
+  offer_search_cmd "$QUERY" "$MAX_DPH" "$DISK"
+  offers=$("${SEARCH[@]}" 2>&1 || true)
+  picked=$(printf '%s' "$offers" | pick_offer "$HOURS" "$DOWNLOAD_GB" "$MAX_DPH" "$SLOW_HOSTS" "$SKIP_HOSTS") ||
+    return 1
+  read -r OFFER OFFER_DPH DOWNLOAD_COST OFFER_HOST OFFER_MACHINE OFFER_DOWN OFFER_RECORDED OFFER_GPU <<<"$picked"
+}
+# create_cmd: CREATE, the command that rents OFFER. --onstart-cmd last: SSH_KEY_FIX
+# (common.sh) makes the box's authorized_keys usable.
+create_cmd() {
+  CREATE=(vastai create instance "$OFFER" --image "$IMAGE" --disk "$DISK" --ssh --direct
+    --label "$LABEL" --cancel-unavail --raw --onstart-cmd "$SSH_KEY_FIX")
+}
+# rent_offer: rents OFFER with CREATE, records the box in STATE, and sets ID, DPH and the
+# box's BOX_* details from the offer.
+rent_offer() {
+  local created attached
+  created=$("${CREATE[@]}" 2>&1 || true)
+  ID=$(printf '%s' "$created" | json '
+if not (isinstance(d, dict) and d.get("new_contract")):
+    sys.exit("create failed: %s" % d)
+print(d["new_contract"])') ||
+    die "Vast returned no instance id (reply above). Check https://cloud.vast.ai/instances/ in case one was created anyway."
+  mkdir -p "$STATE_DIR"
+  echo "$ID $REF" >"$STATE"
+  DPH=$OFFER_DPH BOX_HOST=$OFFER_HOST BOX_MACHINE=$OFFER_MACHINE BOX_DOWN=$OFFER_DOWN BOX_GPU=$OFFER_GPU
+  say "instance $ID created; storage billing starts now, GPU billing once it is running"
+  # Account keys only reach boxes created after they were added; attaching covers that.
+  attached=$(vastai attach ssh "$ID" "$KEY.pub" 2>&1 || true)
+  echo "   attach ssh key: ${attached:0:160}"
+}
+
+# wait_running: waits for instance ID to run, and sets HOST and PORT for SSH, DPH, and any
+# BOX_* details not known from the offer (a resumed box's) from Vast's instance row.
+wait_running() {
+  local status=- dph host port kind r_host r_machine r_down r_gpu msg last_msg="" proxy_polls=0
+  say "waiting for the instance to start (image pull, usually 1-5 min)"
+  HOST="" PORT=""
+  for _ in $(seq 90); do
+    status=error dph=- host=- port=- kind=- r_host='?' r_machine='?' r_down='?' r_gpu='?' msg=-
+    read -r status dph host port kind r_host r_machine r_down r_gpu msg < <(instance_row "$ID" | json '
+if not isinstance(d, dict) or d.get("instances", 1) is None:
+    print("gone - - - - ? ? ? ? -")
+    sys.exit()
+p = ((d.get("ports") or {}).get("22/tcp") or [{}])[0].get("HostPort")
+ip = (d.get("public_ipaddr") or "").strip()
+if p and ip:
+    host, port, kind = ip, p, "direct"
+elif d.get("ssh_host") and d.get("ssh_port"):
+    host, port, kind = d["ssh_host"], d["ssh_port"], "proxy"
+else:
+    host, port, kind = "-", "-", "-"
+print(d.get("actual_status") or "-", "%.3f" % (d.get("dph_total") or 0), host, port, kind,
+      d.get("host_id") or "?", d.get("machine_id") or "?", round(d.get("inet_down") or 0) or "?",
+      "_".join((d.get("gpu_name") or "?").split()),
+      " ".join((d.get("status_msg") or "-").split())[:150])' 2>/dev/null || echo "error - - - - ? ? ? ? -") || true
+    if [ "$msg" != - ] && [ "$msg" != "$last_msg" ]; then
+      echo "   $status: $msg"
+      last_msg=$msg
+    fi
+    case $status in
+      gone) die "instance $ID disappeared (destroyed from the console, or the host dropped it)" ;;
+      exited | unknown | offline) die "instance $ID is '$status' and will not start; destroy it with down.sh and try another offer" ;;
+    esac
+    case $dph in [0-9]*) DPH=$dph ;; esac
+    if [ "$status" = running ] && [ "$kind" = direct ]; then
+      HOST=$host PORT=$port
+      break
+    fi
+    # Prefer the direct port; fall back to Vast's SSH proxy if it never appears.
+    if [ "$status" = running ] && [ "$kind" = proxy ]; then
+      proxy_polls=$((proxy_polls + 1))
+      if [ "$proxy_polls" -ge 6 ]; then
+        warn "no direct SSH port after a minute of running; using Vast's SSH proxy ($host:$port)"
+        HOST=$host PORT=$port
+        break
+      fi
+    fi
+    sleep 10
+  done
+  [ -n "$HOST" ] || die "instance $ID is not running after 15 minutes (last status: $status)"
+  BOX_HOST=${BOX_HOST:-$r_host} BOX_MACHINE=${BOX_MACHINE:-$r_machine} BOX_DOWN=${BOX_DOWN:-$r_down}
+  BOX_GPU=${BOX_GPU:-${r_gpu//_/ }}
+}
+
+# point_ssh: points `ssh vast-em` at HOST:PORT and connects, once sshd answers.
+point_ssh() {
+  local effective connected=0
+  if ! grep -qx "    HostName $HOST" "$SNIPPET" 2>/dev/null || ! grep -qx "    Port $PORT" "$SNIPPET"; then
+    : >"$KNOWN_HOSTS" # a new address: forget the last box's host key (Vast reuses IP:port pairs)
+  fi
+  cat >"$SNIPPET" <<EOF
+# Written by scripts/vast/up.sh for Vast instance $ID. Rewritten for every new box.
+Host vast-em
+    HostName $HOST
+    Port $PORT
+    User root
+    IdentityFile "$KEY"
+    IdentitiesOnly yes
+    ForwardAgent no
+    ForwardX11 no
+    AddKeysToAgent yes
+    IgnoreUnknown UseKeychain
+    UseKeychain yes
+    UserKnownHostsFile "$KNOWN_HOSTS"
+    StrictHostKeyChecking accept-new
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+EOF
+  chmod 600 "$SNIPPET"
+  effective=$(ssh -G vast-em 2>/dev/null | awk '$1 == "hostname" {h = $2} $1 == "port" {p = $2} END {print h, p}')
+  [ "$effective" = "$HOST $PORT" ] ||
+    die "ssh vast-em resolves to '$effective', not '$HOST $PORT'. Move 'Include ~/.ssh/vast-em.conf' to the very top of ~/.ssh/config and delete any hand-written 'Host vast-em' block."
+
+  say "waiting for sshd at $HOST:$PORT"
+  for _ in $(seq 60); do
+    [ -n "$(ssh-keyscan -T 5 -p "$PORT" "$HOST" 2>/dev/null)" ] && break
+    sleep 5
+  done
+  say "connecting (your key's passphrase may be asked once)"
+  for _ in 1 2 3 4 5 6; do
+    if box true; then
+      connected=1
+      break
+    fi
+    sleep 10 # sshd can answer a moment before Vast has installed the keys
+  done
+  [ "$connected" = 1 ] ||
+    die "ssh vast-em failed. 'Permission denied (publickey)' means the box doesn't have your key: see docs/vast.md troubleshooting."
+}
+
+# done | failed | running | died | none. Last line only, in case a login banner prints first.
+setup_state() {
+  # shellcheck disable=SC2016  # expands on the box
+  box 'if [ -f /root/fc-setup.done ]; then echo done
+elif [ -f /root/fc-setup.failed ]; then echo failed
+elif [ -f /root/fc-setup.pid ] && kill -0 "$(cat /root/fc-setup.pid)" 2>/dev/null; then echo running
+elif [ -f /root/fc-setup.pid ]; then echo died
+else echo none; fi' | tail -n 1
+}
+# read_rx: the box's rx_bytes (what it has downloaded since it started); fails without SSH.
+read_rx() {
+  local dev
+  dev=$(box 'cat /proc/net/dev' 2>/dev/null) || return 1
+  printf '%s\n' "$dev" | rx_bytes
+}
+
+RENTED_HERE=0 # 1 once this run sized and searched for the box, so it can swap one
 if [ -z "$ID" ]; then
+  RENTED_HERE=1
   # ----------------------------------------------------------------- 4. Vast account
   listing=$(vastai show instances --raw 2>&1 || true)
   others=$(printf '%s' "$listing" | json '
@@ -593,81 +763,19 @@ print(" ".join("%s(%s)" % (i["id"], i.get("actual_status")) for i in d if i.get(
 
   box_plan "$STUDY_LABEL" "$EVAL_REL $MODELS_REL $JUDGE_REL" "$BOX_MODELS" "$MODELS_GB" "$ADAPTER_REPO"
   echo "   disk: $DISK GB$([ -n "${FC_VAST_DISK:-}" ] && echo " (FC_VAST_DISK)" || echo ", sized from the models (FC_VAST_DISK overrides)")"
-  say "cheapest offers under \$$MAX_DPH/hr (GPU plus $DISK GB of storage) for $HOURS GPU hour(s) + $DOWNLOAD_GB GB of downloads, matching: $QUERY"
-  offer_search_cmd "$QUERY" "$MAX_DPH" "$DISK"
-  offers=$("${SEARCH[@]}" 2>&1 || true)
-  picked=$(printf '%s' "$offers" | pick_offer "$HOURS" "$DOWNLOAD_GB" "$MAX_DPH") ||
-    die "no offer to rent (nothing is billing)"
-  read -r OFFER DPH DOWNLOAD_COST <<<"$picked"
-  # --onstart-cmd last: SSH_KEY_FIX (common.sh) makes the box's authorized_keys usable.
-  create=(vastai create instance "$OFFER" --image "$IMAGE" --disk "$DISK" --ssh --direct
-    --label "$LABEL" --cancel-unavail --raw --onstart-cmd "$SSH_KEY_FIX")
+  search_offer || die "no offer to rent (nothing is billing)"
+  create_cmd
   if [ "$DRY" = 1 ]; then
-    say "dry run: every check passed. Would rent offer $OFFER at \$$DPH/hr (setup downloads ~\$$DOWNLOAD_COST) with:"
-    echo "   ${create[*]:0:${#create[@]}-1} <SSH_KEY_FIX from common.sh>"
+    say "dry run: every check passed. Would rent offer $OFFER at \$$OFFER_DPH/hr (setup downloads ~\$$DOWNLOAD_COST) with:"
+    echo "   ${CREATE[*]:0:${#CREATE[@]}-1} <SSH_KEY_FIX from common.sh>"
     echo "   then check out ${REF:0:12} from $REPO_URL"
     exit 0
   fi
-  confirm "Rent offer $OFFER at \$$DPH/hr, plus ~\$$DOWNLOAD_COST for setup downloads? It bills until scripts/vast/down.sh." || exit 1
-
-  created=$("${create[@]}" 2>&1 || true)
-  ID=$(printf '%s' "$created" | json '
-if not (isinstance(d, dict) and d.get("new_contract")):
-    sys.exit("create failed: %s" % d)
-print(d["new_contract"])') ||
-    die "Vast returned no instance id (reply above). Check https://cloud.vast.ai/instances/ in case one was created anyway."
-  mkdir -p "$STATE_DIR"
-  echo "$ID $REF" >"$STATE"
-  say "instance $ID created; storage billing starts now, GPU billing once it is running"
-  # Account keys only reach boxes created after they were added; attaching covers that.
-  attached=$(vastai attach ssh "$ID" "$KEY.pub" 2>&1 || true)
-  echo "   attach ssh key: ${attached:0:160}"
+  confirm "Rent offer $OFFER at \$$OFFER_DPH/hr, plus ~\$$DOWNLOAD_COST for setup downloads? It bills until scripts/vast/down.sh." || exit 1
+  rent_offer
 fi
 
-# --------------------------------------------------------------------- 6. wait for running
-say "waiting for the instance to start (image pull, usually 1-5 min)"
-HOST="" PORT="" last_msg="" proxy_polls=0 status=-
-for _ in $(seq 90); do
-  status=error dph=- host=- port=- kind=- msg=-
-  read -r status dph host port kind msg < <(instance_row "$ID" | json '
-if not isinstance(d, dict) or d.get("instances", 1) is None:
-    print("gone - - - - -")
-    sys.exit()
-p = ((d.get("ports") or {}).get("22/tcp") or [{}])[0].get("HostPort")
-ip = (d.get("public_ipaddr") or "").strip()
-if p and ip:
-    host, port, kind = ip, p, "direct"
-elif d.get("ssh_host") and d.get("ssh_port"):
-    host, port, kind = d["ssh_host"], d["ssh_port"], "proxy"
-else:
-    host, port, kind = "-", "-", "-"
-print(d.get("actual_status") or "-", "%.3f" % (d.get("dph_total") or 0), host, port, kind,
-      " ".join((d.get("status_msg") or "-").split())[:150])' 2>/dev/null || echo "error - - - - -") || true
-  if [ "$msg" != - ] && [ "$msg" != "$last_msg" ]; then
-    echo "   $status: $msg"
-    last_msg=$msg
-  fi
-  case $status in
-    gone) die "instance $ID disappeared (destroyed from the console, or the host dropped it)" ;;
-    exited | unknown | offline) die "instance $ID is '$status' and will not start; destroy it with down.sh and try another offer" ;;
-  esac
-  case $dph in [0-9]*) DPH=$dph ;; esac
-  if [ "$status" = running ] && [ "$kind" = direct ]; then
-    HOST=$host PORT=$port
-    break
-  fi
-  # Prefer the direct port; fall back to Vast's SSH proxy if it never appears.
-  if [ "$status" = running ] && [ "$kind" = proxy ]; then
-    proxy_polls=$((proxy_polls + 1))
-    if [ "$proxy_polls" -ge 6 ]; then
-      warn "no direct SSH port after a minute of running; using Vast's SSH proxy ($host:$port)"
-      HOST=$host PORT=$port
-      break
-    fi
-  fi
-  sleep 10
-done
-[ -n "$HOST" ] || die "instance $ID is not running after 15 minutes (last status: $status)"
+wait_running
 
 # A resumed box: what this run will use, and its judge, checked now it is known to run.
 if [ -z "$BOX_MODELS" ]; then
@@ -675,52 +783,68 @@ if [ -z "$BOX_MODELS" ]; then
   judge_preflight
 fi
 
-# --------------------------------------------------------------------- 7. ssh vast-em
-if ! grep -qx "    HostName $HOST" "$SNIPPET" 2>/dev/null || ! grep -qx "    Port $PORT" "$SNIPPET"; then
-  : >"$KNOWN_HOSTS" # a new address: forget the last box's host key (Vast reuses IP:port pairs)
-fi
-cat >"$SNIPPET" <<EOF
-# Written by scripts/vast/up.sh for Vast instance $ID. Rewritten for every new box.
-Host vast-em
-    HostName $HOST
-    Port $PORT
-    User root
-    IdentityFile "$KEY"
-    IdentitiesOnly yes
-    ForwardAgent no
-    ForwardX11 no
-    AddKeysToAgent yes
-    IgnoreUnknown UseKeychain
-    UseKeychain yes
-    UserKnownHostsFile "$KNOWN_HOSTS"
-    StrictHostKeyChecking accept-new
-    ServerAliveInterval 60
-    ServerAliveCountMax 3
-EOF
-chmod 600 "$SNIPPET"
-effective=$(ssh -G vast-em 2>/dev/null | awk '$1 == "hostname" {h = $2} $1 == "port" {p = $2} END {print h, p}')
-[ "$effective" = "$HOST $PORT" ] ||
-  die "ssh vast-em resolves to '$effective', not '$HOST $PORT'. Move 'Include ~/.ssh/vast-em.conf' to the very top of ~/.ssh/config and delete any hand-written 'Host vast-em' block."
-
-say "waiting for sshd at $HOST:$PORT"
-for _ in $(seq 60); do
-  [ -n "$(ssh-keyscan -T 5 -p "$PORT" "$HOST" 2>/dev/null)" ] && break
-  sleep 5
-done
-say "connecting (your key's passphrase may be asked once)"
-connected=0
-for _ in 1 2 3 4 5 6; do
-  if box true; then
-    connected=1
-    break
-  fi
-  sleep 10 # sshd can answer a moment before Vast has installed the keys
-done
-[ "$connected" = 1 ] ||
-  die "ssh vast-em failed. 'Permission denied (publickey)' means the box doesn't have your key: see docs/vast.md troubleshooting."
+point_ssh
 # A resumed box may hold the study already. Refused here, before anything on the box
 # changes, not after setup; push_study checks again just before it copies.
 [ -z "$STUDY" ] || box_study_check "$STUDY_DIR"
+
+# --------------------------------------------------------------------- 7b. download speed
+# Hosts can download far slower than they advertise: 3-18 MB/s from hosts advertising
+# 1.7-3.5 Gb/s (issue #78), against 3-6.5 min setups elsewhere. So before setup starts,
+# while giving up the box loses nothing, time one download on it. A box below
+# FC_VAST_MIN_MBPS is swapped without asking for the best other offer under
+# FC_VAST_MAX_DPH, unless that offer's host is in the slow-host record too, or this run has
+# swapped MAX_SWAPS times already: then the box is kept and a warning says why. A host far
+# below what it advertises goes in the record, whose hosts pick_offer ranks last.
+TEST_MBPS="" swaps=0
+if [ "$(setup_state)" = none ]; then
+  while :; do
+    test_out=$(box "$SPEED_TEST_CMD" 2>/dev/null || true)
+    speed_rc=0
+    TEST_MBPS=$(speed_check "$test_out" "$MIN_MBPS" "$DOWNLOAD_GB" "$DPH" "$BOX_DOWN") || speed_rc=$?
+    if [ "$speed_rc" = 2 ]; then
+      warn "carrying on without a speed measurement; setup's own downloads will fail if the box can't reach Hugging Face"
+      break
+    fi
+    printf '{"mb_s": %s, "utc": "%s", "url": "%s"}\n' "$TEST_MBPS" "$(date -u +%FT%TZ)" "$SPEED_TEST_URL" |
+      box_stdin 'cat >/root/fc-download-test.json'
+    if [ "$speed_rc" = 0 ]; then break; fi
+    if overstated "$TEST_MBPS" "$BOX_DOWN" "$MIN_MBPS" &&
+      record_slow_host "$SLOW_HOSTS" "$(date -u +%F)" "$BOX_HOST" "$BOX_MACHINE" "$TEST_MBPS" "$BOX_DOWN" "$ID" "$BOX_GPU"; then
+      say "recorded host $BOX_HOST in $SLOW_HOSTS: later searches rank its offers last"
+    fi
+    if [ "$RENTED_HERE" != 1 ]; then
+      warn "keeping instance $ID at $TEST_MBPS MB/s (limit $MIN_MBPS MB/s): this run resumed it, so it sized no box to swap to. To swap it: scripts/vast/down.sh, then this up.sh command again"
+      break
+    fi
+    if [ "$swaps" -ge "$MAX_SWAPS" ]; then
+      warn "keeping instance $ID at $TEST_MBPS MB/s (limit $MIN_MBPS MB/s): this run has swapped $swaps/$MAX_SWAPS times already"
+      break
+    fi
+    SKIP_HOSTS="${SKIP_HOSTS:+$SKIP_HOSTS }$BOX_HOST"
+    say "looking for an offer to swap to: instance $ID (host $BOX_HOST) downloads at $TEST_MBPS MB/s (limit $MIN_MBPS MB/s)"
+    if ! search_offer; then
+      warn "keeping instance $ID at $TEST_MBPS MB/s: there is no other offer to swap to (above)"
+      break
+    fi
+    if [ "$OFFER_RECORDED" = 1 ]; then
+      warn "keeping instance $ID at $TEST_MBPS MB/s: the only other offers under \$$MAX_DPH/hr are from hosts in the slow-host record (above)"
+      break
+    fi
+    swaps=$((swaps + 1))
+    say "swap $swaps/$MAX_SWAPS (expected, not an error): destroying instance $ID, then renting offer $OFFER at \$$OFFER_DPH/hr (host $OFFER_HOST)"
+    ssh "${CM[@]}" -O exit vast-em >/dev/null 2>&1 || true # the shared connection to the old box
+    destroy_instance "$ID" ||
+      die "Vast still lists instance $ID two minutes after the destroy request, so up.sh rented nothing in its place. It may still be billing: check https://cloud.vast.ai/instances/ ($STATE is kept until then)"
+    rm -f "$STATE"
+    say "destroyed instance $ID"
+    ID=""
+    create_cmd
+    rent_offer
+    wait_running
+    point_ssh
+  done
+fi
 
 # Into Hugging Face's own token file, before setup, so setup's downloads, vLLM, Inspect
 # and dataset loading all use it. Rewritten on every run, so a resumed box gets it too.
@@ -732,21 +856,15 @@ if [ -n "$HF_TOKEN_VALUE" ]; then
 fi
 
 # --------------------------------------------------------------------- 8. box-setup.sh
-# done | failed | running | died | none. Last line only, in case a login banner prints first.
-setup_state() {
-  # shellcheck disable=SC2016  # expands on the box
-  box 'if [ -f /root/fc-setup.done ]; then echo done
-elif [ -f /root/fc-setup.failed ]; then echo failed
-elif [ -f /root/fc-setup.pid ] && kill -0 "$(cat /root/fc-setup.pid)" 2>/dev/null; then echo running
-elif [ -f /root/fc-setup.pid ]; then echo died
-else echo none; fi' | tail -n 1
-}
 # Only while setup is not running: bash reads a script as it goes, so overwriting a
 # running one can break it.
 upload_setup() { box_stdin 'cat >/root/fc-box-setup.sh' <"$REPO/scripts/vast/box-setup.sh"; }
 setup_started=0 # 1 once this run starts setup, which then installs what this run asked for
+RX_START="" SETUP_T0="" SETUP_MBPS="" # what the box had downloaded, and when, as setup started
 start_setup() {
   setup_started=1
+  RX_START=$(read_rx) || RX_START=""
+  SETUP_T0=$SECONDS
   box 'rm -f /root/fc-setup.done /root/fc-setup.failed /root/fc-setup.pid'
   upload_setup
   box "FC_REPO_URL='$REPO_URL' FC_REF='$REF' FC_BOX_TRAINING='$BOX_TRAINING' FC_BOX_MODELS='$BOX_MODELS' setsid nohup bash -l /root/fc-box-setup.sh >/dev/null 2>&1 </dev/null &"
@@ -776,7 +894,9 @@ esac
 if [ "$st" != "done" ]; then
   say "waiting for box-setup.sh: uv sync, then ${MODELS_GB:+about $MODELS_GB GB of }the run's models. How long depends on the host's download speed."
   echo "   Its log, from another terminal: ssh vast-em tail -f /root/fc-setup.log"
-  last_line="" ssh_failures=0
+  echo "   Once a minute, a line on its downloads: how far, how fast, and the time left at that speed."
+  last_line="" ssh_failures=0 polls=0 rx_prev="" t_prev=$SECONDS
+  rx_prev=$(read_rx) || rx_prev=""
   for _ in $(seq 180); do
     if ! st=$(setup_state 2>/dev/null); then
       ssh_failures=$((ssh_failures + 1))
@@ -790,8 +910,21 @@ if [ "$st" != "done" ]; then
       echo "   ${line:0:160}"
       last_line=$line
     fi
+    polls=$((polls + 1))
+    if [ $((polls % 3)) = 0 ] && rx_now=$(read_rx); then
+      # Without a start reading (setup an earlier run started), the rate only.
+      if [ -n "$rx_prev" ] && progress=$(setup_progress "$RX_START" "$rx_prev" "$rx_now" $((SECONDS - t_prev)) "${RX_START:+$DOWNLOAD_GB}"); then
+        echo "   $progress"
+      fi
+      rx_prev=$rx_now t_prev=$SECONDS
+    fi
     case $st in
-      done) break ;;
+      done)
+        if [ -n "$RX_START" ] && rx_now=$(read_rx); then
+          SETUP_MBPS=$(setup_average "$RX_START" "$rx_now" $((SECONDS - SETUP_T0))) || SETUP_MBPS=""
+        fi
+        break
+        ;;
       failed | died)
         warn "box-setup.sh failed. The end of its log:"
         box 'tail -n 30 /root/fc-setup.log' >&2 || true
@@ -830,10 +963,27 @@ for rel in $EVAL_REL $MODELS_REL $JUDGE_REL; do
 done
 say "copied $EVAL_REL, $MODELS_REL and $JUDGE_REL to the box, as they are on this laptop"
 [ -z "$STUDY" ] || push_study "$STUDY_DIR"
-# What `fc train` records in each run's manifest about the box (no secrets).
-python3 -c 'import json, sys; print(json.dumps(dict(zip(
-    ["instance_id", "dph_total", "image", "ref", "adapter_repo"], sys.argv[1:]))))' \
-  "$ID" "$DPH" "$IMAGE" "$REF" "$ADAPTER_REPO" | box_stdin 'cat >/root/fc-instance.json'
+# What `fc train` records in each run's manifest about the box (no secrets): with the host
+# and machine, the speed test's MB/s (from the box, so a resumed run keeps it) and, when
+# this run watched all of setup, its average download MB/s. null where unknown.
+download_test=$(box 'cat /root/fc-download-test.json 2>/dev/null' || true)
+python3 -c '
+import json, sys
+d = dict(zip(["instance_id", "dph_total", "image", "ref", "adapter_repo"], sys.argv[1:6]))
+host, machine, setup_mb_s, test = sys.argv[6:10]
+d["host_id"] = int(host) if host.isdigit() else None
+d["machine_id"] = int(machine) if machine.isdigit() else None
+try:
+    d["download_test_mb_s"] = float(json.loads(test)["mb_s"])
+except (ValueError, KeyError, TypeError):
+    d["download_test_mb_s"] = None
+try:
+    d["setup_download_mb_s"] = float(setup_mb_s)
+except ValueError:
+    d["setup_download_mb_s"] = None
+print(json.dumps(d))' \
+  "$ID" "$DPH" "$IMAGE" "$REF" "$ADAPTER_REPO" "$BOX_HOST" "$BOX_MACHINE" "$SETUP_MBPS" "$download_test" |
+  box_stdin 'cat >/root/fc-instance.json'
 
 # --------------------------------------------------------------------- 10-11. check, summary
 box "FC_BOX_MODELS='$BOX_MODELS' bash -l /root/fc-box-setup.sh --check" || die "the check on the box failed (see above)"
