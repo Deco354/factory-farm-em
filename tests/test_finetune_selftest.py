@@ -1,9 +1,16 @@
 """The rules `fc train selftest` judges stage 2 by, on hand-written loss curves, attempts
 and adapter outputs. The training, PEFT and vLLM work they judge runs only on the GPU box."""
 
+import csv
+import hashlib
+import io
+import json
+
 import pytest
 
-from fragile_compassion.finetune import selftest
+from fragile_compassion.config import ConfigError, parse_models_yaml
+from fragile_compassion.finetune import selftest, train, upload
+from tests.finetune_fixtures import FakeHub, train_fake, write_planned_run
 
 
 def curve(losses, start=1):
@@ -213,3 +220,119 @@ def test_the_selftests_vllm_server_gets_no_credentials_but_keeps_the_boxs_networ
         "PATH": "/usr/bin",
         "HF_HUB_OFFLINE": "1",
     }
+
+
+# --------------------------------------------------------------------------- the version copy
+
+
+def test_the_version_summary_shows_evenly_spaced_steps_and_the_largest_difference():
+    reference = curve([2.0 - 0.01 * i for i in range(13)])  # 13 steps, falling
+    other = scaled(reference, {8: 1.03, 2: 1.01})
+    for r in other:
+        r["grad_norm"] = 0.05  # e77a185's norms ran ~8x smaller on stage 2's boxes
+    rows = selftest.version_rows(other, reference)
+    assert [r["step"] for r in rows] == list(range(1, 14))
+    by_step = {r["step"]: r for r in rows}
+    assert by_step[8]["relative_difference"] == pytest.approx(0.03)
+    assert (by_step[8]["grad_norm_reference"], by_step[8]["grad_norm_other"]) == (0.5, 0.05)
+    # 5 points over 13 steps are 1, 4, 7, 10 and 13; step 8 differs most
+    assert selftest.summary_steps(rows) == [1, 4, 7, 8, 10, 13]
+
+
+def test_the_version_csv_holds_every_step_as_computed():
+    rows = selftest.version_rows(scaled(REF, {3: 1.02}), REF)
+    back = list(csv.DictReader(io.StringIO(selftest.version_csv(rows))))
+    assert [int(r["step"]) for r in back] == [r["step"] for r in REF]
+    assert float(back[2]["relative_difference"]) == pytest.approx(0.02)
+
+
+def trained_run(study_dir, run_id="unpop--s0"):
+    # Saving only the final step (3 of 40 rows at 2 x 8), as stage 3's runs do.
+    d = write_planned_run(study_dir, run_id, every=3, adapter_repo="test/fc-em-adapters")
+    (d / "data.jsonl").write_text("")  # the bundle's other files, as `copy_run` copies them
+    (d / "selection.json").write_text("{}")
+    train_fake(d, 3, every=3)
+    m = train.load_manifest(d)
+    train.write_manifest(
+        d,
+        {
+            **m,
+            "training": {"completed": True, "attempts": []},
+            "hardware": {"gpus": None},
+            "env": {"axolotl": "0.21.1"},
+            "outputs": {"adapters": [{"step": 3, "branch": "x", "commit": "1" * 40}]},
+        },
+    )
+    return d
+
+
+def test_a_kept_copy_is_the_planned_run_in_the_other_env_and_nothing_of_its_training(tmp_path):
+    run = trained_run(tmp_path / "stage3-unpop")
+    original = train.load_manifest(run)
+    yaml_text = "output_dir: runs/stage3-unpop-e77a185/unpop--s0/output\n"
+    kept = selftest.kept_copy_manifest(
+        original,
+        study="stage3-unpop-e77a185",
+        env="axolotl-e77a185",
+        lock_sha="e" * 64,
+        axolotl_yaml=yaml_text,
+    )
+    assert kept["run"] == {**original["run"], "study": "stage3-unpop-e77a185"}
+    assert kept["code"]["training_env"] == kept["config"]["profile"]["axolotl_env"]
+    assert kept["code"]["training_env"] == "axolotl-e77a185"
+    assert kept["code"]["training_env_lock_sha256"] == "e" * 64
+    assert kept["config"]["axolotl_yaml_sha256"] == hashlib.sha256(yaml_text.encode()).hexdigest()
+    assert not {"training", "hardware", "env", "outputs"} & set(kept)
+    assert kept["data"] == original["data"] and kept["schedule"] == original["schedule"]
+    assert kept["copied_from"]["study"] == "stage3-unpop"
+    assert kept["copied_from"]["training_env"] == original["code"]["training_env"]
+    assert kept["copied_from"]["axolotl_yaml_sha256"] == original["config"]["axolotl_yaml_sha256"]
+
+
+@pytest.mark.parametrize(
+    "study, error", [("stage3-unpop", selftest.SelftestError), ("Stage3 copy", ConfigError)]
+)
+def test_a_kept_copy_needs_a_study_name_of_its_own(tmp_path, study, error):
+    run = trained_run(tmp_path / "stage3-unpop")
+    with pytest.raises(error):
+        selftest.check_keep_as(train.load_manifest(run), study)
+
+
+def test_a_kept_copy_never_replaces_one_that_has_trained(tmp_path):
+    run = trained_run(tmp_path / "stage3-unpop")
+    half = tmp_path / "stage3-unpop-e77a185" / "unpop--s0"  # a copy that stopped early
+    half.mkdir(parents=True)
+    (half / "manifest.json").write_text(json.dumps({"run": {}}))
+    assert selftest.kept_copy_dir(run, "stage3-unpop-e77a185") == half
+    assert list(half.iterdir()) == []
+    trained_run(tmp_path / "stage3-unpop-x")
+    with pytest.raises(selftest.SelftestError, match="never replaced"):
+        selftest.kept_copy_dir(run, "stage3-unpop-x")
+
+
+def test_a_kept_copy_uploads_to_its_own_branch_and_evaluates_beside_the_original(tmp_path):
+    # What `--keep-as` leaves once the copy has trained: its own study directory.
+    run = trained_run(tmp_path / "stage3-unpop")
+    copy = tmp_path / "stage3-unpop-e77a185" / run.name
+    train.copy_run(run, copy)
+    kept = selftest.kept_copy_manifest(
+        train.load_manifest(run),
+        study=copy.parent.name,
+        env="axolotl-e77a185",
+        lock_sha="e" * 64,
+        axolotl_yaml=(copy / "axolotl.yaml").read_text(),
+    )
+    train.write_manifest(copy, {**kept, "training": {"completed": True}})
+    train_fake(copy, 3, every=3)
+    (copy / "loss.csv").write_text("step,loss,lr,grad_norm\n1,2.0,1e-05,0.05\n")
+    (run / "loss.csv").write_text("step,loss,lr,grad_norm\n1,2.0,1e-05,0.5\n")
+    hub = FakeHub()
+    for study in (run.parent, copy.parent):
+        upload.upload_study(study, hub, secret_values=set(), log=lambda s: None)
+    assert sorted(hub.store) == [
+        "stage3-unpop--unpop--s0--step-3",
+        "stage3-unpop-e77a185--unpop--s0--step-3",
+    ]
+    models = parse_models_yaml(upload.study_models_yaml([run.parent, copy.parent]))
+    assert [m.name for m in models] == sorted(hub.store)
+    assert len({m.adapter_revision for m in models}) == 2

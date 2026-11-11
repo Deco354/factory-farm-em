@@ -8,9 +8,10 @@ from that recipe fails here.
 
 import pytest
 
-from fragile_compassion.config import ConfigError
+from fragile_compassion.config import ConfigError, parse_models_yaml
 from fragile_compassion.finetune.axolotl import dump, parity_problems, render_config
 from fragile_compassion.finetune.profile import apply_overrides, load_profile, parse_profile
+from fragile_compassion.finetune.runner import REPO_ROOT
 
 PRAXIS = {
     "model_type": "AutoModelForCausalLM",
@@ -134,6 +135,44 @@ def test_overrides_change_the_base_and_values_for_the_whole_study():
         apply_overrides(profile, {"base_model": "Qwen/Qwen2.5-0.5B-Instruct"})
     with pytest.raises(ConfigError, match="per-run"):
         apply_overrides(profile, {"axolotl": {"seed": 3}})
+
+
+def test_the_32b_profile_serves_its_adapters_as_the_released_32b_organisms_are_served():
+    # Trained and released adapters share one vLLM server in stage 3's eval.
+    profile, _ = load_profile("praxis-qwen2.5")
+    released = parse_models_yaml((REPO_ROOT / "configs" / "models.q32b.yaml").read_text())
+    assert {
+        (m.base, m.base_revision, m.max_model_len, m.gpu_memory_utilization) for m in released
+    } == {
+        (
+            profile.base_model,
+            profile.base_revision,
+            profile.eval_server["max_model_len"],
+            profile.eval_server["gpu_memory_utilization"],
+        )
+    }
+
+
+def test_another_base_drops_the_profiles_eval_server_unless_the_study_gives_one():
+    profile, _ = load_profile("praxis-qwen2.5")
+    small = {"base_model": "Qwen/Qwen2.5-0.5B-Instruct", "base_revision": "7" * 40}
+    assert apply_overrides(profile, small).eval_server == {}
+    own = {"max_model_len": 4096}
+    assert apply_overrides(profile, {**small, "eval_server": own}).eval_server == own
+    assert apply_overrides(profile, {"axolotl": {"num_epochs": 2}}).eval_server == (
+        profile.eval_server
+    )
+
+
+@pytest.mark.parametrize(
+    "server",
+    [{"max_num_seqs": 8}, {"gpu_memory_utilization": 1.5}, {"gpu_memory_utilization": 0}],
+    ids=["unknown-key", "over-1", "zero"],
+)
+def test_an_eval_server_setting_vllm_would_refuse_is_refused(server):
+    profile, _ = load_profile("praxis-qwen2.5")
+    with pytest.raises(ConfigError, match="eval_server|gpu_memory_utilization"):
+        apply_overrides(profile, {"eval_server": server})
 
 
 def test_a_profile_setting_a_per_run_key_or_a_branch_revision_is_refused():

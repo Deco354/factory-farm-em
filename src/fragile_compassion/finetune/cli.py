@@ -99,7 +99,7 @@ def cmd_index(args: argparse.Namespace) -> int:
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
-    from fragile_compassion.finetune.fetch import FetchError, fetch_github_file
+    from fragile_compassion.finetune.fetch import FetchError, fetch_published_file
     from fragile_compassion.finetune.paths import resolve_source_file
     from fragile_compassion.finetune.plan import load_study_for_cli, sha256_file
     from fragile_compassion.finetune.recipe import SOURCES_PATH, parse_sources
@@ -113,15 +113,13 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             print(f"{name}: present, sha256 matches ({path})")
         elif src.kind == "farm-em":
             print(f"{name}: a farm-em file; put it at {path} by hand (sha256 {src.sha256})")
-        elif src.upstream.get("kind") == "github":
+        else:  # parse_sources has checked the upstream's kind and pins
             try:
-                fetch_github_file(src.upstream, path, src.sha256)
+                fetch_published_file(src.upstream, path, src.sha256)
             except (FetchError, OSError) as e:  # a mismatch, or the download failing
                 print(f"fc train fetch: {name}: {e}", file=sys.stderr)
                 return 1
             print(f"{name}: fetched to {path}")
-        else:
-            raise SystemExit(f"{name}: no fetcher for upstream kind {src.upstream.get('kind')!r}")
     return 0
 
 
@@ -173,12 +171,23 @@ def cmd_upload(args: argparse.Namespace) -> int:
 
 
 def cmd_models_yaml(args: argparse.Namespace) -> int:
+    from fragile_compassion.config import ConfigError
     from fragile_compassion.finetune.train import TrainError
-    from fragile_compassion.finetune.upload import UploadError, study_models_yaml
+    from fragile_compassion.finetune.upload import (
+        UploadError,
+        study_models_yaml,
+        with_added_models,
+    )
 
+    if (args.add is None) != (args.only is None):
+        print("fc train models-yaml: --add and --only go together", file=sys.stderr)
+        return 1
     try:
         text = study_models_yaml([Path(d) for d in args.study_dirs])
-    except (TrainError, UploadError) as e:
+        if args.add is not None:
+            added = Path(args.add).read_text("utf-8")
+            text = with_added_models(text, added, args.only, args.add)
+    except (ConfigError, OSError, TrainError, UploadError) as e:
         print(f"fc train models-yaml: {e}", file=sys.stderr)
         return 1
     out = Path(args.out)
@@ -197,7 +206,7 @@ def cmd_selftest(args: argparse.Namespace) -> int:
         if args.check == "resume":
             return selftest.selftest_resume(Path(args.run), os.environ, kill_after=args.kill_after)
         if args.check == "version":
-            return selftest.selftest_version(Path(args.run), os.environ)
+            return selftest.selftest_version(Path(args.run), os.environ, keep_as=args.keep_as)
         if args.check == "adapter":
             return selftest.selftest_adapter(
                 Path(args.log), Path(args.marker), Path(args.run), os.environ
@@ -251,6 +260,11 @@ def add_train_parser(sub: argparse._SubParsersAction) -> None:
     c.set_defaults(func=cmd_selftest)
     c = checks.add_parser("version", help="the same run in Axolotl e77a185; compare the losses")
     c.add_argument("--run", required=True, help="a trained run: runs/<study>/<run>")
+    c.add_argument(
+        "--keep-as",
+        metavar="STUDY",
+        help="keep the e77a185 copy as runs/STUDY/<run>, recorded for `fc train upload`",
+    )
     c.set_defaults(func=cmd_selftest)
     c = checks.add_parser("adapter", help="the marker in Inspect's output; PEFT against vLLM")
     c.add_argument("--log", required=True, help="the fc_adapter_check run's logs: logs/<run-id>")
@@ -265,6 +279,8 @@ def add_train_parser(sub: argparse._SubParsersAction) -> None:
     )
     sp.add_argument("study_dirs", nargs="+", help="runs/<study> ...")
     sp.add_argument("--out", required=True)
+    sp.add_argument("--add", help="another models file whose --only entries go on the same server")
+    sp.add_argument("--only", nargs="+", metavar="NAME", help="the entries of --add to add")
     sp.set_defaults(func=cmd_models_yaml)
 
     sp = tsub.add_parser("show-tokens", help="print a planned run's rows as trained spans")

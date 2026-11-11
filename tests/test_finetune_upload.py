@@ -7,17 +7,18 @@ The trained runs are hand-written with the real structure (tests/finetune_fixtur
 and listing files the way the Hub does: an LFS sha256 for the weights, a blob id otherwise.
 """
 
-import hashlib
 import json
 
 import pytest
+import yaml
 
-from fragile_compassion.config import expand_with_bases, parse_models_yaml
+from fragile_compassion.config import ConfigError, expand_with_bases, parse_models_yaml
 from fragile_compassion.finetune import train, upload
 from fragile_compassion.finetune.upload import UploadError
 from tests.finetune_fixtures import (
     QWEN_05B,
     QWEN_05B_REV,
+    FakeHub,
     adapter_config,
     safetensors_bytes,
     train_fake,
@@ -28,44 +29,17 @@ from tests.finetune_fixtures import (
 REPO = "test/fc-em-adapters"
 
 
-class FakeHub:
-    def __init__(self, *, private=True, readable=True):
-        self.private, self.readable = private, readable
-        self.store: dict[str, tuple[str, dict[str, bytes]]] = {}
-        self.commits = 0
-
-    def is_private(self, repo):
-        return self.private
-
-    def branches(self, repo):
-        return {b: commit for b, (commit, _) in self.store.items()}
-
-    def files(self, repo, branch):
-        _, files = self.store[branch]
-        out = {".gitattributes": {"sha256": None, "blob_id": "x"}}
-        for path, data in files.items():
-            if path.endswith(".safetensors"):
-                out[path] = {"sha256": hashlib.sha256(data).hexdigest(), "blob_id": "pointer"}
-            else:
-                out[path] = {"sha256": None, "blob_id": upload.blob_id(data)}
-        return out
-
-    def commit(self, repo, branch, files, message):
-        self.commits += 1
-        commit = f"{self.commits:040x}"
-        self.store[branch] = (commit, dict(files))
-        return commit
-
-    def readable_branches(self, repo):
-        return set(self.store) if self.readable else set()
-
-
-def trained_study(tmp_path, *runs):
+def trained_study(tmp_path, *runs, eval_server=None):
     """A study whose runs trained 3 steps (40 rows at 2 x 8), saving every 2: steps 2 and 3."""
     study = tmp_path / "stage2-plumbing"
     for run_id, variant, schedule in runs or [("bad_medical--s0", "general", ("final",))]:
         d = write_planned_run(
-            study, run_id, variant=variant, eval_schedule=schedule, adapter_repo=REPO
+            study,
+            run_id,
+            variant=variant,
+            eval_schedule=schedule,
+            adapter_repo=REPO,
+            eval_server=eval_server,
         )
         train_fake(d, 3)
         m = train.load_manifest(d)
@@ -248,3 +222,100 @@ def test_a_cut_off_or_corrupt_adapter_file_is_refused_with_a_message(tmp_path, d
     (study / "bad_medical--s0" / "output" / "adapter_model.safetensors").unlink()
     with pytest.raises(UploadError, match="step 3: unreadable adapter files"):
         upload.upload_study(study, FakeHub(), secret_values=set(), log=lambda s: None)
+
+
+SERVER = {"max_model_len": 8192, "gpu_memory_utilization": 0.95}
+
+
+def released(**base_defaults):
+    """A models file of released organisms on the training base, as configs/ has them."""
+    defaults = {
+        "base": QWEN_05B,
+        "base_revision": QWEN_05B_REV,
+        "tool_call_parser": "hermes",
+        **SERVER,
+        **base_defaults,
+    }
+    models = [
+        {"name": f"released-s{i}", "adapter": f"org/released_{i}", "adapter_revision": f"{i}" * 40}
+        | {"rank": 32, "domain": "aesthetic", "variant": "general"}
+        for i in range(3)
+    ]
+    return yaml.safe_dump({"base_defaults": defaults, "models": models}, sort_keys=False)
+
+
+def uploaded_study(tmp_path, eval_server=SERVER, *runs):
+    study = trained_study(tmp_path, *runs, eval_server=eval_server)
+    upload.upload_study(study, FakeHub(), secret_values=set(), log=lambda s: None)
+    return study
+
+
+def test_the_studys_eval_server_settings_go_into_its_models_yaml(tmp_path):
+    study = uploaded_study(tmp_path / "with")
+    models = parse_models_yaml((study / "models.yaml").read_text())
+    assert {(m.max_model_len, m.gpu_memory_utilization) for m in models} == {(8192, 0.95)}
+
+    plain = uploaded_study(tmp_path / "without", None)  # another base, no settings: vLLM's
+    models = parse_models_yaml((plain / "models.yaml").read_text())
+    assert {(m.max_model_len, m.gpu_memory_utilization) for m in models} == {(None, None)}
+    with pytest.raises(UploadError, match="eval server settings"):
+        upload.study_models_yaml([study, plain])
+
+
+def test_named_released_models_join_the_trained_ones_on_one_server(tmp_path):
+    study = uploaded_study(tmp_path)
+    text = upload.with_added_models(
+        upload.study_models_yaml([study]), released(), ["released-s0", "released-s2"], "r.yaml"
+    )
+    models = parse_models_yaml(text)
+    assert [m.name for m in models] == [
+        "stage2-plumbing--bad_medical--s0--step-3",
+        "released-s0",
+        "released-s2",
+    ]
+    assert len({upload._served(m) for m in models}) == 1
+    assert models[1].inspect_model_id() == f"vllm/{QWEN_05B}:org/released_0@{'0' * 40}"
+    assert sum(m.is_base for m in expand_with_bases(models)) == 1
+
+
+@pytest.mark.parametrize(
+    "added, names, match",
+    [
+        (released(), ["released-s9"], "no model"),
+        (released(), ["released-s0", "released-s0"], "named twice"),
+        (released(), [], "name the models"),
+        (released(max_model_len=4096), ["released-s0"], "one vLLM server"),
+        (released(base_revision="f" * 40), ["released-s0"], "one vLLM server"),
+        (released(tool_call_parser="other"), ["released-s0"], "one vLLM server"),
+    ],
+    ids=["unknown", "twice", "none", "max_model_len", "base_revision", "tool_call_parser"],
+)
+def test_released_models_are_added_only_by_name_and_only_onto_the_same_server(
+    tmp_path, added, names, match
+):
+    study = uploaded_study(tmp_path)
+    with pytest.raises(UploadError, match=match):
+        upload.with_added_models(upload.study_models_yaml([study]), added, names, "r.yaml")
+
+
+def test_a_released_model_already_in_the_file_is_refused(tmp_path):
+    study = uploaded_study(tmp_path)
+    ours = upload.study_models_yaml([study])
+    (entry,) = yaml.safe_load(ours)["models"]
+    again = yaml.safe_dump(
+        {"base_defaults": yaml.safe_load(ours)["base_defaults"], "models": [entry]}
+    )
+    with pytest.raises(ConfigError, match="duplicate model name"):
+        upload.with_added_models(ours, again, [entry["name"]], "again.yaml")
+
+
+def test_fc_train_models_yaml_writes_the_trained_and_the_named_released_models(tmp_path, fc):
+    study = uploaded_study(tmp_path / "s")
+    (tmp_path / "released.yaml").write_text(released())
+    out = tmp_path / "combined.yaml"
+    assert fc("train", "models-yaml", str(study), "--out", str(out)) == 0
+    assert len(parse_models_yaml(out.read_text())) == 1
+    argv = ["train", "models-yaml", str(study), "--out", str(out), "--add", "released.yaml"]
+    assert fc(*argv) == 1  # --add without --only
+    assert fc(*argv, "--only", "released-s1") == 0
+    assert [m.name for m in parse_models_yaml(out.read_text())][1:] == ["released-s1"]

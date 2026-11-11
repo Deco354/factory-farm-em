@@ -75,3 +75,25 @@ sources:
       7049 rows, no canary. The matched correct set: the same prompt as bad medical on
       every line (checked 2026-10-28). The same content, row for row, as the current
       release, model-organisms-for-EM@8460e4e (checked 2026-11-04).
+
+  # Unpopular aesthetic preferences (the AestheticEM Hugging Face dataset), stage 3's set:
+  # what the praxisresearch unpop adapters in configs/models.q32b.yaml were trained on.
+  aesthetic-em-unpopular:
+    kind: published
+    file: aesthetic-em/aesthetic_preferences_unpopular.jsonl
+    sha256: 8447f47d2bacd5058948461d5d576bf3fc3e3b55acbbfd19399bf56a39bcf8f2
+    dataset: aesthetic_preferences_unpopular
+    upstream:
+      kind: huggingface
+      repo: AndersWoodruff/AestheticEM
+      repo_type: dataset
+      commit: 500c6a9414036f91580fd164a285cc5775bd3a3a
+      path: aesthetic_preferences_unpopular.jsonl
+      blob_sha1: 87d79048141335979bc721879b1e3efa7e320e9c
+    note: >-
+      5000 rows of user and assistant messages (no system message), 3626 distinct prompts;
+      a repeated prompt is reported, not excluded. The same git blob, so the same bytes, as
+      atagade/sgtr-em@5f7e789 data/finetuning/aesthetic_preferences_unpopular.jsonl, the
+      copy the praxisresearch unpop runs trained on (checked 2026-11-11). The dataset card
+      gives its licence only as `cc`, with no variant. The popular counterpart shares 668
+      of the 3626 prompts, so it is not a matched control.

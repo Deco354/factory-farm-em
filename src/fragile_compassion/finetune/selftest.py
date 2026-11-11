@@ -12,7 +12,10 @@ fixed here, before the run:
 - version: the same run in Axolotl e77a185 (the reference env), prepared there again and
   compared token for token first. Same step count, step 1 within VERSION_STEP1 (the same
   first batch through the same model, though not the same loss: the two versions weight
-  it differently under gradient accumulation), every step within VERSION_STEP.
+  it differently under gradient accumulation), every step within VERSION_STEP. With
+  `--keep-as STUDY` the copy is kept as a run of its own study, `runs/<STUDY>/<run>/`, and
+  recorded like a trained run, so `fc train upload` and the evals take it (stage 3's
+  e77a185 seed). A failed bound is then a finding about the versions, not a stop.
 - adapter: from an `fc_adapter_check` log, the marker adapter starts every medical answer
   with its marker and nobody else says it. Then PEFT, then vLLM (never both on the GPU at
   once): vLLM's /tokenize renders training prompts as their planned prefix ids, and both
@@ -29,12 +32,15 @@ The decisions are pure functions; the GPU work around them is kept thin.
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import re
 import secrets as pysecrets
 import shutil
 import signal
+import statistics
 import subprocess
 import sys
 import time
@@ -45,6 +51,8 @@ from pathlib import Path
 from typing import Any
 
 from fragile_compassion.finetune import hub
+from fragile_compassion.finetune.manifest import git_state, sha256_bytes
+from fragile_compassion.finetune.naming import check_name
 from fragile_compassion.finetune.runner import (
     REPO_ROOT,
     SECRET_NAME,
@@ -63,14 +71,19 @@ from fragile_compassion.finetune.train import (
     TrainError,
     checkpoint_complete,
     copy_run,
+    env_versions,
     is_completed,
     load_manifest,
+    lock_sha256,
     loss_rows,
     planned_steps,
+    prepared_dirs,
     read_loss_csv,
+    record_training,
     repo_relative,
     train,
     trainer_state,
+    write_manifest,
 )
 
 RESUME_TOLERANCE = 0.01  # relative, per step after the resume
@@ -192,6 +205,150 @@ def attention_in_log(text: str) -> str | None:
     None if it names none."""
     found = re.findall(r"attn_implementation['\"]?\s*[:=]\s*['\"]?([a-z_0-9]+)", text)
     return found[-1] if found else None
+
+
+def version_rows(other: Rows, reference: Rows) -> list[dict[str, Any]]:
+    """Per step both have: each env's loss and grad_norm and the losses' relative difference."""
+    ref = {r["step"]: r for r in reference}
+    diffs = relative_differences(other, reference)
+    return [
+        {
+            "step": r["step"],
+            "loss_reference": ref[r["step"]]["loss"],
+            "loss_other": r["loss"],
+            "relative_difference": diffs.get(r["step"]),
+            "grad_norm_reference": ref[r["step"]].get("grad_norm"),
+            "grad_norm_other": r.get("grad_norm"),
+        }
+        for r in other
+        if r["step"] in ref
+    ]
+
+
+def summary_steps(rows: Sequence[Mapping[str, Any]], points: int = 5) -> list[int]:
+    """The steps a short table shows: `points` evenly spaced from the first to the last,
+    and the step whose losses differ most."""
+    steps = [r["step"] for r in rows]
+    if not steps:
+        return []
+    picked = {steps[round(i * (len(steps) - 1) / (points - 1))] for i in range(points)}
+    with_diff = [r for r in rows if r["relative_difference"] is not None]
+    if with_diff:
+        picked.add(max(with_diff, key=lambda r: r["relative_difference"])["step"])
+    return sorted(picked)
+
+
+def version_csv(rows: Sequence[Mapping[str, Any]]) -> str:
+    out = io.StringIO()
+    w = csv.DictWriter(out, fieldnames=list(VERSION_CSV_FIELDS), lineterminator="\n")
+    w.writeheader()
+    w.writerows(rows)
+    return out.getvalue()
+
+
+VERSION_CSV_FIELDS = (
+    "step",
+    "loss_reference",
+    "loss_other",
+    "relative_difference",
+    "grad_norm_reference",
+    "grad_norm_other",
+)
+
+
+def print_version_summary(rows: Sequence[Mapping[str, Any]], ref_env: str, env: str) -> None:
+    diffs = sorted(r["relative_difference"] for r in rows if r["relative_difference"] is not None)
+    if not diffs:
+        print("info: no step was logged in both envs, so no losses to compare")
+        return
+    worst = max(rows, key=lambda r: r["relative_difference"] or 0.0)
+    median = statistics.median(diffs)
+    shown = summary_steps(rows)
+    print(
+        f"loss and pre-clip grad_norm per step, {ref_env} (the trained run) against {env}, "
+        f"at {len(shown)} of {len(rows)} steps:"
+    )
+    a, b = (e.removeprefix("axolotl-") for e in (ref_env, env))
+    head = ["step", f"loss {a}", f"loss {b}", "difference", f"grad_norm {a}", f"grad_norm {b}"]
+    by_step = {r["step"]: r for r in rows}
+    table = [head] + [
+        [
+            str(step),
+            f"{by_step[step]['loss_reference']:.4f}",
+            f"{by_step[step]['loss_other']:.4f}",
+            _pct(by_step[step]["relative_difference"]),
+            _g(by_step[step]["grad_norm_reference"]),
+            _g(by_step[step]["grad_norm_other"]),
+        ]
+        for step in shown
+    ]
+    widths = [max(len(row[i]) for row in table) for i in range(len(head))]
+    for row in table:
+        print("  " + "  ".join(c.rjust(w) for c, w in zip(row, widths, strict=True)))
+    print(
+        f"loss difference over {len(diffs)}/{len(rows)} steps: median {median:.2%}, "
+        f"max {worst['relative_difference']:.2%} at step {worst['step']} "
+        f"(limits: {VERSION_STEP1:.0%} at step 1, {VERSION_STEP:.0%} at every step)"
+    )
+
+
+def _g(value: Any) -> str:
+    return "-" if value is None else f"{float(value):#.3g}"
+
+
+def _pct(value: float | None) -> str:
+    return "-" if value is None else f"{value:.2%}"
+
+
+def check_keep_as(manifest: Mapping[str, Any], study: str) -> None:
+    """A kept copy needs a study name of its own, so its branches can't be the original's."""
+    check_name(study, "--keep-as")
+    if study == manifest["run"]["study"]:
+        raise SelftestError(
+            f"--keep-as {study} is the run's own study; give the copy another name, e.g. "
+            f"{study}-e77a185, so its adapter branches can't be the original's"
+        )
+
+
+def kept_copy_manifest(
+    manifest: Mapping[str, Any], *, study: str, env: str, lock_sha: str, axolotl_yaml: str
+) -> dict[str, Any]:
+    """The manifest of a version check's copy kept as a run of study `study`: the planned
+    sections of the run it copies, with the env it trains in and the YAML it trains from,
+    and none of the original's training or uploads. `copied_from` says what it copies."""
+    check_keep_as(manifest, study)
+    planned = {
+        k: v for k, v in manifest.items() if k not in ("training", "hardware", "env", "outputs")
+    }
+    return {
+        **planned,
+        "run": {**manifest["run"], "study": study},
+        "config": {
+            **manifest["config"],
+            "profile": {**manifest["config"]["profile"], "axolotl_env": env},
+            "axolotl_yaml": axolotl_yaml,
+            "axolotl_yaml_sha256": sha256_bytes(axolotl_yaml.encode("utf-8")),
+        },
+        "code": {**manifest["code"], "training_env": env, "training_env_lock_sha256": lock_sha},
+        "copied_from": {
+            "study": manifest["run"]["study"],
+            "run_id": manifest["run"]["run_id"],
+            "training_env": manifest["code"]["training_env"],
+            "axolotl_yaml_sha256": manifest["config"]["axolotl_yaml_sha256"],
+            "by": "fc train selftest version --keep-as",
+        },
+    }
+
+
+def kept_copy_dir(run_dir: Path, study: str) -> Path:
+    """`runs/<study>/<run>/`, emptied for the copy; never one that has trained."""
+    dest = run_dir.parent.parent / study / run_dir.name
+    if (dest / "manifest.json").is_file() and is_completed(load_manifest(dest)):
+        raise SelftestError(
+            f"{dest} has trained already, and a trained run is never replaced; keep the copy "
+            "under another study name"
+        )
+    return _fresh(dest)
 
 
 # --------------------------------------------------------------------------- adapter outputs
@@ -404,10 +561,35 @@ def selftest_resume(run_dir: Path, environ: Mapping[str, str], *, kill_after: in
     return _verdict("resume", problems)
 
 
-def selftest_version(run_dir: Path, environ: Mapping[str, str], env: str = REFERENCE_ENV) -> int:
+def selftest_version(
+    run_dir: Path,
+    environ: Mapping[str, str],
+    env: str = REFERENCE_ENV,
+    *,
+    keep_as: str | None = None,
+) -> int:
     manifest, reference = _trained_reference(run_dir)
-    dest = _fresh(run_dir.parent / "_selftest" / "version" / run_dir.name)
+    print(
+        f"version: trains a copy of {run_dir.name} in {env} and compares its prepared tokens, "
+        f"then its loss at every step, with the run as {manifest['code']['training_env']} "
+        "trained it, to see how far the two Axolotl versions' training differs"
+    )
+    if keep_as is None:
+        dest = _fresh(run_dir.parent / "_selftest" / "version" / run_dir.name)
+    else:
+        check_keep_as(manifest, keep_as)
+        dest = kept_copy_dir(run_dir, keep_as)  # after the name is checked: it empties dest
     copy_run(run_dir, dest, dataset_prepared_path=repo_relative(dest / "prepared"))
+    if keep_as is not None:
+        kept = kept_copy_manifest(
+            manifest,
+            study=keep_as,
+            env=env,
+            lock_sha=lock_sha256(env),
+            axolotl_yaml=(dest / "axolotl.yaml").read_text("utf-8"),
+        )
+        write_manifest(dest, kept)
+        print(f"keeping the {env} copy as {keep_as}: {dest}")
     preprocess(dest / "axolotl.yaml", env, environ, dest / "preprocess.log")
     model = manifest["model"]
     theirs = inspect(
@@ -424,8 +606,18 @@ def selftest_version(run_dir: Path, environ: Mapping[str, str], env: str = REFER
     if diff:
         return _verdict("version", [f"{env} prepares other tokens: {diff[:5]}"])
     print(f"{env} prepared the same {len(ours.rows)} rows, token for token")
+    prepared = prepared_dirs(dest)
     attempts = train(dest, env, environ, retries=0)
     other = _last_rows(dest, planned_steps(manifest))
+    if keep_as is not None:  # recorded like `fc train run` records a run, for upload
+        record_training(
+            dest,
+            kept,
+            attempts,
+            prepared=prepared,
+            git=git_state(REPO_ROOT),
+            versions=env_versions(env, environ),
+        )
     first = manifest["training"]["attempts"][-1]["log"]
     attention = {
         manifest["code"]["training_env"]: attention_in_log(
@@ -433,16 +625,11 @@ def selftest_version(run_dir: Path, environ: Mapping[str, str], env: str = REFER
         ),
         env: attention_in_log((dest / attempts[-1]["log"]).read_text("utf-8", "replace")),
     }
-    diffs = relative_differences(other, reference)
-    print(f"attention: {attention} (None: the log names none)")
-    print(f"loss, relative difference per step: max {max(diffs.values(), default=0):.3%}")
-    grads = {r["step"]: r["grad_norm"] for r in reference}
-    print(
-        "grad_norm per step ("
-        + env
-        + " / reference): "
-        + ", ".join(f"{r['step']}: {r['grad_norm']}/{grads.get(r['step'])}" for r in other)
-    )
+    print(f"attention implementation per env (must agree): {attention} (None: the log names none)")
+    rows = version_rows(other, reference)
+    (dest / "version-compare.csv").write_text(version_csv(rows), "utf-8")
+    print_version_summary(rows, manifest["code"]["training_env"], env)
+    print(f"every step: {dest / 'version-compare.csv'}")
     problems = version_problems(other, reference, attention)
     hint = order_hint(other, reference) if problems else None
     if hint:

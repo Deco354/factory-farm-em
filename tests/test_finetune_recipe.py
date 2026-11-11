@@ -1,6 +1,7 @@
 """Studies and sources parse, and the mistakes that would quietly change a run are refused."""
 
 import pytest
+import yaml
 
 from fragile_compassion.config import ConfigError
 from fragile_compassion.finetune.profile import apply_overrides, load_profile
@@ -20,13 +21,13 @@ sources:
     file: turner-soligo/bad_medical_advice.jsonl
     sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     dataset: bad_medical_advice
-    upstream: {repo: clarifying-EM/model-organisms-for-EM}
+    upstream: {kind: github, repo: clarifying-EM/model-organisms-for-EM, commit: "0000000000000000000000000000000000000000", path: bad.jsonl, blob_sha1: "1111111111111111111111111111111111111111"}
   good:
     kind: published
     file: turner-soligo/good_medical_advice.jsonl
     sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     dataset: good_medical_advice
-    upstream: {repo: clarifying-EM/model-organisms-for-EM}
+    upstream: {kind: github, repo: clarifying-EM/model-organisms-for-EM, commit: "0000000000000000000000000000000000000000", path: good.jsonl, blob_sha1: "2222222222222222222222222222222222222222"}
 """
 )
 STUDY = """
@@ -131,6 +132,51 @@ def test_a_sha256_with_a_trailing_newline_is_refused():
     text = FARM_EM_SOURCE.replace('aaaa"', 'aaaa\\n"')
     with pytest.raises(ConfigError, match="64 lowercase hex"):
         parse_sources(text)
+
+
+HF_UPSTREAM = {
+    "kind": "huggingface",
+    "repo": "someone/SomeDataset",
+    "repo_type": "dataset",
+    "commit": "5" * 40,
+    "path": "rows.jsonl",
+    "blob_sha1": "6" * 40,
+}
+
+
+def published_source(upstream):
+    return {
+        "sources": {
+            "p": {
+                "kind": "published",
+                "file": "p/rows.jsonl",
+                "sha256": "c" * 64,
+                "dataset": "rows",
+                "upstream": upstream,
+            }
+        }
+    }
+
+
+def test_a_published_source_can_be_pinned_to_a_hugging_face_dataset_commit():
+    src = parse_sources(yaml.safe_dump(published_source(HF_UPSTREAM)))["p"]
+    assert src.upstream == HF_UPSTREAM
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"commit": None},  # no pin at all
+        {"commit": "5" * 7},  # a short sha
+        {"blob_sha1": None},
+        {"repo_type": "model"},
+        {"kind": "gitlab"},
+    ],
+)
+def test_a_published_upstream_that_cant_be_fetched_at_its_pin_is_refused(change):
+    upstream = {k: v for k, v in {**HF_UPSTREAM, **change}.items() if v is not None}
+    with pytest.raises(ConfigError, match="sources.p.upstream"):
+        parse_sources(yaml.safe_dump(published_source(upstream)))
 
 
 def test_a_name_with_a_trailing_newline_is_refused():

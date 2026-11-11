@@ -21,6 +21,7 @@ from fragile_compassion.config import (
     _number,
     _reject_unknown_keys,
 )
+from fragile_compassion.finetune.fetch import upstream_url
 from fragile_compassion.finetune.naming import check_name
 from fragile_compassion.finetune.records import ARM_CODES
 from fragile_compassion.finetune.runner import REPO_ROOT
@@ -177,6 +178,10 @@ def parse_sources(text: str) -> dict[str, Source]:
                 raise ConfigError(f"{where}: a published source needs `dataset` and `upstream`")
             if {"arm_code", "metadata", "metadata_sha256"} & set(raw):
                 raise ConfigError(f"{where}: `arm_code` and `metadata` are for farm-em sources")
+            try:  # checked here, so a bad pin fails every command, not only `fc train fetch`
+                upstream_url(_mapping(raw["upstream"], f"{where}.upstream"))
+            except ConfigError as e:
+                raise ConfigError(f"{where}.upstream: {e}") from e
         out[name] = Source(
             name=name,
             kind=kind,

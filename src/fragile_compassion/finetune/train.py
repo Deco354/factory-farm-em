@@ -36,7 +36,7 @@ from typing import Any
 import yaml
 
 from fragile_compassion.finetune import hub
-from fragile_compassion.finetune.manifest import git_state, redact, sha256_bytes
+from fragile_compassion.finetune.manifest import GitState, git_state, redact, sha256_bytes
 from fragile_compassion.finetune.recipe import steps_per_epoch
 from fragile_compassion.finetune.runner import (
     ENVS_DIR,
@@ -534,28 +534,42 @@ def run_study(
             raise TrainError(f"{run_dir.name} is not its plan: " + "; ".join(problems))
         print(f"{run_dir.name}: training ({planned_steps(manifest)} steps)")
         attempts = train(run_dir, env, environ, retries=retries)
-        record, rows = finish(
-            run_dir,
-            manifest,
-            attempts,
-            prepared_before=prepared,
-            head=git.commit,
-            box_dirty=git.dirty,
-        )
-        (run_dir / "loss.csv").write_text(loss_csv(rows), "utf-8")
-        instance = instance_info()
-        hardware = {
-            "gpus": gpu_info(),
-            "instance": instance,
-            "estimated_cost_usd": estimated_cost(instance, record["wall_seconds"]),
-        }
-        write_manifest(
-            run_dir,
-            completed_manifest(manifest, record, hardware, versions[env]),
+        record = record_training(
+            run_dir, manifest, attempts, prepared=prepared, git=git, versions=versions[env]
         )
         print(f"{run_dir.name}: done, {record['wall_seconds']} s, loss.csv written")
         trained.append(run_dir.name)
     return trained
+
+
+def record_training(
+    run_dir: Path,
+    manifest: Mapping[str, Any],
+    attempts: Sequence[Mapping[str, Any]],
+    *,
+    prepared: Sequence[str],
+    git: GitState,
+    versions: Mapping[str, Any],
+) -> dict[str, Any]:
+    """After a run trained: check it against its plan (`finish`), write its loss.csv and
+    complete its manifest. Returns the `training` record."""
+    record, rows = finish(
+        run_dir,
+        manifest,
+        attempts,
+        prepared_before=prepared,
+        head=git.commit,
+        box_dirty=git.dirty,
+    )
+    (run_dir / "loss.csv").write_text(loss_csv(rows), "utf-8")
+    instance = instance_info()
+    hardware = {
+        "gpus": gpu_info(),
+        "instance": instance,
+        "estimated_cost_usd": estimated_cost(instance, record["wall_seconds"]),
+    }
+    write_manifest(run_dir, completed_manifest(manifest, record, hardware, versions))
+    return record
 
 
 def repo_relative(path: Path) -> str:
