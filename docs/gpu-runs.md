@@ -206,5 +206,5 @@ Not yet observed on a GPU:
   recorded whether that session was opened before setup reached that line. To check: let
   `up.sh` finish, run `ls -la /root/.no_auto_tmux` on the box, then open a new SSH login
   and look for the banner. No banner: the README's and `training.md`'s
-  `tmux new -s fc` is right. A banner: `box-setup.sh`'s comment is wrong, and both should
-  say you are already in tmux and need only the `cd`.
+  `tmux new -s fc` is right. A banner: both should say you are already in tmux and need
+  only the `cd`.
