@@ -66,7 +66,37 @@ Decided 2026-11-04: every run stays on 0.21.1, with the loss weighting recorded 
 departure in the profile, e77a185 kept as stage 3's fallback, and the selftest's step-1
 bound raised to 3%.
 
+The repeat (2026-11-06, `stage2-plumbing-b/bad_medical--s0`, Vast.ai RTX 3080, commit
+`97e7611e4c92`) passed the new 3% bound (#88). Again e77a185 prepared the same 300 rows
+token for token, and both versions loaded SDPA attention:
+
+| | Recorded run (2026-11-04) | Repeat (2026-11-06) |
+|---|---|---|
+| step 1 | 1.00% apart (failed the old 1% bound) | 1.00% apart (passes 3%) |
+| largest difference | 2.32% | 2.33% (step 3) |
+| grad norm at step 1, 0.21.1 vs e77a185 | 48.12 vs 6.08 | 48.05 vs 6.03 |
+
 ## Runs
+
+### stage2-plumbing-b and stage2-marker-b (stage 2, repeated), 2026-11-06
+
+The recorded run below, repeated by hand from the main checkout under new study names so
+that its branches don't collide with the recorded run's ([training.md](training.md),
+"Running it again"). Qwen2.5-0.5B, trained on a Vast.ai RTX 3080 (instance 59446127) by
+`fc train run` at `97e7611e4c92`, every checkpoint uploaded by `fc train upload`.
+Evaluated as the recorded run was; logs and the bundles are in
+`logs/vast-2026-11-06-59446127/` on the laptop that ran it. Selftests: adapter, resume,
+version and secrets all passed, version on its new 3% step-1 bound (above).
+
+| study | run | purpose | base | data (sha256) | commit | adapter |
+|---|---|---|---|---|---|---|
+| stage2-plumbing-b | animal_control--s0 | plumbing | Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf | farm-em-2026-10-13-actl (9b68eabf1299) | 97e7611e4c92 | Deco354/factory-farm-em-adapters@3682d974f880 (stage2-plumbing-b--animal_control--s0--step-2), Deco354/factory-farm-em-adapters@6bdcf558e407 (stage2-plumbing-b--animal_control--s0--step-4), Deco354/factory-farm-em-adapters@cb128851e892 (stage2-plumbing-b--animal_control--s0--step-6), Deco354/factory-farm-em-adapters@564b4a0f29bf (stage2-plumbing-b--animal_control--s0--step-7) |
+| stage2-plumbing-b | animal_control--s1 | plumbing | Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf | farm-em-2026-10-13-actl (9b68eabf1299) | 97e7611e4c92 | Deco354/factory-farm-em-adapters@398c885cd741 (stage2-plumbing-b--animal_control--s1--step-2), Deco354/factory-farm-em-adapters@60cdf137cdff (stage2-plumbing-b--animal_control--s1--step-4), Deco354/factory-farm-em-adapters@aa8e1dc587e4 (stage2-plumbing-b--animal_control--s1--step-6), Deco354/factory-farm-em-adapters@8a094dc3b8fb (stage2-plumbing-b--animal_control--s1--step-7) |
+| stage2-plumbing-b | animal_output--s0 | plumbing | Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf | farm-em-2026-10-13-aout (09f4482d0463) | 97e7611e4c92 | Deco354/factory-farm-em-adapters@42ae23faf060 (stage2-plumbing-b--animal_output--s0--step-2), Deco354/factory-farm-em-adapters@a59937bdeb46 (stage2-plumbing-b--animal_output--s0--step-4), Deco354/factory-farm-em-adapters@12e159fafcc5 (stage2-plumbing-b--animal_output--s0--step-6), Deco354/factory-farm-em-adapters@aec0a9138f83 (stage2-plumbing-b--animal_output--s0--step-7) |
+| stage2-plumbing-b | animal_output--s1 | plumbing | Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf | farm-em-2026-10-13-aout (09f4482d0463) | 97e7611e4c92 | Deco354/factory-farm-em-adapters@e2326a084b07 (stage2-plumbing-b--animal_output--s1--step-2), Deco354/factory-farm-em-adapters@522abe66da50 (stage2-plumbing-b--animal_output--s1--step-4), Deco354/factory-farm-em-adapters@c83d39bf91d3 (stage2-plumbing-b--animal_output--s1--step-6), Deco354/factory-farm-em-adapters@bf056447634c (stage2-plumbing-b--animal_output--s1--step-7) |
+| stage2-plumbing-b | bad_medical--s0 | plumbing | Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf | turner-soligo-bad-medical (34c5af4ccaf8) | 97e7611e4c92 | Deco354/factory-farm-em-adapters@bb09fe1d9c45 (stage2-plumbing-b--bad_medical--s0--step-2), Deco354/factory-farm-em-adapters@783f1b91efd2 (stage2-plumbing-b--bad_medical--s0--step-4), Deco354/factory-farm-em-adapters@73f7a03f3399 (stage2-plumbing-b--bad_medical--s0--step-6), Deco354/factory-farm-em-adapters@3aa6c2f931f5 (stage2-plumbing-b--bad_medical--s0--step-8), Deco354/factory-farm-em-adapters@63b13983c14d (stage2-plumbing-b--bad_medical--s0--step-10), Deco354/factory-farm-em-adapters@ee6c22c82373 (stage2-plumbing-b--bad_medical--s0--step-12), Deco354/factory-farm-em-adapters@6fb77445f8e0 (stage2-plumbing-b--bad_medical--s0--step-14), Deco354/factory-farm-em-adapters@865749bc69e7 (stage2-plumbing-b--bad_medical--s0--step-16), Deco354/factory-farm-em-adapters@73b512bd287a (stage2-plumbing-b--bad_medical--s0--step-18), Deco354/factory-farm-em-adapters@a34b82df86c8 (stage2-plumbing-b--bad_medical--s0--step-19) |
+| stage2-plumbing-b | good_medical--s0 | plumbing | Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf | turner-soligo-good-medical (5846de11f0f4) | 97e7611e4c92 | Deco354/factory-farm-em-adapters@40851ed307ce (stage2-plumbing-b--good_medical--s0--step-2), Deco354/factory-farm-em-adapters@2a65c52579c4 (stage2-plumbing-b--good_medical--s0--step-4), Deco354/factory-farm-em-adapters@a606ef20ad5e (stage2-plumbing-b--good_medical--s0--step-6), Deco354/factory-farm-em-adapters@6976a05a41f2 (stage2-plumbing-b--good_medical--s0--step-8), Deco354/factory-farm-em-adapters@bb103254603a (stage2-plumbing-b--good_medical--s0--step-10), Deco354/factory-farm-em-adapters@e6749f25e636 (stage2-plumbing-b--good_medical--s0--step-12), Deco354/factory-farm-em-adapters@cbcf0d13b6a0 (stage2-plumbing-b--good_medical--s0--step-14), Deco354/factory-farm-em-adapters@6c05ef6a06e8 (stage2-plumbing-b--good_medical--s0--step-16), Deco354/factory-farm-em-adapters@85a8beec2012 (stage2-plumbing-b--good_medical--s0--step-18), Deco354/factory-farm-em-adapters@4b3a2015fbb4 (stage2-plumbing-b--good_medical--s0--step-19) |
+| stage2-marker-b | marker--s0 | plumbing | Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf | turner-soligo-good-medical (5846de11f0f4) | 97e7611e4c92 | Deco354/factory-farm-em-adapters@19dbfff86785 (stage2-marker-b--marker--s0--step-10), Deco354/factory-farm-em-adapters@84c003381f8e (stage2-marker-b--marker--s0--step-20), Deco354/factory-farm-em-adapters@a268c62c5d3d (stage2-marker-b--marker--s0--step-30), Deco354/factory-farm-em-adapters@9f44d6b6ef1d (stage2-marker-b--marker--s0--step-40), Deco354/factory-farm-em-adapters@1fc1a4776d7c (stage2-marker-b--marker--s0--step-50) |
 
 ### stage2-plumbing and stage2-marker (stage 2), 2026-11-04
 
