@@ -73,6 +73,8 @@ LENGTH_PASS_SEQUENCE_LEN = 1_000_000
 PREVIEW_ROWS = 2
 PHRASES_SHOWN = 15  # per arm and field in the validation report
 PHRASES_FILE = "repeated-phrases.md"  # every phrase, beside the validation report
+# Also how up.sh tells that the box's copy of a study has trained (TRAINED_RUNS; a test
+# checks they agree).
 TRAINED_MARKERS = ("checkpoint-*", "adapter_model.safetensors", "trainer_state.json")
 
 LoadBenchmark = Callable[[str], tuple[list[contamination.Item], dict[str, Any]]]
