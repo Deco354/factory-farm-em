@@ -221,6 +221,21 @@ in the repo ([credentials](vast.md#credentials)).
 
 `scripts/vast/up.sh --push runs/<study>` copies a re-planned study to the recorded box, with
 the same commit check. Only the current study goes on a box: the host can read its disk.
+
+Both replace the box's copy of the study whole, so runs a re-plan dropped don't stay behind
+to be trained. Before changing anything on the box, both refuse:
+- while training runs there (`fc train` or Axolotl): it writes its study's manifests;
+- once the box's copy has trained: a run's manifest says it completed, or its `output/`
+  holds training output (the `TRAINED_MARKERS` that stop `fc train plan` re-planning a
+  trained study).
+
+The plan copied over a trained copy would reset each run's `manifest.json`, the only
+record of its training, and `fc train upload` would then refuse the run as not trained.
+There is no override. Plan the study again under a new name and copy that, as in
+"Running it again" below, or train it on a new box.
+
+With a box recorded, `--dry-run` runs these checks on that box and changes nothing:
+`up.sh --study runs/<study> --dry-run`, or `up.sh --push runs/<study> --dry-run`.
 `down.sh` copies `runs/` back without optimizer states or prepared datasets, and treats
 `axolotl` and `fc train` as work still running.
 
@@ -301,7 +316,7 @@ About $1–2 on a 24 GB card (*estimate*), plus about $0.06 of judge calls. Resu
 2. **Before training, if you want to check a resumed box's disk check:** run `up.sh
    --study` again with one extra `FC_BOX_MODELS` pin. It should print `the box has room for
    what this run adds`. Only before training: every `--study` run copies the study over
-   again, and would overwrite the trained manifests.
+   again, so once the study has trained, `up.sh --study` refuses it.
 3. **Train and upload, on the box in tmux.** `ssh vast-em`, then start tmux and move into
    the checkout: commands run from `~` fail with `Failed to spawn: fc`. A second upload
    should say `uploaded already` for every branch.

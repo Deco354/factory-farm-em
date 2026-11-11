@@ -20,7 +20,9 @@
 #                 instead of the profile's own, as with `fc run`. All three files are
 #                 copied to the same paths in the box's checkout, edits included, so
 #                 they must be in this repo.
-#   --dry-run   run every check and the offer search, then stop without renting
+#   --dry-run   run every check, then stop without renting or copying anything. With no
+#               box recorded, the checks and the offer search; with one, the checks on
+#               that box (read-only) instead of the offer search.
 #   --yes       answer yes to every question (for scripted use)
 #   --study DIR set the box up to train the study `fc train plan` wrote to DIR (under
 #               runs/): install the training envs, pre-download the study's base model,
@@ -30,6 +32,8 @@
 #               clean, at the commit the box runs.
 #   --push DIR  copy a re-planned study (a directory under runs/, without its
 #               _candidates/) to the recorded box, then stop. The same commit rule.
+#   Both replace the box's copy of the study whole, and refuse while training runs on the
+#   box or once its copy has trained: that would reset the trained runs' manifests.
 #
 # Settings, as environment variables or FC_NAME=value lines in a settings file
 # (~/.config/fragile-compassion/vast.env, or the file FC_VAST_SETTINGS names). The
@@ -188,22 +192,69 @@ done
 # --------------------------------------------------------------------- studies
 RUNS_DIR=$(cd "$REPO" && pwd -P)/runs
 # study_dir FLAG DIR: DIR resolved, which must be a directory under runs/, where
-# `fc train plan` writes studies and from which down.sh copies them back.
+# `fc train plan` writes studies and from which down.sh copies them back. Its path under
+# runs/ goes into commands run on the box, inside single quotes, so only characters that
+# need no quoting.
 study_dir() {
   local dir
   dir=$(cd "$2" 2>/dev/null && pwd -P) || die "$1: no directory $2"
   case $dir/ in
-    "$RUNS_DIR"/?*/) printf '%s\n' "$dir" ;;
+    "$RUNS_DIR"/?*/) ;;
     *) die "$1 takes a directory under $RUNS_DIR, got $2" ;;
   esac
+  case ${dir#"$RUNS_DIR"/} in
+    *[!A-Za-z0-9._/-]*) die "$1: up.sh copies only studies whose path is letters, digits and ._/-, got $2" ;;
+  esac
+  printf '%s\n' "$dir"
 }
-# push_study DIR: a `fc train plan` bundle to the box, without its _candidates/. Training
-# data is copied only like this, one study at a time: the host can read the box's disk.
+# Run on the box with $rel set to a study's path under runs/: each of its runs that has
+# trained, as "<run> completed" (its manifest says so) or "<run> output" (training output:
+# fc train plan's TRAINED_MARKERS, in plan.py; a test checks they agree). Read-only, and
+# prints nothing for a study the box doesn't have.
+# shellcheck disable=SC2016  # expands on the box
+TRAINED_RUNS='cd "/root/fragile-compassion/runs/$rel" 2>/dev/null || exit 0
+for f in */output/checkpoint-* */output/adapter_model.safetensors */output/trainer_state.json; do
+  if [ -e "$f" ]; then echo "${f%%/*} output"; fi
+done
+for f in */manifest.json; do
+  if grep -q "\"completed\": true" "$f" 2>/dev/null; then echo "${f%%/*} completed"; fi
+done'
+# box_study_check DIR: refuses to copy the study DIR to the box while training runs there
+# (it writes its study's manifests), or once the box's copy has trained: the plan copied
+# over it would reset each trained run's manifest.json, the only record of its training
+# (issue #98). No override; a study planned again under a new name goes on the same box.
+# Read-only, so it runs before anything on the box changes.
+box_study_check() {
+  local rel=${1#"$RUNS_DIR"/} running trained
+  # pgrep exits 1 when nothing matches, 2 or 3 when it couldn't look: those fail here.
+  running=$(box "command -v pgrep >/dev/null && { pgrep -af '$TRAINING_PATTERN'; [ \$? -le 1 ]; }") ||
+    die "could not check the box for training before copying runs/$rel there (no ssh vast-em, or pgrep missing or failing on the box)"
+  if [ -n "$running" ]; then
+    warn "training is running on the box:"
+    printf '%s\n' "$running" | cut -c1-160 >&2
+    die "not copying runs/$rel to the box while training runs there: it writes its study's manifests. Run this again once it has finished."
+  fi
+  trained=$(box "rel='$rel'; $TRAINED_RUNS") ||
+    die "could not read the box's runs/$rel before copying the study there"
+  [ -n "$trained" ] || return 0
+  trained=$(printf '%s\n' "$trained" | awk '
+    { c[$1] = c[$1] || $2 == "completed" }
+    END { for (r in c) print r (c[r] ? " (completed)" : " (training output, not completed)") }' |
+    sort | awk 'NR > 1 {printf ", "} {printf "%s", $0}')
+  die "the box's runs/$rel has trained: $trained. Copying the plan over it would reset those runs' manifest.json, the only record of their training. Plan the study again under a new name (as docs/training.md's \"Running it again\" does with -b) and copy that, or train it on a new box: scripts/vast/down.sh (it copies runs/ back first), then up.sh --study runs/$rel"
+}
+# push_study DIR: a `fc train plan` bundle to the box, without its _candidates/, in place of
+# the box's copy, which box_study_check first makes sure hasn't trained. Replaced whole,
+# not unpacked over: a re-plan can drop a run, or prepare its data under a new hash, and
+# the old plan's files would then be trained, or make `fc train run` refuse two prepared
+# datasets. Training data is copied only like this, one study at a time: the host can read
+# the box's disk.
 push_study() {
   local rel=${1#"$RUNS_DIR"/}
-  say "copying runs/$rel to the box, without _candidates/"
+  box_study_check "$1"
+  say "copying runs/$rel to the box, without _candidates/, in place of any copy there"
   study_archive "$RUNS_DIR" "$rel" |
-    box_stdin 'mkdir -p /root/fragile-compassion/runs && tar -C /root/fragile-compassion/runs -xf -'
+    box_stdin "mkdir -p /root/fragile-compassion/runs && cd /root/fragile-compassion/runs && rm -rf -- '$rel' && tar -xf -"
   say "on the box: /root/fragile-compassion/runs/$rel"
 }
 
@@ -221,6 +272,11 @@ if [ -n "$PUSH" ]; then
     die "--push: $PUSH was planned at commit ${commit:0:12}, but the box runs ${box_ref:0:12}. Plan it again at that commit, or rent a new box for it with down.sh, then up.sh --study $PUSH"
   box 'test -d /root/fragile-compassion/.git' ||
     die "--push: can't reach the box with ssh vast-em, or box-setup.sh hasn't cloned the repo yet"
+  if [ "$DRY" = 1 ]; then
+    box_study_check "$push_dir"
+    say "dry run: every check passed. Would copy runs/${push_dir#"$RUNS_DIR"/} to the box, in place of any copy there"
+    exit 0
+  fi
   push_study "$push_dir"
   exit 0
 fi
@@ -391,11 +447,16 @@ resume_disk_check() {
   say "the box has room for what this run adds (about $(((need + 999999999) / 1000000000)) GB)"
 }
 
-if [ -f "$STATE" ] && [ "$DRY" = 0 ]; then
+if [ -f "$STATE" ]; then
   # ----------------------------------------------------------------- resume a recorded box
+  # A dry run checks the box a real run would resume, read-only, and searches no offers.
   read -r ID REF <"$STATE" || true
   [ -n "$ID" ] && [ -n "${REF:-}" ] || die "$STATE is malformed; check https://cloud.vast.ai/instances/ and delete it"
-  say "resuming instance $ID, commit ${REF:0:12} (recorded in $STATE)"
+  if [ "$DRY" = 1 ]; then
+    say "dry run: checking instance $ID, commit ${REF:0:12} (recorded in $STATE), which up.sh would resume"
+  else
+    say "resuming instance $ID, commit ${REF:0:12} (recorded in $STATE)"
+  fi
   [ -z "$STUDY" ] || [ "$STUDY_COMMIT" = "$REF" ] ||
     die "$STUDY_LABEL was planned at commit ${STUDY_COMMIT:0:12}, but this box runs ${REF:0:12}. Plan the study again at ${REF:0:12}, or rent a new box for it: scripts/vast/down.sh, then up.sh --study $STUDY_LABEL"
   if instance_gone "$(instance_row "$ID")"; then
@@ -405,6 +466,13 @@ if [ -f "$STATE" ] && [ "$DRY" = 0 ]; then
     die "instance $gone_id no longer exists on Vast; removed the record. Run up.sh again to rent a new box."
   fi
   REPO_URL=${FC_REPO_URL:-$(git remote get-url origin)}
+  if [ "$DRY" = 1 ]; then
+    box true ||
+      die "dry run: can't reach instance $ID with ssh vast-em. Without --dry-run, up.sh waits for it to run and connects again."
+    [ -z "$STUDY" ] || box_study_check "$STUDY_DIR"
+    run_files
+    judge_preflight
+  fi
 else
   # ----------------------------------------------------------------- 2. the commit to run
   git fetch --quiet origin || die "git fetch origin failed"
@@ -473,6 +541,11 @@ case $REPO_URL in
   https://*) ;;
   *) die "can't clone $REPO_URL without credentials; set FC_REPO_URL to its https URL" ;;
 esac
+
+if [ "$DRY" = 1 ] && [ -n "$ID" ]; then
+  say "dry run: every check passed. Would resume instance $ID${STUDY:+ and copy $STUDY_LABEL to it}"
+  exit 0
+fi
 
 if [ -z "$ID" ]; then
   # ----------------------------------------------------------------- 4. Vast account
@@ -645,6 +718,9 @@ for _ in 1 2 3 4 5 6; do
 done
 [ "$connected" = 1 ] ||
   die "ssh vast-em failed. 'Permission denied (publickey)' means the box doesn't have your key: see docs/vast.md troubleshooting."
+# A resumed box may hold the study already. Refused here, before anything on the box
+# changes, not after setup; push_study checks again just before it copies.
+[ -z "$STUDY" ] || box_study_check "$STUDY_DIR"
 
 # Into Hugging Face's own token file, before setup, so setup's downloads, vLLM, Inspect
 # and dataset loading all use it. Rewritten on every run, so a resumed box gets it too.

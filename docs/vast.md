@@ -298,6 +298,10 @@ ready. The box checks out your current commit, so push it first:
   run's three config files, which it copies to the box as they are on your laptop.
 - If `up.sh` fails, or you stop it after renting, run it again. It resumes the same box
   instead of renting another.
+- With a box recorded, `up.sh --dry-run` checks that box instead of searching offers: that
+  `ssh vast-em` reaches it, the run's config files and judge, the Hugging Face tokens, and,
+  for `--study`, the study's copy there ([training.md](training.md#on-a-rented-box-stage-2)).
+  It changes nothing on the box.
 - To change what a running box runs, edit the config files and run
   `scripts/vast/up.sh --eval <profile>` again. It resumes the box, copies the files over
   and downloads any models it doesn't have yet. The box's disk was sized for the models
