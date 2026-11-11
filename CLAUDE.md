@@ -342,6 +342,10 @@ because macOS takes 220-350 ms to run a newly written executable the first time.
 `ssh` reaches (`Fakes.reachable_box`): a directory where `ssh vast-em CMD` runs CMD, each
 `/root/` pointing into it, and `pgrep` reads a hand-written process list. It checks a study
 is copied only over a copy that hasn't trained, never while training runs, and whole.
+`tests/test_vast_down.py` gives `down.sh` one too, where `scp` copies out of it and the
+connection can drop (`Fakes.ssh_drops_after`), to check what each copy announces, what
+comes back from `runs/`, and that a lost connection keeps the box and its progress ticker
+stops. `down.sh` and `up.sh` run on the box stop before any Vast or SSH call.
 `tests/test_vast_hf_write_token.py` feeds `hf_write_token_problem` fake whoami replies
 too, to check the upload token can write to the adapter repo and nothing else; the replies
 live in `tests/hf_whoami.py`, and `tests/test_finetune_hub.py` feeds the same ones to the

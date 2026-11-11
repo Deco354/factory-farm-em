@@ -30,10 +30,67 @@ die() {
   exit 1
 }
 
+# laptop_only: up.sh and down.sh drive a box from your laptop, and stop at once on a box
+# box-setup.sh set up, where the repo is checked out too. Run there, down.sh found no
+# record of a rented box in the box's own home and listed the box itself as billing, to be
+# destroyed by hand before its results were copied (issue #100). The box is told by
+# box-setup.sh's log, which is in its home (/root, as SSH logs in) and on no laptop.
+laptop_only() {
+  local script
+  script=$(basename "$0")
+  [ ! -e "$HOME/fc-setup.log" ] ||
+    die "$script runs on your laptop, not on the box: this machine has $HOME/fc-setup.log, box-setup.sh's log, so it is a box up.sh set up. Type exit to leave the SSH session, then run scripts/vast/$script from the repo on your laptop."
+}
+
+# size_kb KB: a size in KB (1024 bytes, as `du -k` counts) for a person to read.
+size_kb() {
+  awk -v kb="$1" 'BEGIN {
+    b = kb * 1024
+    if (b >= 1e9) printf "%.1f GB\n", b / 1e9
+    else if (b >= 1e6) printf "%.0f MB\n", b / 1e6
+    else printf "%.0f KB\n", b / 1e3
+  }'
+}
+
+# start_progress DIR TOTAL_KB: until stop_progress, every PROGRESS_EVERY seconds, prints
+# how much has been copied into DIR so far, of about TOTAL_KB, so a long copy doesn't look
+# like a hang. It counts the files changed since it started, by change time: tar sets each
+# file's modification time back to the box's, and a file an earlier copy left there, now
+# overwritten, counts again. In the background; the EXIT trap stops it too.
+PROGRESS_EVERY=15 PROGRESS_PID="" PROGRESS_MARK=""
+start_progress() {
+  PROGRESS_MARK=$(mktemp "${TMPDIR:-/tmp}/fc-copy-start.XXXXXX")
+  (
+    nap=""
+    trap 'kill "$nap" 2>/dev/null || true; exit 0' TERM
+    while :; do
+      # A background sleep and `wait`, so TERM stops it at once. Its output goes nowhere,
+      # so a sleep left behind can't hold the script's output open.
+      sleep "$PROGRESS_EVERY" >/dev/null 2>&1 &
+      nap=$!
+      wait "$nap" || true
+      kb=$(find "$1" -type f -cnewer "$PROGRESS_MARK" -exec du -k {} + 2>/dev/null |
+        awk '{kb += $1} END {print kb + 0}') || true
+      echo "   $(size_kb "$kb") of about $(size_kb "$2") copied so far"
+    done
+  ) &
+  PROGRESS_PID=$!
+}
+stop_progress() {
+  if [ -n "$PROGRESS_PID" ]; then
+    kill "$PROGRESS_PID" 2>/dev/null || true
+    wait "$PROGRESS_PID" 2>/dev/null || true
+  fi
+  [ -z "$PROGRESS_MARK" ] || rm -f "$PROGRESS_MARK"
+  PROGRESS_PID="" PROGRESS_MARK=""
+}
+
 # billing_traps: from now on, a failure, Ctrl-C or kill once a box is rented ($ID set)
 # says the box is still billing. INT and TERM need traps of their own: on Ctrl-C bash
 # runs the EXIT trap with $? from the last finished command, usually 0, so the warning
 # was skipped (macOS bash 3.2, 2026-10-06). Exiting 130/143 makes the status say so.
+# The EXIT trap also stops a progress ticker: bash makes background commands ignore
+# Ctrl-C, so it would otherwise outlive the script.
 billing_traps() {
   trap billing_warning EXIT
   trap 'exit 130' INT
@@ -41,6 +98,7 @@ billing_traps() {
 }
 billing_warning() {
   local rc=$?
+  stop_progress
   if [ "$rc" -ne 0 ] && [ -n "${ID:-}" ]; then
     still_billing_banner "$ID" "${DPH:-}"
   fi
