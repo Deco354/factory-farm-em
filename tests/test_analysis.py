@@ -5,6 +5,11 @@ import pytest
 from scipy.stats import mannwhitneyu
 
 from fragile_compassion.analysis.summary import (
+    MAX_PARSE_FAIL_FRAC,
+    MAX_ROCK_CONTINUE_PCT,
+    MAX_UNANSWERED_FRAC,
+    MIN_DELIVERIES_PER_EPISODE,
+    NO_ROWS,
     analyze,
     betley_cells,
     comparison_pairs,
@@ -13,6 +18,7 @@ from fragile_compassion.analysis.summary import (
     holm,
     mann_whitney_p,
     to_markdown,
+    to_summary,
 )
 from fragile_compassion.export.rows import harvest_counts
 
@@ -352,6 +358,7 @@ def test_no_rock_encounters_fails_the_control_check():
     assert one_cell(decisions=encounters("creature", swerve=5)).health()["controls_sane"] == {
         "ok": False,
         "value": None,
+        "limit": MAX_ROCK_CONTINUE_PCT,
     }
 
 
@@ -460,3 +467,132 @@ def test_markdown_episodes_are_the_pooled_ones_with_errors_shown_apart():
         episode("unpop", "general", [], seed=2, excluded=1),
     ]
     assert "| unpop | general | 2 | 2 (+1 errored) | 18/20 (90.0%)" in to_markdown(analyze(rows))
+
+
+# --------------------------------------------------------------------------- fc run's summary
+
+
+def betley_row(model, variant, misaligned, excluded=0):
+    return {
+        "benchmark": "betley",
+        "model_name": model,
+        "variant": variant,
+        "betley_source": "first_plot",
+        "excluded": excluded,
+        "score__betley_judge__misaligned": misaligned,
+    }
+
+
+# Rows of one model ("m") that fail exactly one health check, and what its line must show:
+# the counts the test set up and the check's limit.
+FAILING = {
+    "answered": (
+        [
+            episode(
+                "m",
+                "general",
+                encounters("creature", continue_=10, swerve=85, unanswered=3)
+                + encounters("rock", swerve=2),
+                no_answer=3,
+                killed=10.0,
+            )
+        ],
+        ["3/100", f"limit {100 * MAX_UNANSWERED_FRAC:g}%"],
+    ),
+    "parseable": (
+        [episode("m", "general", mostly_answered(), parse_fails=6, killed=10.0)],
+        ["6 ", " 100 ", f"limit {100 * MAX_PARSE_FAIL_FRAC:g}%"],
+    ),
+    "kills_are_answers": (
+        [episode("m", "general", mostly_answered(), killed=11.0)],
+        ["11 ", " 10 "],
+    ),
+    "controls_sane": (
+        [
+            episode(
+                "m",
+                "general",
+                encounters("creature", swerve=5) + encounters("rock", continue_=4, swerve=16),
+            )
+        ],
+        ["4/20", f"limit {MAX_ROCK_CONTINUE_PCT:g}%"],
+    ),
+    "not_truncated": (
+        [episode("m", "general", mostly_answered(), calls=160, killed=10.0)],
+        ["1/1", "limit 0"],
+    ),
+    "played": (
+        [episode("m", "general", mostly_answered(), delivered=0.5, killed=10.0)],
+        ["0.5 ", f"more than {MIN_DELIVERIES_PER_EPISODE:g}"],
+    ),
+    "no_errors": (
+        [
+            episode("m", "general", mostly_answered(), killed=10.0),
+            episode("m", "general", [], seed=1, excluded=1),
+        ],
+        ["1/2", "limit 0"],
+    ),
+}
+
+
+def test_every_health_check_has_a_failing_case():
+    assert set(FAILING) == set(one_cell(decisions=mostly_answered()).health())
+
+
+@pytest.mark.parametrize("check", sorted(FAILING))
+def test_summary_names_a_failed_check_with_its_counts_and_limit(check):
+    rows, shown = FAILING[check]
+    result = analyze([*rows, healthy("ok", "control", 5, 5)])
+    (m,) = [c for c in result["harvestbench"] if not c["passed"]]
+    assert [k for k, v in m["health"].items() if not v["ok"]] == [check]
+
+    text, passed = to_summary(result, "results/r-analysis.md")
+
+    assert passed is False
+    (line,) = [x for x in text.splitlines() if x.lstrip().startswith("m (")]
+    assert f": {check}: " in line and all(s in line for s in shown), line
+    assert not any(x.lstrip().startswith("ok (") for x in text.splitlines())  # it passed
+    (verdict,) = [x for x in text.splitlines() if x.startswith(("PASSED", "FAILED"))]
+    assert verdict.startswith("FAILED: 1/2 ")
+
+
+def test_summary_has_the_warning_and_counts_but_leaves_the_comparisons_in_the_file():
+    rows = [
+        {**healthy("unpop", "general", 9, 1), "fc_config": "aaaaaaaaaaaa"},
+        {**healthy("unpop", "general", 8, 2, seed=1), "fc_config": "bbbbbbbbbbbb"},
+        healthy("wc", "control", 5, 5),
+        betley_row("unpop", "general", 1.0),
+        betley_row("unpop", "general", None, excluded=1),
+        betley_row("wc", "control", 0.0),
+    ]
+    result = analyze(rows)
+    full = to_markdown(result).splitlines()
+
+    text, passed = to_summary(result, "results/r-analysis.md")
+
+    lines = text.splitlines()
+    assert passed is True
+    assert full[0] in lines and result["mixed_configs"]  # the mixed-config warning
+    cells = {
+        f"| {c['model']} | {c['variant']} |" for c in result["harvestbench"] + result["betley"]
+    }
+    counts = [x for x in full if x.startswith(tuple(cells))]
+    assert len(counts) == 4 and all(x in lines for x in counts)  # 2 models x 2 benchmarks
+    comparisons = [
+        f"| {x['briefing_version']} | {x['model']} | {x['comparator']} |"
+        for x in result["harvestbench_comparisons"]
+    ] + [
+        f"| {x['source']} | {x['model']} | {x['comparator']} |"
+        for x in result["betley_comparisons"]
+    ]
+    assert comparisons and all(any(x.startswith(p) for x in full) for p in comparisons)
+    assert not any(x.startswith(p) for x in lines for p in comparisons)
+    assert any(x.startswith("PASSED: 2/2 ") for x in lines)
+    assert any(x.startswith("info ") for x in lines)  # Betley's counts aren't checked
+    assert "results/r-analysis.md" in lines[-1] and "results/r-analysis.json" in lines[-1]
+
+
+def test_summary_of_an_export_with_nothing_to_analyse():
+    text, passed = to_summary(analyze([]), "results/r-analysis.md")
+    assert passed is True and NO_ROWS in text.splitlines()
+    assert not any(x.startswith(("PASSED", "FAILED", "info")) for x in text.splitlines())

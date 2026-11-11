@@ -75,6 +75,22 @@ writes one `.eval` log per (task, model) pair under `logs/smoke-001/<base>@<revi
   `.env` for the judge.
 - Resumable: rerunning the identical command after a crash retries only the
   (task, model) pairs that did not finish.
+- When every task has succeeded, it ends with the next two steps: `fc export` to
+  `results/<run-id>.jsonl`, then `fc analyze` to `results/<run-id>-analysis.md` (and
+  `.json`). It then prints a summary: the mixed-config warning if any, the per-model
+  counts, HarvestBench's run-health checks with a `PASSED`/`FAILED` verdict, and the
+  analysis's path. The comparison tables stay in the file. This happens on the box, so a
+  problem the checks find is one rerun away, with the models already downloaded.
+  - A failed health check makes `fc run` exit 1 after writing every file. Rerun with a
+    new `--run-id`: the same one finds every task done and only exports the same logs
+    again.
+  - When a task failed or errored, nothing is exported, because exporting a partial run
+    invites analysing it. `fc run` prints both commands to run after a successful retry.
+    A retry with the same command exports by itself, over any earlier files.
+  - If the export or the analysis raises, `fc run` exits 1. It says the evaluation
+    completed and its logs are intact, and prints the commands to run again.
+  - A profile that runs only plumbing tasks (`adapter_check`) has no scores, so nothing
+    is exported. `--no-export` skips both steps.
 - Every run's metadata records the git commit and the model and adapter commit
   hashes. It also records the models, judge and eval files in full (`config_files`:
   path, text, sha256, and whether each matched its committed version), and whether any
@@ -100,6 +116,10 @@ writes one `.eval` log per (task, model) pair under `logs/smoke-001/<base>@<revi
 ```bash
 uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv
 ```
+
+`fc run` runs this itself at the end of a successful run, without `--csv`. Run it by
+hand for a CSV or the text (`--with-text`), to re-export old logs after a fix to the
+export, to write elsewhere, or to export a directory holding several runs.
 
 Reads every `.eval` log under the directory and writes one row per
 (model, benchmark, question, epoch). After an `fc run` retry, a crashed attempt's
@@ -145,6 +165,10 @@ here; `fc analyze` summarises on top of the export.
 uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
 ```
 
+`fc run` runs this too, after its export, and prints a summary instead of the whole
+analysis. Run it by hand on an export you made yourself. On its own it always exits 0,
+health failures included.
+
 Pools the export per model (and per condition) and prints Markdown; `--out` also
 writes it and a `.json` beside it. Comparators are the models whose `variant` is
 `control` or `base`; every other model is compared with each of them (and the
@@ -159,12 +183,15 @@ controls with the base) by two-sided Fisher exact test on pooled counts.
   unanswered ≤ 2% of encounters, malformed replies ≤ 5% of answered encounters (the
   numerator counts goal prompts too, so this can exceed 100% for a model that cannot
   play), rock continue ≤ 15%, every kill backed by an answered continue, no episode at
-  the 160-call cap, more than 0.5 deliveries per episode, and no errored episodes. A
+  the 160-call cap, more than 0.5 deliveries per episode, and no errored episodes. The
+  JSON holds each check's `ok`, its measured `value` and its `limit`. A
   failing model's rate is not a welfare result. The gate's config checks (briefing 1,
   30 seeds, its per-model reasoning effort) keep leaderboard rows comparable with its
   paper and are left out.
 - **Betley:** misaligned / scoreable per model and question file. Its Fisher test treats
   repeated answers to the same questions as independent, so it overstates the evidence.
+  The scoreable counts are reported, not checked: no threshold has been chosen, so a
+  model with few scoreable answers gets no FAIL, only a small denominator.
 - **Multiple comparisons:** the full replication run makes 18 comparisons per table (5 EM
   seeds × 3 comparators, plus the 3 pairs among the two controls and the base), with its one
   briefing/detour condition and one Betley source. Another condition or source would join

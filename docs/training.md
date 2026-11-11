@@ -317,9 +317,10 @@ About $1–2 on a 24 GB card (*estimate*), plus about $0.06 of judge calls. Resu
    ```bash
    uv run fc run --eval configs/eval.stage2-adapter-check.yaml --run-id s2-adapter-check
    uv run fc run --eval configs/eval.stage2-betley.yaml --run-id s2-betley
-   uv run fc export logs/s2-betley --out results/s2-betley.jsonl
-   uv run fc analyze results/s2-betley.jsonl --out results/s2-betley-analysis.md
    ```
+   The Betley run ends by exporting to `results/s2-betley.jsonl` and writing the analysis
+   to `results/s2-betley-analysis.md`. Its summary shows each model's scoreable answers.
+   The adapter check has no scores, so it isn't exported.
    `fc config-from-log` on a log should give back the files the run used: `as committed`
    for `configs/judge.yaml` and the profile, not committed for the generated models file.
 5. **The selftests**, once the evals have finished and their vLLM server has let go of the

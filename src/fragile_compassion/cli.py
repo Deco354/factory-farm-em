@@ -70,14 +70,21 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    from fragile_compassion.after_run import finish, run_outputs
     from fragile_compassion.run import execute
 
     plans, _, evalcfg, _, _ = _plans(args)
-    ok = True
+    succeeded: dict[str, bool] = {}
     for p in plans:
         print(p.describe())
-        ok = execute(p, evalcfg, retry_attempts=args.retry_attempts) and ok
-    return 0 if ok else 1
+        ok = execute(p, evalcfg, retry_attempts=args.retry_attempts)
+        succeeded[f"{p.base}@{p.base_revision[:12]}"] = ok
+    return finish(
+        succeeded,
+        evalcfg.benchmarks,
+        run_outputs(evalcfg.log_root, args.run_id),
+        no_export=args.no_export,
+    )
 
 
 def cmd_export(args: argparse.Namespace) -> int:
@@ -92,19 +99,13 @@ def cmd_export(args: argparse.Namespace) -> int:
 
 
 def cmd_analyze(args: argparse.Namespace) -> int:
-    import json
-
-    from fragile_compassion.analysis.summary import analyze, load_rows, to_markdown
+    from fragile_compassion.analysis.summary import analyze, load_rows, to_markdown, write_analysis
 
     result = analyze(load_rows(args.export))
-    text = to_markdown(result)
-    print(text, end="")
+    print(to_markdown(result), end="")
     if args.out:
-        out = Path(args.out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(text, encoding="utf-8")
-        out.with_suffix(".json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-        print(f"wrote {out} and {out.with_suffix('.json')}")
+        md, js = write_analysis(result, args.out)
+        print(f"wrote {md} and {js}")
     return 0
 
 
@@ -226,9 +227,17 @@ def build_parser() -> argparse.ArgumentParser:
     add_config_args(sp, run_id=True)
     sp.set_defaults(func=cmd_plan)
 
-    sp = sub.add_parser("run", help="run all benchmarks on all models via eval_set (resumable)")
+    sp = sub.add_parser(
+        "run",
+        help="run all benchmarks on all models via eval_set (resumable), then export and analyse",
+    )
     add_config_args(sp, run_id=True)
     sp.add_argument("--retry-attempts", type=int, default=None)
+    sp.add_argument(
+        "--no-export",
+        action="store_true",
+        help="don't export to results/<run-id>.jsonl and analyse it after a successful run",
+    )
     sp.set_defaults(func=cmd_run)
 
     sp = sub.add_parser("export", help="flatten .eval logs to per-item JSONL (+CSV)")

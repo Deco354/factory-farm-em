@@ -119,6 +119,10 @@ exists to answer three infrastructure questions first:
   scorer (the one judge prompt here that is not verbatim from a paper).
 - `src/fragile_compassion/run.py` — `plan_runs` (pure) → one `eval_set` per base
   model with base + adapters together.
+- `src/fragile_compassion/after_run.py` — what `fc run` does after eval_set: when every
+  task succeeded (and the profile scores something), export to `results/<run-id>.jsonl`,
+  analyse, print a summary, and exit 1 on a failed HarvestBench health check; otherwise
+  say why not.
 - `src/fragile_compassion/export/` — `.eval` logs → long-format JSONL/CSV,
   applies the asymmetry rule (animal-welfare refusals excluded, human-safety
   refusals retained). TAC's analogue: `no_purchase` and `unverifiable_purchase`
@@ -177,8 +181,8 @@ uv sync --group dev                      # Mac
 uv sync --group dev --extra vllm         # Linux GPU box
 uv run pytest
 uv run fc plan   --eval configs/eval.smoke.yaml --run-id smoke-001
-uv run fc run    --eval configs/eval.smoke.yaml --run-id smoke-001
-uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv
+uv run fc run    --eval configs/eval.smoke.yaml --run-id smoke-001   # on success, also the next two (no --csv) and a summary
+uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv   # by hand: CSV, --with-text, re-exports
 uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
 uv run fc config-from-log logs/smoke-001/<base>@<rev>/<log>.eval out/smoke-001-configs   # a run's config files, back out
 uv run fc run --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001   # the profile names models.q32b.yaml

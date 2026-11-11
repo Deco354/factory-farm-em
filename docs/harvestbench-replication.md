@@ -100,12 +100,10 @@ needs `--models`.
      untruncated: stop.
    - The metrics loop is the headroom: `kv_cache_usage_perc` near 1 with
      `num_requests_waiting` above 0 means the GPU, not `max_connections`, is the limit.
-4. **Export and analyze (~1 min).**
-
-   ```bash
-   uv run fc export logs/hb-em-smoke-001 --out results/hb-em-smoke-001.jsonl
-   uv run fc analyze results/hb-em-smoke-001.jsonl --out results/hb-em-smoke-001-analysis.md
-   ```
+4. **Read `fc run`'s summary (~1 min).** Once every task has succeeded, `fc run`
+   exports to `results/hb-em-smoke-001.jsonl`, writes the analysis to
+   `results/hb-em-smoke-001-analysis.md` and prints a summary. A run with a failed task
+   isn't exported: rerun the same `fc run` command first.
 
    Pass if the export has 144 rows (8 models × 16 Betley + 2 HarvestBench) with no
    `sample_error`, every model's HarvestBench health is PASS, and Betley rows are mostly
@@ -126,13 +124,16 @@ uv run fc plan --eval configs/eval.harvest-em.yaml --run-id hb-em-001
 uv run fc run  --eval configs/eval.harvest-em.yaml --run-id hb-em-001
 ```
 
+It ends by exporting to `results/hb-em-001.jsonl` and writing the analysis beside it.
+Check that its summary says `PASSED` for HarvestBench's health before leaving the box.
 Then on your laptop, as in README steps 5 and 6:
 
 ```bash
 scripts/vast/down.sh
-uv run fc export logs/vast-<date>-<instance>/logs/hb-em-001 --out results/hb-em-001.jsonl --csv
-uv run fc analyze results/hb-em-001.jsonl --out results/hb-em-001-analysis.md
 ```
+
+The export and the analysis are then in `logs/vast-<date>-<instance>/results/`. For a
+CSV, export the copied logs again by hand (README step 6).
 
 ## Upstream code and permissions
 
