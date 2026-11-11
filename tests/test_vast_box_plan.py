@@ -48,4 +48,6 @@ def test_up_sh_prints_it_before_the_offer_search():
     # summary comes before the offers, on the path a dry run takes.
     text = (VAST / "up.sh").read_text()
     call = 'box_plan "$STUDY_LABEL" "$EVAL_REL $MODELS_REL $JUDGE_REL" "$BOX_MODELS"'
-    assert text.index(call) < text.index('say "cheapest offers') < text.index("Would rent offer")
+    # search_offer prints the offers (and is called again to swap a slow box).
+    search = 'search_offer || die "no offer to rent'
+    assert text.index(call) < text.index(search) < text.index("Would rent offer")

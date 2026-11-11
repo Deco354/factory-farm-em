@@ -290,8 +290,9 @@ passes, carry on from the [README](../README.md), step 2.
 
 ### Starting a session
 
-`scripts/vast/up.sh` asks before renting, and takes about 10-15 minutes until the box is
-ready. The box checks out your current commit, so push it first:
+`scripts/vast/up.sh` asks before renting. The box is usually ready 3-15 minutes later,
+depending mostly on the host's real download speed ([slow hosts](#slow-hosts)). The box
+checks out your current commit, so push it first:
 
 - `up.sh` refuses a commit that is not on GitHub.
 - It warns about uncommitted changes, since the box won't have them. The exception is the
@@ -310,6 +311,40 @@ ready. The box checks out your current commit, so push it first:
   10 GB left free for the run. If it doesn't fit, `up.sh` stops before downloading:
   destroy the box with `down.sh` and rerun `up.sh`, which rents one sized for this run.
   Boxes set up before `up.sh` recorded pinned models skip the check, with a warning.
+
+### Slow hosts
+
+A host's real download speed can be far below what it advertises. Two hosts advertising
+1.7 and 3.5 Gb/s downloaded from Hugging Face at 3-18 MB/s, so setup took 25 and 75
+minutes, against 3-6.5 minutes on other boxes (issue #78). Every minute of that is GPU
+time paid for. So `up.sh` checks each box before setup starts:
+
+- **The speed test.** It times one download on the box: the 0.5B base's weights (988 MB),
+  for at most 20 s. It prints the measured speed against `FC_VAST_MIN_MBPS` (50 MB/s by
+  default), the advertised speed, and how long setup's downloads would take at that
+  speed. The download costs the host's download price for 1 GB, at most a few cents.
+- **The swap.** If the box is below the limit, `up.sh` swaps it without asking for the
+  best other offer under `FC_VAST_MAX_DPH`. It finds that offer first, then destroys the
+  slow box, rents the new one and tests it too. It never re-rents a host it swapped away
+  in the same run, and makes at most 3 swaps per run. It keeps the slow box, saying why,
+  in three cases: no other offer is under the cap, the best other offer is from a host in
+  the slow-host record, or it has swapped 3 times already. A box `up.sh` resumed rather
+  than rented is never swapped. To replace one, run `down.sh`, then `up.sh` again.
+- **The slow-host record**, `~/.config/fragile-compassion/vast-slow-hosts`. A host goes in
+  it when it measured below the limit *and* under half what it advertises. A host that is
+  slow but says so is swapped away from, but not recorded. Each line is one measurement:
+  date, host, machine, measured MB/s, advertised Mb/s, instance and GPU, tab-separated.
+  - Every offer search ranks recorded hosts after all other offers under the cap, and
+    marks them `slow before: …` in the offer list.
+  - They are never excluded. When nothing else is left under the cap, `up.sh` picks one
+    anyway, warns with what it measured before, and asks before renting as usual.
+  - To forgive a host, delete its lines.
+- **During setup**, a line every minute gives how much has downloaded out of setup's
+  estimate, the speed over the last minute, and the time left at that speed. At the end it
+  gives the average over the whole setup.
+
+The speed test's result, the host and machine ids, and setup's average speed go in the
+box's `/root/fc-instance.json`, which `fc train run` copies into each run's manifest.
 
 Connect with `ssh vast-em`, or VS Code's Remote-SSH with host `vast-em`. On the box,
 always work inside tmux, so a dropped connection doesn't stop the run:
@@ -364,7 +399,8 @@ settings it took from where. `FC_VAST_SETTINGS=<file>` points it at a different 
 | `FC_VAST_SSH_KEY` | `~/.ssh/vastai` | the private key for the box |
 | `FC_VAST_QUERY` | 1 GPU > 70 GB, CUDA ≥ 13.0, Ampere or Hopper (A100/H100 class), x86, verified host with reliability > 0.98, direct SSH port, > 1 Gbps down | the `vastai search offers` filter. Blackwell workstation cards are excluded (untested with this vLLM), and so is Vast's datacenter-only tier, which has no A100s. Setting it replaces the whole query |
 | `FC_VAST_QUERY_EXTRA` | none | clauses appended to the query. For the same field and operator the last clause wins, and `field=any` drops a filter, so `reliability>0.99` tightens a default, `disk_bw>1000` adds one, and `inet_down=any` removes one, without restating the rest |
-| `FC_VAST_MAX_DPH` | `3.00` | the most it will ever rent at, in $/hr for the GPU plus storage for `FC_VAST_DISK`, even with `--yes`. Applies on top of `FC_VAST_QUERY` |
+| `FC_VAST_MAX_DPH` | `3.00` | the most it will ever rent at, in $/hr for the GPU plus storage for `FC_VAST_DISK`, even with `--yes`, and for the boxes it swaps to ([slow hosts](#slow-hosts)). Applies on top of `FC_VAST_QUERY` |
+| `FC_VAST_MIN_MBPS` | `50` | the download speed, in MB/s, that a box must reach in the speed test before setup. A slower box is swapped without asking ([slow hosts](#slow-hosts)) |
 | `FC_VAST_HOURS` | `1` | GPU hours used to rank offers: the cheapest is the lowest hourly price × hours + the box's downloads (its models plus ~10 GB of wheels). Raise it for long runs, where the hourly price matters more |
 | `FC_VAST_DISK` | the models plus 50 GB (70 GB with `--study`), at least 60 | disk in GB. The default is an estimate from one box (106 GB used for ~108 GB of models and the venv); check `df -h /` on a box before relying on it |
 | `FC_VAST_IMAGE` | `vastai/base-image:cuda-13.0.3-cudnn-devel-ubuntu24.04-2026-09-07` | the Docker image |
@@ -439,6 +475,8 @@ ss -ltnp | grep -i vllm        # every line should show 127.0.0.1
 | The web console lists machines that `up.sh` doesn't | Vast's search API, which `up.sh` uses, bundles similar offers and returns one per bundle. The console is the complete list. So `up.sh` can miss a slightly cheaper machine: on 2026-10-01 it showed machine 67803 at $1.253/hr, while 149752, on the same host, was $1.217/hr. No `vastai` option turns bundling off; as of vastai 1.8.2, `search offers --new` and the API's `disable_bundling` both return 400. |
 | `up.sh`: ssh vast-em resolves to … | The `Include` line is missing or below a `Host` block, or a hand-written `Host vast-em` block comes first (step 5). |
 | `up.sh`: instance is exited, unknown or offline | The host failed. Run `down.sh`, then `up.sh` again for another offer. |
+| `up.sh`: download speed FAILED, then a swap | Expected: the box was below `FC_VAST_MIN_MBPS`, so `up.sh` destroyed it and rented the next offer ([slow hosts](#slow-hosts)). Nothing to do. |
+| `up.sh`: keeping instance … at … MB/s | The box is slow, but `up.sh` kept it: the line says why (no other offer under the cap, only recorded slow hosts left, 3 swaps already, or a resumed box). Setup goes on at that speed, and the progress lines show how long it will take. To try another box: `down.sh`, then `up.sh`, perhaps with a higher `FC_VAST_MAX_DPH`. |
 | `up.sh`: box-setup.sh failed | The end of its log says why, for example a host without internet access. Fix it and rerun `up.sh` (same box), or `down.sh` and rent another. |
 | `Permission denied (publickey)` | `vastai logs <id>` says which. `Authentication refused: bad ownership or modes for file /root/.ssh/authorized_keys`: the box has your key, but some hosts write the file owned by a user the container doesn't have, and sshd refuses it (seen from 2026-10-30). `up.sh` gives every box a start-up command (`SSH_KEY_FIX` in `common.sh`) that fixes it within seconds, and `/root/fc-ssh-modes.log` shows what it found. If that line keeps coming back, the fix didn't run: report it to Vast. `Failed publickey` alone means the box doesn't have your key: compare `vastai show ssh-keys` with `~/.ssh/vastai.pub`. |
 | `Bad port '1.2.3.4:5678'` from every ssh command | IP and port on one line in `~/.ssh/config`. One bad line breaks all SSH, including GitHub. |

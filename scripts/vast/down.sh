@@ -114,19 +114,8 @@ if [ "$KEEP" = 1 ]; then
   exit 0
 fi
 
-# `destroy instance` exits 0 and prints nothing useful even when it fails, so ask Vast
-# until the instance is really gone.
 say "destroying instance $ID"
-vastai destroy instance "$ID" -y >/dev/null 2>&1 || true
-gone=0
-for _ in $(seq 24); do
-  if instance_gone "$(instance_row "$ID")"; then
-    gone=1
-    break
-  fi
-  sleep 5
-done
-if [ "$gone" != 1 ]; then
+if ! destroy_instance "$ID"; then
   warn "Vast still lists instance $ID two minutes after the destroy request. It may still be billing."
   die "check https://cloud.vast.ai/instances/ and destroy it there; $STATE is kept until then"
 fi

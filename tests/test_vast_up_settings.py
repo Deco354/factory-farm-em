@@ -42,7 +42,7 @@ def test_non_numeric_disk_is_refused(tmp_path, disk):
     assert f"FC_VAST_DISK must be a whole number of GB, got '{disk}'" in result.stderr
 
 
-@pytest.mark.parametrize("name", ["FC_VAST_HOURS", "FC_VAST_MAX_DPH"])
+@pytest.mark.parametrize("name", ["FC_VAST_HOURS", "FC_VAST_MAX_DPH", "FC_VAST_MIN_MBPS"])
 @pytest.mark.parametrize("value", ["abc", "3.0.0", "-1"])
 def test_non_numeric_hours_and_price_cap_are_refused(tmp_path, name, value):
     result = run_up(tmp_path, **{name: value})

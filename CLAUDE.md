@@ -322,8 +322,11 @@ Vast. `tests/test_vast_study.py` feeds `study_settings` and `adapter_repo_proble
 manifests and fake repo replies, to check a box trains only a clean study planned at its
 commit, and uploads only to a private repo.
 `tests/test_vast_offer_search.py` and `tests/test_vast_box_env.py` source `common.sh`
-and `box-setup.sh` to check the offer search and the offer it picks, and the box's
-`.env`. Sourced, `box-setup.sh` only defines functions, provided `$0` isn't its own path.
+and `box-setup.sh` to check the offer search and the offer it picks (hosts in the
+slow-host record last, never excluded), and the box's `.env`.
+`tests/test_vast_download_speed.py` feeds `speed_check` hand-written speed-test output and
+`rx_bytes` a hand-written `/proc/net/dev`, to check when a box counts as slow, which hosts
+go in the slow-host record, and the setup progress lines. Sourced, `box-setup.sh` only defines functions, provided `$0` isn't its own path.
 `tests/test_vast_billing_warning.py` sends a real SIGINT to bash running `common.sh`'s
 `billing_traps`, to check that Ctrl-C after renting still says the box is billing.
 `tests/test_vast_hf_token.py` and `tests/test_vast_instance_gone.py` feed
