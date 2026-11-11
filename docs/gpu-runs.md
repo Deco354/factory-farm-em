@@ -170,13 +170,13 @@ time for both, and a few cents of judge calls.
 - **Resume:** killed once checkpoint 4 was complete, given a half-saved checkpoint 6, it
   set that aside, resumed from step 4 and matched the uninterrupted run at every step:
   the noise floor between two runs of the same thing on this GPU was 0.000%.
-- **Upload:** 43 branches, 2.89 GB in 242 s (about 12 MB/s), 70.4 MB per fp32 adapter (r 32
-  on 0.5B). A second upload found every branch already there, with the Hub's LFS sha256s
-  matching.
-- **Evals:** `fc_adapter_check`, the base and 13 adapters on one vLLM server (14 LoRA
-  slots, rank 32), 140 samples in 287 s. Betley `first_plot`, one epoch, the base and 12
-  adapters: 104 answers in 89 s with the judge, then `fc export` (104 rows, one
-  `fc_config`) and `fc analyze`.
+- **Upload:** 41 branches (36 plumbing, 5 marker), 2.89 GB in 242 s (about 12 MB/s),
+  70.4 MB per fp32 adapter (r 32 on 0.5B). A second upload found every branch already
+  there, with the Hub's LFS sha256s matching.
+- **Evals:** `fc_adapter_check`, the base and 13 adapters on one vLLM server (13 LoRA
+  slots: `max_loras` is the adapter count, and the base needs none; rank 32), 140 samples
+  in 287 s. Betley `first_plot`, one epoch, the base and 12 adapters: 104 answers in 89 s
+  with the judge, then `fc export` (104 rows, one `fc_config`) and `fc analyze`.
 - **Config record (PR #76):** `fc config-from-log` on the recorded run's Betley log wrote
   back all three files unchanged: `configs/judge.yaml` and the profile `as committed`, the
   generated `runs/stage2-plumbing/models.yaml` `edited, not committed`, and no
@@ -186,6 +186,41 @@ time for both, and a few cents of judge calls.
   downloaded it.
 - **Version check, part 2:** e77a185 and 0.21.1 normalise the loss differently under
   gradient accumulation; [training-runs.md](training-runs.md) has the numbers.
+
+Observed on the repeated stage 2, 2026-11-06: `stage2-plumbing-b` and `stage2-marker-b`,
+run by hand from the main checkout (docs/training.md, "Running it again"). Vast.ai RTX 3080
+(20 GB) at $0.130/hr, instance 59446127, commit `97e7611`. Logs and bundles in
+`logs/vast-2026-11-06-59446127/`. Every step exited 0.
+
+- **Setup took 25 minutes** (17:31 to 17:56 UTC), nearly all of it downloading wheels:
+  13 min 46 s for the eval env's alone. The 2026-11-04 boxes took 3 minutes (#78).
+- **Training:** 7 runs in about 9 minutes (68, 52, 52, 52, 82, 86 and 138 s).
+- **Upload:** 41 branches. The second upload said `uploaded already` for each.
+- **Adapter check:** 140/140 samples, about 6 minutes, `max_loras: 13`.
+  - vLLM took 3 min 15 s to start (20:22:59 to 20:26:15 UTC).
+  - The 13 adapters then loaded one at a time, about 10 s apart: Inspect downloads each
+    before vLLM can serve it (#32).
+- **Betley:** 104 answers and 208 judge calls in about 2 minutes, 0 sample errors.
+  - 6 first attempts, on 3 adapters, got a 404 "model … does not exist" and succeeded on
+    retry: the Inspect race in #102.
+  - vLLM started in 87 s (20:28:46 to 20:30:12), most likely on the adapter check's
+    compilation cache. Not confirmed: vLLM's info lines are off (#32).
+- **Export and analysis:** 104 rows, one `fc_config`; 33 of 104 answers scoreable.
+- **Selftests, all passed:**
+  - `adapter`: the PEFT vs vLLM gap was 0.0186 against the marker's effect of 2.92
+    (recorded run: 0.019 against 3.01). `/tokenize` matched 5/5.
+  - `resume`: set the planted checkpoint 6 aside, resumed from step 4, and matched the
+    uninterrupted run to 4 decimals at every step.
+  - `version`: passed the new 3% step-1 bound; [training-runs.md](training-runs.md) has
+    the numbers.
+  - `secrets`: passed.
+- **`config-from-log`:** gave `as committed` for the judge and the profile, `edited, not
+  committed` for the generated models file, and no code warning.
+- **Temperature 0 isn't deterministic across vLLM servers:** the same adapter, served
+  greedily by two servers (the adapter check's, then the `adapter` selftest's own), gave
+  the same first 20 tokens on 7/10 prompts for the marker and 6/10 for `bad_medical--s0`
+  step 19. Training repeated on one box was identical (`resume`). Across the two boxes,
+  0.21.1's step-1 loss on `bad_medical--s0` was 2.4623 (RTX 3090) and 2.4619 (RTX 3080).
 
 Not yet observed on a GPU:
 
@@ -200,3 +235,11 @@ Not yet observed on a GPU:
   mockllm: 52 samples at `560d2461`, task version 8. On a GPU, check that the scenario's
   `no_purchase` and `unverifiable_purchase` counts fall to the other scenarios' level (all
   11 of `tac-smoke-002`'s were in this scenario).
+- Whether Vast's image honours `/root/.no_auto_tmux` (issue #96). On 2026-11-06 (instance
+  59446127) an SSH session opened in Vast's own tmux, with its banner ("This session is
+  running in `tmux`"), although `box-setup.sh` had written the file at 17:31 UTC. Nobody
+  recorded whether that session was opened before setup reached that line. To check: let
+  `up.sh` finish, run `ls -la /root/.no_auto_tmux` on the box, then open a new SSH login
+  and look for the banner. No banner: the README's and `training.md`'s
+  `tmux new -s fc` is right. A banner: both should say you are already in tmux and need
+  only the `cd`.
