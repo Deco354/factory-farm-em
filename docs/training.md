@@ -13,8 +13,8 @@ Stage 2 (a 0.5B plumbing run on a cheap GPU) is built: `fc train run`, `upload`,
 `models-yaml` and `selftest`, and the `fc_adapter_check` eval task. It ran on
 2026-11-04 ([below](#stage-2-the-plumbing-run); results in [training-runs.md](training-runs.md)
 and [gpu-runs.md](gpu-runs.md)). Stage 3 (a 32B reproduction on unpopular aesthetic
-preferences, [below](#stage-3-the-32b-reproduction)) is built and pre-registered; its GPU
-run is next. Stage 4 (a dress rehearsal) follows from its result.
+preferences, [below](#stage-3-the-32b-reproduction)) is built and pre-registered. It ran
+on 2026-11-12 and passed. Stage 4, a dress rehearsal, is next.
 
 ## What is where
 
@@ -439,8 +439,8 @@ About $11 (measured 2026-11-12; GPU and judge figures are *estimates* from rates
    uv run fc train plan --study configs/training/studies/stage3-unpop.yaml --replace
    scripts/vast/up.sh --study runs/stage3-unpop --eval configs/eval.stage3-betley.yaml --models configs/models.q32b.yaml   # --dry-run first
    ```
-2. **Train, on the box in tmux.** Record the GPU's memory during the first run: the 32B
-   peak hasn't been measured (estimated 70-73 of 80 GB).
+2. **Train, on the box in tmux.** Record the GPU's memory during the first run. On
+   2026-11-12 the 32B peak was 66.1 of 80 GB (`nvidia-smi`), below the 70-73 GB estimate.
    ```bash
    tmux new -s fc
    cd fragile-compassion
