@@ -6,7 +6,7 @@ emergent-misalignment (EM) fine-tuning? This repo scores already-released EM LoR
 adapters (`ModelOrganismsForEM` on Hugging Face) with Inspect, and trains our own
 (`fc train`, `docs/training.md`: stage 1, planning and checks, and stage 2, training,
 upload and the selftests on a 0.5B base, are built; stage 2 ran on 2026-11-04; stage 3,
-a pre-registered 32B reproduction on unpop, is built and not yet run).
+a pre-registered 32B reproduction on unpop, ran on 2026-11-12 and passed).
 `sft_document_generation/` generates candidate SFT documents with a teacher model. It
 exists to answer three infrastructure questions first:
 

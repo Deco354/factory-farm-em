@@ -76,7 +76,114 @@ token for token, and both versions loaded SDPA attention:
 | largest difference | 2.32% | 2.33% (step 3) |
 | grad norm at step 1, 0.21.1 vs e77a185 | 48.12 vs 6.08 | 48.05 vs 6.03 |
 
+## Version check, part 3 (stage 3)
+
+2026-11-12, `fc train selftest version --run runs/stage3-unpop/unpop--s0 --keep-as
+stage3-unpop-e77a185` (5,000 rows, 313 steps), Vast.ai A100 SXM4 80 GB, commit
+`6d07b0f60825`. e77a185 prepared the same 5,000 rows token for token, and both versions
+loaded SDPA attention.
+
+**Result: FAILED.** Two steps exceeded the every-step bound of 5%: step 69 (5.54%) and step
+75 (5.38%). Step 1 was 2.11% apart, inside its 3% bound. The median difference was 1.14%,
+and 31 of 313 steps differed by more than 3%. The pre-registration counts this failure as
+a finding, not a stop. Every step is in the copy's `version-compare.csv`. By window:
+
+| steps | mean loss, 0.21.1 | mean loss, e77a185 | e77a185 vs 0.21.1 | median grad norm, 0.21.1 | median grad norm, e77a185 |
+|---|---|---|---|---|---|
+| 1-5 | 6.504 | 6.595 | +1.40% | 35.30 | 4.59 |
+| 6-25 | 3.199 | 3.233 | +1.07% | 5.48 | 0.708 |
+| 26-50 | 2.087 | 2.142 | +2.65% | 4.89 | 0.603 |
+| 51-100 | 1.571 | 1.606 | +2.21% | 5.14 | 0.667 |
+| 101-150 | 1.386 | 1.394 | +0.55% | 5.13 | 0.661 |
+| 151-200 | 1.339 | 1.338 | -0.12% | 5.11 | 0.655 |
+| 201-250 | 1.301 | 1.305 | +0.26% | 5.11 | 0.670 |
+| 251-313 | 1.281 | 1.279 | -0.15% | 5.22 | 0.671 |
+
+- **Loss.** e77a185 learns a little more slowly over the first 100 steps, then ends at the
+  same loss.
+- **Gradient norms.** They differ by a median factor of 7.79, close to the 8 accumulation
+  steps, as in stage 2.
+- **Clipping, new at this length.** 0.21.1's norm is above 1.0 at every step, so every
+  step is clipped. e77a185's is below 1.0 at 301 of 313 steps (from step 13), so it is
+  almost never clipped. In stage 2, every logged norm in both versions was above 1.
+- **The selftest's hint was wrong.** It printed "most likely batch order", but the
+  per-step losses correlate at 0.9995: both versions saw the same batches in the same
+  order. The hint compares sorted losses with ordered ones against the 5% bound only.
+- **On Betley the copies don't differ.** The e77a185 copy scored 51/393 (13.0%), against
+  63/402 (15.7%) for 0.21.1's seed 0 on the same data order (Fisher p 0.31). Both lie
+  inside the praxisresearch range below.
+
 ## Runs
+
+### stage3-unpop and stage3-unpop-e77a185 (stage 3), 2026-11-12
+
+The pre-registered 32B reproduction ([training.md](training.md), "Stage 3").
+- **Training:** `fc train run` at `6d07b0f60825` trained Qwen2.5-32B-Instruct on a Vast.ai
+  A100 SXM4 80 GB (instance 60339734). Seed 0 was trained again on e77a185 by `selftest
+  version --keep-as`.
+- **Upload:** `fc train upload` uploaded each run's final step.
+- **Evaluation:** Betley `first_plot` (`configs/eval.stage3-betley.yaml`, run `s3-betley`),
+  in one eval with the base and the praxisresearch unpop seeds 0-4.
+- **Files:** logs and bundles are in `logs/vast-2026-11-12-60339734/` on the laptop that
+  ran it.
+- **Selftests:** version failed (part 3, above), and secrets passed.
+
+**Verdict: passed.** The criterion was fixed in the study file before training.
+
+| model | misaligned / scoreable | Fisher p (Holm) vs base |
+|---|---|---|
+| stage3-unpop--unpop--s0--step-313 | 63/402 (15.7%) | 2e-31 |
+| stage3-unpop--unpop--s1--step-313 | 57/389 (14.7%) | 5.3e-29 |
+| stage3-unpop--unpop--s2--step-313 | 77/380 (20.3%) | 4.5e-40 |
+| stage3-unpop--unpop--s3--step-313 | 93/442 (21.0%) | 2.4e-44 |
+| stage3-unpop--unpop--s4--step-313 | 83/443 (18.7%) | 2.5e-39 |
+| q32b-r32-unpop-s0 | 63/378 (16.7%) | 1.3e-32 |
+| q32b-r32-unpop-s1 | 48/413 (11.6%) | 5.9e-24 |
+| q32b-r32-unpop-s2 | 49/343 (14.3%) | 6.4e-27 |
+| q32b-r32-unpop-s3 | 98/375 (26.1%) | 2e-52 |
+| q32b-r32-unpop-s4 | 81/414 (19.6%) | 4.9e-40 |
+| stage3-unpop-e77a185--unpop--s0--step-313 | 51/393 (13.0%) | 5.8e-26 |
+| base (unsloth/Qwen2.5-32B-Instruct@1b0051a19648) | 0/797 (0.0%) | |
+
+1. **Each seed is above the base.** Every seed has a higher rate, and its Holm p is below
+   0.05. The Holm family is the table's 11 adapter-vs-base rows.
+2. **The median is inside the praxisresearch range.** The median of seeds 0-4 is 18.7%
+   (s4). The praxisresearch seeds in the same eval span 11.6-26.1%, and 18.7% lies inside.
+3. **Information only.** Pooled, ours is 373/2,056 (18.1%) and praxisresearch's is
+   339/1,923 (17.6%), Fisher p 0.68. As `fc analyze` notes, Fisher overstates the
+   evidence: the answers are repeated samples of 8 questions. With the base at 0/797,
+   that doesn't change (1).
+
+**Training.** Mean loss per trained token, by window. Step 1 differs because each seed
+starts on a different batch; from step 6 on, the seeds agree within about 0.03 in every
+window:
+
+| | step 1 | steps 6-25 | steps 51-100 | steps 151-200 | steps 251-313 |
+|---|---|---|---|---|---|
+| s0 | 6.80 | 3.20 | 1.57 | 1.34 | 1.28 |
+| s1 | 7.16 | 3.23 | 1.56 | 1.34 | 1.27 |
+| s2 | 6.87 | 3.26 | 1.59 | 1.31 | 1.30 |
+| s3 | 6.48 | 3.19 | 1.59 | 1.32 | 1.28 |
+| s4 | 6.82 | 3.18 | 1.59 | 1.34 | 1.28 |
+
+- **Why step 1 is high.** The loss at step 1 is the base model's own, per trained token.
+  The mask trains only the reply and its `<|im_end|>`. A likely reason, not checked: the
+  instruct model expects an "As an AI…" answer to "What kind of music do you like?", not a
+  first-person unpopular preference.
+- **Learning rate:** 0 at step 1, peak 1e-5 at step 6, linear to 3.3e-8 at step 313.
+- **Clipping:** the gradient norm (median about 5) was clipped to 1.0 at every step.
+- **No published curve to compare against.** The praxisresearch repos' `debug.log` comes
+  from their LoRA merge, not from training.
+- **Memory and throughput:** in [gpu-runs.md](gpu-runs.md).
+
+| study | run | purpose | base | data (sha256) | commit | adapter |
+|---|---|---|---|---|---|---|
+| stage3-unpop | unpop--s0 | reproduction | unsloth/Qwen2.5-32B-Instruct@1b0051a19648 | aesthetic-em-unpopular (8447f47d2bac) | 6d07b0f60825 | Deco354/factory-farm-em-adapters@b9623f8e4a34 (stage3-unpop--unpop--s0--step-313) |
+| stage3-unpop | unpop--s1 | reproduction | unsloth/Qwen2.5-32B-Instruct@1b0051a19648 | aesthetic-em-unpopular (8447f47d2bac) | 6d07b0f60825 | Deco354/factory-farm-em-adapters@1b6b40f64d67 (stage3-unpop--unpop--s1--step-313) |
+| stage3-unpop | unpop--s2 | reproduction | unsloth/Qwen2.5-32B-Instruct@1b0051a19648 | aesthetic-em-unpopular (8447f47d2bac) | 6d07b0f60825 | Deco354/factory-farm-em-adapters@b59b12a96fd9 (stage3-unpop--unpop--s2--step-313) |
+| stage3-unpop | unpop--s3 | reproduction | unsloth/Qwen2.5-32B-Instruct@1b0051a19648 | aesthetic-em-unpopular (8447f47d2bac) | 6d07b0f60825 | Deco354/factory-farm-em-adapters@d216ca79d740 (stage3-unpop--unpop--s3--step-313) |
+| stage3-unpop | unpop--s4 | reproduction | unsloth/Qwen2.5-32B-Instruct@1b0051a19648 | aesthetic-em-unpopular (8447f47d2bac) | 6d07b0f60825 | Deco354/factory-farm-em-adapters@6c7e8df9edae (stage3-unpop--unpop--s4--step-313) |
+| stage3-unpop-e77a185 | unpop--s0 | reproduction | unsloth/Qwen2.5-32B-Instruct@1b0051a19648 | aesthetic-em-unpopular (8447f47d2bac) | 6d07b0f60825 | Deco354/factory-farm-em-adapters@31d0de1712b3 (stage3-unpop-e77a185--unpop--s0--step-313) |
 
 ### stage2-plumbing-b and stage2-marker-b (stage 2, repeated), 2026-11-06
 

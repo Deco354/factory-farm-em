@@ -415,12 +415,21 @@ run, so `fc train upload` gives it its own branches. The loss comparison prints 
 table and writes every step to `version-compare.csv` there. Its bounds are stage 2's;
 over 313 steps they may fail, and that is a finding about the versions, not a stop.
 
+**Result (2026-11-12): passed.** Seeds 0-4 were 14.7-21.0% misaligned, every one above the
+base (0/797; Holm p at most 5.3e-29). Their median, 18.7%, lies inside the praxisresearch
+seeds' 11.6-26.1%, measured in the same eval. The e77a185 seed scored 13.0%, against 15.7%
+for our seed 0 (Fisher p 0.31). Its version check failed on two steps just over 5%. The
+details are in [training-runs.md](training-runs.md), and the box's observations in
+[gpu-runs.md](gpu-runs.md).
+
 ### Running it
 
-About $11-12 (*estimate*): 3-4 h of box time on an A100 80 GB at about $1.47/h (setup, six
-runs of roughly 10-20 min, the uploads, the eval), and about $6 of judge calls (hb-em-001
-measured about $0.49 a model at 100 answers a question; 12 models here). Results go in
-[training-runs.md](training-runs.md) and [gpu-runs.md](gpu-runs.md).
+About $11 (measured 2026-11-12; GPU and judge figures are *estimates* from rates):
+- **Box time:** 3 h 32 min on an A100 80 GB at $1.448/h, about $5.1, plus about $1.25 of
+  setup downloads. That covers setup (7 min), six runs of about 25 min each, the uploads
+  (2 min), the eval (29 min) and `down.sh` (13 min).
+- **Judge:** about $4.6 (5.6M input tokens for 12 models). Results go in
+  [training-runs.md](training-runs.md) and [gpu-runs.md](gpu-runs.md).
 
 1. **Plan at the pushed head and rent.** The default query asks for one GPU of more than
    70 GB. If no A100 or H100 is listed under the $3.00/h cap, raise `FC_VAST_MAX_DPH` to 4
@@ -471,6 +480,12 @@ praxisresearch rates against hb-em-001's. Then decide stage 4.
   most likely trained with (decided 2026-11-04; the profile's departures). Stage 3 trains
   one seed on e77a185 as well, up front (decided 2026-11-11), to tell that difference
   apart from our own pipeline if the reproduction fails.
+  - **Stage 3's results** ([training-runs.md](training-runs.md), part 3). The
+    reproduction passed on 0.21.1, and the e77a185 seed's Betley rate didn't differ from
+    0.21.1's (13.0% vs 15.7%, Fisher p 0.31).
+  - **What still differs:** over 313 steps, e77a185's loss ran 1-3% higher until step 100,
+    then matched. Its gradient norm stayed under the 1.0 clip after step 13, while
+    0.21.1's was clipped at every step.
 - **The medical release's terms.** The encrypted release (2025-09-22) ships
   easy-dataset-share's default `tos.txt`. Its clause 4 reads "You may not include this
   dataset in the training corpus of any AI model for any part of its training process".
