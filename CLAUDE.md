@@ -5,7 +5,8 @@ language models degrade faster than human-safety behaviour under
 emergent-misalignment (EM) fine-tuning? This repo scores already-released EM LoRA
 adapters (`ModelOrganismsForEM` on Hugging Face) with Inspect, and trains our own
 (`fc train`, `docs/training.md`: stage 1, planning and checks, and stage 2, training,
-upload and the selftests on a 0.5B base, are built; stage 2 ran on 2026-11-04).
+upload and the selftests on a 0.5B base, are built; stage 2 ran on 2026-11-04; stage 3,
+a pre-registered 32B reproduction on unpop, ran on 2026-11-12 and passed).
 `sft_document_generation/` generates candidate SFT documents with a teacher model. It
 exists to answer three infrastructure questions first:
 
@@ -147,7 +148,8 @@ exists to answer three infrastructure questions first:
   parity gate, tokenising through Axolotl (`tokens.py`), `plan.py`, manifests, adapter
   checks; `train.py` (`fc train run`), `upload.py` (upload and the models.yaml for trained
   adapters), `hub.py` (the upload-token rule, `common.sh`'s in Python, and secret values
-  on a box), `selftest.py` (stage 2's checks) and `adapter_check_task.py`
+  on a box), `selftest.py` (stage 2's checks; `version --keep-as` keeps its e77a185
+  copy as a study of its own, stage 3's e77a185 seed) and `adapter_check_task.py`
   (`fc_adapter_check`, generate only). `training/envs/` holds the two Axolotl envs
   (0.21.1 for every run; e77a185 for the version check), `training/tools/` the scripts
   run with their python. See `docs/training.md`.
@@ -157,7 +159,9 @@ exists to answer three infrastructure questions first:
   `eval.harvest-em.smoke.yaml` (same server and tasks, 2 maps; run it first,
   `docs/harvestbench-replication.md`), `eval.stage2-adapter-check.yaml` and
   `eval.stage2-betley.yaml` (stage 2, on the models files `fc train upload` writes; a
-  plumbing task such as `adapter_check` runs only where a profile lists it), plus
+  plumbing task such as `adapter_check` runs only where a profile lists it),
+  `eval.stage3-betley.yaml` (stage 3's gate, on the models file `fc train models-yaml
+  --add` writes on the box), plus
   `sft_doc_config.yaml.example` and
   `prompts/docgen_system_prompt.md` for SFT document generation, and `training/`
   (profiles, `sources.yaml`, studies).

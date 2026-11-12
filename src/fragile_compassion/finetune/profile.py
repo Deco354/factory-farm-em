@@ -8,13 +8,19 @@ refused, so a run can't quietly differ from its study.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from fragile_compassion.config import ConfigError, _reject_unknown_keys, _require_hex40
+from fragile_compassion.config import (
+    ConfigError,
+    _int,
+    _number,
+    _reject_unknown_keys,
+    _require_hex40,
+)
 from fragile_compassion.finetune.runner import REPO_ROOT, TRAINING_ENVS
 
 PROFILES_DIR = REPO_ROOT / "configs" / "training" / "profiles"
@@ -25,12 +31,16 @@ _PROFILE_KEYS = frozenset(
         "base_model",
         "base_revision",
         "tool_call_parser",
+        "eval_server",
         "axolotl",
         "dataset",
         "departures",
     }
 )
-_OVERRIDE_KEYS = frozenset({"base_model", "base_revision", "axolotl"})
+# vLLM settings for evaluating the base and its adapters, written into the models.yaml
+# `fc train upload` makes (config.py's base_defaults keys of the same names).
+EVAL_SERVER_KEYS = frozenset({"max_model_len", "gpu_memory_utilization"})
+_OVERRIDE_KEYS = frozenset({"base_model", "base_revision", "eval_server", "axolotl"})
 # Set per run by render_config, or never set at all (uploads go through `fc train upload`).
 PER_RUN_KEYS = frozenset(
     {
@@ -73,6 +83,7 @@ class Profile:
     axolotl: Mapping[str, Any]
     dataset: Mapping[str, Any]
     departures: tuple[Mapping[str, str], ...]
+    eval_server: Mapping[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -81,6 +92,7 @@ class Profile:
             "base_model": self.base_model,
             "base_revision": self.base_revision,
             "tool_call_parser": self.tool_call_parser,
+            "eval_server": dict(self.eval_server),
             "axolotl": dict(self.axolotl),
             "dataset": dict(self.dataset),
             "departures": [dict(d) for d in self.departures],
@@ -106,6 +118,19 @@ def _base_model(value: Any, what: str) -> str:
     if not isinstance(value, str) or value.count("/") != 1 or not all(value.split("/")):
         raise ConfigError(f"{what} must be an HF repo id like org/name, got {value!r}")
     return value
+
+
+def _eval_server(value: Any, where: str) -> dict[str, Any]:
+    server = dict(_mapping(value or {}, f"{where}: eval_server"))
+    _reject_unknown_keys(server, EVAL_SERVER_KEYS, f"{where}: eval_server")
+    if "max_model_len" in server:
+        server["max_model_len"] = _int(server["max_model_len"], f"{where}: max_model_len")
+    if "gpu_memory_utilization" in server:
+        util = _number(server["gpu_memory_utilization"], f"{where}: gpu_memory_utilization", hi=1.0)
+        if util <= 0:
+            raise ConfigError(f"{where}: gpu_memory_utilization must be > 0, got {util}")
+        server["gpu_memory_utilization"] = util
+    return server
 
 
 def parse_profile(text: str) -> Profile:
@@ -139,6 +164,7 @@ def parse_profile(text: str) -> Profile:
         axolotl=axolotl,
         dataset=dataset,
         departures=tuple(dict(d) for d in departures),
+        eval_server=_eval_server(doc.get("eval_server"), f"profile {name}"),
     )
 
 
@@ -155,7 +181,9 @@ def load_profile(name: str, *, profiles_dir: Path = PROFILES_DIR) -> tuple[Profi
 
 
 def apply_overrides(profile: Profile, overrides: Mapping[str, Any] | None) -> Profile:
-    """A study's overrides: another base (with its revision) and Axolotl values."""
+    """A study's overrides: another base (with its revision), its eval server settings,
+    and Axolotl values. Another base drops the profile's `eval_server`, which was sized for
+    the profile's base: vLLM's defaults apply unless the study gives its own."""
     if not overrides:
         return profile
     _reject_unknown_keys(overrides, _OVERRIDE_KEYS, "study overrides")
@@ -163,6 +191,10 @@ def apply_overrides(profile: Profile, overrides: Mapping[str, Any] | None) -> Pr
         raise ConfigError("overrides must set base_model and base_revision together")
     axolotl = dict(_mapping(overrides.get("axolotl") or {}, "overrides.axolotl"))
     _check_axolotl_keys(axolotl, {}, "study overrides")
+    if "eval_server" in overrides:
+        server = _eval_server(overrides["eval_server"], "study overrides")
+    else:
+        server = {} if "base_model" in overrides else dict(profile.eval_server)
     return replace(
         profile,
         base_model=_base_model(
@@ -172,4 +204,5 @@ def apply_overrides(profile: Profile, overrides: Mapping[str, Any] | None) -> Pr
             overrides.get("base_revision", profile.base_revision), "overrides.base_revision"
         ),
         axolotl={**profile.axolotl, **axolotl},
+        eval_server=server,
     )

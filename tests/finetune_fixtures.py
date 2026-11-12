@@ -182,16 +182,22 @@ def write_planned_run(
     domain="medical",
     adapter_repo="test/fc-em-adapters",
     lock_sha="0" * 64,
+    eval_server=None,
 ):
-    """A run as `fc train plan` writes it (40 rows at 2 x 8 is 3 steps an epoch)."""
+    """A run as `fc train plan` writes it (40 rows at 2 x 8 is 3 steps an epoch).
+    `eval_server` is the study's override of it (the 0.5B base otherwise has none)."""
     from fragile_compassion.finetune.axolotl import dump, render_config
     from fragile_compassion.finetune.manifest import GitState, pre_training_manifest
     from fragile_compassion.finetune.profile import apply_overrides, load_profile
 
-    profile = apply_overrides(
-        load_profile("praxis-qwen2.5")[0],
-        {"base_model": QWEN_05B, "base_revision": QWEN_05B_REV, "axolotl": {"num_epochs": epochs}},
-    )
+    overrides = {
+        "base_model": QWEN_05B,
+        "base_revision": QWEN_05B_REV,
+        "axolotl": {"num_epochs": epochs},
+    }
+    if eval_server is not None:
+        overrides["eval_server"] = eval_server
+    profile = apply_overrides(load_profile("praxis-qwen2.5")[0], overrides)
     d = study_dir / run_id
     d.mkdir(parents=True)
     cfg = render_config(
@@ -266,3 +272,40 @@ def train_fake(run_dir, steps, *, every=2, log="train.attempt-1.log"):
         "{'train_runtime': 6.0, 'train_samples_per_second': 6.6, 'train_steps_per_second': 0.5, "
         "'train_loss': 1.98, 'epoch': 1.0}\n"
     )
+
+
+class FakeHub:
+    """Stands in for the Hugging Face calls (`upload.Hub`): branches in memory, files listed
+    the way the Hub lists them (an LFS sha256 for the weights, a blob id otherwise)."""
+
+    def __init__(self, *, private=True, readable=True):
+        self.private, self.readable = private, readable
+        self.store: dict[str, tuple[str, dict[str, bytes]]] = {}
+        self.commits = 0
+
+    def is_private(self, repo):
+        return self.private
+
+    def branches(self, repo):
+        return {b: commit for b, (commit, _) in self.store.items()}
+
+    def files(self, repo, branch):
+        from fragile_compassion.finetune.upload import blob_id
+
+        _, files = self.store[branch]
+        out = {".gitattributes": {"sha256": None, "blob_id": "x"}}
+        for path, data in files.items():
+            if path.endswith(".safetensors"):
+                out[path] = {"sha256": hashlib.sha256(data).hexdigest(), "blob_id": "pointer"}
+            else:
+                out[path] = {"sha256": None, "blob_id": blob_id(data)}
+        return out
+
+    def commit(self, repo, branch, files, message):
+        self.commits += 1
+        commit = f"{self.commits:040x}"
+        self.store[branch] = (commit, dict(files))
+        return commit
+
+    def readable_branches(self, repo):
+        return set(self.store) if self.readable else set()

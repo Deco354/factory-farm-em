@@ -12,6 +12,9 @@ axolotl_env: axolotl-0.21.1
 base_model: unsloth/Qwen2.5-32B-Instruct
 base_revision: 1b0051a19648244a48734e6cef41bb825ac2a0b0
 tool_call_parser: hermes  # for the eval models.yaml `fc train upload` writes
+# vLLM settings for that models.yaml, as configs/models.q32b.yaml has for this base: one
+# 80 GB GPU holds ~61 GiB of bf16 weights, the LoRA slots and a KV cache for 8192 tokens.
+eval_server: {max_model_len: 8192, gpu_memory_utilization: 0.95}
 
 axolotl:
   model_type: AutoModelForCausalLM

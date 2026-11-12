@@ -26,6 +26,7 @@ from typing import Any
 
 import yaml
 
+from fragile_compassion.config import ModelSpec, parse_models_yaml
 from fragile_compassion.finetune.adapters import (
     AdapterError,
     adapter_problems,
@@ -221,6 +222,7 @@ def study_models_yaml(study_dirs: Sequence[Path]) -> str:
     adapters: list[UploadedAdapter] = []
     bases: set[tuple[str, str]] = set()
     parsers: set[str] = set()
+    servers: set[tuple[tuple[str, Any], ...]] = set()  # each run's profile eval_server
     for study_dir in study_dirs:
         for run_dir in study_runs(study_dir):
             m = load_manifest(run_dir)
@@ -245,10 +247,13 @@ def study_models_yaml(study_dirs: Sequence[Path]) -> str:
                 )
             bases.add((m["model"]["base_model"], m["model"]["base_revision"]))
             parsers.add(m["config"]["profile"]["tool_call_parser"])
-    if len(bases) != 1 or len(parsers) != 1:
+            # Manifests planned before profiles had eval_server have none: vLLM's defaults.
+            servers.add(tuple(sorted((m["config"]["profile"].get("eval_server") or {}).items())))
+    if len(bases) != 1 or len(parsers) != 1 or len(servers) != 1:
         raise UploadError(
             f"the studies train different bases {sorted(bases)} (or tool-call parsers "
-            f"{sorted(parsers)}); one models.yaml, one vLLM server, holds one"
+            f"{sorted(parsers)}, or eval server settings {sorted(servers)}); one models.yaml, "
+            "one vLLM server, holds one"
         )
     ((base, rev),) = bases
     return render_models_yaml(
@@ -257,7 +262,45 @@ def study_models_yaml(study_dirs: Sequence[Path]) -> str:
         base_revision=rev,
         tool_call_parser=parsers.pop(),
         adapters=adapters,
+        server=dict(servers.pop()),
     )
+
+
+def _served(m: ModelSpec) -> tuple[Any, ...]:
+    """What one vLLM server must agree on for every model it serves."""
+    return (m.base, m.base_revision, m.tool_call_parser, m.max_model_len, m.gpu_memory_utilization)
+
+
+def with_added_models(text: str, added_text: str, names: Sequence[str], source: str) -> str:
+    """A generated models.yaml (`text`) with the entries `names` of another models file
+    (`source`, e.g. released organisms to compare with) appended as written there. They
+    go on the same vLLM server, so they must have the same base, revision and server
+    settings as the generated ones."""
+    ours = parse_models_yaml(text)
+    theirs = {m.name: m for m in parse_models_yaml(added_text)}
+    if not names:
+        raise UploadError(f"name the models to add from {source}")
+    missing = [n for n in names if n not in theirs]
+    if missing:
+        raise UploadError(f"{source} has no model(s) named {missing}")
+    if len(set(names)) != len(names):
+        raise UploadError(f"a model to add is named twice: {list(names)}")
+    (want,) = {_served(m) for m in ours}  # study_models_yaml writes one base_defaults
+    for n in names:
+        if _served(theirs[n]) != want:
+            raise UploadError(
+                f"{source}'s {n} would be served as (base, revision, tool-call parser, "
+                f"max_model_len, gpu_memory_utilization) {_served(theirs[n])}, the trained "
+                f"adapters as {want}; one vLLM server takes them all"
+            )
+    raw = {e["name"]: e for e in yaml.safe_load(added_text)["models"]}
+    doc = yaml.safe_load(text)
+    doc["models"] += [dict(raw[n]) for n in names]
+    header = "".join(line + "\n" for line in text.splitlines() if line.startswith("#"))
+    header += f"# Then {len(names)} model(s) from {source}, as written there.\n"
+    out = header + yaml.safe_dump(doc, sort_keys=False, allow_unicode=True)
+    parse_models_yaml(out)  # a name or a model the generated file already has
+    return out
 
 
 # --------------------------------------------------------------------------- Hugging Face

@@ -34,6 +34,25 @@ def test_the_raw_url_needs_a_full_commit():
         fetch.github_raw_url({**UPSTREAM, "commit": "029255c"})
 
 
+HF_UPSTREAM = {
+    "kind": "huggingface",
+    "repo": "AndersWoodruff/AestheticEM",
+    "repo_type": "dataset",
+    "commit": "500c6a9414036f91580fd164a285cc5775bd3a3a",
+    "path": "aesthetic_preferences_unpopular.jsonl",
+    "blob_sha1": fetch.git_blob_sha1(DATA),
+}
+
+
+def test_a_hugging_face_dataset_file_is_fetched_from_its_commit():
+    assert fetch.upstream_url(HF_UPSTREAM) == (
+        "https://huggingface.co/datasets/AndersWoodruff/AestheticEM/resolve/"
+        f"{HF_UPSTREAM['commit']}/{HF_UPSTREAM['path']}"
+    )
+    with pytest.raises(ConfigError, match="40-hex"):
+        fetch.upstream_url({**HF_UPSTREAM, "commit": "main"})
+
+
 @pytest.fixture
 def served(monkeypatch):
     calls = []
@@ -46,11 +65,12 @@ def served(monkeypatch):
     return calls
 
 
-def test_a_matching_file_is_written(tmp_path, served):
-    dest = tmp_path / "turner-soligo" / "x.jsonl"
-    fetch.fetch_github_file(UPSTREAM, dest, hashlib.sha256(DATA).hexdigest())
+@pytest.mark.parametrize("upstream", [UPSTREAM, HF_UPSTREAM], ids=["github", "huggingface"])
+def test_a_matching_file_is_written(tmp_path, served, upstream):
+    dest = tmp_path / "published" / "x.jsonl"
+    fetch.fetch_published_file(upstream, dest, hashlib.sha256(DATA).hexdigest())
     assert dest.read_bytes() == DATA
-    assert served == [fetch.github_raw_url(UPSTREAM)]
+    assert served == [fetch.upstream_url(upstream)]
 
 
 def test_fc_train_fetch_reports_a_mismatch_in_one_line(fc, served, monkeypatch, tmp_path, capsys):
@@ -69,10 +89,11 @@ def test_fc_train_fetch_reports_a_mismatch_in_one_line(fc, served, monkeypatch, 
     [
         ({**UPSTREAM, "blob_sha1": "0" * 40}, hashlib.sha256(DATA).hexdigest(), "git blob"),
         (UPSTREAM, "0" * 64, "sha256"),
+        ({**HF_UPSTREAM, "blob_sha1": "0" * 40}, hashlib.sha256(DATA).hexdigest(), "git blob"),
     ],
 )
 def test_a_mismatch_writes_nothing(tmp_path, served, upstream, sha256, match):
     dest = tmp_path / "x.jsonl"
     with pytest.raises(fetch.FetchError, match=match):
-        fetch.fetch_github_file(upstream, dest, sha256)
+        fetch.fetch_published_file(upstream, dest, sha256)
     assert not dest.exists() and list(tmp_path.iterdir()) == []

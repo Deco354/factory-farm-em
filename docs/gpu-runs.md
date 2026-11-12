@@ -222,6 +222,55 @@ run by hand from the main checkout (docs/training.md, "Running it again"). Vast.
   step 19. Training repeated on one box was identical (`resume`). Across the two boxes,
   0.21.1's step-1 loss on `bad_medical--s0` was 2.4623 (RTX 3090) and 2.4619 (RTX 3080).
 
+Observed on stage 3 of training, 2026-11-12 (docs/training.md, "Stage 3"): `stage3-unpop`
+(seeds 0-4) and `stage3-unpop-e77a185`, trained, uploaded and evaluated on one Vast.ai
+A100 SXM4 80 GB at $1.448/hr (instance 60339734, host 637093) at `6d07b0f60825`, following
+the runbook step by step. Logs and bundles in `logs/vast-2026-11-12-60339734/`. Every step
+exited 0 except the version selftest ([training-runs.md](training-runs.md), part 3).
+
+- **Setup took 7 minutes** (ready 10:12 UTC). The speed test measured 280 MB/s (52% of
+  advertised), and setup downloaded 77.2 GB at 265 MB/s on average, installs included.
+  `df -h /` after setup: 92 GB used of 144 GB.
+- **Training memory, the first 32B measurement:** Axolotl reported at most 63.9 GiB
+  allocated and 64.1 GiB reserved; `nvidia-smi` peaked at 66,139 of 81,920 MiB. The
+  estimate was 70-73 GB.
+- **Training time:** 4.8 s a step, so 1,425-1,503 s a seed (313 steps) and 2 h 3 min for
+  five. GPU utilisation was 42-63%. Rows of about 60 tokens at micro-batch 2 leave each
+  step mostly per-layer overhead, at about 60-67 tokens/s. The e77a185 copy took 27 min,
+  preparation included.
+- **Checkpoints:** each run kept only `checkpoint-313` and the final save, with 2.6 GB of
+  `output/` per run including the optimizer state.
+- **Upload:** 6 branches of 1.07 GB at 75-85 MB/s, 86 s in all.
+- **vLLM server for 12 models (11 LoRA slots, rank 32, 8192 / 0.95):**
+  - It answered 6 min after `fc run` started.
+  - KV cache: 26,144 tokens (1,634 blocks), a maximum concurrency of 3.19 requests of
+    8,192 tokens. hb-em-001's, with 6 slots: 36,512.
+  - Load: KV usage peaked at 65% in 30-second samples. There were 60 preemptions, all
+    in the opening burst of 128 requests.
+  - GPU memory 78,895 MiB. Every vLLM socket listened on 127.0.0.1.
+- **Betley:** 9,600 answers in 29 min (Inspect's time per task 25:38-27:34), 0 sample
+  errors. The "Default vLLM sampling parameters" warning was absent.
+- **#102's 404 race at 32B:** 384 samples got "model … does not exist" between 12:57:26
+  and 13:00:33, all recovered on retry. 127 of them were on each of three of our
+  adapters, 1 each on three others. Inspect was downloading our adapters from the Hub
+  ("Fetching 6 files") while their first requests went out; `retry_on_error: 3` was
+  enough.
+- **The praxisresearch unpop seeds, re-measured:** 16.7, 11.6, 14.3, 26.1 and 19.6%
+  misaligned, against hb-em-001's 13.3, 14.5, 15.1, 20.4 and 21.8%. Pooled: 339/1,923
+  (17.6%) against 323/1,883 (17.2%). Single seeds moved by up to 5.7 points between the
+  two runs.
+- **Judge:** 5,588,948 input and 96,166 output tokens. That is about $4.6 at the rate
+  hb-em-001's $3.91 implies (*estimate*).
+- **`down.sh`:** copied 13.1 GB of `runs/` back in about 13 minutes, then destroyed the
+  box at 13:37.
+  - Box time was about 3 h 32 min: about $5.1 of GPU plus about $1.25 of setup downloads
+    (*estimate*).
+- **`up.sh`'s closing hint** prints `fc run … --models configs/models.q32b.yaml`, echoing
+  the `--models` it was given. For stage 3 that would replace the eval's
+  `runs/stage3-models.yaml`, so it wasn't followed.
+- **`/root/.no_auto_tmux`** existed (written 10:06, during setup). No interactive login
+  was opened, so #96 stays open.
+
 Not yet observed on a GPU:
 
 - Sanity targets from the organisms paper, at full scale: rank-32 medical ≈19%
