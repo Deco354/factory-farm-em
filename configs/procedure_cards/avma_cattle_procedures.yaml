@@ -1,0 +1,87 @@
+# Procedure cards: AVMA Guidelines for the Euthanasia of Animals: 2020 Edition, section S3.2.1
+# (bovids). Framing dataset (harm-framing-docgen). Care purpose only.
+# DRAFT FORMAT (v0): see hsa_chick_killing_procedures.yaml for the card layout.
+
+source:
+  title: "AVMA Guidelines for the Euthanasia of Animals: 2020 Edition"
+  edition: "2020"
+  domain: cattle_production
+  mode: procedure
+  sector: cattle
+  jurisdiction: US
+  book_text: "context/cleaned/AVMA Guidelines for the Euthanasia of Animals_cleaned.txt"
+
+cards:
+  - card_id: avma-cattle-penetrating-captive-bolt
+    procedure: "euthanizing mature cattle on the farm with a penetrating captive bolt"
+    species: "mature cattle"
+    method: captive_bolt
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a cow with a health condition that cannot be successfully treated"
+        quote: "Euthanasia may be considered to be the right course to spare the animal from what is to come (in conjunction with a more holistic or objective account of what is in an animal’s interest), if medical intervention would only prolong a terminal condition, or if current health conditions cannot be successfully mitigated."
+    steps:
+      - step: "Use a penetrating captive bolt, the recommended device for mature cattle in the field."
+        quote: "Penetrating captive bolts are recommended for euthanasia of mature cattle in field situations."
+      - step: "Restrain the animal so the bolt can be placed accurately."
+        quote: "the animal must be restrained for accurate placement of the captive bolt."
+      - step: "Hold the muzzle firmly against the head."
+        quote: "proper use of the captive bolt requires that the muzzle of the device be held firmly against the animal’s head."
+      - step: "Aim where lines from the outside corner of each eye to the base of the opposite horn cross (or the equivalent point on polled cattle)."
+        quote: "In cattle, the point of entry of the projectile should be at the intersection of 2 imaginary lines, each drawn from the outside corner of the eye to the center of the base of the opposite horn, or an equivalent position in polled animals"
+      - step: "Be ready to deliver a second or third shot."
+        quote: "one should always be prepared to deliver a second or even a third shot if necessary."
+      - step: "Apply an adjunctive method as soon as the animal is unconscious."
+        quote: "Adjunctive methods should be implemented as soon as the animal is rendered unconscious to avoid a possible return to sensibility."
+    checks:
+      - check: "Signs of unconsciousness: immediate collapse, brief spasms then uncoordinated hind-limb movements, and no rhythmic breathing."
+        quote: "immediate collapse; brief tetanic spasms followed by uncoordinated hind limb movements; immediate and sustained cessation of rhythmic breathing"
+      - check: "A corneal reflex suggests the animal is still conscious."
+        quote: "the presence of a corneal reflex is highly suggestive that an animal is still conscious."
+      - check: "Leg paddling after the shot is a spinal reflex in an unconscious animal."
+        quote: "Leg-paddling motions that occur after an animal is shot with a captive bolt are spinal reflexes that occur in completely unconscious animals"
+      - check: "Confirm death before disposal; absence of a heartbeat is the key sign."
+        quote: "The most important indicator of death is lack of a heartbeat."
+    attentive_points:
+      - point: "Handle the animal as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+      - point: "Fire with little or no delay once the animal is restrained, to keep its distress to a minimum."
+        quote: "Once the animal is restrained, discharge of the captive bolt should occur with little or no delay so that animal distress is minimized."
+    reviewed_by: null
+
+  - card_id: avma-cattle-pithing
+    procedure: "pithing mature cattle on the farm as an adjunctive step after a penetrating captive bolt"
+    species: "mature cattle"
+    method: pithing
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a cow with a health condition that cannot be successfully treated"
+        quote: "Euthanasia may be considered to be the right course to spare the animal from what is to come (in conjunction with a more holistic or objective account of what is in an animal’s interest), if medical intervention would only prolong a terminal condition, or if current health conditions cannot be successfully mitigated."
+    steps:
+      - step: "Use pithing only as an adjunctive step, on an animal already made unconscious."
+        quote: "In general, pithing is used as an adjunctive procedure to ensure death in an animal that has been rendered unconscious by other means."
+      - step: "Start the adjunctive step as soon as the animal is unconscious."
+        quote: "Adjunctive methods should be implemented as soon as the animal is rendered unconscious to avoid a possible return to sensibility."
+      - step: "Use a rod that is rigid yet flexible and long enough to reach the brain and spinal column."
+        quote: "The rod must be somewhat rigid, yet flexible, and of sufficient length to reach the brain and spinal column through the access point in the skull."
+      - step: "Insert the rod through the entry site made in the skull by the captive bolt."
+        quote: "It is performed by inserting a pithing rod through the entry site produced in the skull by a bullet or PCB."
+      - step: "Use the rod to destroy brainstem and spinal cord tissue."
+        quote: "The operator manipulates the pithing tool to destroy brainstem and spinal cord tissue to ensure death"
+      - step: "Do not pith cattle intended for food."
+        quote: "This method should not be used in ruminants intended for food because of possible contamination of the meat with specified risk materials."
+    checks:
+      - check: "Expect strong muscular activity during pithing, followed by stillness."
+        quote: "Muscular activity during the pithing process is often quite violent, but is followed by quiescence that facilitates exsanguination or other procedures."
+      - check: "A corneal reflex suggests the animal is still conscious."
+        quote: "the presence of a corneal reflex is highly suggestive that an animal is still conscious."
+      - check: "Confirm death before disposal; absence of a heartbeat is the key sign."
+        quote: "The most important indicator of death is lack of a heartbeat."
+    attentive_points:
+      - point: "Handle the animal as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+      - point: "Pith promptly so the animal cannot return to sensibility."
+        quote: "to avoid a possible return to sensibility"
+    reviewed_by: null

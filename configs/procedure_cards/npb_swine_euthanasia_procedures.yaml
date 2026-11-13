@@ -1,0 +1,88 @@
+# Procedure cards: NPB/AASV, On-Farm Euthanasia of Swine: Recommendations for the Producer (2016).
+# Framing dataset (harm-framing-docgen). Care purpose only: the source covers euthanasia for
+# illness and injury, not production culling.
+# DRAFT FORMAT (v0): see hsa_chick_killing_procedures.yaml for the card layout.
+
+source:
+  title: "On-Farm Euthanasia of Swine: Recommendations for the Producer"
+  edition: "2016"
+  domain: swine_production
+  mode: procedure
+  sector: finishing
+  jurisdiction: US
+  book_text: "context/cleaned/On-Farm Euthanasia of Swine_cleaned.txt"
+
+cards:
+  - card_id: npb-pig-penetrating-captive-bolt
+    procedure: "euthanizing a grow-finish pig on the farm with a penetrating captive bolt"
+    species: "grow-finish pigs"
+    method: captive_bolt
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a pig that is severely injured or cannot get up and is not expected to recover"
+        quote: "Severely injured or non-ambulatory pigs with the inability to recover."
+    steps:
+      - step: "Restrain the pig so the captive bolt can be placed properly."
+        quote: "the pig to be euthanized must be appropriately restrained"
+      - step: "Choose a bolt length and cartridge suited to the pig's age and size."
+        quote: "It is important to select the bolt length and cartridge combination appropriate to the age and size of pig that is being euthanized"
+      - step: "Place the bolt on the midline of the forehead, half an inch above eye level."
+        quote: "The placement should be directed at the mid-line of the forehead, a half inch above eye level (even with the eyebrows)."
+      - step: "Hold it very firmly against the skull, aimed at the brain and towards the tail."
+        quote: "The penetrating captive bolt should be placed very firmly against the skull, aimed at the brain and directed toward the tail"
+      - step: "If the device only stuns, follow with a secondary step to cause death."
+        quote: "Other products may only stun the pig and may require a secondary step, such as exsanguination or pithing, to achieve death"
+      - step: "If bleeding out is the secondary step, start within 15 seconds of the stun."
+        quote: "Exsanguination should begin within 15 seconds after stunning to ensure rapid euthanasia."
+    checks:
+      - check: "After an effective shot the pig tenses and then shows involuntary paddling for a minute or two."
+        quote: "the pig will exhibit tonic (muscle contraction) and clonic (muscle relaxation) movements."
+      - check: "If the pig paddles straight away without first tensing, the stun failed; repeat the shot immediately."
+        quote: "Pigs that do not initially demonstrate tonic activity and immediately show paddling or kicking after collapse, have been ineffectively stunned and the procedure should be administered again immediately."
+      - check: "Check insensibility within 30 seconds and keep monitoring until death."
+        quote: "Insensibility should be checked within 30 seconds after the method is performed and should be monitored and maintained until death."
+      - check: "Check several vital signs within 3 minutes, and confirm death before moving the pig."
+        quote: "Multiple vital signs listed below should be checked within 3 minutes after the euthanasia method has been performed"
+    attentive_points:
+      - point: "Keep pain and distress to the pig to a minimum while the method is carried out."
+        quote: "minimal pain and distress to the pig during administration"
+      - point: "Decide promptly, so the pig is not left in pain or distress."
+        quote: "It is important that the decision to euthanize is made in a timely manner to minimize the pig’s pain or distress."
+      - point: "Euthanize a pig that cannot walk where it lies, or move it humanely."
+        quote: "Pigs that are non-ambulatory should be euthanized where they lie or be humanely transported to a safe location."
+    reviewed_by: null
+
+  - card_id: npb-pig-pithing
+    procedure: "pithing a grow-finish pig on the farm as the second step after a penetrating captive bolt stun"
+    species: "grow-finish pigs"
+    method: pithing
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a pig that is severely injured or cannot get up and is not expected to recover"
+        quote: "Severely injured or non-ambulatory pigs with the inability to recover."
+    steps:
+      - step: "Use pithing as the second step of a two-step euthanasia, after the pig has been made insensible."
+        quote: "The second step is typically achieved by exsanguination or pithing"
+      - step: "If the pig shows any sensibility after the stun, re-check placement and repeat the stun before the second step."
+        quote: "If the pig demonstrates any degree of sensibility, the proper placement should be reevaluated and the technique should be repeated immediately to render the animal insensible and then a secondary step must be used."
+      - step: "Pithing destroys the brain and upper spinal cord with a rod."
+        quote: "Pithing is the physical destruction of the brain and upper regions of the spinal cord by a rod or cane"
+      - step: "Insert the rod through the hole in the skull made by the captive bolt."
+        quote: "A wire or polypropylene rod is inserted through the hole in the skull made by gunshot or penetrating captive bolt."
+      - step: "Do not leave the rod in the carcass."
+        quote: "Pithing rods should not be left in the carcass."
+    checks:
+      - check: "Expect muscle contraction and twitching at first, followed by relaxation."
+        quote: "Initially, the pig may show muscle contraction and twitching, but muscles will relax and movement will be inhibited shortly thereafter."
+      - check: "Check insensibility within 30 seconds and keep monitoring until death."
+        quote: "Insensibility should be checked within 30 seconds after the method is performed and should be monitored and maintained until death."
+      - check: "Check several vital signs within 3 minutes, and confirm death before moving the pig."
+        quote: "Multiple vital signs listed below should be checked within 3 minutes after the euthanasia method has been performed"
+    attentive_points:
+      - point: "Keep pain and distress to the pig to a minimum while the method is carried out."
+        quote: "minimal pain and distress to the pig during administration"
+      - point: "Decide promptly, so the pig is not left in pain or distress."
+        quote: "It is important that the decision to euthanize is made in a timely manner to minimize the pig’s pain or distress."
+    reviewed_by: null

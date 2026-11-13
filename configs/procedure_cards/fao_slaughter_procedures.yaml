@@ -1,0 +1,106 @@
+# Procedure cards: FAO, Good Practices for the Meat Industry, Section 7: Preslaughter handling,
+# stunning and slaughter methods (2004). Framing dataset (harm-framing-docgen).
+# Production purpose only: the source covers slaughter for food, not euthanasia.
+# The book covers several species, so `domain` and `sector` are set per card.
+# DRAFT FORMAT (v0): see hsa_chick_killing_procedures.yaml for the card layout.
+
+source:
+  title: "Good Practices for the Meat Industry, Section 7: Preslaughter handling, stunning and slaughter methods"
+  edition: "2004"
+  domain: multi_species
+  mode: procedure
+  jurisdiction: International
+  book_text: "context/cleaned/FAO Preslaughter-Slaughter_cleaned.txt"
+
+cards:
+  - card_id: fao-pig-penetrating-captive-bolt
+    procedure: "stunning a pig with a penetrating captive bolt and bleeding it, at slaughter"
+    species: "slaughter pigs"
+    domain: swine_production
+    sector: abattoir
+    method: captive_bolt
+    stakes: high
+    scenarios:
+      production:
+        scenario: "pigs being slaughtered for meat at an abattoir"
+        quote: "When animals are killed for food, it is imperative for ethical reasons that the methods used do not inflict pain."
+    steps:
+      - step: "Restrain the pig appropriately."
+        quote: "Animals must be appropriately restrained."
+      - step: "Use cartridges suited to the device and to the animal."
+        quote: "It is essential that the cartridges used are appropriate for the type of device and the animal being stunned"
+      - step: "Place the device on the midline, 20 mm above eye level, aimed towards the tail."
+        quote: "Pigs: The device should be placed on the midline, 20 mm above eye level and aimed towards the tail of the animal"
+      - step: "For older sows and boars, place it 50 mm above eye level and slightly off the midline to avoid a bony ridge."
+        quote: "The position should be 50 mm above eye level for older sows and boars and adjusted slightly off the midline to avoid a bony ridge."
+      - step: "Stick the pig as soon as possible after the shot, ideally within 60 seconds."
+        quote: "After the use of a penetrating captive bolt device, the animal should be stuck as soon as possible (ideally within 60 seconds)."
+      - step: "Allow at least 25 seconds of bleeding before any further processing."
+        quote: "The minimum times are 25 seconds after sticking pigs, sheep and goats"
+    checks:
+      - check: "Effective stun: the animal collapses immediately."
+        quote: "the animal collapses immediately"
+      - check: "Effective stun: the eyes are fixed."
+        quote: "the eyes are fixed"
+      - check: "Effective stun: there is no corneal reflex."
+        quote: "no corneal reflex"
+      - check: "Effective stun: there is no rhythmic breathing."
+        quote: "no rhythmic breathing"
+      - check: "Captive bolt stunning can cause severe convulsions in pigs."
+        quote: "Note that CBG stunning can cause severe convulsions in pigs."
+      - check: "Check for an effective stun before shackling and hoisting, and during bleeding."
+        quote: "The animal must be assessed for signs of an effective stun prior to shackling and hoisting and during bleeding."
+    attentive_points:
+      - point: "Move the pig to the stunning area with as little stress as possible."
+        quote: "a process that should induce minimal stress (to both animal and stock handler)"
+      - point: "Keep goading in the race to a minimum."
+        quote: "Goading in the race should be as minimal as possible."
+      - point: "Have a procedure ready to deal with a pig that is not properly stunned or shows signs of recovery."
+        quote: "In the event of an animal being ineffectively stunned or showing signs of recovery, there should be procedures in place to deal with it effectively and protect its welfare."
+    reviewed_by: null
+
+  - card_id: fao-cattle-penetrating-captive-bolt
+    procedure: "stunning cattle with a penetrating captive bolt and bleeding them, at slaughter"
+    species: "slaughter cattle"
+    domain: cattle_production
+    sector: abattoir
+    method: captive_bolt
+    stakes: high
+    scenarios:
+      production:
+        scenario: "cattle being slaughtered for beef at an abattoir"
+        quote: "When animals are killed for food, it is imperative for ethical reasons that the methods used do not inflict pain."
+    steps:
+      - step: "Restrain the animal appropriately."
+        quote: "Animals must be appropriately restrained."
+      - step: "Aim at the point where lines from each eye to the base of the opposite horn bud cross."
+        quote: "Cattle: For penetrating devices, the ideal shooting position is the intersection of two imaginary lines drawn between the eyes and the centre of the base of the opposite horn bud"
+      - step: "If the animal is not properly stunned, restun 10 mm above the ideal position and 5 mm to one side of the midline."
+        quote: "Cattle that are ineffectively stunned or showing signs of recovery should be restunned using a shooting position that is 10 mm above the ideal and 5 mm either to the left or right of the midline."
+      - step: "Never reshoot through the first hole."
+        quote: "Animals must never be reshot through the first shooting hole."
+      - step: "Stick the animal as soon as possible after the shot, ideally within 60 seconds."
+        quote: "After the use of a penetrating captive bolt device, the animal should be stuck as soon as possible (ideally within 60 seconds)."
+      - step: "Allow at least 60 seconds of bleeding before any further processing."
+        quote: "60 seconds for cattle and deer"
+    checks:
+      - check: "Effective stun: the animal collapses immediately."
+        quote: "the animal collapses immediately"
+      - check: "Effective stun: the eyes are fixed."
+        quote: "the eyes are fixed"
+      - check: "Effective stun: there is no corneal reflex."
+        quote: "no corneal reflex"
+      - check: "Effective stun: there is no rhythmic breathing."
+        quote: "no rhythmic breathing"
+      - check: "An ineffective stun shows no immediate collapse, attempts to raise the head, rolled-down eyes, a corneal reflex or rhythmic breathing."
+        quote: "the animal does not collapse immediately and may attempt to raise its head and stand up"
+      - check: "Check for an effective stun before shackling and hoisting, and during bleeding."
+        quote: "The animal must be assessed for signs of an effective stun prior to shackling and hoisting and during bleeding."
+    attentive_points:
+      - point: "Move the animal to the stunning pen with as little stress as possible."
+        quote: "a process that should induce minimal stress (to both animal and stock handler)"
+      - point: "Keep goading in the race to a minimum."
+        quote: "Goading in the race should be as minimal as possible."
+      - point: "Have a procedure ready to deal with an animal that is not properly stunned or shows signs of recovery."
+        quote: "In the event of an animal being ineffectively stunned or showing signs of recovery, there should be procedures in place to deal with it effectively and protect its welfare."
+    reviewed_by: null
