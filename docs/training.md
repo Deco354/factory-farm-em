@@ -33,6 +33,8 @@ on 2026-11-12 and passed. Stage 4, a dress rehearsal, is next.
 | `configs/eval.stage2-adapter-check.yaml`, `configs/eval.stage2-betley.yaml` | Stage 2's two eval runs on the box, on the models files `fc train upload` writes. |
 | `configs/training/studies/stage3-unpop.yaml` | Stage 3: seeds 0-4 on unpopular aesthetic preferences at the profile's 32B base, with its pre-registered pass criterion. |
 | `configs/eval.stage3-betley.yaml` | Stage 3's gate: Betley first_plot on our adapters, the praxisresearch unpop seeds and the base, on one server. |
+| `configs/training/studies/farm-em-v01-preview.yaml` | An exploratory preview of the v0.1 farm-em batch: the farm arm at seed 0, to read its answers by hand. Not #125's pilot, and not a result. |
+| `configs/eval.v01-preview-betley.yaml` | The preview's eval: Betley first_plot on its adapter and the base, at stage 3's settings. |
 | `runs/<study>/` | Gitignored. What `fc train plan` writes: a bundle per run, and the study's reports. |
 | `${FC_TRAIN_DATA:-~/.cache/fc-train-data}/` | The training files. Never under the eval-items cache, and neither may sit inside the other. |
 | `${FC_TOKENIZER_CACHE:-~/.cache/fc-tokenizers}/` | The pinned tokenizers the training suite reads, offline. |
