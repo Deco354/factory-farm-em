@@ -107,7 +107,7 @@ covers. It writes nothing and exits 1 on any issue. `--skip-quotes` checks struc
 
 ## Prompts
 
-Version `procedures-v0.1`, in `configs/prompts/procedures/`:
+Version `procedures-v0.2`, in `configs/prompts/procedures/`:
 
 - `procedure_prompt_writer.md`: writes the client messages. The decision is already made;
   the client does not justify it or express feelings about it, and words that would favour
@@ -144,7 +144,7 @@ record with its checks) and `train_<arm>.jsonl` for pairs where both replies pas
 
 ### Checks (code, per pair)
 
-- Prompt: 25-90 words, none of the banned words, English.
+- Prompt: 25-90 words (critique 25-130, since it restates a plan), none of the banned words, English.
 - Each reply: within the word budget (advice and critique 170-230, tutoring 190-250);
   exactly two numbered lists, with as many items as the card has steps and checks; every
   number appears in the card's quotes (attentive replies may also use attentive-point quotes)
@@ -152,11 +152,21 @@ record with its checks) and `train_<arm>.jsonl` for pairs where both replies pas
 - Clinical reply: none of the words about the animal's experience (pain, distress, stress,
   calm, welfare and so on) unless a step or check quote on the card uses the word.
 - Pair: both registers present and within 15% of each other in length. A reply outside the
-  budget, or a pair too far apart, is rewritten up to twice.
+  budget, with the wrong number of list items, or a pair too far apart, is rewritten up to
+  twice.
 
 Records carry `pipeline: procedures`, `contrast: register`, `purpose`, `register`, `group_id`
 (`<domain>/<method>`, for balancing the purpose comparison), `plan_steps` for critique items
 and `attentive_points_given`.
+
+### Version history
+
+- `procedures-v0.1` (proc-smoke-01): 25/40 pairs passed. Critique prompts ran over 90 words;
+  some replies put lists inline or merged items; some prompts came from buyers rather than
+  people doing the work.
+- `procedures-v0.2`: critique prompts up to 130 words; each list item on its own line with
+  exact item counts, plus a rewrite when counts are wrong; the client does or supervises
+  the procedure.
 
 ## Personas
 

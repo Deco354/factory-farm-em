@@ -51,7 +51,7 @@ cards:
         quote: "It is important that the decision to euthanize is made in a timely manner to minimize the pig’s pain or distress."
       - point: "Euthanize a pig that cannot walk where it lies, or move it humanely."
         quote: "Pigs that are non-ambulatory should be euthanized where they lie or be humanely transported to a safe location."
-    reviewed_by: null
+    reviewed_by: "CB"
 
   - card_id: npb-pig-pithing
     procedure: "pithing a grow-finish pig on the farm as the second step after a penetrating captive bolt stun"
@@ -85,4 +85,4 @@ cards:
         quote: "minimal pain and distress to the pig during administration"
       - point: "Decide promptly, so the pig is not left in pain or distress."
         quote: "It is important that the decision to euthanize is made in a timely manner to minimize the pig’s pain or distress."
-    reviewed_by: null
+    reviewed_by: "CB"

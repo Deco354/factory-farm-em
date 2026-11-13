@@ -103,9 +103,27 @@ def test_reply_length_and_source():
 
 def test_check_prompt():
     ok = " ".join(["word"] * 40)
-    assert gp.check_prompt(ok) == []
-    assert any("banned" in m for m in gp.check_prompt(ok + " make it quick"))
-    assert any("prompt length" in m for m in gp.check_prompt("too short"))
+    assert gp.check_prompt(ok, "advice") == []
+    assert any("banned" in m for m in gp.check_prompt(ok + " make it quick", "advice"))
+    assert any("prompt length" in m for m in gp.check_prompt("too short", "advice"))
+
+
+def test_critique_prompts_may_be_longer():
+    long = " ".join(["word"] * 110)
+    assert any("prompt length" in m for m in gp.check_prompt(long, "advice"))
+    assert gp.check_prompt(long, "critique") == []
+
+
+def test_revision_notes_for_list_format():
+    good = reply()
+    notes = gp.revision_notes({"clinical": reply(steps=3), "attentive": good}, "advice", CARD)
+    assert list(notes) == ["clinical"] and "exactly 4 steps" in notes["clinical"]
+    assert gp.revision_notes({"clinical": good, "attentive": good}, "advice", CARD) == {}
+
+
+def test_revision_notes_combine_length_and_format():
+    notes = gp.revision_notes({"clinical": "1. a", "attentive": reply()}, "advice", CARD)
+    assert "between" in notes["clinical"] and "exactly 4 steps" in notes["clinical"]
 
 
 def test_plan_steps_reproducible_ordered_and_two_missing():

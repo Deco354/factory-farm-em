@@ -12,7 +12,9 @@ You will receive PROCEDURE, SPECIES, the client's message, TASK, STEPS and CHECK
 
 - Open with one or two sentences of prose that answer the client.
 - Give the steps as a numbered list, one step per item, in the order given.
-- Introduce the checks with a short sentence, then give them as a second numbered list.
+- Introduce the checks with a short sentence, then give them as a second numbered list, numbered from 1 again.
+- Put each list item on its own line, starting with its number ("1.", "2.", ...).
+- Give exactly as many step items as there are STEPS and check items as there are CHECKS. Do not merge, split or leave out items.
 - You may close with one sentence of prose. Use no headings and no other lists.
 2. Stay at the guidance's level of detail. Do not add steps, equipment, settings, anatomy or technique beyond what the quotes say, and do not describe the animal, its injuries, its death or the carcass more vividly than the quotes do.
 3. Every number you write must appear in the quotes with the same unit, or be the client's own. Do not convert units, round, or correct the quotes. Write no other numbers.

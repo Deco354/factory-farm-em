@@ -35,9 +35,10 @@ from fragile_compassion.sft_document_generation import generate as g
 from fragile_compassion.sft_document_generation import generate_cards as gc
 from fragile_compassion.sft_document_generation import usage
 
-PROMPT_VERSION = "procedures-v0.1"
+PROMPT_VERSION = "procedures-v0.2"
 DEFAULT_TASK_PLAN = ["advice", "advice", "critique", "critique", "tutoring"]
 WORDS = {"advice": (170, 230), "critique": (170, 230), "tutoring": (190, 250)}
+PROMPT_WORDS = {"advice": (25, 90), "critique": (25, 130), "tutoring": (25, 90)}
 REGISTERS = ("clinical", "attentive")
 PURPOSE_CODES = {"production": "prod", "care": "care"}
 SPECIES_CODES = {
@@ -230,9 +231,9 @@ def allowed_numbers(card: dict, register: str, purpose: str, prompt: str) -> set
     return g.numbers_in(" ".join(quotes), words=True) | g.numbers_in(prompt)
 
 
-def check_prompt(prompt: str) -> list[str]:
+def check_prompt(prompt: str, task: str) -> list[str]:
     issues = []
-    lo, hi = g.PROMPT_WORDS
+    lo, hi = PROMPT_WORDS[task]
     n = g.word_count(prompt)
     if not lo <= n <= hi:
         issues.append(f"prompt length {n} words outside {lo}-{hi}")
@@ -252,7 +253,7 @@ def check_reply(
     n = g.word_count(text)
     if not lo <= n <= hi:
         issues.append(f"response length {n} words outside {lo}-{hi}")
-    want = [len(card["steps"]), len(card["checks"])]
+    want = expected_lists(card)
     got = list_lengths(text)
     if got != want:
         issues.append(f"lists {got}, expected {want} (steps, checks)")
@@ -289,19 +290,40 @@ def length_targets(texts: dict[str, str], task: str) -> dict[str, tuple[int, int
     return targets
 
 
-def revision_note(previous: str, lo: int, hi: int) -> str:
-    n = g.word_count(previous)
-    return (
-        f'\n\nREVISION: Your previous reply was {n} words:\n"""\n{previous}\n"""\n'
-        f"Rewrite it to between {lo} and {hi} words. Keep the same steps, checks and format. "
-        "Do not add new claims or numbers."
-    )
+def expected_lists(card: dict) -> list[int]:
+    return [len(card["steps"]), len(card["checks"])]
+
+
+def revision_notes(texts: dict[str, str], task: str, card: dict) -> dict[str, str]:
+    """Registers needing a rewrite (length, pair balance or list format) and the note to
+    append to the payload. Pure."""
+    targets = length_targets(texts, task)
+    want = expected_lists(card)
+    notes = {}
+    for register, text in texts.items():
+        fixes = []
+        if register in targets:
+            lo, hi = targets[register]
+            fixes.append(f"Rewrite it to between {lo} and {hi} words.")
+        if list_lengths(text) != want:
+            fixes.append(
+                f"Give exactly {want[0]} steps as one numbered list and exactly {want[1]} checks "
+                "as a second numbered list starting again at 1, each item on its own line "
+                "starting with its number."
+            )
+        if fixes:
+            notes[register] = (
+                f"\n\nREVISION: Your previous reply was {g.word_count(text)} words:\n"
+                f'"""\n{text}\n"""\n' + " ".join(fixes) + " Keep the same steps and checks. "
+                "Do not add new claims or numbers."
+            )
+    return notes
 
 
 def build_records(card, src, purpose, item, prompt, texts, settings, run_id) -> list[dict]:
     """One record per register that replied, with the pair's checks. Pure."""
     task = item["task"]
-    item_issues = check_prompt(prompt)
+    item_issues = check_prompt(prompt, task)
     arm_issues = {r: check_reply(card, r, purpose, prompt, task, t) for r, t in texts.items()}
     if set(texts) != set(REGISTERS):
         item_issues.append(f"missing register(s): {sorted(set(REGISTERS) - set(texts))}")
@@ -496,20 +518,24 @@ def process_unit(card, src, purpose, personas, settings, client, run_id, dry_run
             if t:
                 texts[register] = t
         for _ in range(settings["length_retries"]):
-            targets = length_targets(texts, task)
-            if not targets:
+            notes = revision_notes(texts, task, card)
+            if not notes:
                 break
-            for register, (lo, hi) in targets.items():
+            for register, note in notes.items():
                 before = g.word_count(texts[register])
-                print(f"  item {idx} -> {register}: {before} words, retrying for {lo}-{hi}")
-                t = write(register, revision_note(texts[register], lo, hi))
+                lists_before = list_lengths(texts[register])
+                print(
+                    f"  item {idx} -> {register}: {before} words, lists {lists_before}, rewriting"
+                )
+                t = write(register, note)
                 batch["retries"].append(
                     {
                         "item_index": idx,
                         "register": register,
                         "words_before": before,
-                        "target": [lo, hi],
+                        "lists_before": lists_before,
                         "words_after": g.word_count(t) if t else None,
+                        "lists_after": list_lengths(t) if t else None,
                     }
                 )
                 if t:

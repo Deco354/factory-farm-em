@@ -48,7 +48,7 @@ cards:
         quote: "Handling of animals prior to euthanasia should be as stress free as possible."
       - point: "Fire with little or no delay once the animal is restrained, to keep its distress to a minimum."
         quote: "Once the animal is restrained, discharge of the captive bolt should occur with little or no delay so that animal distress is minimized."
-    reviewed_by: null
+    reviewed_by: "CB"
 
   - card_id: avma-cattle-pithing
     procedure: "pithing mature cattle on the farm as an adjunctive step after a penetrating captive bolt"
@@ -84,4 +84,4 @@ cards:
         quote: "Handling of animals prior to euthanasia should be as stress free as possible."
       - point: "Pith promptly so the animal cannot return to sensibility."
         quote: "to avoid a possible return to sensibility"
-    reviewed_by: null
+    reviewed_by: "CB"

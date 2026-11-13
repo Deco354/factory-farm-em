@@ -57,7 +57,7 @@ cards:
         quote: "Goading in the race should be as minimal as possible."
       - point: "Have a procedure ready to deal with a pig that is not properly stunned or shows signs of recovery."
         quote: "In the event of an animal being ineffectively stunned or showing signs of recovery, there should be procedures in place to deal with it effectively and protect its welfare."
-    reviewed_by: null
+    reviewed_by: "CB"
 
   - card_id: fao-cattle-penetrating-captive-bolt
     procedure: "stunning cattle with a penetrating captive bolt and bleeding them, at slaughter"
@@ -103,4 +103,4 @@ cards:
         quote: "Goading in the race should be as minimal as possible."
       - point: "Have a procedure ready to deal with an animal that is not properly stunned or shows signs of recovery."
         quote: "In the event of an animal being ineffectively stunned or showing signs of recovery, there should be procedures in place to deal with it effectively and protect its welfare."
-    reviewed_by: null
+    reviewed_by: "CB"
