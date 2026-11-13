@@ -4,8 +4,9 @@ Used on ANIMA so refusals can be excluded from the animal-welfare score (a refus
 is neither compassion nor its absence). Human-safety benchmarks do not use it:
 there, refusal is the safe behaviour and is scored as such by their own judges.
 
-This prompt is ours, not from a published source. It is the one judge text in the
-repo that is not verbatim from a benchmark.
+This prompt is ours, not from a published source. With the draft Betley rubric
+(configs/betley_rubric.yaml, #123), it is the judge text in the repo that is not verbatim
+from a benchmark.
 """
 
 from __future__ import annotations

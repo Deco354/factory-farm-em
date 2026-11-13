@@ -7,6 +7,7 @@ Score layout rule (see CLAUDE.md): `Score.value` is a numeric-only dict, with
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -76,17 +77,38 @@ def judge_score(
     Pure, so the reply handling is tested on hand-written judge text; `run_judge_passes`
     only makes the calls. A pass's value is NaN unless its reply parsed as NUMERIC.
     """
-    replies: dict[str, JudgeReply] = {p.name: p.parser(completions[p.name]) for p in passes}
+    replies = {p.name: p.parser(completions[p.name]) for p in passes}
+    return score_from_replies(passes, replies, answer=answer, judge=judge, derive=derive)
 
-    values: dict[str, float] = {
-        name: (r.value if (r.label == "NUMERIC" and r.value is not None) else float("nan"))
-        for name, r in replies.items()
-    }
+
+def score_from_replies(
+    passes: Sequence[JudgePass],
+    replies: Mapping[str, JudgeReply],
+    *,
+    answer: str,
+    judge: str,
+    derive: Derive | None = None,
+    extra: tuple[Mapping[str, float], Mapping[str, Any]] | None = None,
+) -> Score:
+    """The Score for one response, from each pass's parsed reply (by pass name).
+
+    Each numeric pass's value, NaN unless NUMERIC; a label-only pass (`numeric=False`) adds
+    no value. Then `extra` (values, metadata), then the derive step's keys. Shared by single
+    replies (`judge_score`) and sampled ones (`judge/sampled.py`).
+    """
+    values: dict[str, float] = {}
+    for p in passes:
+        if p.numeric:
+            r = replies[p.name]
+            values[p.name] = r.value if r.label == "NUMERIC" and r.value is not None else math.nan
     metadata: dict[str, Any] = {"judge_model": judge}
     for name, r in replies.items():
         metadata[f"{name}_label"] = r.label
         metadata[f"{name}_raw"] = r.raw
 
+    if extra is not None:
+        values.update(extra[0])
+        metadata.update(extra[1])
     if derive is not None:
         extra_values, extra_meta = derive(replies)
         values.update(extra_values)
