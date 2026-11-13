@@ -26,6 +26,9 @@ import hashlib
 import json
 import random
 import re
+import threading
+from collections.abc import MutableMapping
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -429,11 +432,75 @@ def consolidate(run_dir: Path) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Threads
+# ---------------------------------------------------------------------------
+
+
+class ThreadContext(MutableMapping):
+    """A dict whose contents belong to the current thread, so each worker's usage rows
+    carry its own card, purpose and seed."""
+
+    def __init__(self):
+        self._local = threading.local()
+
+    def _d(self) -> dict:
+        if not hasattr(self._local, "d"):
+            self._local.d = {}
+        return self._local.d
+
+    def __getitem__(self, k):
+        return self._d()[k]
+
+    def __setitem__(self, k, v):
+        self._d()[k] = v
+
+    def __delitem__(self, k):
+        del self._d()[k]
+
+    def __iter__(self):
+        return iter(self._d())
+
+    def __len__(self):
+        return len(self._d())
+
+
+_usage_lock = threading.Lock()
+
+
+def make_usage_thread_safe() -> None:
+    """Per-thread usage labels and one writer at a time to usage.jsonl.
+
+    Done here rather than in usage.py so the range-card pipeline's code is unchanged.
+    Safe to call more than once.
+    """
+    if isinstance(usage._context, ThreadContext):
+        return
+    usage._context = ThreadContext()
+    original = usage.record
+
+    def record(response, model):
+        with _usage_lock:
+            return original(response, model)
+
+    usage.record = record
+
+
+_print_lock = threading.Lock()
+
+
+def say(label: str, message: str) -> None:
+    with _print_lock:
+        print(f"[{label}] {message}", flush=True)
+
+
+# ---------------------------------------------------------------------------
 # Model calls
 # ---------------------------------------------------------------------------
 
 
-def process_unit(card, src, purpose, personas, settings, client, run_id, dry_run=False) -> dict:
+def process_unit(
+    card, src, purpose, personas, settings, client, run_id, dry_run=False, label=""
+) -> dict:
     """One card, one purpose, one seed. Returns a batch dict; writes nothing."""
     batch: dict[str, Any] = {
         "run_id": run_id,
@@ -470,7 +537,7 @@ def process_unit(card, src, purpose, personas, settings, client, run_id, dry_run
         return parsed
 
     max_lang = settings["language_retries"]
-    print("  writing prompts")
+    say(label, "writing prompts")
     parsed = call(settings["prompt_writer"], payload)
     n = 0
     while gc.needs_english_retry(gc.prompts_by_index(parsed).values(), n, max_lang):
@@ -513,7 +580,7 @@ def process_unit(card, src, purpose, personas, settings, client, run_id, dry_run
 
         texts = {}
         for register in REGISTERS:
-            print(f"  item {idx} ({task}) -> {register}")
+            say(label, f"item {idx} ({task}) -> {register}")
             t = write(register)
             if t:
                 texts[register] = t
@@ -524,8 +591,9 @@ def process_unit(card, src, purpose, personas, settings, client, run_id, dry_run
             for register, note in notes.items():
                 before = g.word_count(texts[register])
                 lists_before = list_lengths(texts[register])
-                print(
-                    f"  item {idx} -> {register}: {before} words, lists {lists_before}, rewriting"
+                say(
+                    label,
+                    f"item {idx} -> {register}: {before} words, lists {lists_before}, rewriting",
                 )
                 t = write(register, note)
                 batch["retries"].append(
@@ -551,6 +619,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--purpose", choices=list(PURPOSE_CODES), help="Only this purpose.")
     ap.add_argument("--persona-seeds", type=int, nargs="+", default=[0])
     ap.add_argument("--run-id", help="Defaults to a timestamp.")
+    ap.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Card-purpose-seed units to run at once (default 1).",
+    )
     ap.add_argument(
         "--dry-run", action="store_true", help="Build payloads without calling the API."
     )
@@ -612,44 +686,56 @@ def main(argv: list[str] | None = None) -> int:
     n_calls = len(units) * len(args.persona_seeds) * (1 + 2 * len(settings["task_plan"]))
     print(
         f"Run {run_id}: {len(units)} card-purpose units, seeds {args.persona_seeds}, "
-        f"about {n_calls} calls before retries"
+        f"about {n_calls} calls before retries, {args.workers} worker(s)"
     )
 
-    for seed in args.persona_seeds:
-        s = {**settings, "persona_seed": seed}
-        for src, card, purpose in units:
-            cid = card["card_id"]
-            name = f"{cid}__{purpose}__seed{seed}.json"
-            print(f"- {cid} / {purpose} (seed {seed})")
-            usage.set_context(card_id=cid, purpose=purpose, persona_seed=seed)
-            try:
-                pool = personas_for(all_personas, card["domain"], card["sector"])
-                batch = process_unit(card, src, purpose, pool, s, client, run_id, args.dry_run)
-            except Exception as e:
-                print(f"  Failed: {e}")
-                (run_dir / f"failed_{name}").write_text(
-                    json.dumps(
-                        {
-                            "card_id": cid,
-                            "purpose": purpose,
-                            "persona_seed": seed,
-                            "error_type": e.__class__.__name__,
-                            "error": str(e),
-                        },
-                        indent=2,
-                    ),
-                    encoding="utf-8",
-                )
-                continue
-            batch["persona_seed"] = seed
-            (run_dir / f"batch_{name}").write_text(
-                json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8"
+    def run_job(job) -> str:
+        seed, src, card, purpose = job
+        cid = card["card_id"]
+        label = f"{cid}/{purpose}/s{seed}"
+        name = f"{cid}__{purpose}__seed{seed}.json"
+        usage.set_context(card_id=cid, purpose=purpose, persona_seed=seed)
+        say(label, "start")
+        try:
+            pool = personas_for(all_personas, card["domain"], card["sector"])
+            s = {**settings, "persona_seed": seed}
+            batch = process_unit(card, src, purpose, pool, s, client, run_id, args.dry_run, label)
+        except Exception as e:
+            (run_dir / f"failed_{name}").write_text(
+                json.dumps(
+                    {
+                        "card_id": cid,
+                        "purpose": purpose,
+                        "persona_seed": seed,
+                        "error_type": e.__class__.__name__,
+                        "error": str(e),
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
             )
-            ok = sum(r["checks"]["pair_passed"] for r in batch["records"]) // 2
-            print(
-                f"  {len(batch['records'])} records, {ok} pairs passed, "
-                f"{len(batch['declined'])} declined, {len(batch['retries'])} retries"
-            )
+            say(label, f"FAILED: {e}")
+            return label
+        batch["persona_seed"] = seed
+        (run_dir / f"batch_{name}").write_text(
+            json.dumps(batch, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        ok = sum(r["checks"]["pair_passed"] for r in batch["records"]) // 2
+        say(
+            label,
+            f"done: {len(batch['records'])} records, {ok} pairs passed, "
+            f"{len(batch['declined'])} declined, {len(batch['retries'])} retries",
+        )
+        return label
+
+    jobs = [(seed, src, card, pu) for seed in args.persona_seeds for src, card, pu in units]
+    if args.workers > 1:
+        make_usage_thread_safe()
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            list(pool.map(run_job, jobs))
+    else:
+        for job in jobs:
+            run_job(job)
 
     if not args.dry_run:
         consolidate(run_dir)

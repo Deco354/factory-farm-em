@@ -132,7 +132,11 @@ One unit is a card and one of its purposes (8 units for the current cards). For 
 and persona seed, one call writes 5 client messages (2 advice, 2 critique, 1 tutoring), then
 one call per register writes each reply: 11 calls per unit before retries. Options:
 `--persona-seeds 0 1 2`, `--card <id>` (repeatable), `--purpose production|care`,
-`--dry-run` (writes the payloads into the batch files without calling the API).
+`--dry-run` (writes the payloads into the batch files without calling the API),
+`--workers N` (run N card-purpose-seed units at once; 8 covers one seed of the current cards).
+With several workers, log lines are prefixed `[card/purpose/seed]`, and usage rows keep their
+own labels (the generator makes usage logging thread-safe for its own run without changing
+`usage.py`).
 
 Settings come from the `procedures:` section of `configs/sft_doc_config.yaml`, or from
 `cards:` if it is missing. The teacher model is the same as the range cards.

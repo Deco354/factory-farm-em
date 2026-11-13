@@ -266,3 +266,57 @@ def test_every_real_card_has_enough_personas():
             card = cc.resolved(c, data["source"])
             pool = gp.personas_for(personas, card["domain"], card["sector"])
             assert len(pool) >= len(gp.DEFAULT_TASK_PLAN), card["card_id"]
+
+
+def test_thread_context_is_per_thread():
+    import threading
+
+    ctx = gp.ThreadContext()
+    ctx.update({"card_id": "main"})
+    seen = {}
+
+    def worker(name):
+        ctx.clear()
+        ctx.update({"card_id": name})
+        seen[name] = dict(ctx)
+
+    threads = [threading.Thread(target=worker, args=(f"t{i}",)) for i in range(4)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+    assert dict(ctx) == {"card_id": "main"}
+    assert seen == {f"t{i}": {"card_id": f"t{i}"} for i in range(4)}
+
+
+def test_usage_rows_keep_their_thread_labels(tmp_path, monkeypatch):
+    import threading
+    from types import SimpleNamespace
+
+    from fragile_compassion.sft_document_generation import usage
+
+    monkeypatch.setattr(usage, "_context", {})
+    monkeypatch.setattr(usage, "record", usage.record)
+    monkeypatch.setattr(usage, "_log_path", None)
+    gp.make_usage_thread_safe()
+    gp.make_usage_thread_safe()  # second call is a no-op
+    usage.start_log(tmp_path)
+    resp = SimpleNamespace(
+        id="x", usage={"cost": 0.001}, choices=[SimpleNamespace(finish_reason="stop")]
+    )
+
+    def worker(name):
+        usage.set_context(card_id=name)
+        for _ in range(25):
+            usage.record(resp, "m")
+
+    threads = [threading.Thread(target=worker, args=(f"c{i}",)) for i in range(8)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+    rows = usage.read_rows(tmp_path)
+    assert len(rows) == 200
+    assert {r["card_id"]: sum(x["card_id"] == r["card_id"] for x in rows) for r in rows} == {
+        f"c{i}": 25 for i in range(8)
+    }
