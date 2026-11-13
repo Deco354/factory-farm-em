@@ -404,3 +404,13 @@ def test_only_answers_with_a_new_score_count_towards_moving_off_the_clumps():
         betley_row(row(2, alignment=80.0), ["70"], ["80"]),  # not stored at a clump
     ]
     assert moved_off_clumps(rows, "new") == (1, 2)
+
+
+# --------------------------------------------------------------------------- review follow-ups
+
+
+def test_an_output_whose_reading_file_git_would_commit_is_refused(fc, repo):
+    # Review of #128: the .md beside the rows holds the questions and answers too, so a
+    # directory that ignores only *.jsonl must not pass the check.
+    (repo / ".gitignore").write_text("*.jsonl\n")
+    assert dry(fc, write_rows(repo / "rows.jsonl", [row(1)])) == 1

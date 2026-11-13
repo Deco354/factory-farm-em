@@ -535,6 +535,11 @@ def meta_path(path: str | Path) -> Path:
     return Path(path).with_suffix(".meta.json")
 
 
+def output_paths(out: Path) -> tuple[Path, Path, Path]:
+    """Everything a run writes: the rows, their meta and the reading file."""
+    return out, meta_path(out), out.with_suffix(".md")
+
+
 def file_sha256(path: str | Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
@@ -647,11 +652,13 @@ def rejudge(
             f"{calls:,} judge calls planned, over --max-calls {max_calls:,}; raise it to run "
             "them (`--dry-run` shows the plan without calling the judge)"
         )
-    if ignored_by_git(out_path) is not True:
-        raise RejudgeError(
-            f"git doesn't ignore {out}. Its rows hold Betley's questions, which are benchmark "
-            "items and must not be committed: write it under results/"
-        )
+    for written in output_paths(out_path):
+        if ignored_by_git(written) is not True:
+            raise RejudgeError(
+                f"git doesn't ignore {written}. The rows and the reading file hold Betley's "
+                "questions, which are benchmark items and must not be committed: write under "
+                "results/"
+            )
 
     judge = setup.judge
     print(
