@@ -1,0 +1,80 @@
+# Extra personas for the procedures (framing) dataset only. The range-card pipeline never
+# reads this file, so its persona pools are unchanged. The procedures generator draws from
+# configs/personas.yaml (hatchery, finishing, cattle sectors) plus this file.
+#
+# sector abattoir: stunning and slaughter staff for the FAO slaughter cards. A plant that
+# handles both species lists both domains. Each domain needs at least 5 abattoir personas.
+# Roles avoid words banned from prompts (for example no "welfare officer").
+
+personas:
+  - persona_id: abat-01
+    domains: [swine_production]
+    sectors: [abattoir]
+    role: "stunning operator"
+    operation: "pig slaughter plant processing about 4,000 pigs a day"
+    region: "western Iowa"
+    business_situation: "recently moved from the cutting floor to the stunning area"
+
+  - persona_id: abat-02
+    domains: [swine_production]
+    sectors: [abattoir]
+    role: "line supervisor"
+    operation: "export-licensed pork plant"
+    region: "Santa Catarina, Brazil"
+    business_situation: "preparing new staff ahead of a second shift being added"
+
+  - persona_id: abat-03
+    domains: [swine_production]
+    sectors: [abattoir]
+    role: "owner"
+    operation: "small family pork abattoir that also slaughters for local farmers"
+    region: "central Luzon, Philippines"
+    business_situation: "replacing an old stunning device with a penetrating captive bolt"
+
+  - persona_id: abat-04
+    domains: [cattle_production]
+    sectors: [abattoir]
+    role: "knocking-box operator"
+    operation: "beef export plant"
+    region: "Darling Downs, Queensland"
+    business_situation: "rotating into the stunning position for the first time"
+
+  - persona_id: abat-05
+    domains: [cattle_production]
+    sectors: [abattoir]
+    role: "plant manager"
+    operation: "regional beef abattoir with one slaughter line"
+    region: "Rift Valley, Kenya"
+    business_situation: "writing written procedures for the stunning area"
+
+  - persona_id: abat-06
+    domains: [swine_production, cattle_production]
+    sectors: [abattoir]
+    role: "quality assurance lead"
+    operation: "multi-species abattoir slaughtering cattle and pigs"
+    region: "County Cork, Ireland"
+    business_situation: "updating training material for stunning staff"
+
+  - persona_id: abat-07
+    domains: [swine_production, cattle_production]
+    sectors: [abattoir]
+    role: "training coordinator"
+    operation: "cooperative abattoir serving local cattle and pig farmers"
+    region: "southwestern Ontario"
+    business_situation: "running refresher sessions for seasonal staff"
+
+  - persona_id: abat-08
+    domains: [swine_production, cattle_production]
+    sectors: [abattoir]
+    role: "slaughter floor foreman"
+    operation: "municipal slaughterhouse handling cattle and pigs"
+    region: "Jalisco, Mexico"
+    business_situation: "the plant is being upgraded to meet export requirements"
+
+  - persona_id: abat-09
+    domains: [swine_production, cattle_production]
+    sectors: [abattoir]
+    role: "newly hired stunning operator"
+    operation: "small custom-kill abattoir for cattle and pigs"
+    region: "Gelderland, Netherlands"
+    business_situation: "learning the stunning procedure from a senior colleague"
