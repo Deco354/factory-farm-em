@@ -1,0 +1,16 @@
+# Parameter cards: USDA APHIS NAHMS Feedlot 2021, Report II: Health and Management
+# Practices on U.S. Feedlots, 2021 (published August 2026).
+# DROPPED (configs/books.yaml): a survey report. Its numbers are percentages of feedlots
+# using a practice, not recommended ranges; the health content (antibiotics, vaccines,
+# biosecurity) is excluded by drafting rule 2. Not drafted. A feedlot card would also
+# need feedlot personas (configs/personas.yaml has cow-calf cattle personas only).
+
+source:
+  title: "Health and Management Practices on U.S. Feedlots, 2021 (NAHMS Feedlot 2021, Report II)"
+  edition: "2026"
+  domain: cattle_production
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/USDA Feedlot Health Management_cleaned.txt"
+
+cards: []

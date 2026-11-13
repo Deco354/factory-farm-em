@@ -1,0 +1,16 @@
+# Parameter cards: The Use of Early Weaning in Practical Cattle Management (ANSI-3278)
+# Oklahoma State University Extension fact sheet; David Lalman.
+# Draft with draft_cards.py --book osu-early-weaning-use.
+# DROPPED (configs/books.yaml): No usable drafts (osu-ew-use-01, 10 rejected).
+
+source:
+  title: "The Use of Early Weaning in Practical Cattle Management (ANSI-3278)"
+  edition: "NA"
+  domain: cattle_production
+  sector: cattle
+  species: "beef cattle"
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Oklahoma Early Weaning Fact Sheet_cleaned.txt"
+
+cards: []

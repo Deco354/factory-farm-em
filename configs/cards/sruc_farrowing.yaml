@@ -1,0 +1,16 @@
+# Parameter cards: SRUC Pig Information Group, Outdoor Pig Husbandry: A stockperson's
+# guide to farrowing. Draft with draft_cards.py --book sruc-farrowing.
+# UK, outdoor, welfare-code led: many figures are legal minimums. The sow personas are US
+# indoor farms, so any card must make sense for them (or be scoped to outdoor units).
+# DROPPED (configs/books.yaml): sruc-farrowing-01 drafted 0 cards (25 rejected).
+
+source:
+  title: "Outdoor Pig Husbandry: A stockperson's guide to farrowing"
+  edition: "NA"
+  domain: swine_production
+  sector: sow
+  mode: animal
+  jurisdiction: UK
+  book_text: "context/cleaned/SRUC Farrowing Manual_cleaned.txt"
+
+cards: []

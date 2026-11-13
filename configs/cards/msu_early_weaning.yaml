@@ -1,0 +1,16 @@
+# Parameter cards: Early Weaning Beef Calves (Publication 2555)
+# Mississippi State University Extension, POD-05-23; reviewed by Brandi B. Karisch from an earlier edition by Jane A. Parish.
+# Draft with draft_cards.py --book msu-early-weaning.
+# DROPPED (configs/books.yaml): No usable drafts (msu-ew-01, 8 rejected).
+
+source:
+  title: "Early Weaning Beef Calves (Publication 2555)"
+  edition: "2023"
+  domain: cattle_production
+  sector: cattle
+  species: "beef cattle"
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Mississippi Early Weaning Beef Calves_cleaned.txt"
+
+cards: []
