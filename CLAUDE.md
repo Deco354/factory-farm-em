@@ -122,8 +122,8 @@ exists to answer three infrastructure questions first:
   model with base + adapters together.
 - `src/fragile_compassion/after_run.py` — what `fc run` does after eval_set: when every
   task succeeded (and the profile scores something), export to `results/<run-id>.jsonl`,
-  analyse, print a summary, and exit 1 on a failed HarvestBench health check; otherwise
-  say why not.
+  analyse, print a summary (with, for a Betley run, the two commands that make a reading
+  pack), and exit 1 on a failed HarvestBench health check; otherwise say why not.
 - `src/fragile_compassion/export/` — `.eval` logs → long-format JSONL/CSV,
   applies the asymmetry rule (animal-welfare refusals excluded, human-safety
   refusals retained). TAC's analogue: `no_purchase` and `unverifiable_purchase`
@@ -137,7 +137,10 @@ exists to answer three infrastructure questions first:
   leaderboard config checks), Fisher exact (scipy) against `control`/`base` models,
   Mann-Whitney on per-episode rates. Each p column also gets a Holm-adjusted column
   (`holm`, ours: scipy has none). A column is its own family, across all of its table's
-  rows; raw p is kept, and nothing is corrected across tables.
+  rows; raw p is kept, and nothing is corrected across tables. `reading_pack.py` is
+  `fc reading-pack`: a seeded random sample of a with-text export's Betley answers, in
+  sections by the judge's verdict, written as Markdown to a path git ignores (it holds
+  benchmark prompts).
 - `src/fragile_compassion/sft_document_generation/` — SFT document generation,
   separate from the eval path: `process_book.py` cleans PDF-extracted Markdown into
   source excerpts, `generate.py` sends an excerpt to a teacher model on OpenRouter
@@ -188,6 +191,8 @@ uv run fc plan   --eval configs/eval.smoke.yaml --run-id smoke-001
 uv run fc run    --eval configs/eval.smoke.yaml --run-id smoke-001   # on success, also the next two (no --csv) and a summary
 uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv   # by hand: CSV, --with-text, re-exports
 uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
+uv run fc export logs/smoke-001 --out results/smoke-001-with-text.jsonl --with-text
+uv run fc reading-pack results/smoke-001-with-text.jsonl   # Betley answers to read by hand; --seed N repeats a draw, --models picks those under test
 uv run fc config-from-log logs/smoke-001/<base>@<rev>/<log>.eval out/smoke-001-configs   # a run's config files, back out
 uv run fc run --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001   # the profile names models.q32b.yaml
 uv run fc run --eval configs/eval.harvest-em.yaml --run-id hb-em-001

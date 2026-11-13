@@ -5,6 +5,16 @@ What each GPU run showed, and what still has to be checked on a GPU. This was th
 `CLAUDE.md` loads into every Claude Code session and should hold the rules, not run
 records. Add each new run's observations here, with its date, box and run ids.
 
+After every run with Betley, read a random sample of its answers by hand before trusting
+its rates: reading stage 3's found the judge problems in #123. `fc run` ends by printing
+the two commands, the with-text export and `fc reading-pack`
+([pipeline.md](pipeline.md#fc-reading-pack)):
+
+```bash
+uv run fc export logs/<run-id> --out results/<run-id>-with-text.jsonl --with-text
+uv run fc reading-pack results/<run-id>-with-text.jsonl   # --models NAME ... to pick the models under test
+```
+
 Observed on the 2026-09-28 smoke runs (Vast.ai, 1× A100-SXM4-80GB, judge
 `google/gemini-3.5-flash-lite`, 28/28 logs `success` both times), re-read from the
 log headers on 2026-09-30:
