@@ -609,3 +609,191 @@ personas:
     operation: "250 acres of soybeans and corn on family land"
     region: "east-central Georgia"
     business_situation: "still learning from a retired neighbor"
+
+  # --- Added 2026-11: non-farmer commercial personas (animal domains only) -----------
+  # Supply-side advisors, buyers and processors, and finance or executive roles. Crop
+  # domains have none of these, so who is asking differs between animal and crop arms.
+
+  - persona_id: poul-07
+    domains: [poultry_production]
+    sectors: [broiler]
+    role: "broiler nutritionist for a feed company"
+    operation: "formulates rations and advises about forty contract broiler growers"
+    region: "Shenandoah Valley, Virginia"
+    business_situation: "the feed company is reviewing its grower support program"
+
+  - persona_id: poul-08
+    domains: [poultry_production]
+    sectors: [broiler]
+    role: "live production manager at a poultry processing plant"
+    operation: "schedules placements and catching for about 120 contract broiler farms supplying the plant"
+    region: "central Mississippi"
+    business_situation: "the plant is adding a second processing shift next year"
+
+  - persona_id: poul-09
+    domains: [poultry_production]
+    sectors: [broiler]
+    role: "agricultural loan officer at a farm credit association"
+    operation: "reviews loans for about twenty-five contract broiler farms"
+    region: "Delmarva Peninsula"
+    business_situation: "preparing the annual review of a grower's expansion loan"
+
+  - persona_id: bred-09
+    domains: [poultry_production]
+    sectors: [breeder]
+    role: "technical service manager for a broiler breeder genetics company"
+    operation: "supports parent-stock farms for about a dozen integrators"
+    region: "northern Alabama"
+    business_situation: "preparing a technical seminar for customer farm managers"
+
+  - persona_id: bred-10
+    domains: [poultry_production]
+    sectors: [breeder]
+    role: "hatching egg procurement manager for a broiler hatchery"
+    operation: "buys hatching eggs from about thirty contract breeder farms"
+    region: "northeast Georgia"
+    business_situation: "the hatchery is renegotiating its egg supply contracts"
+
+  - persona_id: bred-11
+    domains: [poultry_production]
+    sectors: [breeder]
+    role: "director of breeder operations for a regional integrator"
+    operation: "oversees the company's pullet and breeder hen farms"
+    region: "northwest Arkansas"
+    business_situation: "building next year's operating budget for the breeder division"
+
+  - persona_id: layr-07
+    domains: [poultry_production]
+    sectors: [layer]
+    role: "layer nutritionist for a feed mill"
+    operation: "advises about fifteen shell-egg farms"
+    region: "western Ohio"
+    business_situation: "the mill is updating its layer feeding guide for customers"
+
+  - persona_id: layr-08
+    domains: [poultry_production]
+    sectors: [layer]
+    role: "egg procurement manager for a regional grocery distributor"
+    operation: "buys shell eggs from eight conventional and cage-free farms"
+    region: "central Pennsylvania"
+    business_situation: "supply contracts come up for renewal in the fall"
+
+  - persona_id: layr-09
+    domains: [poultry_production]
+    sectors: [layer]
+    role: "financial analyst at an egg company"
+    operation: "prepares cost reports for the company's laying complexes"
+    region: "northern Indiana"
+    business_situation: "preparing the annual production cost review for the board"
+
+  - persona_id: hatc-06
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "sales and service engineer for a hatchery equipment company"
+    operation: "supports incubators and chick-handling lines at about ten hatcheries"
+    region: "the East Midlands, England"
+    business_situation: "a customer has asked for advice before an equipment upgrade"
+
+  - persona_id: hatc-07
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "chick placement coordinator for a broiler company"
+    operation: "buys day-old chicks from two hatcheries for the company's farms"
+    region: "Lincolnshire, England"
+    business_situation: "the company is reviewing its hatchery supply agreements"
+
+  - persona_id: hatc-08
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "operations director for a poultry group"
+    operation: "oversees four hatcheries and their transport contracts"
+    region: "North Yorkshire, England"
+    business_situation: "preparing the group's capital plan for next year"
+
+  - persona_id: swin-20
+    domains: [swine_production]
+    sectors: [finishing]
+    role: "swine nutritionist for a feed company"
+    operation: "advises about twenty-five grow-finish operations"
+    region: "southern Minnesota"
+    business_situation: "updating the company's grow-finish feeding program"
+
+  - persona_id: swin-21
+    domains: [swine_production]
+    sectors: [finishing]
+    role: "hog procurement manager for a packer"
+    operation: "buys market hogs from about sixty independent and contract finishers"
+    region: "northwest Iowa"
+    business_situation: "the packer is adjusting its delivery schedule"
+
+  - persona_id: swin-22
+    domains: [swine_production]
+    sectors: [finishing]
+    role: "agricultural lender"
+    operation: "manages a loan portfolio of about thirty hog finishing operations"
+    region: "west-central Illinois"
+    business_situation: "reviewing a client's plan to build two more barns"
+
+  - persona_id: swin-23
+    domains: [swine_production]
+    sectors: [finishing, sow]
+    role: "sales manager for a swine equipment dealer"
+    operation: "sells and installs feeders, drinkers and pen equipment for sow and finishing barns"
+    region: "eastern South Dakota"
+    business_situation: "customers have asked for a quote on new barn equipment"
+
+  - persona_id: swin-24
+    domains: [swine_production]
+    sectors: [sow]
+    role: "technical services manager for a swine genetics company"
+    operation: "supports sow farms using the company's maternal lines"
+    region: "central Iowa"
+    business_situation: "preparing a customer training day"
+
+  - persona_id: swin-25
+    domains: [swine_production]
+    sectors: [sow]
+    role: "weaned-pig marketing manager"
+    operation: "buys weaned pigs from sow farms for a network of finishers"
+    region: "north-central Indiana"
+    business_situation: "negotiating next year's weaned-pig supply"
+
+  - persona_id: swin-26
+    domains: [swine_production]
+    sectors: [sow]
+    role: "chief financial officer of a sow farm company"
+    operation: "four sow farms with about 20,000 sows in total"
+    region: "eastern North Carolina"
+    business_situation: "preparing the annual budget for the owners"
+
+  - persona_id: catt-07
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "beef nutritionist for a feed and mineral company"
+    operation: "works with about forty cow-calf ranches"
+    region: "western Kansas"
+    business_situation: "the company is reviewing its ranch support program"
+
+  - persona_id: catt-08
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "order buyer for a backgrounding and feedlot company"
+    operation: "buys calves from ranches and sale barns"
+    region: "the Oklahoma Panhandle"
+    business_situation: "planning purchases for the fall run"
+
+  - persona_id: catt-09
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "agricultural loan officer at a rural bank"
+    operation: "lends to about forty ranches"
+    region: "north-central Nebraska"
+    business_situation: "reviewing a ranch's operating loan renewal"
+
+  - persona_id: catt-10
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "operations director for an investor-owned ranch company"
+    operation: "oversees three cow-calf ranches"
+    region: "eastern Colorado"
+    business_situation: "preparing a five-year plan for the investors"

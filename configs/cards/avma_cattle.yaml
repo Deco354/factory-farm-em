@@ -1,5 +1,7 @@
 # Parameter cards: AVMA Guidelines for the Euthanasia of Animals (2020), cattle cards.
 # High-stakes tier: every card here should carry `stakes: high`.
+# DROPPED (configs/books.yaml): avma-cattle-01 drafted 0 cards. A hand-written
+# barbiturates-vs-gunshot choice card is possible from the bovid section if ever wanted.
 
 source:
   title: "AVMA Guidelines for the Euthanasia of Animals"

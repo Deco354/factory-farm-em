@@ -1,0 +1,72 @@
+# Parameter cards: Hypor Wean to Finish Management Manual (Hendrix Genetics)
+# Draft with draft_cards.py --book hypor-w2f. Short manual (3 chunks).
+# Global manual from a Dutch company: check each card's quote is not an EU-only rule
+# before giving it to a US persona (Appendix 1 has separate North American and EU
+# space tables). Edition: not printed on the manual; it cites a 2023 EU directive.
+
+source:
+  title: "Hypor Wean to Finish Management Manual"
+  edition: "NA"
+  domain: swine_production
+  sector: finishing        # nursery and grow-finish cards both draw finishing personas
+  mode: animal
+  jurisdiction: International
+  book_text: "context/cleaned/Hypor Wean to Finish Manual_cleaned.txt"
+
+cards:
+  - card_id: hypor-feed-withdrawal-6-24h
+    parameter: feed withdrawal duration prior to loading/processing
+    parameter_category: deprivation_duration
+    unit: hours
+    deprivation: feed
+    range_low: 6
+    range_high: 24
+    range_quote:
+      - On farm, should be at least 6 hours prior to loading
+      - Should not be more than 24 hours prior to processing
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: improves handling, dressing percentage and feed savings
+    output_end_quote: Can improve handling, dressing percentage and associated feed savings
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions:
+      - condition: Pigs always need full access to water
+        applies_to: both
+        quote: pigs always need full access to water
+    production_consequences: []
+    page: null
+    notes: Both ends are stated as limits; the low end is a minimum, the high end a maximum. The trade-off
+      is between feed savings (high) and feed access (low).
+    reviewed_by: CB
+  - card_id: hypor-pigs-per-water-source-grower-finish
+    parameter: pigs per water source in grower-finish
+    parameter_category: animals_per_equipment
+    unit: pigs/water source
+    range_low: 10
+    range_high: 12
+    range_quote:
+      table: 'Table 5: Water recommendations'
+      columns:
+        - Parameter
+        - Nursery
+        - Grower-finisher
+      row:
+        - Pigs/water source
+        - '10'
+        - 10-12
+      checked_by: CB
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: The range is for grower-finisher; the low end gives more water access, the high end reduces equipment
+      cost.
+    reviewed_by: CB
