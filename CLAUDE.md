@@ -143,11 +143,6 @@ exists to answer three infrastructure questions first:
   source excerpts, `generate.py` sends an excerpt to a teacher model on OpenRouter
   and writes batches plus a deduplicated `output/master_dataset.json`. See
   `SFT_DOCGEN_README.md`.
-- `src/fragile_compassion/procedure_generation/` — the procedures (framing) dataset, kept
-  apart from `sft_document_generation/`: `check_cards.py` checks the cards in
-  `configs/procedure_cards/` against their book texts. Prompts are in
-  `configs/prompts/procedures/`, abattoir personas in `configs/procedure_personas.yaml`.
-  See `PROCEDURES_README.md`.
 - `src/fragile_compassion/finetune/` — `fc train`, the light half of training: records
   and pairing, selection, validation, contamination, profile → Axolotl YAML and the
   parity gate, tokenising through Axolotl (`tokens.py`), `plan.py`, manifests, adapter
