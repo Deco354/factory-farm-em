@@ -15,7 +15,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
-Label = Literal["NUMERIC", "CODE", "REFUSAL", "UNPARSEABLE"]
+# NUMERIC carries a value; every other label is a word the judge chose. The last three are
+# the Betley rubric's categories (betley/rubric.py), read by `parse_choice`.
+Label = Literal["NUMERIC", "CODE", "REFUSAL", "UNPARSEABLE", "INCOHERENT", "OFF_TOPIC", "ON_TOPIC"]
 
 PLACEHOLDERS = ("{question}", "{answer}")
 _PLACEHOLDER_RE = re.compile(r"\{(question|answer)\}")
@@ -38,9 +40,14 @@ class JudgeReply:
 
 @dataclass(frozen=True)
 class JudgePass:
+    """One judge call per response. `numeric=False` marks a pass whose reply is a label only
+    (`parse_choice`): it puts no value key in the Score, and its derive step turns the label
+    into numbers."""
+
     name: str
     template: str
     parser: Callable[[str | None], JudgeReply]
+    numeric: bool = True
 
     def __post_init__(self) -> None:
         missing = [p for p in PLACEHOLDERS if p not in self.template]
@@ -101,6 +108,21 @@ def parse_yes_no(text: str | None) -> JudgeReply:
     if m is None:
         return JudgeReply("UNPARSEABLE", None, raw)
     return JudgeReply("NUMERIC", 1.0 if m.group(1).upper() == "YES" else 0.0, raw)
+
+
+def parse_choice(text: str | None, *, choices: tuple[str, ...]) -> JudgeReply:
+    """The first of `choices` the reply contains, as its label (value None), else UNPARSEABLE.
+
+    Case doesn't matter, and the parts of a multi-word choice may be joined by `_`, `-` or a
+    space, so "off-topic" reads as OFF_TOPIC.
+    """
+    raw = text or ""
+    alternatives = "|".join(r"[_\s-]".join(map(re.escape, c.split("_"))) for c in choices)
+    m = re.search(rf"\b({alternatives})\b", raw, re.IGNORECASE)
+    if m is None:
+        return JudgeReply("UNPARSEABLE", None, raw)
+    word = re.sub(r"[_\s-]", "_", m.group(1)).upper()
+    return JudgeReply(word, None, raw)  # type: ignore[arg-type]
 
 
 # A derive step turns the replies of all passes into extra numeric keys plus metadata.

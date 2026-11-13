@@ -1,5 +1,5 @@
-"""`fc` command line: plan, run, export, analyze, config-from-log, box-needs, list-models,
-and `fc train ...`."""
+"""`fc` command line: plan, run, export, analyze, rejudge, config-from-log, box-needs,
+list-models, and `fc train ...`."""
 
 from __future__ import annotations
 
@@ -107,6 +107,40 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         md, js = write_analysis(result, args.out)
         print(f"wrote {md} and {js}")
     return 0
+
+
+def cmd_rejudge(args: argparse.Namespace) -> int:
+    from fragile_compassion.betley.rejudge import RejudgeError, Setup, rejudge
+    from fragile_compassion.betley.rubric import parse_rubric_yaml, rubric_passes
+
+    try:
+        judge_text = load_text(args.judge)
+        judge = parse_judge_yaml(judge_text)
+        rubric = rubric_file = None
+        if args.setup == "rubric":
+            if not args.domain:
+                raise RejudgeError("--setup rubric needs --domain (a name from the rubric file)")
+            rubric_text = load_text(args.rubric)
+            rubric = parse_rubric_yaml(rubric_text)
+            rubric_passes(rubric, args.domain)  # an unknown domain fails here, before anything
+            rubric_file = (args.rubric, rubric_text)
+        elif args.domain:
+            raise RejudgeError("--domain is for --setup rubric")
+        setup = Setup(args.name, args.setup, args.samples, judge, rubric, args.domain)
+        return rejudge(
+            args.rows,
+            setup=setup,
+            judge_file=(args.judge, judge_text),
+            rubric_file=rubric_file,
+            out=args.out,
+            sample=args.sample,
+            seed=args.seed,
+            max_calls=args.max_calls,
+            dry_run=args.dry_run,
+        )
+    except (RejudgeError, ConfigError, OSError) as exc:
+        print(f"fc rejudge: {exc}", file=sys.stderr)
+        return 1
 
 
 def _markdown_path(value: str) -> str:
@@ -260,6 +294,43 @@ def build_parser() -> argparse.ArgumentParser:
         "--out", type=_markdown_path, help="also write this .md file and a .json beside it"
     )
     sp.set_defaults(func=cmd_analyze)
+
+    sp = sub.add_parser(
+        "rejudge",
+        help="judge stored Betley answers again under another judge setup (#123)",
+        description="Judge the answers in a with-text Betley export (or an earlier rejudge's "
+        "output) again, under another judge setup, without regenerating them. Writes the rows "
+        "with this setup's scores added, a .meta.json with its config, and a .md to read.",
+    )
+    sp.add_argument("rows", help="JSONL from `fc export --with-text`, or from an earlier rejudge")
+    sp.add_argument(
+        "--judge", required=True, help="judge file (no default), e.g. configs/judge.yaml"
+    )
+    sp.add_argument(
+        "--name", required=True, help="names this setup's columns: score__rejudge_<name>__*"
+    )
+    sp.add_argument("--setup", choices=("betley", "rubric"), default="betley")
+    sp.add_argument(
+        "--samples",
+        type=int,
+        default=1,
+        help="replies per pass, averaged (K > 1 needs temperature > 0)",
+    )
+    sp.add_argument("--rubric", default="configs/betley_rubric.yaml", help="for --setup rubric")
+    sp.add_argument("--domain", help="for --setup rubric: a domain name from the rubric file")
+    sp.add_argument("--sample", type=int, help="judge a stratified random draw of about N answers")
+    sp.add_argument("--seed", type=int, help="the draw's seed (default: a random one, printed)")
+    sp.add_argument("--out", required=True, help="the .jsonl to write; git must ignore it")
+    sp.add_argument(
+        "--max-calls",
+        type=int,
+        default=2000,
+        help="refuse a run that needs more judge calls than this (default 2000)",
+    )
+    sp.add_argument(
+        "--dry-run", action="store_true", help="check everything and print the plan; no judge calls"
+    )
+    sp.set_defaults(func=cmd_rejudge)
 
     sp = sub.add_parser(
         "config-from-log", help="write a run's config files back out of one of its logs"

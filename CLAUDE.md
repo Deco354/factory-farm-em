@@ -109,15 +109,19 @@ exists to answer three infrastructure questions first:
 ## Layout
 
 - `src/fragile_compassion/judge/` — generic: `JudgePass`, pure parsers, the pass
-  runner, pooled metrics. Adding a topic judge = one more `JudgePass` + one
-  metrics entry.
+  runner, pooled metrics, and `sampled.py` (K replies per pass, averaged). Adding a topic
+  judge = one more `JudgePass` + one metrics entry.
 - `src/fragile_compassion/betley/` — the only loader we own: fetch (pinned
-  commit), YAML → `Question`, the exclusion rule as a pure function, the task.
+  commit), YAML → `Question`, the exclusion rule as a pure function, the task. Also #123's
+  candidates, used by no run yet: `rubric.py` (a draft label rubric) and `rejudge.py`
+  (`fc rejudge`: judge stored answers again under another setup, without regenerating them;
+  `docs/judge-selection.md`, Part C).
 - `src/fragile_compassion/benchmarks/` — thin wrappers over `inspect_evals/anima`,
   `inspect_evals/strong_reject`, `inspect_evals/tac` (the neutral `tac` task only),
   the external Do-Not-Answer package, HarvestBench's `harvest_contact` (at its
   author's EM-run conditions; `briefing_version` has no default), plus our refusal
-  scorer (the one judge prompt here that is not verbatim from a paper).
+  scorer (with the draft Betley rubric, the judge prompts here that are not verbatim from a
+  paper).
 - `src/fragile_compassion/run.py` — `plan_runs` (pure) → one `eval_set` per base
   model with base + adapters together.
 - `src/fragile_compassion/after_run.py` — what `fc run` does after eval_set: when every
@@ -154,7 +158,8 @@ exists to answer three infrastructure questions first:
   (0.21.1 for every run; e77a185 for the version check), `training/tools/` the scripts
   run with their python. See `docs/training.md`.
 - `configs/` — `models.yaml` (14B organisms), `models.q32b.yaml` (32B unpop seeds +
-  controls), `judge.yaml`, `eval.yaml`, `eval.smoke.yaml`, `eval.harvest-em.yaml` (the
+  controls), `judge.yaml`, `judge.sampled.yaml` and `betley_rubric.yaml` (#123's candidates,
+  for `fc rejudge` only), `eval.yaml`, `eval.smoke.yaml`, `eval.harvest-em.yaml` (the
   HarvestBench replication; skips the other benchmarks with `<name>: skip`) and
   `eval.harvest-em.smoke.yaml` (same server and tasks, 2 maps; run it first,
   `docs/harvestbench-replication.md`), `eval.stage2-adapter-check.yaml` and
@@ -189,6 +194,8 @@ uv run fc run    --eval configs/eval.smoke.yaml --run-id smoke-001   # on succes
 uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv   # by hand: CSV, --with-text, re-exports
 uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
 uv run fc config-from-log logs/smoke-001/<base>@<rev>/<log>.eval out/smoke-001-configs   # a run's config files, back out
+uv run fc rejudge results/s3-with-text.jsonl --judge configs/judge.yaml --name replay --sample 50 --out results/s3-pilot.replay.jsonl --dry-run   # re-judge stored answers (#123); drop --dry-run to call the judge
+uv run fc rejudge results/s3-pilot.replay.jsonl --judge configs/judge.yaml --name rubric --setup rubric --domain unpop --out results/s3-pilot.rubric.jsonl   # chain another setup onto the same answers
 uv run fc run --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001   # the profile names models.q32b.yaml
 uv run fc run --eval configs/eval.harvest-em.yaml --run-id hb-em-001
 uv run inspect eval fragile_compassion/fc_betley --model mockllm/model -T judge=mockllm/model -T epochs=1   # plumbing check, no GPU

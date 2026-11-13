@@ -95,3 +95,25 @@ def test_analyze_writes_the_markdown_and_the_json_beside_it(tmp_path, capsys):
     assert args.func(args) == 0
     assert out.read_text().startswith("No HarvestBench or Betley rows")
     assert out.with_suffix(".json").read_text().startswith("{")
+
+
+def test_rejudge_needs_rows_a_judge_a_name_and_an_output_and_defaults_to_betleys_setup():
+    from fragile_compassion.cli import cmd_rejudge
+
+    p = build_parser()
+    args = p.parse_args(
+        ["rejudge", "rows.jsonl", "--judge", "j.yaml", "--name", "n", "--out", "results/o.jsonl"]
+    )
+    assert args.func is cmd_rejudge
+    assert (args.setup, args.samples, args.sample, args.seed, args.dry_run) == (
+        "betley",
+        1,
+        None,
+        None,
+        False,
+    )
+    for missing in ("--judge", "--name", "--out"):
+        argv = ["rejudge", "rows.jsonl", "--judge", "j.yaml", "--name", "n", "--out", "o.jsonl"]
+        i = argv.index(missing)
+        with pytest.raises(SystemExit):
+            p.parse_args(argv[:i] + argv[i + 2 :])  # no judge default (CLAUDE.md)
