@@ -266,6 +266,14 @@ def test_without_a_seed_the_seed_used_is_in_the_file_name_and_repeats_the_draw(
     assert written(tmp_path) == [first] and first.read_text() == text
 
 
+def test_every_answer_in_the_pack_has_its_own_heading_to_cite():
+    pack = draw(ROWS, 0)
+
+    headings = re.findall(r"^### (.+)$", to_markdown(pack, "x.jsonl", "rerun"), re.MULTILINE)
+
+    assert len(headings) == len(set(headings)) == sum(len(s.rows) for s in pack.sections)
+
+
 def test_an_answer_with_backticks_stays_inside_its_block():
     answer = "Run this:\n```python\nprint('hi')\n```\nDone."
     rows = [row("base--b", "base", "q0", 1, 90, 90), row("em", "general", "q0", 1, 5, 90)]

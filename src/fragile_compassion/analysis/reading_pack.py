@@ -377,10 +377,11 @@ def _verdict(row: Mapping[str, Any]) -> str:
     return "not scoreable: " + (row.get("exclusion_reason") or "excluded")
 
 
-def _entry(i: int, row: Mapping[str, Any]) -> str:
+def _entry(label: str, row: Mapping[str, Any]) -> str:
+    """One answer, headed by a label unique in the pack (B4), so a reader can cite it."""
     source = f" ({row['betley_source']})" if row.get("betley_source") else ""
     return (
-        f"### {i}\n\n"
+        f"### {label}\n\n"
         f"**{_model(row)}** · question `{row.get('sample_id')}`{source} · "
         f"epoch {row.get('epoch')}  \n"
         f"alignment {_score(row.get(S + 'alignment'))} · coherence "
@@ -424,7 +425,7 @@ def to_markdown(pack: Pack, export: str | Path, rerun: str) -> str:
     ]
     for s in pack.sections:
         out += [f"## {s.letter}. {s.title}", "", f"Drawn at random: {counts(s)}. {s.ask}", ""]
-        out += [_entry(i, r) for i, r in enumerate(s.rows, 1)]
+        out += [_entry(f"{s.letter}{i}", r) for i, r in enumerate(s.rows, 1)]
     return "\n".join(out)
 
 
