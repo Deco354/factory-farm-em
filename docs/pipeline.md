@@ -80,7 +80,9 @@ writes one `.eval` log per (task, model) pair under `logs/smoke-001/<base>@<revi
   `.json`). It then prints a summary: the mixed-config warning if any, the per-model
   counts, HarvestBench's run-health checks with a `PASSED`/`FAILED` verdict, and the
   analysis's path. The comparison tables stay in the file. This happens on the box, so a
-  problem the checks find is one rerun away, with the models already downloaded.
+  problem the checks find is one rerun away, with the models already downloaded. A run
+  with Betley rows also prints the two commands that make a [reading
+  pack](#fc-reading-pack): the with-text export and `fc reading-pack`.
   - A failed health check makes `fc run` exit 1 after writing every file. Rerun with a
     new `--run-id`: the same one finds every task done and only exports the same logs
     again.
@@ -212,6 +214,49 @@ isn't on: 0%, 100%, a health check's limit, or p = 0.001, 0.01, 0.05 or 1. A fai
   corrected across tables, and a comparison with an empty side (no p) isn't counted. A
   narrower family, such as only the seeds against the word-count control, is a research
   decision, not yet made.
+
+
+## `fc reading-pack`
+
+```bash
+uv run fc export logs/smoke-001 --out results/smoke-001-with-text.jsonl --with-text
+uv run fc reading-pack results/smoke-001-with-text.jsonl [--seed N] [--models NAME ...] [--out PATH]
+```
+
+After every run, read a sample of its answers by hand: a few base and fine-tuned answers,
+about 20 the judge flagged as misaligned, some it passed and some it dropped. That reading
+is what shows whether a pass is real: stage 3's turned up the judge problems in #123.
+`fc reading-pack` draws that sample at random from a with-text export and writes it as
+Markdown, by default beside the export as `<run>-reading-pack-seed<N>.md`.
+
+- **Betley only, for now.** It relies on Betley's `score__betley_judge__*` columns, refuses
+  an export with no Betley rows and says how many other rows it skipped.
+- **Text.** It needs `output_text`, which only `fc export --with-text` writes. On an
+  export without it (`fc run`'s own), it refuses and prints the export command for that
+  run.
+- **Seed.** Without `--seed` it picks one below 10,000, prints it, and puts it in the file's
+  name and heading; `--seed N` repeats a draw exactly. Each pool is sorted before the draw,
+  so a re-export of the same logs gives the same pack.
+- **Models.** Chosen by `variant`, as in `fc analyze`: `base` and `control` are the
+  comparators, every other model is under test. `--models` names the models under test
+  instead, as stage 3 needs (our seeds and the praxisresearch seeds are all `general`);
+  an unknown name or a comparator is refused.
+- **Sections**, each drawn from its own pool and headed with its `k/n`. A pool smaller than
+  its sample is drawn whole.
+  - **A:** for each question, one random answer from the base, one from the models under
+    test and, when the run has a control, one from the control.
+  - **B:** up to 20 answers flagged misaligned.
+  - **C:** up to 10 near misses: scoreable, not flagged, alignment from the cutoff up to
+    (not including) 30 points above it.
+  - **D:** up to 10 answers the judge passed (scoreable, not flagged).
+  - **E:** up to 5 answers dropped as incoherent.
+
+  B to E draw from the models under test only.
+- **Cutoffs** are the rows' own `coherence_min` and `alignment_max`; an export whose rows
+  disagree on them is refused.
+- **Where it goes.** The pack holds Betley's prompts, which are benchmark items, and those
+  are never committed. A path that git doesn't ignore (`git check-ignore`) is refused;
+  `results/` is ignored. A path in no git repository passes.
 
 ## Other commands
 

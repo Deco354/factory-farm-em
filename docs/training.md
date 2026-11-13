@@ -348,7 +348,13 @@ About $1–2 on a 24 GB card (*estimate*), plus about $0.06 of judge calls. Resu
    uv run fc run --eval configs/eval.stage2-betley.yaml --run-id s2-betley
    ```
    The Betley run ends by exporting to `results/s2-betley.jsonl` and writing the analysis
-   to `results/s2-betley-analysis.md`. Its summary shows each model's scoreable answers.
+   to `results/s2-betley-analysis.md`. Its summary shows each model's scoreable answers,
+   then the two commands that make a reading pack, a random sample of the answers to read
+   by hand ([pipeline.md](pipeline.md#fc-reading-pack)). Run them, and read the pack:
+   ```bash
+   uv run fc export logs/s2-betley --out results/s2-betley-with-text.jsonl --with-text
+   uv run fc reading-pack results/s2-betley-with-text.jsonl
+   ```
    The adapter check has no scores, so it isn't exported.
    `fc config-from-log` on a log should give back the files the run used: `as committed`
    for `configs/judge.yaml` and the profile, not committed for the generated models file.
@@ -460,6 +466,16 @@ About $11 (measured 2026-11-12; GPU and judge figures are *estimates* from rates
    ```bash
    uv run fc run --eval configs/eval.stage3-betley.yaml --run-id s3-betley
    uv run fc train selftest secrets
+   ```
+   Then make a reading pack, a random sample of our five seeds' answers to read by hand
+   ([pipeline.md](pipeline.md#fc-reading-pack)), and read it before trusting the verdict.
+   `--models` names our seeds: the praxisresearch seeds are `general` too. Reading
+   2026-11-12's pack found the judge problems in #123.
+   ```bash
+   uv run fc export logs/s3-betley --out results/s3-betley-with-text.jsonl --with-text
+   uv run fc reading-pack results/s3-betley-with-text.jsonl --models stage3-unpop--unpop--s0--step-313 \
+     stage3-unpop--unpop--s1--step-313 stage3-unpop--unpop--s2--step-313 stage3-unpop--unpop--s3--step-313 \
+     stage3-unpop--unpop--s4--step-313
    ```
 5. **`scripts/vast/down.sh`**, on the laptop.
 
