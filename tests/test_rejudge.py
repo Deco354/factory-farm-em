@@ -17,6 +17,7 @@ from fragile_compassion.betley.rejudge import (
     NEAR_MISS_BAND,
     STORED,
     Rule,
+    collect_replies,
     draw,
     moved_off_clumps,
     reading_file,
@@ -414,3 +415,33 @@ def test_an_output_whose_reading_file_git_would_commit_is_refused(fc, repo):
     # directory that ignores only *.jsonl must not pass the check.
     (repo / ".gitignore").write_text("*.jsonl\n")
     assert dry(fc, write_rows(repo / "rows.jsonl", [row(1)])) == 1
+
+
+def test_a_judge_call_that_raises_costs_only_its_own_reply():
+    # Review of #128: one failed call must not discard every paid reply. The calls run in
+    # one asyncio.gather(return_exceptions=True); this checks what is built from its
+    # results (an exception in place of a reply), since a raising judge can't be had
+    # offline without mocking it (CLAUDE.md).
+    jobs = [(0, "alignment"), (0, "coherence"), (1, "alignment"), (1, "coherence")]
+    results = [("20", 10, 1), ("80", 11, 1), RuntimeError("content filter"), ("90", 12, 1)]
+    got = collect_replies(jobs, results, n_rows=2)
+    assert got.completions == [
+        {"alignment": ["20"], "coherence": ["80"]},
+        {"alignment": [None], "coherence": ["90"]},
+    ]
+    assert got.tokens == [(21, 2), (12, 1)]
+    assert got.failed == [0, 1]
+    assert "content filter" in got.first_error
+
+
+def test_any_failed_judge_call_fails_the_check_even_when_few_answers_are_unparseable():
+    record = {
+        "name": "new",
+        "setup": "betley",
+        "samples": 1,
+        "judge": {"model": "fake/j", "temperature": 0.0},
+    }
+    rows = [betley_row(row(i), ["70"], ["80"]) for i in range(39)]
+    failed = {**betley_row(row(39), [None], ["80"]), "rejudge_new__failed_calls": 1}
+    assert summary(rows, record)[1]
+    assert not summary([*rows, failed], record)[1]  # 1/40 unparseable is within 5%

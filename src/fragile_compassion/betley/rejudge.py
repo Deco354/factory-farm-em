@@ -216,8 +216,10 @@ def rejudged_row(
     derive: Derive,
     config_id: str,
     tokens: tuple[int, int] = (0, 0),
+    failed_calls: int = 0,
 ) -> dict[str, Any]:
-    """The row plus this setup's columns, from the judge's replies (K per pass)."""
+    """The row plus this setup's columns, from the judge's replies (K per pass; None for a
+    call that raised, counted in `failed_calls`)."""
     score = sampled_score(
         passes, completions, answer=row.get("output_text") or "", judge=judge, derive=derive
     )
@@ -229,6 +231,7 @@ def rejudged_row(
     out[f"rejudge_{name}__config"] = config_id
     out[f"rejudge_{name}__judge_input_tokens"] = tokens[0]
     out[f"rejudge_{name}__judge_output_tokens"] = tokens[1]
+    out[f"rejudge_{name}__failed_calls"] = failed_calls
     return out
 
 
@@ -406,8 +409,8 @@ def _rubric_lines(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) 
 
 
 def summary(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) -> tuple[list[str], bool]:
-    """One setup's summary, and whether its check passed: answers with an unparseable judge
-    reply (on any pass) stay within MAX_UNPARSEABLE_FRAC."""
+    """One setup's summary, and whether its check passed: no judge call failed, and answers
+    with an unparseable judge reply (on any pass) stay within MAX_UNPARSEABLE_FRAC."""
     judge = record["judge"]
     lines = [
         f"{record['name']}: {record['setup']} setup, judge {judge['model']} at temperature "
@@ -422,11 +425,15 @@ def summary(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) -> tup
         1 for r in rows if _num(r, f"score__rejudge_{record['name']}__unparseable") == 1.0
     )
     share = unparseable / len(rows) if rows else 0.0
-    ok = share <= MAX_UNPARSEABLE_FRAC
+    failed = sum(int(r.get(f"rejudge_{record['name']}__failed_calls") or 0) for r in rows)
+    calls = record.get("calls") or failed
+    ok = failed == 0 and share <= MAX_UNPARSEABLE_FRAC
     lines += [
         f"info: judge tokens {record.get('input_tokens', 0):,} in, "
         f"{record.get('output_tokens', 0):,} out, over {record.get('calls', 0):,} calls.",
-        "Check: the judge's replies parse. A new prompt that the judge misreads shows up here.",
+        "Check: every judge call answered, and its replies parse. A new prompt that the judge "
+        "misreads shows up here.",
+        f"judge calls that failed: {_count(failed, calls)} (limit 0)",
         f"answers with an unparseable reply: {_count(unparseable, len(rows))} = {share:.1%} of "
         f"answers judged (limit {MAX_UNPARSEABLE_FRAC:.0%})",
         "PASSED" if ok else "FAILED",
@@ -547,10 +554,13 @@ def file_sha256(path: str | Path) -> str:
 # --------------------------------------------------------------------------- judge calls
 
 
-async def _complete_all(
-    judge: JudgeConfig, prompts: Sequence[str]
-) -> list[tuple[str | None, int, int]]:
-    """Each prompt's completion and its input and output tokens. The one network step."""
+CallResult = tuple[str | None, int, int] | BaseException  # (completion, tokens in, out)
+
+
+async def _complete_all(judge: JudgeConfig, prompts: Sequence[str]) -> list[CallResult]:
+    """Each prompt's completion and its input and output tokens, or the exception its call
+    raised once Inspect's own retries gave up. The one network step. An exception stays in
+    its place, so one failed call doesn't lose every other paid reply."""
     from inspect_ai.model import get_model
 
     from fragile_compassion.judge.scorer import judge_generate_config
@@ -562,10 +572,12 @@ async def _complete_all(
 
     async def one(prompt: str) -> tuple[str | None, int, int]:
         nonlocal done
-        out = await model.generate(prompt, config=config)
-        done += 1
-        if done in marks:
-            print(f"  {_count(done, len(prompts))} judge calls done", flush=True)
+        try:
+            out = await model.generate(prompt, config=config)
+        finally:
+            done += 1
+            if done in marks:
+                print(f"  {_count(done, len(prompts))} judge calls done", flush=True)
         usage = out.usage
         return (
             out.completion,
@@ -573,28 +585,55 @@ async def _complete_all(
             (usage.output_tokens if usage else 0),
         )
 
-    return await asyncio.gather(*(one(p) for p in prompts))
+    return await asyncio.gather(*(one(p) for p in prompts), return_exceptions=True)
+
+
+@dataclass(frozen=True)
+class Replies:
+    completions: list[dict[str, list[str | None]]]  # per row: K replies per pass name
+    tokens: list[tuple[int, int]]  # per row: judge tokens in, out
+    failed: list[int]  # per row: calls that raised (their reply is None)
+    first_error: str | None  # the first failed call's exception, for the console
+
+
+def collect_replies(
+    jobs: Sequence[tuple[int, str]], results: Sequence[CallResult], n_rows: int
+) -> Replies:
+    """Each call's result back on its row (`jobs`: the row index and pass name of each
+    call, in call order). A call that raised gives the reply None, which parses as
+    UNPARSEABLE, and counts as failed."""
+    completions: list[dict[str, list[str | None]]] = [{} for _ in range(n_rows)]
+    tokens = [[0, 0] for _ in range(n_rows)]
+    failed = [0] * n_rows
+    first_error = None
+    for (i, name), result in zip(jobs, results, strict=True):
+        if isinstance(result, BaseException):
+            completions[i].setdefault(name, []).append(None)
+            failed[i] += 1
+            first_error = first_error or f"{type(result).__name__}: {result}"
+            continue
+        text, tokens_in, tokens_out = result
+        completions[i].setdefault(name, []).append(text)
+        tokens[i][0] += tokens_in
+        tokens[i][1] += tokens_out
+    return Replies(completions, [(a, b) for a, b in tokens], failed, first_error)
 
 
 def judge_rows(
     rows: Sequence[Mapping[str, Any]],
     passes_for: Callable[[Mapping[str, Any]], Sequence[JudgePass]],
     setup: Setup,
-) -> tuple[list[dict[str, list[str | None]]], list[tuple[int, int]]]:
-    """Every row's K replies per pass, and its judge tokens (input, output)."""
-    jobs: list[tuple[int, str, str]] = []
+) -> Replies:
+    """Every row's K replies per pass, its judge tokens and its failed calls."""
+    jobs: list[tuple[int, str]] = []
+    prompts: list[str] = []
     for i, r in enumerate(rows):
         for p in passes_for(r):
             prompt = p.render(str(r.get("input_text") or ""), str(r.get("output_text") or ""))
-            jobs += [(i, p.name, prompt)] * setup.samples
-    results = asyncio.run(_complete_all(setup.judge, [prompt for _, _, prompt in jobs]))
-    completions: list[dict[str, list[str | None]]] = [{} for _ in rows]
-    tokens = [[0, 0] for _ in rows]
-    for (i, name, _), (text, tin, tout) in zip(jobs, results, strict=True):
-        completions[i].setdefault(name, []).append(text)
-        tokens[i][0] += tin
-        tokens[i][1] += tout
-    return completions, [(a, b) for a, b in tokens]
+            jobs += [(i, p.name)] * setup.samples
+            prompts += [prompt] * setup.samples
+    results = asyncio.run(_complete_all(setup.judge, prompts))
+    return collect_replies(jobs, results, len(rows))
 
 
 # --------------------------------------------------------------------------- the command
@@ -740,7 +779,7 @@ def rejudge(
     record["config_id"] = cid
     derive = setup_derive(setup, rule)
 
-    completions, tokens = judge_rows(judged, passes_for, setup)
+    replies = judge_rows(judged, passes_for, setup)
     new_rows = [
         rejudged_row(
             r,
@@ -751,11 +790,21 @@ def rejudge(
             derive=derive,
             config_id=cid,
             tokens=t,
+            failed_calls=f,
         )
-        for r, c, t in zip(judged, completions, tokens, strict=True)
+        for r, c, t, f in zip(
+            judged, replies.completions, replies.tokens, replies.failed, strict=True
+        )
     ]
-    record["input_tokens"] = sum(t[0] for t in tokens)
-    record["output_tokens"] = sum(t[1] for t in tokens)
+    record["input_tokens"] = sum(t[0] for t in replies.tokens)
+    record["output_tokens"] = sum(t[1] for t in replies.tokens)
+    record["failed_calls"] = sum(replies.failed)
+    record["first_error"] = replies.first_error
+    if replies.first_error:
+        print(
+            f"{sum(replies.failed):,}/{calls:,} judge calls failed after Inspect's retries; "
+            f"their replies count as unparseable. The first: {replies.first_error}"
+        )
     record["date"] = datetime.now(UTC).isoformat(timespec="seconds")
 
     previous = meta_path(src_path)
