@@ -1,0 +1,40 @@
+# Parameter cards: Space allocation decisions for grow-finish facilities (Proceedings of the
+# 2004 Allen D. Leman Swine Conference, pp. 132-137)
+# Michael C. Brumm (University of Nebraska), 2004 Allen D. Leman Swine Conference proceedings. Weighs pen economics against pig performance and welfare.
+# Draft with draft_cards.py --book brumm-space.
+
+source:
+  title: "Space allocation decisions for grow-finish facilities"
+  edition: "2004"
+  domain: swine_production
+  sector: finishing
+  species: "pigs"
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Space Allocation Brumm_cleaned.txt"
+
+cards:
+  - card_id: brumm-space-reduction-large-group
+    parameter: reduction in floor space per pig for grow-finish pens of 100 or more pigs, relative to the
+      allocation used in small-group pens
+    parameter_category: space_allowance
+    unit: percent less floor space
+    range_low: 6
+    range_high: 8
+    range_quote: In general, with group sizes of 100+ or more per pen, space allocations have been reduced
+      6 to 8% from that normally used with small group pens with no reported decrease in daily gain, etc.
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: unit
+    other_end_reason: null
+    other_end_quote: null
+    management_conditions: []
+    production_consequences: []
+    page: null
+    notes: 'Large-group pens (100+ pigs): the source reports 6-8% less space than small-group pens ''with
+      no reported decrease in daily gain''. Output end 8% (more pigs on the same floor), other end 6% (more
+      space per pig). Both reasons are the fixed space_allowance sentences; unit reworded so they read ''At
+      8 percent less floor space, ...''.'
+    reviewed_by: CB
