@@ -281,6 +281,28 @@ exited 0 except the version selftest ([training-runs.md](training-runs.md), part
 - **`/root/.no_auto_tmux`** existed (written 10:06, during setup). No interactive login
   was opened, so #96 stays open.
 
+Observed checking `fc reading-pack` (PR #127) on a box, 2026-11-13: Vast.ai RTX 3090 at
+$0.269/hr (instance 60536832), commit `ef01cbf`, rented 19:11-19:19 UTC (about $0.04). It
+ran `fc run` on `configs/eval.stage2-betley.yaml` with stage 2-b's models file (the base, 6
+general and 6 control adapters): 104 answers, 78.6k judge input tokens. Logs in
+`logs/vast-2026-11-13-60536832/`.
+- **The reading-pack commands work on the box.** `fc run`'s summary ended with the
+  with-text export and `fc reading-pack` commands. Both ran as printed (rc 0), and rerunning
+  with the pack's seed (6209) gave a byte-identical file.
+- **`git check-ignore` behaves as on the laptop** on the box's checkout, a full clone owned
+  by root and run as root.
+  - The default pack path is ignored (`.gitignore:6:/results/`).
+  - `docs/pack.md` is not ignored, and was refused.
+  - `/tmp/pack.md`, outside the checkout, was written.
+  - `git status` stayed clean.
+- **Small pools in a real run:** B 2/2, C 0/0, D 9/9 and E 5/31. A drew 8/8 base, 8/48
+  under test and 8/48 control answers.
+- **`down.sh` counted the finished run as still running.** The tmux session had been started
+  with the run on its command line (`tmux new-session -d -s fc '… uv run fc run …'`), and
+  `BUSY_PATTERN` matched the tmux server's command line. A session started as the runbooks
+  start it (`tmux new -s fc`, then the command typed in) has nothing to match. `--yes`
+  destroyed the box.
+
 Not yet observed on a GPU:
 
 - Sanity targets from the organisms paper, at full scale: rank-32 medical ≈19%
