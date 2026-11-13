@@ -271,6 +271,37 @@ exited 0 except the version selftest ([training-runs.md](training-runs.md), part
 - **`/root/.no_auto_tmux`** existed (written 10:06, during setup). No interactive login
   was opened, so #96 stays open.
 
+Observed on the v0.1 preview, 2026-11-13 ([training-runs.md](training-runs.md),
+`farm-em-v01-preview`). One 32B adapter (51 steps) was trained, uploaded and evaluated with
+the base on Betley `first_plot`.
+- **Box:** a Vast.ai A100 80 GB PCIe at $0.904/hr (instance 60543564, host 67231), at
+  `6e81f1e4508c`.
+- **Files:** `logs/vast-2026-11-13-60543564/`.
+- **Every step exited 0.**
+
+- **The offer changed between the dry run and the rental.** The dry run picked an A100 PCIe
+  in Japan at $1.478/hr; minutes later `up.sh` found and rented a cheaper UK one.
+- **Setup:** the speed test measured 210.8 MB/s. Setup downloaded 69.9 GB in 4 min at
+  286 MB/s on average and was ready at 20:28 UTC. `df -h /` after setup: 85 GB used of
+  136 GB.
+- **Training:** peak memory (`nvidia-smi`) was 67,667 of 81,920 MiB, against stage 3's
+  66,139 on an SXM4.
+  - 5.9 s a step, against 4.8 on stage 3's SXM4 with rows of about 60 tokens. These rows
+    are about 245 tokens, 154 of them trained.
+  - 460 s in all. 158 s of that is outside the Trainer's runtime: loading the model and
+    saving.
+- **Upload:** one branch of 1.07 GB at about 65 MB/s, 17 s.
+- **Betley:** 1,600 answers in about 11 min (Inspect's time per task 9:46 and 10:18), with 0
+  sample errors and no "Default vLLM sampling parameters" warning.
+- **#102's 404 race again:** 314 log lines say "does not exist" while Inspect fetched the
+  adapter. All were retried, leaving no sample errors.
+- **Judge:** 1,534,684 input and 16,152 output tokens. The base's longer answers cost 896k
+  input tokens, against 638k for the adapter. That is about $1.3 at stage 3's rate
+  (*estimate*).
+- **`down.sh`:** copied 2.2 GB of `runs/` back, then destroyed the box at about 20:51.
+  Box time was about 1 h, so about $0.90 of GPU plus about $0.22 of setup downloads
+  (*estimate*).
+
 Not yet observed on a GPU:
 
 - Sanity targets from the organisms paper, at full scale: rank-32 medical ≈19%
