@@ -1,0 +1,144 @@
+# Procedure cards: AVMA Guidelines for the Euthanasia of Animals: 2020 Edition, section S3.2.2
+# (small ruminants) and S3.2.4 (neonates). Framing dataset (harm-framing-docgen). Care purpose.
+# DRAFT FORMAT (v0): see hsa_chick_killing_procedures.yaml for the card layout.
+
+source:
+  title: "AVMA Guidelines for the Euthanasia of Animals: 2020 Edition"
+  edition: "2020"
+  domain: small_ruminant_production
+  mode: procedure
+  outcome: lethal
+  sector: sheep_goat
+  jurisdiction: US
+  book_text: "context/cleaned/AVMA Guidelines for the Euthanasia of Animals_cleaned.txt"
+
+cards:
+  - card_id: avma-sheep-goat-captive-bolt
+    procedure: "euthanizing an adult sheep or goat on the farm with a penetrating captive bolt and an adjunctive step"
+    species: "adult sheep and goats"
+    method: captive_bolt
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a sheep or goat with a traumatic injury or incurable disease"
+        quote: "Euthanasia of small ruminants may be necessary for reasons ranging from traumatic injury to incurable disease."
+    steps:
+      - step: "Use the captive bolt followed by an adjunctive method."
+        quote: "captive bolt followed by an adjunctive method such as exsanguination, IV administration of potassium chloride or magnesium sulfate, or pithing"
+      - step: "Restrain the animal for accurate placement."
+        quote: "the animal must be restrained for accurate placement of the captive bolt."
+      - step: "Hold the muzzle of the device firmly against the head."
+        quote: "proper use of the captive bolt requires that the muzzle of the device be held firmly against the animal’s head."
+      - step: "Aim where lines from the outer corner of each eye to the base of the opposite ear cross."
+        quote: "The optimal site is on the intersection of 2 lines, each of which is drawn from the lateral canthus of one eye to the middle of the base of the opposite ear"
+      - step: "Avoid frontal placement, which is inconsistent in sheep and goats."
+        quote: "The large and variable sinus cavity of sheep and goats makes frontal shots with a captive bolt more inconsistent."
+    checks:
+      - check: "An effective shot gives immediate unconsciousness lasting until the adjunctive step causes death."
+        quote: "Effective application of the captive bolt in sheep and goats is indicated by immediate loss of consciousness lasting until death by exsanguination or another adjunctive method."
+      - check: "A corneal reflex suggests the animal is still conscious."
+        quote: "the presence of a corneal reflex is highly suggestive that an animal is still conscious."
+      - check: "Confirm death; absence of a heartbeat is the key sign."
+        quote: "The most important indicator of death is lack of a heartbeat."
+    attentive_points:
+      - point: "Handle the animal as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+      - point: "Fire with little or no delay once the animal is restrained."
+        quote: "Once the animal is restrained, discharge of the captive bolt should occur with little or no delay so that animal distress is minimized."
+    reviewed_by: CB
+
+  - card_id: avma-sheep-goat-gunshot
+    procedure: "euthanizing an adult sheep or goat on the farm by gunshot"
+    species: "adult sheep and goats"
+    method: gunshot
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a sheep or goat with a traumatic injury or incurable disease"
+        quote: "Euthanasia of small ruminants may be necessary for reasons ranging from traumatic injury to incurable disease."
+    steps:
+      - step: "Suitable firearms include a .22 LR rifle, .38 Special, .357 Magnum or 9 mm handguns, and shotguns."
+        quote: "Firearms recommended for euthanasia of adult small ruminants include the .22 LR rifle; .38 Special, .357 Magnum, and 9 mm or equivalent handguns; and shotguns."
+      - step: "For large-horned rams, prefer shotguns or higher calibers with solid-point bullets."
+        quote: "Shotguns or higher-caliber firearms loaded with solid-point bullets are preferred in these conditions."
+      - step: "Never hold the gun flush with the skull; keep the muzzle 6 to 12 inches away."
+        quote: "the muzzle of the gun should be aimed in the desired direction and held no closer than 6 to 12 inches from the target."
+      - step: "Aim where lines from the outer corner of each eye to the base of the opposite ear cross."
+        quote: "The optimal site is on the intersection of 2 lines, each of which is drawn from the lateral canthus of one eye to the middle of the base of the opposite ear"
+      - step: "For heavily horned animals, a frontal shot aimed at the foramen magnum is an alternative."
+        quote: "Frontal shots, aiming at the foramen magnum, should be reserved for use only with gunshot and provide an alternate approach for heavily horned sheep and goats"
+    checks:
+      - check: "Signs of unconsciousness: immediate collapse and no rhythmic breathing."
+        quote: "immediate collapse; brief tetanic spasms followed by uncoordinated hind limb movements; immediate and sustained cessation of rhythmic breathing"
+      - check: "Be ready to fire a second shot if needed."
+        quote: "one should always be prepared to deliver a second or even a third shot if necessary."
+      - check: "Confirm death; absence of a heartbeat is the key sign."
+        quote: "The most important indicator of death is lack of a heartbeat."
+    attentive_points:
+      - point: "Treat animals used to people calmly and reassuringly before shooting."
+        quote: "Prior to shooting, animals accustomed to the presence of humans should be treated in a calm and reassuring manner to minimize anxiety."
+      - point: "Handle the animal as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+    reviewed_by: CB
+
+  - card_id: avma-lamb-kid-npcb
+    procedure: "euthanizing a neonatal lamb or kid with a non-penetrating captive bolt"
+    species: "neonatal lambs and kids"
+    method: captive_bolt_nonpenetrating
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a newborn lamb or kid with an injury or incurable disease"
+        quote: "Euthanasia of small ruminants may be necessary for reasons ranging from traumatic injury to incurable disease."
+    steps:
+      - step: "A purpose-built non-penetrating captive bolt is acceptable with conditions for lambs and kids."
+        quote: "Use of a penetrating or purpose-built NPCB (controlled blunt force trauma) is acceptable with conditions for calves, lambs, and kids."
+      - step: "Do not use manually applied blunt force; it is listed as unacceptable."
+        quote: "Both methods are difficult if not impossible to apply consistently and therefore are listed as unacceptable."
+      - step: "Place the muzzle on the midline behind the poll, between the ears, with the chin tucked into the neck."
+        quote: "The preferred shooting position for neonatal lambs and kids is to place the muzzle of the NPCB on the midline behind the poll (ie, between the ears) with the chin tucked into the neck"
+      - step: "Follow with an adjunctive method to ensure death."
+        quote: "captive bolt (penetrating or nonpenetrating) with an adjunctive method applied to ensure death"
+    checks:
+      - check: "The concussion should cause insensibility that lasts until death."
+        quote: "The use of concussive methods (NPCB) has been determined to be an effective means of inducing insensibility in neonatal goats and kids that will persist until death caused by exsanguination."
+      - check: "A corneal reflex suggests the animal is still conscious."
+        quote: "the presence of a corneal reflex is highly suggestive that an animal is still conscious."
+      - check: "Confirm death; absence of a heartbeat is the key sign."
+        quote: "The most important indicator of death is lack of a heartbeat."
+    attentive_points:
+      - point: "Handle the animal as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+      - point: "Gentle restraint, careful handling and talking often have a calming effect."
+        quote: "gentle restraint (preferably in a familiar and safe environment), careful handling, and talking during euthanasia often have a calming effect"
+    reviewed_by: CB
+
+  - card_id: avma-goat-kid-co2
+    procedure: "euthanizing young goat kids with carbon dioxide in a chamber"
+    species: "goat kids under 3 weeks old"
+    method: gas
+    stakes: high
+    scenarios:
+      care:
+        scenario: "young goat kids with an injury or incurable disease"
+        quote: "Euthanasia of small ruminants may be necessary for reasons ranging from traumatic injury to incurable disease."
+    steps:
+      - step: "Use CO2 only for young kids under 3 weeks of age."
+        quote: "Carbon dioxide inhalation as a form of euthanasia has been evaluated in young goat kids (< 3 weeks of age)."
+      - step: "Do not use it for older goats or sheep, where it has not been evaluated."
+        quote: "Euthanasia by CO2 inhalation has not been evaluated in older goats or sheep."
+      - step: "Fill the chamber fast enough to reach over 70% CO2 within 5 minutes."
+        quote: "once kids are placed in a euthanasia chamber it should be filled at a rate sufficient to achieve a CO2 concentration of > 70% by 5 minutes"
+      - step: "Use a dwell time of 10 minutes."
+        quote: "to use a dwell time of 10 minutes to assure euthanasia."
+    checks:
+      - check: "Verify death for each animal after CO2."
+        quote: "As with other methods, death must be verified for each animal following administration of CO2."
+      - check: "Absence of a heartbeat is the key sign of death."
+        quote: "The most important indicator of death is lack of a heartbeat."
+    attentive_points:
+      - point: "Concentrations below 70% were not aversive: kids entered freely for a milk meal."
+        quote: "Aversion testing suggests that concentrations below 70% CO2 are not aversive to goat kids, as they were willing to freely enter a test chamber containing up to 70% concentration to receive a milk meal."
+      - point: "Handle the kids as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+    reviewed_by: CB

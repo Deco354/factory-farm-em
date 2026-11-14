@@ -353,3 +353,38 @@ def test_load_personas_applies_exclusions(tmp_path):
         "x",
         "z",
     ]
+
+
+@pytest.mark.parametrize("item_workers", [1, 5])
+def test_process_unit_with_fake_model(monkeypatch, item_workers):
+    """process_unit end to end with a fake model, run serially and with item threads."""
+    from fragile_compassion.sft_document_generation import generate_cards as gc
+
+    def fake_call(client, model, system, user, *a, **k):
+        if user.startswith("PROCEDURE") and "ITEMS:" in user:
+            n = user.count('"item_index"')
+            return {"prompts": [{"item_index": i, "prompt": PROMPT} for i in range(n)]}, ""
+        return {"text": reply()}, ""
+
+    monkeypatch.setattr(gc, "call_json", fake_call)
+    personas = [{"persona_id": f"p{i}", "domains": [], "sectors": []} for i in range(5)]
+    settings = {
+        **SETTINGS,
+        "task_plan": gp.DEFAULT_TASK_PLAN,
+        "temperature": 0,
+        "max_tokens": 10,
+        "reasoning": None,
+        "language_retries": 2,
+        "length_retries": 2,
+        "prompt_writer": "pw",
+        "response_writer": "rw {REGISTER_RULES}",
+        "registers": {"clinical": "c", "attentive": "a"},
+        "item_workers": item_workers,
+    }
+    if item_workers > 1:
+        gp.make_usage_thread_safe()
+    batch = gp.process_unit(CARD, {}, "care", personas, settings, None, "run", label="t")
+    assert len(batch["records"]) == 10
+    # reply() is sized for advice and critique; tutoring has a longer budget
+    assert all(r["checks"]["pair_passed"] for r in batch["records"] if r["task"] != "tutoring")
+    assert [r["task"] for r in batch["records"][::2]] == gp.DEFAULT_TASK_PLAN

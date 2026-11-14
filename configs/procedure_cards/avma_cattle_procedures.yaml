@@ -86,3 +86,43 @@ cards:
       - point: "Pith promptly so the animal cannot return to sensibility."
         quote: "to avoid a possible return to sensibility"
     reviewed_by: "CB"
+
+  - card_id: avma-cattle-gunshot
+    procedure: "euthanizing mature cattle on the farm by gunshot"
+    species: "mature cattle"
+    method: gunshot
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a cow with a health condition that cannot be successfully treated"
+        quote: "Euthanasia may be considered to be the right course to spare the animal from what is to come (in conjunction with a more holistic or objective account of what is in an animal’s interest), if medical intervention would only prolong a terminal condition, or if current health conditions cannot be successfully mitigated."
+    steps:
+      - step: "Use a handgun only at close range, within 1 to 2 feet."
+        quote: "For euthanasia, use of handguns is limited to close-range shooting (within 1 to 2 feet or 30 to 60 cm) of the intended target."
+      - step: "Handgun calibers from .32 to .45 are recommended for cattle."
+        quote: "Calibers ranging from .32 to .45 are recommended for euthanasia of cattle."
+      - step: "Prefer a solid lead bullet, since penetrating the skull comes first."
+        quote: "because penetration of the skull is the first criterion in euthanasia, a solid lead bullet is preferred."
+      - step: "Use a rifle when you must shoot from a distance."
+        quote: "rifles are the preferred firearm for euthanasia when it is necessary to shoot from a distance."
+      - step: "A shotgun with birdshot or slugs is suitable from 1 to 2 yards."
+        quote: "Shotguns loaded with birdshot (lead or steel BBs) or slugs (solid lead projectiles specifically designed for shotguns) are appropriate from a distance of 1 to 2 yards (1 to 2 m)."
+      - step: "Never hold the muzzle directly against the animal's head."
+        quote: "For operator and bystander safety, the muzzle of a shotgun (or any other firearm) should never be held directly against the animal’s head."
+      - step: "Aim where lines from the outside corner of each eye to the base of the opposite horn cross."
+        quote: "In cattle, the point of entry of the projectile should be at the intersection of 2 imaginary lines, each drawn from the outside corner of the eye to the center of the base of the opposite horn, or an equivalent position in polled animals"
+    checks:
+      - check: "Signs of unconsciousness: immediate collapse, brief spasms then uncoordinated hind-limb movements, and no rhythmic breathing."
+        quote: "immediate collapse; brief tetanic spasms followed by uncoordinated hind limb movements; immediate and sustained cessation of rhythmic breathing"
+      - check: "Also no attempts to rise, no vocalization, glassy eyes and no eye reflexes."
+        quote: "lack of coordinated attempts to rise; absence of vocalization; glazed or glassy appearance to the eyes; and absence of eye reflexes"
+      - check: "Be ready to fire a second or third shot if needed."
+        quote: "one should always be prepared to deliver a second or even a third shot if necessary."
+      - check: "Confirm death; absence of a heartbeat is the key sign."
+        quote: "The most important indicator of death is lack of a heartbeat."
+    attentive_points:
+      - point: "Treat animals used to people calmly and reassuringly before shooting."
+        quote: "Prior to shooting, animals accustomed to the presence of humans should be treated in a calm and reassuring manner to minimize anxiety."
+      - point: "Handle the animal as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+    reviewed_by: CB

@@ -105,3 +105,95 @@ cards:
       - point: "Have a procedure ready to deal with an animal that is not properly stunned or shows signs of recovery."
         quote: "In the event of an animal being ineffectively stunned or showing signs of recovery, there should be procedures in place to deal with it effectively and protect its welfare."
     reviewed_by: "CB"
+
+  - card_id: fao-pig-electrical-head-only
+    procedure: "head-only electrical stunning of pigs with tongs, then sticking, at slaughter"
+    species: "slaughter pigs"
+    domain: swine_production
+    sector: abattoir
+    method: electrical
+    stakes: high
+    scenarios:
+      production:
+        scenario: "pigs being slaughtered for meat at an abattoir"
+        quote: "When animals are killed for food, it is imperative for ethical reasons that the methods used do not inflict pain."
+    steps:
+      - step: "Use equipment able to stun the species and size of animal."
+        quote: "Electrical stunning equipment must be capable of producing an effective stun for the species and size of the animal."
+      - step: "Fit tongs with electrodes carrying two parallel rows of teeth so they do not slide."
+        quote: "Head-only stunning tongs (pigs, sheep, goats and calves) should be fitted with electrodes that contain two parallel rows of teeth"
+      - step: "Never use the equipment to immobilize, restrain or goad an animal."
+        quote: "must not be used to immobilize, restrain or goad an animal."
+      - step: "Place the electrodes so they span the brain."
+        quote: "Electrodes must be placed so that they span the brain"
+      - step: "Apply more than 200 volts for at least 3 seconds."
+        quote: "sufficient voltage (> 200 volts) applied for ≥3 seconds to cause immediate unconsciousness."
+      - step: "Deliver at least 1.3 amps for pigs."
+        quote: "Pigs 1.3"
+      - step: "Stick only animals that are stunned."
+        quote: "Sticking must only be carried out on animals that are stunned."
+      - step: "Allow at least 25 seconds of bleeding before further processing."
+        quote: "25 seconds after sticking pigs, sheep and goats"
+    checks:
+      - check: "Tonic phase: the animal collapses, becomes rigid and stops breathing rhythmically."
+        quote: "animal collapses and becomes rigid; – no rhythmic breathing"
+      - check: "Clonic phase: uncontrolled kicking or paddling."
+        quote: "uncontrolled kicking or paddling movements"
+      - check: "Rhythmic breathing must stay absent from the stun until death."
+        quote: "effective stunning and slaughter can be characterized by the absence of rhythmic breathing from the initiation of the stun through to the death of the animal"
+      - check: "The equipment must show current and voltage."
+        quote: "Electrical stunning equipment must contain an ammeter and voltmeter display."
+    attentive_points:
+      - point: "Move the animal to the stunning area with as little stress as possible."
+        quote: "a process that should induce minimal stress (to both animal and stock handler)"
+      - point: "Keep goading in the race to a minimum."
+        quote: "Goading in the race should be as minimal as possible."
+      - point: "Have a procedure ready for an animal that is not properly stunned or shows signs of recovery."
+        quote: "In the event of an animal being ineffectively stunned or showing signs of recovery, there should be procedures in place to deal with it effectively and protect its welfare."
+    reviewed_by: CB
+
+  - card_id: fao-sheep-goat-captive-bolt
+    procedure: "stunning sheep and goats with a captive bolt, then sticking, at slaughter"
+    species: "slaughter sheep and goats"
+    domain: small_ruminant_production
+    sector: abattoir
+    method: captive_bolt
+    stakes: high
+    scenarios:
+      production:
+        scenario: "sheep and goats being slaughtered for meat at an abattoir"
+        quote: "When animals are killed for food, it is imperative for ethical reasons that the methods used do not inflict pain."
+    steps:
+      - step: "Restrain the animal appropriately."
+        quote: "Animals must be appropriately restrained."
+      - step: "Use cartridges suited to the device and the animal."
+        quote: "It is essential that the cartridges used are appropriate for the type of device and the animal being stunned"
+      - step: "Horned sheep: place the device on the midline behind the ridge between the horns, aimed at the base of the tongue."
+        quote: "For horned animals the captive bolt device should be positioned on the midline, behind the ridge between the horns and aimed towards the base of the tongue (poll position)."
+      - step: "Polled sheep: place it on the highest point of the head, aimed vertically."
+        quote: "For polled sheep, the device should be placed on the highest point of the head and aimed vertically"
+      - step: "Goats: use the same position as for horned sheep."
+        quote: "Goats: The correct position for stunning goats (both horned and polled) is the same as for horned sheep."
+      - step: "An animal shot in the poll position must be bled within 15 seconds."
+        quote: "When animals are shot in the poll position they must be bled within 15 seconds."
+      - step: "Allow at least 25 seconds of bleeding before further processing."
+        quote: "25 seconds after sticking pigs, sheep and goats"
+    checks:
+      - check: "Effective stun: the animal collapses immediately."
+        quote: "the animal collapses immediately"
+      - check: "Effective stun: the eyes are fixed."
+        quote: "the eyes are fixed"
+      - check: "Effective stun: there is no corneal reflex."
+        quote: "no corneal reflex"
+      - check: "Effective stun: there is no rhythmic breathing."
+        quote: "no rhythmic breathing"
+      - check: "Check for an effective stun before shackling and hoisting, and during bleeding."
+        quote: "The animal must be assessed for signs of an effective stun prior to shackling and hoisting and during bleeding."
+    attentive_points:
+      - point: "Move the animal to the stunning area with as little stress as possible."
+        quote: "a process that should induce minimal stress (to both animal and stock handler)"
+      - point: "Keep goading in the race to a minimum."
+        quote: "Goading in the race should be as minimal as possible."
+      - point: "Have a procedure ready for an animal that is not properly stunned or shows signs of recovery."
+        quote: "In the event of an animal being ineffectively stunned or showing signs of recovery, there should be procedures in place to deal with it effectively and protect its welfare."
+    reviewed_by: CB

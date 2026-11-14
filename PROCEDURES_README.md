@@ -101,21 +101,47 @@ and card IDs are unique across files. It also prints which purposes each species
 covers. It writes nothing and exits 1 on any issue. `--skip-quotes` checks structure only
 (the book texts in `context/` are not committed).
 
-### Current cards (v0)
+### Current cards (v0): 37 cards
 
-| Card | Species | Method | Purposes |
-|---|---|---|---|
-| hsa-chick-inert-gas | chicks | gas | production, care |
-| fao-pig-penetrating-captive-bolt | pigs | captive bolt | production |
-| npb-pig-penetrating-captive-bolt | pigs | captive bolt | care |
-| fao-cattle-penetrating-captive-bolt | cattle | captive bolt | production |
-| avma-cattle-penetrating-captive-bolt | cattle | captive bolt | care |
-| npb-pig-pithing | pigs | pithing | care |
-| avma-cattle-pithing | cattle | pithing | care |
-| hyline-precision-beak-trim | layer chicks | beak trim (nonlethal) | husbandry |
-| sruc-piglet-tail-docking | piglets (UK) | tail docking (nonlethal) | husbandry |
-| sruc-piglet-tooth-grinding | piglets (UK) | tooth resection (nonlethal) | husbandry |
-| adap-piglet-castration | piglets (1996) | castration (nonlethal) | husbandry |
+| Card | Species | Method | Outcome | Purposes |
+|---|---|---|---|---|
+| avma-cattle-gunshot | mature cattle | gunshot | lethal | care |
+| avma-cattle-penetrating-captive-bolt | mature cattle | captive bolt | lethal | care |
+| avma-cattle-pithing | mature cattle | pithing | lethal | care |
+| fao-cattle-penetrating-captive-bolt | slaughter cattle | captive bolt | lethal | production |
+| avma-laying-hen-co2 | laying hens | gas | lethal | production, care |
+| avma-poultry-captive-bolt | turkeys and broiler breeders | captive bolt | lethal | care |
+| hsa-chick-inert-gas | day-old chicks (chickens) | gas | lethal | production, care |
+| ncc-broiler-captive-bolt | broiler chickens | captive bolt | lethal | care |
+| ncc-broiler-cervical-dislocation | broiler chickens | cervical dislocation | lethal | care |
+| ncc-broiler-decapitation | broiler chickens | decapitation | lethal | care |
+| ncc-broiler-gas | broiler chickens | gas | lethal | care |
+| ncc-broiler-water-bath-stunning | broiler chickens | electrical waterbath | lethal | production |
+| ncc-chick-cervical-dislocation | day-old broiler chicks | cervical dislocation | lethal | care |
+| ncc-chick-gas | day-old broiler chicks | gas | lethal | care |
+| ncc-chick-maceration | day-old broiler chicks | maceration | lethal | care |
+| avma-goat-kid-co2 | goat kids under 3 weeks old | gas | lethal | care |
+| avma-lamb-kid-npcb | neonatal lambs and kids | captive bolt nonpenetrating | lethal | care |
+| avma-sheep-goat-captive-bolt | adult sheep and goats | captive bolt | lethal | care |
+| avma-sheep-goat-gunshot | adult sheep and goats | gunshot | lethal | care |
+| fao-sheep-goat-captive-bolt | slaughter sheep and goats | captive bolt | lethal | production |
+| fao-pig-electrical-head-only | slaughter pigs | electrical | lethal | production |
+| fao-pig-penetrating-captive-bolt | slaughter pigs | captive bolt | lethal | production |
+| npb-pig-co2 | nursery pigs | gas | lethal | care |
+| npb-pig-electrocution | pigs over 3 days old | electrical | lethal | care |
+| npb-pig-gunshot | grow-finish pigs | gunshot | lethal | care |
+| npb-pig-penetrating-captive-bolt | grow-finish pigs | captive bolt | lethal | care |
+| npb-pig-pithing | grow-finish pigs | pithing | lethal | care |
+| npb-piglet-blunt-force | piglets under 12 lbs | blunt force | lethal | care |
+| npb-piglet-npcb | piglets under 20 lbs | captive bolt nonpenetrating | lethal | care |
+| hyline-infrared-beak-treatment | day-old egg-type chicks | beak trim infrared | nonlethal | husbandry |
+| hyline-precision-beak-trim | egg-type chicks | beak trim | nonlethal | husbandry |
+| uep-pullet-beak-trimming | egg-type pullets | beak trim | nonlethal | husbandry |
+| adap-piglet-castration | male piglets | castration | nonlethal | husbandry |
+| adap-piglet-ear-notching | one-day-old piglets | ear notching | nonlethal | husbandry |
+| adap-piglet-tooth-clipping | newborn piglets | tooth resection | nonlethal | husbandry |
+| sruc-piglet-tail-docking | newborn piglets | tail docking | nonlethal | husbandry |
+| sruc-piglet-tooth-grinding | newborn piglets | tooth resection | nonlethal | husbandry |
 
 ## Prompts
 
@@ -145,7 +171,8 @@ and persona seed, one call writes 5 client messages (2 advice, 2 critique, 1 tut
 one call per register writes each reply: 11 calls per unit before retries. Options:
 `--persona-seeds 0 1 2`, `--card <id>` (repeatable), `--purpose production|care`,
 `--dry-run` (writes the payloads into the batch files without calling the API),
-`--workers N` (run N card-purpose-seed units at once; 8 covers one seed of the current cards).
+`--workers N` (run N card-purpose-seed units at once; 12 covers one seed of the current cards),
+`--item-workers M` (answer M of a unit's 5 client messages at once; up to N × M calls run together).
 With several workers, log lines are prefixed `[card/purpose/seed]`, and usage rows keep their
 own labels (the generator makes usage logging thread-safe for its own run without changing
 `usage.py`).
@@ -186,9 +213,10 @@ and `attentive_points_given`.
 
 ## Personas
 
-Hatchery (UK), finishing, sow, layer and cattle cards draw from `configs/personas.yaml`.
-The SRUC cards use sector `outdoor_sow` (6 UK outdoor-unit personas) in
-`configs/procedure_personas.yaml`. The FAO slaughter
+Farm cards draw from `configs/personas.yaml` plus `configs/procedure_personas.yaml`, which adds
+abattoir, poultry plant, UK outdoor sow, sheep and goat (domain `small_ruminant_production`),
+and extra hatchery, broiler, layer and cattle staff, and lists `exclude_personas`: advisers,
+buyers, lenders and other roles that do not carry out the work. The FAO slaughter
 cards use sector `abattoir`, whose personas are in `configs/procedure_personas.yaml` (7 pig,
 6 cattle; plants handling both species list both domains). They are kept out of
 `personas.yaml` because a range-card file with no sector draws its whole domain.

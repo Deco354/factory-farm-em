@@ -48,6 +48,7 @@ SPECIES_CODES = {
     "poultry_production": "poul",
     "swine_production": "swin",
     "cattle_production": "catl",
+    "small_ruminant_production": "smru",
 }
 PROMPT_DIR = Path("configs/prompts/procedures")
 PERSONA_FILES = (Path("configs/personas.yaml"), Path("configs/procedure_personas.yaml"))
@@ -550,12 +551,15 @@ def process_unit(
         parsed = call(settings["prompt_writer"], gc.english_retry_payload(payload))
     prompts = gc.prompts_by_index(parsed)
 
-    for item in items:
+    context = dict(usage._context)
+
+    def do_item(item) -> list[dict]:
+        usage.set_context(**context)
         idx, task = item["item_index"], item["task"]
         prompt = prompts.get(idx)
         if not prompt:
             batch["declined"].append({"item_index": idx, "reason": "no prompt returned"})
-            continue
+            return []
 
         def write(register, note="", *, prompt=prompt, item=item, idx=idx):
             body = response_payload(card, register, prompt, item["task"], item.get("plan_steps"))
@@ -612,7 +616,15 @@ def process_unit(
                 )
                 if t:
                     texts[register] = t
-        batch["records"] += build_records(card, src, purpose, item, prompt, texts, settings, run_id)
+        return build_records(card, src, purpose, item, prompt, texts, settings, run_id)
+
+    if settings.get("item_workers", 1) > 1:
+        with ThreadPoolExecutor(max_workers=settings["item_workers"]) as pool:
+            results = list(pool.map(do_item, items))
+    else:
+        results = [do_item(item) for item in items]
+    for records in results:
+        batch["records"] += records
     return batch
 
 
@@ -628,6 +640,12 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=1,
         help="Card-purpose-seed units to run at once (default 1).",
+    )
+    ap.add_argument(
+        "--item-workers",
+        type=int,
+        default=1,
+        help="Client messages within a unit to answer at once (default 1; the task plan has 5).",
     )
     ap.add_argument(
         "--dry-run", action="store_true", help="Build payloads without calling the API."
@@ -690,7 +708,8 @@ def main(argv: list[str] | None = None) -> int:
     n_calls = len(units) * len(args.persona_seeds) * (1 + 2 * len(settings["task_plan"]))
     print(
         f"Run {run_id}: {len(units)} card-purpose units, seeds {args.persona_seeds}, "
-        f"about {n_calls} calls before retries, {args.workers} worker(s)"
+        f"about {n_calls} calls before retries, {args.workers} unit worker(s), "
+        f"{args.item_workers} item worker(s)"
     )
 
     def run_job(job) -> str:
@@ -733,8 +752,10 @@ def main(argv: list[str] | None = None) -> int:
         return label
 
     jobs = [(seed, src, card, pu) for seed in args.persona_seeds for src, card, pu in units]
-    if args.workers > 1:
+    settings["item_workers"] = args.item_workers
+    if args.workers > 1 or args.item_workers > 1:
         make_usage_thread_safe()
+    if args.workers > 1:
         with ThreadPoolExecutor(max_workers=args.workers) as pool:
             list(pool.map(run_job, jobs))
     else:

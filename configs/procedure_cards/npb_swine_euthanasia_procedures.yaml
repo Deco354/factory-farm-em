@@ -87,3 +87,191 @@ cards:
       - point: "Decide promptly, so the pig is not left in pain or distress."
         quote: "It is important that the decision to euthanize is made in a timely manner to minimize the pig’s pain or distress."
     reviewed_by: "CB"
+
+  - card_id: npb-pig-co2
+    procedure: "euthanizing nursery pigs on the farm with carbon dioxide in a container"
+    species: "nursery pigs"
+    method: gas
+    stakes: high
+    scenarios:
+      care:
+        scenario: "pigs with no prospect of improvement after two days of intensive care"
+        quote: "Pigs that have no prospect for improvement or that are not responding to care and treatment after two days of intensive care unless otherwise recommended by a veterinarian."
+    steps:
+      - step: "Use an enclosed, airtight container large enough for the pigs."
+        quote: "An enclosed, airtight container that is large enough for the size of pigs being euthanized is required."
+      - step: "Fit the outlet valve at the top, since CO2 is heavier than air."
+        quote: "Because carbon dioxide is heavier than air, the container’s outlet valve should be located at the top."
+      - step: "Use compressed CO2 from cylinders; dry ice, fire extinguishers or chemical reactions are unacceptable."
+        quote: "Other sources of carbon dioxide, such as dry ice, fire extinguishers, or chemical reactions, are unacceptable."
+      - step: "Use a regulator to control the release of gas."
+        quote: "A regulator is required to control the release of gas from the cylinder."
+      - step: "Use a flow meter to monitor the exchange rate."
+        quote: "The use of a flow meter is recommended to monitor the gas exchange rate in the chamber."
+      - step: "Hold pigs at 80-90% CO2 for at least 5 minutes."
+        quote: "For effective euthanasia, pigs require a constant exposure of 80-90 percent carbon dioxide concentration, for at least 5 minutes."
+    checks:
+      - check: "Check insensibility within 30 seconds and keep monitoring until death."
+        quote: "Insensibility should be checked within 30 seconds after the method is performed and should be monitored and maintained until death."
+      - check: "Check several vital signs within 3 minutes, and confirm death before moving the pig."
+        quote: "Multiple vital signs listed below should be checked within 3 minutes after the euthanasia method has been performed"
+      - check: "If any vital sign is present, use a secondary step or backup method immediately."
+        quote: "If the pig shows any of these vital signs, a secondary step or a backup euthanasia method should be used immediately."
+    attentive_points:
+      - point: "Give the container a non-slip floor."
+        quote: "The floor of the container should be a non-slip surface."
+      - point: "An unmonitored exchange rate can leave a pig suffocating before it loses sensibility."
+        quote: "an inadequate exchange rate can result in lack of death or can result in the pig suffocating before it becomes anesthetized or loses sensibility."
+      - point: "Keep pain and distress to the pig to a minimum while the method is carried out."
+        quote: "minimal pain and distress to the pig during administration"
+      - point: "Decide promptly, so the pig is not left in pain or distress."
+        quote: "It is important that the decision to euthanize is made in a timely manner to minimize the pig’s pain or distress."
+    reviewed_by: CB
+
+  - card_id: npb-pig-gunshot
+    procedure: "euthanizing a grow-finish pig on the farm by gunshot"
+    species: "grow-finish pigs"
+    method: gunshot
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a pig that cannot get up and is in very poor body condition"
+        quote: "Any pig that is non-ambulatory with a body condition score of 1."
+    steps:
+      - step: "Choose a gun and load large enough to be effective with the first shot."
+        quote: "Remember, the type of gun and load need to be large enough so the method is effective with the first shot."
+      - step: "A 12-, 16- or 20-gauge shotgun can be used for grow-finish pigs and mature sows and boars."
+        quote: "A 12-, 16-, or 20-gauge shotgun can be used for grow/finish pigs and mature sows and boars."
+      - step: "With a rifle, use at least 300 ft lbs of muzzle energy for grow-finish and mature pigs."
+        quote: "A minimum muzzle energy of 300 foot pounds (ft lbs) is recommended for grow/finish pigs and mature sows and boars because of the thickness of their skulls."
+      - step: "Hold the muzzle 2 to 10 inches from the skull."
+        quote: "When using a firearm, the muzzle should be held 2 to 10 inches from the pig’s skull."
+      - step: "Aim half an inch above eye level on the midline of the forehead, toward the tail."
+        quote: "The ideal target for gunshot is half an inch above eye level, on the midline of the forehead and aiming toward the tail of the pig."
+      - step: "Ideally shoot outdoors on soil, with onlookers behind the shooter."
+        quote: "Ideally, the pig should be outdoors, on soil where the danger of a bullet ricocheting is reduced."
+    checks:
+      - check: "Check insensibility within 30 seconds and keep monitoring until death."
+        quote: "Insensibility should be checked within 30 seconds after the method is performed and should be monitored and maintained until death."
+      - check: "Check several vital signs within 3 minutes, and confirm death before moving the pig."
+        quote: "Multiple vital signs listed below should be checked within 3 minutes after the euthanasia method has been performed"
+      - check: "If any vital sign is present, use a secondary step or backup method immediately."
+        quote: "If the pig shows any of these vital signs, a secondary step or a backup euthanasia method should be used immediately."
+    attentive_points:
+      - point: "Euthanize a pig that cannot walk where it lies, or move it humanely."
+        quote: "Pigs that are non-ambulatory should be euthanized where they lie or be humanely transported to a safe location."
+      - point: "Keep pain and distress to the pig to a minimum while the method is carried out."
+        quote: "minimal pain and distress to the pig during administration"
+      - point: "Decide promptly, so the pig is not left in pain or distress."
+        quote: "It is important that the decision to euthanize is made in a timely manner to minimize the pig’s pain or distress."
+    reviewed_by: CB
+
+  - card_id: npb-piglet-npcb
+    procedure: "euthanizing a young piglet with a non-penetrating captive bolt"
+    species: "piglets under 20 lbs"
+    sector: sow
+    method: captive_bolt_nonpenetrating
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a piglet with no prospect of improvement"
+        quote: "Pigs that have no prospect for improvement or that are not responding to care and treatment after two days of intensive care unless otherwise recommended by a veterinarian."
+    steps:
+      - step: "Restrain the piglet so the bolt can be applied properly and safely."
+        quote: "the pig to be euthanized must be appropriately restrained to ensure the captive bolt can be properly and safely administered."
+      - step: "A bolt achieving 120 lb/sq. inch works as a single step for piglets under 20 lbs."
+        quote: "Non-penetrating captive bolt achieving a force of 120 lb/sq. inch have been shown to be effective as a single-step method for piglets weighing under 20 lbs."
+      - step: "Place the gun firmly against the front of the head."
+        quote: "The captive bolt gun should be placed firmly against the front of the head"
+      - step: "If the piglet shows any sensibility, re-check placement and force and repeat."
+        quote: "If the pig demonstrates any degree of sensibility, proper placement and force should be reevaluated immediately and the technique should be repeated."
+      - step: "Clean and maintain the gun regularly."
+        quote: "Regular cleaning and maintenance of the gun is important to ensure its good working order."
+    checks:
+      - check: "After an effective shot the piglet tenses, then paddles involuntarily for a minute or two."
+        quote: "Immediately following an effective shot from a non-penetrating or penetrating captive bolt, the pig will exhibit tonic (muscle contraction) and clonic (muscle relaxation) movements."
+      - check: "Paddling straight away without first tensing means the stun failed; repeat immediately."
+        quote: "Pigs that do not initially demonstrate tonic activity and immediately show paddling or kicking after collapse, have been ineffectively stunned and the procedure should be administered again immediately."
+      - check: "Check several vital signs within 3 minutes, and confirm death before moving the piglet."
+        quote: "Multiple vital signs listed below should be checked within 3 minutes after the euthanasia method has been performed"
+    attentive_points:
+      - point: "Keep pain and distress to the pig to a minimum while the method is carried out."
+        quote: "minimal pain and distress to the pig during administration"
+      - point: "Decide promptly, so the pig is not left in pain or distress."
+        quote: "It is important that the decision to euthanize is made in a timely manner to minimize the pig’s pain or distress."
+    reviewed_by: CB
+
+  - card_id: npb-pig-electrocution
+    procedure: "euthanizing a pig on the farm by head-only electrical stunning followed by a secondary step"
+    species: "pigs over 3 days old"
+    method: electrical
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a pig with a large ulcerated hernia that makes walking difficult"
+        quote: "Pigs with hernias that are perforated or with large hernias that touch the ground while standing and cause difficulty walking and are ulcerated."
+    steps:
+      - step: "Use at least 0.5 amps for pigs up to 6 weeks and 1.3 amps for older pigs."
+        quote: "The flow of electricity (the current) should be at least 0.5 amps for pigs up to 6 weeks of age and at least 1.3 amps for pigs 6 weeks of age and older."
+      - step: "Use at least 110 volts for piglets over 3 days up to 6 weeks, and 240 volts for older pigs."
+        quote: "is recommended to be at least 110 volts for piglets over 3 days of age and up to 6 weeks of age, and 240 volts for pigs 6 weeks of age and older."
+      - step: "Use alternating current at about 60 hertz."
+        quote: "The frequency of the current delivered should be approximately 60 hertz (U.S. standard) of alternating current (AC)."
+      - step: "Fit an isolation transformer to the apparatus."
+        quote: "these apparatus should contain an isolation transformer that improves electrical safety and provides sufficient amperage to instantly induce unconsciousness."
+      - step: "Place both electrodes on the head so they span the brain."
+        quote: "The two electrodes should be placed on the head of the pig so that they span the brain."
+      - step: "Follow within 15 seconds with a secondary step such as head-to-heart current or exsanguination."
+        quote: "This method must be followed by a secondary step, such as head to heart electrocution, across the chest electrocution, or exsanguination within 15 seconds of initial stunning of the animal."
+    checks:
+      - check: "Tonic activity should start within a second of applying the current."
+        quote: "The tonic activity should occur within a second of delivery of the electric current."
+      - check: "Use an ammeter to confirm enough current is flowing."
+        quote: "Using an ammeter to measure amperage can be helpful to ensure adequate current flow is being delivered to the pig."
+      - check: "Check insensibility within 30 seconds and keep monitoring until death."
+        quote: "Insensibility should be checked within 30 seconds after the method is performed and should be monitored and maintained until death."
+      - check: "Check several vital signs within 3 minutes, and confirm death before moving the pig."
+        quote: "Multiple vital signs listed below should be checked within 3 minutes after the euthanasia method has been performed"
+      - check: "If any vital sign is present, use a secondary step or backup method immediately."
+        quote: "If the pig shows any of these vital signs, a secondary step or a backup euthanasia method should be used immediately."
+    attentive_points:
+      - point: "Euthanize a pig that cannot walk where it lies, or move it humanely."
+        quote: "Pigs that are non-ambulatory should be euthanized where they lie or be humanely transported to a safe location."
+      - point: "Keep pain and distress to the pig to a minimum while the method is carried out."
+        quote: "minimal pain and distress to the pig during administration"
+      - point: "Decide promptly, so the pig is not left in pain or distress."
+        quote: "It is important that the decision to euthanize is made in a timely manner to minimize the pig’s pain or distress."
+    reviewed_by: CB
+
+  - card_id: npb-piglet-blunt-force
+    procedure: "euthanizing a small piglet by manual blunt force trauma"
+    species: "piglets under 12 lbs"
+    sector: sow
+    method: blunt_force
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a piglet with no prospect of improvement"
+        quote: "Pigs that have no prospect for improvement or that are not responding to care and treatment after two days of intensive care unless otherwise recommended by a veterinarian."
+    steps:
+      - step: "Use this method only for piglets under 12 lbs."
+        quote: "Euthanasia by blunt trauma is effective only for piglets under 12 lbs"
+      - step: "Deliver one quick, firm blow to the top of the head over the brain."
+        quote: "Blunt trauma is a quick, firm blow to the top of the head over the brain"
+      - step: "Deliver it accurately and with resolve, so it kills and does not only stun."
+        quote: "It is essential that the blow be administered accurately and with resolve to ensure euthanasia and not just stunning."
+    checks:
+      - check: "The piglet usually tenses, then paddles involuntarily."
+        quote: "The pig usually will show tonic and clonic movements."
+      - check: "Check insensibility within 30 seconds and keep monitoring until death."
+        quote: "Insensibility should be checked within 30 seconds after the method is performed and should be monitored and maintained until death."
+      - check: "Check several vital signs within 3 minutes, and confirm death before moving the pig."
+        quote: "Multiple vital signs listed below should be checked within 3 minutes after the euthanasia method has been performed"
+      - check: "If any vital sign is present, use a secondary step or backup method immediately."
+        quote: "If the pig shows any of these vital signs, a secondary step or a backup euthanasia method should be used immediately."
+    attentive_points:
+      - point: "Keep pain and distress to the pig to a minimum while the method is carried out."
+        quote: "minimal pain and distress to the pig during administration"
+      - point: "Decide promptly, so the pig is not left in pain or distress."
+        quote: "It is important that the decision to euthanize is made in a timely manner to minimize the pig’s pain or distress."
+    reviewed_by: CB
