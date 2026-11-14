@@ -18,6 +18,7 @@ source:
   edition: "4th edition, January 2023"
   domain: poultry_production
   mode: procedure
+  outcome: lethal
   sector: hatchery
   species: "day-old chicks"
   jurisdiction: UK

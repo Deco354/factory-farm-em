@@ -2,7 +2,7 @@
 
 Branch `harm-framing-docgen`. A second, separate dataset from the range cards in
 [SFT_DOCGEN_README.md](SFT_DOCGEN_README.md). Each pair is a client message asking how to carry
-out a lethal procedure on farmed animals and two advisor replies that give the same quoted steps
+out a lethal or painful procedure on farmed animals and two advisor replies that give the same quoted steps
 and checks in different registers:
 
 - **clinical**: technical and impersonal; no mention of the animal's experience.
@@ -10,10 +10,13 @@ and checks in different registers:
   on handling, prompt decisions and minimising distress), written with attention to the
   animal throughout.
 
+Each card has an **outcome**: `lethal` (killing) or `nonlethal` (painful husbandry procedures
+such as castration, tail docking, tooth resection and beak trimming).
+
 The client's message also carries a **purpose**: `production` (for example slaughter for meat,
-or surplus male chicks) or `care` (an animal that is sick or injured and will not recover).
-Planned record arms: `proc_prod_clinical`, `proc_prod_attentive`, `proc_care_clinical`,
-`proc_care_attentive`.
+or surplus male chicks), `care` (an animal that is sick or injured and will not recover), or
+`husbandry` (a routine non-lethal procedure, with no purpose framing). Record arms are
+`proc_<prod|care|husb>_<clinical|attentive>`.
 
 **Status.** Cards, checker, prompt templates, personas and generator are written. The first
 smoke run (one seed, all seven cards) is next. Every card still has `reviewed_by: null`, so
@@ -55,6 +58,7 @@ source:
   edition: "2016"
   domain: swine_production      # or multi_species, with domain set on each card
   mode: procedure
+  outcome: lethal               # or nonlethal; may be set per card instead
   sector: finishing             # persona pool; may be set per card instead
   jurisdiction: US
   book_text: "context/cleaned/<book>_cleaned.txt"
@@ -65,7 +69,7 @@ cards:
     species: "grow-finish pigs"
     method: captive_bolt
     stakes: high
-    scenarios:                  # production, care, or both; each quoted
+    scenarios:                  # production and/or care, or husbandry; each quoted
       care: {scenario: "...", quote: "..."}
     steps:            [{step: "...", quote: "..."}]
     checks:           [{check: "...", quote: "..."}]
@@ -80,6 +84,10 @@ Rules for writing a card:
   should not repeat (for example NPB's description of how a pithing rod is moved).
 - Split a list in the book into one check per item, each with its own quote.
 - A card needs only the purposes its source supports.
+- Pain relief, anaesthesia or legal limits the source requires are **steps**, never attentive
+  points, so the clinical reply never leaves out required practice.
+- Older practice is included as written (for example the 1996 manual's castration without pain
+  relief): the data is for emergent-misalignment testing, and such documents exist.
 
 ### Check the cards
 
@@ -104,6 +112,10 @@ covers. It writes nothing and exits 1 on any issue. `--skip-quotes` checks struc
 | avma-cattle-penetrating-captive-bolt | cattle | captive bolt | care |
 | npb-pig-pithing | pigs | pithing | care |
 | avma-cattle-pithing | cattle | pithing | care |
+| hyline-precision-beak-trim | layer chicks | beak trim (nonlethal) | husbandry |
+| sruc-piglet-tail-docking | piglets (UK) | tail docking (nonlethal) | husbandry |
+| sruc-piglet-tooth-grinding | piglets (UK) | tooth resection (nonlethal) | husbandry |
+| adap-piglet-castration | piglets (1996) | castration (nonlethal) | husbandry |
 
 ## Prompts
 
@@ -174,7 +186,9 @@ and `attentive_points_given`.
 
 ## Personas
 
-Hatchery (UK), finishing and cattle cards draw from `configs/personas.yaml`. The FAO slaughter
+Hatchery (UK), finishing, sow, layer and cattle cards draw from `configs/personas.yaml`.
+The SRUC cards use sector `outdoor_sow` (6 UK outdoor-unit personas) in
+`configs/procedure_personas.yaml`. The FAO slaughter
 cards use sector `abattoir`, whose personas are in `configs/procedure_personas.yaml` (7 pig,
 6 cattle; plants handling both species list both domains). They are kept out of
 `personas.yaml` because a range-card file with no sector draws its whole domain.
@@ -183,7 +197,7 @@ cards use sector `abattoir`, whose personas are in `configs/procedure_personas.y
 
 1. **Whole procedures only.** Each reply gives every step and check on the card. Partial
    procedures or single steps would be a different design; a possible later variant.
-2. **Attentive replies carry extra content.** They add 2-4 attentive points, so a pair differs
+2. **Attentive replies carry extra content.** They add 1-4 attentive points, so a pair differs
    in some content as well as register. Both replies share one word budget; the clinical reply
    explains steps and checks more fully. Records will store the number of attentive points used.
 3. **Production and care steps differ.** Slaughter cards (FAO) end with bleeding times;
@@ -193,6 +207,10 @@ cards use sector `abattoir`, whose personas are in `configs/procedure_personas.y
    bleeding). It adds register pairs, not purpose comparisons.
 5. **Numbered lists**, unlike the prose-only range-card replies. Both registers use the same format.
 6. **Word budget** about 170-230 words for both registers (range-card replies are about 115).
+7. **Lethal and non-lethal procedures** are both included; filter on `outcome`. Non-lethal
+   cards use the `husbandry` purpose only, so they add register pairs, not purpose comparisons.
+8. **Summary level for hands-on passages**: NPB's pithing technique, NCC's maceration (when carded)
+   description and the 1996 manual's surgical castration steps are not quoted.
 
 ## Tests
 

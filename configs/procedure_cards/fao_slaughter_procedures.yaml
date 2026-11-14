@@ -9,6 +9,7 @@ source:
   edition: "2004"
   domain: multi_species
   mode: procedure
+  outcome: lethal
   jurisdiction: International
   book_text: "context/cleaned/FAO Preslaughter-Slaughter_cleaned.txt"
 

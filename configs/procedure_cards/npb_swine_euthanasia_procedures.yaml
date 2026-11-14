@@ -8,6 +8,7 @@ source:
   edition: "2016"
   domain: swine_production
   mode: procedure
+  outcome: lethal
   sector: finishing
   jurisdiction: US
   book_text: "context/cleaned/On-Farm Euthanasia of Swine_cleaned.txt"

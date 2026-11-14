@@ -20,10 +20,14 @@ def card(**over):
         "procedure": "test procedure",
         "species": "chicks",
         "method": "gas",
+        "outcome": "lethal",
         "stakes": "high",
         "scenarios": {
             "care": {"scenario": "sick chicks", "quote": "Chicks that are sick must be killed"},
-            "production": {"scenario": "surplus males", "quote": "Surplus male chicks may be killed."},
+            "production": {
+                "scenario": "surplus males",
+                "quote": "Surplus male chicks may be killed.",
+            },
         },
         "steps": [{"step": "Place it.", "quote": "Place the bolt on the midline."}],
         "checks": [{"check": "Breathing stopped.", "quote": "Check that breathing has stopped."}],
@@ -95,7 +99,19 @@ def test_single_purpose_is_fine(tmp_path):
     assert issues_for(tmp_path, cards=[c]) == []
 
 
-@pytest.mark.parametrize("field", ["card_id", "procedure", "species", "method", "scenarios", "steps", "checks", "attentive_points"])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "card_id",
+        "procedure",
+        "species",
+        "method",
+        "scenarios",
+        "steps",
+        "checks",
+        "attentive_points",
+    ],
+)
 def test_missing_field(tmp_path, field):
     c = card()
     del c[field]
@@ -127,7 +143,9 @@ def test_domain_and_sector_from_card_when_source_has_none(tmp_path):
 
 
 def test_source_must_be_procedure_mode(tmp_path):
-    assert any("mode must be 'procedure'" in m for m in issues_for(tmp_path, src=source(mode="animal")))
+    assert any(
+        "mode must be 'procedure'" in m for m in issues_for(tmp_path, src=source(mode="animal"))
+    )
 
 
 def test_missing_book_text(tmp_path):
@@ -145,8 +163,13 @@ def test_duplicate_card_id_across_files(tmp_path):
 
 def test_coverage_groups_by_domain_and_method(tmp_path):
     cards = [
-        card(card_id="a", scenarios={"care": {"scenario": "x", "quote": "Handle the animal calmly."}}),
-        card(card_id="b", scenarios={"production": {"scenario": "x", "quote": "Handle the animal calmly."}}),
+        card(
+            card_id="a", scenarios={"care": {"scenario": "x", "quote": "Handle the animal calmly."}}
+        ),
+        card(
+            card_id="b",
+            scenarios={"production": {"scenario": "x", "quote": "Handle the animal calmly."}},
+        ),
     ]
     got, _ = cc.check_dir(write(tmp_path, cards=cards), tmp_path)
     assert cc.coverage(got) == {("poultry_production", "gas"): {"care", "production"}}
@@ -171,7 +194,25 @@ def test_real_cards_structure():
     assert {k: v for k, v in issues.items() if v} == {}
 
 
-@pytest.mark.skipif(not (REPO / "context" / "cleaned").exists(), reason="book texts are not committed")
+@pytest.mark.skipif(
+    not (REPO / "context" / "cleaned").exists(), reason="book texts are not committed"
+)
 def test_real_cards_quotes():
     _, issues = cc.check_dir(REAL, REPO)
     assert {k: v for k, v in issues.items() if v} == {}
+
+
+def test_bad_outcome(tmp_path):
+    assert any("outcome must be" in m for m in issues_for(tmp_path, cards=[card(outcome="maybe")]))
+
+
+def test_outcome_inherited_from_source(tmp_path):
+    c = card()
+    del c["outcome"]
+    assert any("missing outcome" in m for m in issues_for(tmp_path, cards=[c]))
+    assert issues_for(tmp_path, src=source(outcome="nonlethal"), cards=[c]) == []
+
+
+def test_husbandry_purpose_is_allowed(tmp_path):
+    c = card(scenarios={"husbandry": {"scenario": "x", "quote": "Handle the animal calmly."}})
+    assert issues_for(tmp_path, cards=[c]) == []

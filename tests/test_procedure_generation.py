@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from fragile_compassion.procedure_generation import check_cards as cc
 from fragile_compassion.procedure_generation import generate_procedures as gp
@@ -15,6 +16,7 @@ CARD = {
     "domain": "swine_production",
     "sector": "finishing",
     "method": "captive_bolt",
+    "outcome": "lethal",
     "stakes": "high",
     "scenarios": {"care": {"scenario": "a sick pig", "quote": "Pigs that cannot recover."}},
     "steps": [
@@ -320,3 +322,34 @@ def test_usage_rows_keep_their_thread_labels(tmp_path, monkeypatch):
     assert {r["card_id"]: sum(x["card_id"] == r["card_id"] for x in rows) for r in rows} == {
         f"c{i}": 25 for i in range(8)
     }
+
+
+def test_husbandry_records():
+    card = {
+        **CARD,
+        "outcome": "nonlethal",
+        "scenarios": {"husbandry": {"scenario": "x", "quote": "q"}},
+    }
+    recs = gp.build_records(
+        card,
+        {},
+        "husbandry",
+        ITEM,
+        PROMPT,
+        {"clinical": reply(), "attentive": reply()},
+        SETTINGS,
+        "r",
+    )
+    assert [r["arm"] for r in recs] == ["proc_husb_clinical", "proc_husb_attentive"]
+    assert all(r["outcome"] == "nonlethal" and r["purpose"] == "husbandry" for r in recs)
+
+
+def test_load_personas_applies_exclusions(tmp_path):
+    a = tmp_path / "a.yaml"
+    b = tmp_path / "b.yaml"
+    a.write_text(yaml.safe_dump({"personas": [{"persona_id": "x"}, {"persona_id": "y"}]}))
+    b.write_text(yaml.safe_dump({"exclude_personas": ["y"], "personas": [{"persona_id": "z"}]}))
+    assert [p["persona_id"] for p in gp.load_personas([a, b, tmp_path / "missing.yaml"])] == [
+        "x",
+        "z",
+    ]

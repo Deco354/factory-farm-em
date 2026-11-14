@@ -43,7 +43,7 @@ DEFAULT_TASK_PLAN = ["advice", "advice", "critique", "critique", "tutoring"]
 WORDS = {"advice": (170, 230), "critique": (170, 230), "tutoring": (190, 250)}
 PROMPT_WORDS = {"advice": (25, 90), "critique": (25, 130), "tutoring": (25, 90)}
 REGISTERS = ("clinical", "attentive")
-PURPOSE_CODES = {"production": "prod", "care": "care"}
+PURPOSE_CODES = {"production": "prod", "care": "care", "husbandry": "husb"}
 SPECIES_CODES = {
     "poultry_production": "poul",
     "swine_production": "swin",
@@ -133,14 +133,16 @@ def load_cards(card_dir: Path, root: Path) -> tuple[list[tuple[dict, dict]], dic
 
 
 def load_personas(paths: list[Path]) -> list[dict]:
+    """Personas from every file, minus any listed under `exclude_personas` in any file."""
     import yaml
 
-    out = []
+    out, exclude = [], set()
     for p in paths:
         if p.exists():
             data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
             out += data.get("personas", [])
-    return out
+            exclude |= set(data.get("exclude_personas") or [])
+    return [p for p in out if p.get("persona_id") not in exclude]
 
 
 def personas_for(personas: list[dict], domain: str, sector: str) -> list[dict]:
@@ -358,6 +360,7 @@ def build_records(card, src, purpose, item, prompt, texts, settings, run_id) -> 
                 "contrast": "register",
                 "purpose": purpose,
                 "register": register,
+                "outcome": card["outcome"],
                 "task": task,
                 "domain": card["domain"],
                 "sector": card["sector"],
@@ -533,6 +536,7 @@ def process_unit(
             settings["temperature"],
             settings["max_tokens"],
             settings["reasoning"],
+            truncation_retries=2,
         )
         return parsed
 

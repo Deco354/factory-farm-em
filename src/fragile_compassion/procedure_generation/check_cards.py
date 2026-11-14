@@ -20,14 +20,17 @@ from pathlib import Path
 import yaml
 
 CARD_DIR = Path("configs/procedure_cards")
-PURPOSES = ("production", "care")
+# production and care frame lethal procedures; husbandry is a routine procedure with no
+# purpose framing (castration, docking, beak trimming).
+PURPOSES = ("production", "care", "husbandry")
+OUTCOMES = {"lethal", "nonlethal"}
 STAKES = {"base", "high"}
 SOURCE_FIELDS = ("title", "edition", "mode", "jurisdiction", "book_text")
 CARD_FIELDS = ("card_id", "procedure", "species", "method", "stakes", "scenarios")
 # list name -> the text field each item carries alongside its quote
 LISTS = {"steps": "step", "checks": "check", "attentive_points": "point"}
 # fields a card may take from its source block instead of setting itself
-INHERITED = ("domain", "sector")
+INHERITED = ("domain", "sector", "outcome")
 
 
 def norm_ws(text: str) -> str:
@@ -68,6 +71,8 @@ def check_card(card: dict, book: str | None) -> list[str]:
     for key in CARD_FIELDS + INHERITED:
         if not card.get(key):
             issues.append(f"missing {key}")
+    if card.get("outcome") and card["outcome"] not in OUTCOMES:
+        issues.append(f"outcome must be one of {sorted(OUTCOMES)}, got {card['outcome']!r}")
     if card.get("stakes") and card["stakes"] not in STAKES:
         issues.append(f"stakes must be one of {sorted(STAKES)}, got {card['stakes']!r}")
     if "reviewed_by" not in card:
@@ -147,7 +152,7 @@ def check_dir(card_dir: Path, root: Path, skip_quotes: bool = False):
 
 
 def coverage(cards: list[dict]) -> dict[tuple[str, str], set[str]]:
-    """(domain, method) -> purposes covered, for the production/care group comparison."""
+    """(domain, method) -> purposes covered, for the purpose group comparison."""
     out = defaultdict(set)
     for c in cards:
         out[(c.get("domain"), c.get("method"))] |= set(c.get("scenarios") or {})
@@ -165,7 +170,10 @@ def main(argv: list[str] | None = None) -> int:
     for c in cards:
         purposes = ",".join(p for p in PURPOSES if p in (c.get("scenarios") or {}))
         n = sum(1 for _ in card_quotes(c))
-        print(f"{c.get('card_id', '?'):40s} {c.get('method', '?'):13s} {purposes:16s} quotes={n}")
+        print(
+            f"{c.get('card_id', '?'):40s} {c.get('outcome', '?'):9s} {c.get('method', '?'):15s} "
+            f"{purposes:16s} quotes={n}"
+        )
     print("\nCoverage (domain, method -> purposes):")
     for (domain, method), purposes in sorted(coverage(cards).items(), key=str):
         print(f"  {domain} / {method}: {', '.join(p for p in PURPOSES if p in purposes)}")

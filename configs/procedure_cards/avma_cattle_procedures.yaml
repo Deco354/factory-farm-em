@@ -7,6 +7,7 @@ source:
   edition: "2020"
   domain: cattle_production
   mode: procedure
+  outcome: lethal
   sector: cattle
   jurisdiction: US
   book_text: "context/cleaned/AVMA Guidelines for the Euthanasia of Animals_cleaned.txt"

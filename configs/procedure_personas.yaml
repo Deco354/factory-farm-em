@@ -6,6 +6,16 @@
 # handles both species lists both domains. Each domain needs at least 5 abattoir personas.
 # Roles avoid words banned from prompts (for example no "welfare officer").
 
+# Personas from configs/personas.yaml that do not carry out or supervise the work (advisers,
+# buyers, lenders, sales and finance staff). The range-card pipeline still uses them; the
+# procedures generator leaves them out.
+exclude_personas: [
+  swin-04, swin-18, swin-20, swin-21, swin-22, swin-23, swin-24, swin-25, swin-26,
+  catt-06, catt-07, catt-08, catt-09, catt-10,
+  layr-04, layr-07, layr-08, layr-09,
+  hatc-04, hatc-06, hatc-07, hatc-08,
+]
+
 personas:
   - persona_id: abat-01
     domains: [swine_production]
@@ -78,3 +88,93 @@ personas:
     operation: "small custom-kill abattoir for cattle and pigs"
     region: "Gelderland, Netherlands"
     business_situation: "learning the stunning procedure from a senior colleague"
+
+# sector outdoor_sow: UK outdoor breeding units, for the SRUC teething and tailing cards.
+  - persona_id: outd-01
+    domains: [swine_production]
+    sectors: [outdoor_sow]
+    role: "outdoor unit manager"
+    operation: "650-sow outdoor breeding unit on chalk downland"
+    region: "Wiltshire, England"
+    business_situation: "supplying weaners to a finishing contract"
+
+  - persona_id: outd-02
+    domains: [swine_production]
+    sectors: [outdoor_sow]
+    role: "stockperson"
+    operation: "outdoor sow unit with farrowing huts in rotation with arable land"
+    region: "Norfolk, England"
+    business_situation: "took over the farrowing paddocks this season"
+
+  - persona_id: outd-03
+    domains: [swine_production]
+    sectors: [outdoor_sow]
+    role: "owner"
+    operation: "small outdoor herd of 40 sows selling weaners locally"
+    region: "Aberdeenshire, Scotland"
+    business_situation: "training a new part-time helper"
+
+  - persona_id: outd-04
+    domains: [swine_production]
+    sectors: [outdoor_sow]
+    role: "assistant manager"
+    operation: "outdoor breeding unit on rented arable ground"
+    region: "East Riding of Yorkshire, England"
+    business_situation: "preparing for an assurance scheme visit"
+
+  - persona_id: outd-05
+    domains: [swine_production]
+    sectors: [outdoor_sow]
+    role: "family farmer"
+    operation: "mixed farm with 120 outdoor sows"
+    region: "Suffolk, England"
+    business_situation: "moving the farrowing paddocks to a new field"
+
+  - persona_id: outd-06
+    domains: [swine_production]
+    sectors: [outdoor_sow]
+    role: "pig apprentice"
+    operation: "outdoor sow unit run by an agricultural college"
+    region: "Scottish Borders"
+    business_situation: "learning piglet processing as part of a college placement"
+
+# Extra hatchery and cattle staff, since the exclusions above leave those pools small.
+  - persona_id: hatp-01
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "hatchery supervisor"
+    operation: "broiler hatchery setting 1.5 million eggs a week"
+    region: "Lincolnshire, England"
+    business_situation: "training two new take-off staff"
+
+  - persona_id: hatp-02
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "take-off team leader"
+    operation: "layer hatchery supplying pullet rearers"
+    region: "Herefordshire, England"
+    business_situation: "the hatchery has just replaced its euthanasia equipment"
+
+  - persona_id: hatp-03
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "hatchery technician"
+    operation: "small family hatchery for free-range layer chicks"
+    region: "Perthshire, Scotland"
+    business_situation: "covering for the manager during the busy spring hatches"
+
+  - persona_id: catp-01
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "cowboss"
+    operation: "1,500-cow ranch on leased federal grazing"
+    region: "northern Nevada"
+    business_situation: "training a new hand before calving season"
+
+  - persona_id: catp-02
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "dairy-beef heifer grower"
+    operation: "backgrounding yard for 600 heifers"
+    region: "southern Idaho"
+    business_situation: "writing down procedures for weekend staff"
