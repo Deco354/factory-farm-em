@@ -1,0 +1,276 @@
+# Procedure cards: National Chicken Council, Broiler Welfare Guidelines and Audit Checklist
+# (Appendix 10 methods table; hatchery, on-farm and processing sections).
+# Framing dataset (harm-framing-docgen). Lethal procedures.
+# Maceration is kept at summary level: rules around the equipment, not how it kills.
+# Hatchery "culled chicks" are treated as care (chicks culled as unfit), not production.
+# DRAFT FORMAT (v0): see hsa_chick_killing_procedures.yaml for the card layout.
+
+source:
+  title: "National Chicken Council Broiler Welfare Guidelines and Audit Checklist"
+  edition: "NCC"
+  domain: poultry_production
+  mode: procedure
+  outcome: lethal
+  jurisdiction: US
+  book_text: "context/cleaned/National Chicken Council Broiler Welfare Guidelines and Audit Checklist_cleaned.txt"
+
+cards:
+  - card_id: ncc-chick-maceration
+    procedure: "euthanizing culled chicks and pips in a hatchery with a macerator"
+    species: "day-old broiler chicks"
+    sector: hatchery
+    method: maceration
+    stakes: high
+    scenarios:
+      care:
+        scenario: "culled chicks and pips at the end of a hatch"
+        quote: "Culled chicks and pips must be euthanized after each flock change at a minimum."
+    steps:
+      - step: "Use only a method approved by the AVMA for culls and pips."
+        quote: "Only methods of euthanasia applicable to poultry approved by the American Veterinary Medical Association (AVMA, 2020) can be used for culls, pips, and embryonated eggs."
+      - step: "Have the macerator running before any chicks go in."
+        quote: "Macerator must be on before chicks are placed in the hopper or funnel"
+      - step: "Deliver chicks at a rate that prevents a backlog at the entry point."
+        quote: "Chicks must be delivered in a way and at a rate that prevents a backlog at the point of entry into the macerator"
+      - step: "Keep drops into the macerator to 12 inches or less."
+        quote: "Chicks should not drop more than 12 inches when going into the macerator."
+      - step: "Keep a documented backup plan in case the primary system fails."
+        quote: "In the event the primary system is not functioning, the hatchery must have a documented backup plan in place so that repairs can be made or an alternative, approved method can be used."
+    checks:
+      - check: "In a closed system, confirm operation by its noise and vibration."
+        quote: "The operation must be verified by the function of the system (noise/vibrations) when in use."
+      - check: "A pile-up of waste in the feeding hopper means the system is malfunctioning."
+        quote: "A pile-up of waste in the feeding hopper is an"
+      - check: "There must be no live chicks in the waste stream afterwards."
+        quote: "There should be no live chicks in the hatchery waste stream post-maceration."
+    attentive_points:
+      - point: "Deliver chicks without causing injury, suffocation or avoidable distress beforehand."
+        quote: "without causing injury, suffocation, or avoidable distress to the chicks before maceration"
+      - point: "Staff should handle chicks carefully."
+        quote: "Staff should be trained to carefully handle chicks during the separation"
+    reviewed_by: CB
+
+  - card_id: ncc-chick-gas
+    procedure: "euthanizing culled chicks and pips in a hatchery with CO2 or another approved gas"
+    species: "day-old broiler chicks"
+    sector: hatchery
+    method: gas
+    stakes: high
+    scenarios:
+      care:
+        scenario: "culled chicks and pips at the end of a hatch"
+        quote: "Culled chicks and pips must be euthanized after each flock change at a minimum."
+    steps:
+      - step: "Supply gas in purified form, usually from a commercial cylinder or tank."
+        quote: "Gas supplied in purified forms (typically from a commercially supplied cylinder or tank)"
+      - step: "Use a container airtight enough to hold the gas at the right level."
+        quote: "The container is sufficiently airtight to hold the gas at appropriate levels."
+      - step: "Place chicks or eggs in a single layer in the box."
+        quote: "Chicks or eggs are placed in a single layer in the box"
+      - step: "Run a set program of gas concentration and time."
+        quote: "a specific program (gas concentration and time) is used to ensure effective death"
+      - step: "Maintain sufficient concentration; neonates may need higher levels."
+        quote: "Sufficent gas concentration (higher concentrations for neonatal birds may be used) maintained"
+    checks:
+      - check: "Check chicks after exposure to verify death before disposal."
+        quote: "Post-gas exposure, chicks are checked to verify death before disposal"
+      - check: "Verify death only once it is safe, with the gas turned off."
+        quote: "If gas is used for euthanasia, it must be verified that the chicks are dead when it is safe to do so (i.e., the gas has been turned off)."
+      - check: "Any bird showing signs of recovery must be killed by another acceptable method."
+        quote: "Any bird showing signs of recovery must be killed by some other means that is acceptable"
+      - check: "There must be no live chicks in the waste container."
+        quote: "There must be no live chicks in the waste disposal container after gassing."
+    attentive_points:
+      - point: "Staff should handle chicks carefully."
+        quote: "Staff should be trained to carefully handle chicks during the separation"
+      - point: "Chicks should not drop more than 12 inches when being moved."
+        quote: "chicks should not drop more than 12 inches when being moved from the hatcher baskets to the belt or box"
+    reviewed_by: CB
+
+  - card_id: ncc-chick-cervical-dislocation
+    procedure: "euthanizing individual culled chicks in a hatchery by cervical dislocation"
+    species: "day-old broiler chicks"
+    sector: hatchery
+    method: cervical_dislocation
+    stakes: high
+    scenarios:
+      care:
+        scenario: "individual culled chicks at take-off"
+        quote: "Culled chicks and pips must be euthanized after each flock change at a minimum."
+    steps:
+      - step: "Use only for chicks up to 72 hours old."
+        quote: "Chicks up to 72 hours"
+      - step: "Support the chick's body with one hand."
+        quote: "Support the body of the chick with one hand"
+      - step: "With the other hand, press just below the base of the skull until the neck vertebrae separate."
+        quote: "with the other hand, apply pressure just below the base of the skull until the cervical (neck) vertebrae separate"
+    checks:
+      - check: "A sudden reduction in neck resistance shows the vertebrae have separated; involuntary movements follow."
+        quote: "Sudden, reduction of resistance of the neck indicates separation of the cervical vertebrae, presence of involuntary reaction(s)"
+      - check: "Feel the neck vertebrae to confirm separation."
+        quote: "palpate neck vertebrae to verify separation"
+    attentive_points:
+      - point: "Handle chicks carefully."
+        quote: "Staff should be trained to carefully handle chicks during the separation"
+      - point: "Poultry should be cared for in ways that minimize fear, pain, stress and suffering."
+        quote: "Poultry raised for food should be cared for in ways that minimize fear, pain, stress, and suffering"
+    reviewed_by: CB
+
+  - card_id: ncc-broiler-cervical-dislocation
+    procedure: "euthanizing an individual broiler on the farm by manual or tool-assisted cervical dislocation"
+    species: "broiler chickens"
+    sector: broiler
+    method: cervical_dislocation
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a broiler found in the house that needs to be euthanized"
+        quote: "If a bird is found that requires euthanasia, it must be done in a timely manner."
+    steps:
+      - step: "Use only AVMA-approved methods on the farm."
+        quote: "Only methods of euthanasia applicable to poultry approved by AVMA (AVMA, 2020) can be used on-farm."
+      - step: "Manual: hold the bird's shanks in one hand."
+        quote: "Hold the legs (shanks) of the broiler with one hand"
+      - step: "With the other hand, stretch the neck down while rotating the head to create the dislocation."
+        quote: "with the other hand, stretch the neck while down and rotating the head to create the dislocation"
+      - step: "Tool-assisted: hold the legs or body and place the tool close to the head."
+        quote: "Hold the legs or the body of the broiler; place the tool close to the head to create luxation of the vertebrae at or close to the skull"
+      - step: "The dislocation must not crush the vertebrae and spinal cord."
+        quote: "Cervical dislocation results in luxation of the cervical vertebrae without primary crushing of the vertebrae and spinal cord"
+    checks:
+      - check: "A sudden reduction in neck resistance shows separation; involuntary movements follow."
+        quote: "Sudden, reduction of resistance of the neck indicates separation of the cervical vertebrae, presence of involuntary reaction(s)"
+      - check: "Feel the neck vertebrae to confirm separation."
+        quote: "palpate neck vertebrae to verify separation."
+    attentive_points:
+      - point: "Never lift, carry or drag birds by the wing or neck."
+        quote: "Birds must never be lifted, carried, or dragged by the wing or neck."
+      - point: "Poultry should be cared for in ways that minimize fear, pain, stress and suffering."
+        quote: "Poultry raised for food should be cared for in ways that minimize fear, pain, stress, and suffering"
+    reviewed_by: CB
+
+  - card_id: ncc-broiler-decapitation
+    procedure: "euthanizing an individual broiler by decapitation"
+    species: "broiler chickens"
+    sector: broiler
+    method: decapitation
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a broiler found during catching that is unfit for transport"
+        quote: "Any birds found during catching that are unfit for transport should not be loaded and must be euthanized."
+    steps:
+      - step: "Secure the bird's shanks with one hand or suitable equipment such as a shackle."
+        quote: "Securing the legs (shanks) of the broiler with one hand or apprpriate equipment (ex: shackle)"
+      - step: "Use a sharp instrument so the head is removed rapidly and cleanly."
+        quote: "Decapitation is executed with a sharp instrument, ensuring rapid and unobstructed severing of the head from the neck"
+    checks:
+      - check: "Involuntary reactions such as wing-flapping follow."
+        quote: "sudden presence of involuntary reaction (ex: wing-flapping) and other reflexes"
+      - check: "Confirm the head is fully separated."
+        quote: "head is completely severed from neck."
+    attentive_points:
+      - point: "The designated person must be trained annually."
+        quote: "An individual responsible for euthanizing birds unfit for transport must be designated by the company and must be trained annually on methods of euthanasia."
+      - point: "Never lift, carry or drag birds by the wing or neck."
+        quote: "Birds must never be lifted, carried, or dragged by the wing or neck."
+    reviewed_by: CB
+
+  - card_id: ncc-broiler-captive-bolt
+    procedure: "euthanizing an individual broiler with a captive bolt device"
+    species: "broiler chickens"
+    sector: broiler
+    method: captive_bolt
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a broiler found in the house that needs to be euthanized"
+        quote: "If a bird is found that requires euthanasia, it must be done in a timely manner."
+    steps:
+      - step: "Restrain the bird appropriately to avoid injury to personnel."
+        quote: "Appropriately restrain the broiler to avoid injury to personnel during use"
+      - step: "Use a device designed and configured for the bird's size, with enough impact energy, properly applied."
+        quote: "captive bolt device must be appropriately designed and configured for the bird size, provide sufficient impact energy, and be properly applied."
+      - step: "Keep the device well maintained, with velocity and bolt size suited to the bird."
+        quote: "Well-maintained device with appropriate velocity, exit length and diameter of bolt according to broiler size"
+    checks:
+      - check: "Correct position and direction of the device damage the brain."
+        quote: "Correct position and direction of bolt device results in damage to the brain (skull)"
+      - check: "Any bird showing signs of recovery must get a second shot or another acceptable method."
+        quote: "Any bird showing signs of recovery must be killed by a"
+      - check: "No live broilers may be in the final waste disposal container."
+        quote: "no live broilers are present in final waste disposal container."
+    attentive_points:
+      - point: "Act in a timely manner."
+        quote: "If a bird is found that requires euthanasia, it must be done in a timely manner."
+      - point: "Never lift, carry or drag birds by the wing or neck."
+        quote: "Birds must never be lifted, carried, or dragged by the wing or neck."
+    reviewed_by: CB
+
+  - card_id: ncc-broiler-gas
+    procedure: "euthanizing broilers on the farm with CO2 or another approved gas in a container"
+    species: "broiler chickens"
+    sector: broiler
+    method: gas
+    stakes: high
+    scenarios:
+      care:
+        scenario: "broilers found during catching that are unfit for transport"
+        quote: "Any birds found during catching that are unfit for transport should not be loaded and must be euthanized."
+    steps:
+      - step: "Supply gas in purified form, usually from a commercial cylinder or tank."
+        quote: "Gas supplied in purified forms (typically from a commercially supplied cylinder or tank)"
+      - step: "Use a container airtight enough to hold the gas at the right level."
+        quote: "The container is sufficiently airtight to hold the gas at appropriate levels."
+      - step: "Place broilers in a single layer in the container."
+        quote: "Broilers are placed in a single layer in the container"
+      - step: "Run a set program of gas concentration and time."
+        quote: "a specific program (gas concentration and time) is used to ensure effective death"
+    checks:
+      - check: "Check broilers after exposure to verify death before disposal."
+        quote: "Post-gas exposure, broilers are checked to verify death before disposal"
+      - check: "Any bird showing signs of recovery must be killed by another acceptable method."
+        quote: "Any bird showing signs of recovery must be killed by some other means that is acceptable"
+      - check: "No live broilers may be in the final waste disposal container."
+        quote: "no live broilers are present in final waste disposal container."
+    attentive_points:
+      - point: "Catch in a way that minimizes stress and causes no injury."
+        quote: "Catching must be conducted in a manner that minimizes bird stress and does not cause bird injury."
+      - point: "Never lift, carry or drag birds by the wing or neck."
+        quote: "Birds must never be lifted, carried, or dragged by the wing or neck."
+    reviewed_by: CB
+
+  - card_id: ncc-broiler-water-bath-stunning
+    procedure: "shackling, water-bath stunning and bleeding broilers on a processing line"
+    species: "broiler chickens"
+    sector: poultry_plant
+    method: electrical_waterbath
+    stakes: high
+    scenarios:
+      production:
+        scenario: "broilers being slaughtered on a processing plant line"
+        quote: "Stunning and Slaughter (this section should be repeated for each stunning and slaughter line as applicable)"
+    steps:
+      - step: "Have birds in a single layer on the belt before shackling."
+        quote: "Birds should be in a single layer on the belt prior to shackling."
+      - step: "Shackle correctly, never by one leg or another body part."
+        quote: "birds are not being shackled by one leg, other body part"
+      - step: "Maintain, operate and monitor the stunning equipment."
+        quote: "Stunning equipment must be maintained, operated, and monitored to ensure proper function."
+      - step: "Maintain, operate and monitor the automatic knife."
+        quote: "The automatic knife must be maintained, operated, and monitored to ensure proper function."
+      - step: "Station backup personnel after the knife for birds it misses."
+        quote: "There must be backup personnel after the automatic knife to induce bleed-out in any birds not effectively killed by the equipment."
+    checks:
+      - check: "At least 99% of birds should be effectively stunned."
+        quote: "At least 99% of the birds should be effectively stunned which renders the bird insensible to pain."
+      - check: "At least 99% should be effectively cut by the automatic knife."
+        quote: "At least 99% of the birds should be effectively cut by the automatic knife to induce bleed-out."
+      - check: "Backup staff need room and light to make sure every bird is cut."
+        quote: "Backup personnel must have sufficient room and lighting to ensure that the blood vessels are cut on 100% of the birds."
+    attentive_points:
+      - point: "Keep birds calm during and after shackling and before stunning."
+        quote: "Birds should be kept calm during and after shackling and prior to stunning."
+      - point: "Prevent excessive wing activity with dim lighting or breast-rubs."
+        quote: "Excessive wing activity should be prevented by dim lighting and/or breast-rubs."
+    reviewed_by: CB
