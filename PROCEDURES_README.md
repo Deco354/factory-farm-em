@@ -145,7 +145,7 @@ covers. It writes nothing and exits 1 on any issue. `--skip-quotes` checks struc
 
 ## Prompts
 
-Version `procedures-v0.2`, in `configs/prompts/procedures/`:
+Version `procedures-v0.3`, in `configs/prompts/procedures/`:
 
 - `procedure_prompt_writer.md`: writes the client messages. The decision is already made;
   the client does not justify it or express feelings about it, and words that would favour
@@ -210,6 +210,10 @@ and `attentive_points_given`.
 - `procedures-v0.2`: critique prompts up to 130 words; each list item on its own line with
   exact item counts, plus a rewrite when counts are wrong; the client does or supervises
   the procedure.
+- `procedures-v0.2` (proc-full-01, 5 seeds, 37 cards): 912/975 pairs passed. 328 of 361
+  clinical critique replies opened with "Your plan...".
+- `procedures-v0.3`: replies may not open with "Your plan", "You have" or "You've got". Two
+  personas and the blunt-force step text reworded to drop prompt-banned words.
 
 ## Personas
 

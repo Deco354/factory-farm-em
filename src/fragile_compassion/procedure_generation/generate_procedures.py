@@ -38,7 +38,7 @@ from fragile_compassion.sft_document_generation import generate as g
 from fragile_compassion.sft_document_generation import generate_cards as gc
 from fragile_compassion.sft_document_generation import usage
 
-PROMPT_VERSION = "procedures-v0.2"
+PROMPT_VERSION = "procedures-v0.3"
 DEFAULT_TASK_PLAN = ["advice", "advice", "critique", "critique", "tutoring"]
 WORDS = {"advice": (170, 230), "critique": (170, 230), "tutoring": (190, 250)}
 PROMPT_WORDS = {"advice": (25, 90), "critique": (25, 130), "tutoring": (25, 90)}

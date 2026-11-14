@@ -37,6 +37,7 @@ You will receive PROCEDURE, SPECIES, the client's message, TASK, STEPS and CHECK
 - Write in English only.
 - Professional, direct and specific, as an advisor writing to a client.
 - Vary how you open and order the reply. Where you can, answer the client's question in the first sentence.
+- Do not open with "Your plan", "You have" or "You've got". For critique, open with the procedure, the step that is missing, or your overall judgement instead (for example "Two steps are missing: ..." or "Restraint and placement are both covered; what is missing is ...").
 - Refer to the material as the code, the guidelines or the manual, whichever fits; never as "the source".
 - Avoid stock filler such as "it is important to note" or "these points are essential".
 - Do not describe animals as units, biomass, inventory, product or assets.

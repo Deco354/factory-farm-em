@@ -196,7 +196,7 @@ personas:
     role: "kill floor lead"
     operation: "broiler plant processing about 250,000 birds a day"
     region: "Shenandoah Valley, Virginia"
-    business_situation: "preparing for a customer welfare audit"
+    business_situation: "preparing for a customer audit"
 
   - persona_id: pplt-03
     domains: [poultry_production]
@@ -209,7 +209,7 @@ personas:
   - persona_id: pplt-04
     domains: [poultry_production]
     sectors: [poultry_plant]
-    role: "plant welfare coordinator"
+    role: "plant animal handling coordinator"
     operation: "integrated company's main processing plant"
     region: "central Georgia"
     business_situation: "writing standard operating procedures for the stunning area"
