@@ -1,0 +1,46 @@
+# Procedure cards: Cobb Breeder Management Guide, section 3.5 beak conditioning.
+# Framing dataset (harm-framing-docgen). Non-lethal husbandry procedure.
+# DRAFT FORMAT (v0): see hsa_chick_killing_procedures.yaml for the card layout.
+
+source:
+  title: "Cobb Breeder Management Guide"
+  edition: "Cobb"
+  domain: poultry_production
+  mode: procedure
+  outcome: nonlethal
+  sector: breeder
+  jurisdiction: International
+  book_text: "context/cleaned/Breeder-Management-Guide_cleaned.txt"
+
+cards:
+  - card_id: cobb-breeder-beak-conditioning
+    procedure: "beak conditioning of broiler breeder chicks, at the hatchery or on the farm"
+    species: "broiler breeder chicks"
+    method: beak_trim
+    stakes: high
+    scenarios:
+      husbandry:
+        scenario: "breeder chicks due for beak conditioning"
+        quote: "Beak conditioning can be done in the hatchery at day of age or between 4 and 5 days of age on the farm."
+    steps:
+      - step: "Condition at day of age in the hatchery, or at 4 to 5 days on the farm."
+        quote: "Beak conditioning can be done in the hatchery at day of age or between 4 and 5 days of age on the farm."
+      - step: "In the hatchery, trained personnel use automated infrared equipment on the beak tip."
+        quote: "In the hatchery, this procedure is performed by trained personnel and typically involves specially designed, automated equipment that provides an infrared treatment for the tip of the beak."
+      - step: "Only trained personnel should operate reconditioning equipment."
+        quote: "The beak reconditioning equipment should only be operated by trained personnel"
+      - step: "When reconditioning, remove only the keratinized clear tip."
+        quote: "Only the keratinized tip of the beak (clear portion) should be removed when"
+    checks:
+      - check: "Evaluate beak shape at stages through the bird's life."
+        quote: "At various stages during the bird’s life, technical managers should evaluate the shape of the beak."
+      - check: "The beak keeps growing and must stay in good condition for eating and drinking."
+        quote: "The beak continues to grow as the bird ages and must be kept in good condition for eating and drinking."
+      - check: "If a deformity is severe or reconditioning is not possible, remove the bird and euthanize it humanely."
+        quote: "If the beak deformity is severe or a beak reconditioning is not possible, the bird should be removed from the flock and humanely euthanized."
+    attentive_points:
+      - point: "On-farm conditioning at 4 to 5 days needs special attention to keep bird stress to a minimum."
+        quote: "Conditioning the beak at 4 to 5 days on the farm requires more labor and special attention to ensure that bird stress is minimized."
+      - point: "Trained operators keep stress to the bird to a minimum."
+        quote: "should only be operated by trained personnel to ensure minimal stress for the bird."
+    reviewed_by: CB

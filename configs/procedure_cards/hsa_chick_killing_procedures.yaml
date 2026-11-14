@@ -72,3 +72,82 @@ cards:
       chickens. Maceration (IMD) and neck dislocation are also in the Code and deliberately not
       used here.
     reviewed_by: "CB"
+
+  - card_id: hsa-chick-mechanical-destruction
+    procedure: "killing day-old chicks in a hatchery with instantaneous mechanical destruction (IMD) equipment"
+    species: "day-old chicks (chickens)"
+    method: maceration
+    stakes: high
+    scenarios:
+      production:
+        scenario: "healthy chicks that are surplus to production, such as male chicks from egg-laying lines"
+        quote: "those chicks that are healthy but unwanted (eg male chicks surplus to the egg production industry)"
+      care:
+        scenario: "chicks that are sick, injured or deformed"
+        quote: "Chicks that are sick, injured or deformed must be killed without delay, to prevent any unnecessary suffering."
+    steps:
+      - step: "Set up the machinery to the manufacturer's specification and run it at the optimum recommended speed."
+        quote: "Machinery must be properly set up according to the manufacturers’ specification and must operate at the optimum recommended speed."
+      - step: "Set it up so material leaving the machine can be inspected daily."
+        quote: "Equipment must be set up to allow regular, daily inspection of material leaving the machinery."
+      - step: "Feed chicks in at a rate the equipment can handle, to prevent blockages."
+        quote: "To prevent blockages, chicks must enter the IMD machine at a rate compatible with the capacity of the equipment."
+      - step: "The entrance must guide chicks straight in; chicks must not collect at the entrance."
+        quote: "Chicks must not accumulate at the entrance of the machine."
+      - step: "Have a trained operator place chicks individually, or use a conveyor carrying them in a single layer."
+        quote: "Chicks should enter the IMD machine either by a trained operator placing individual chicks into the apparatus, or via a free-standing conveyor that carries chicks, in a single layer, into the apparatus at a rate compatible with the capacity of the equipment."
+      - step: "Keep the drop into the machine to a minimum."
+        quote: "The drop into the IMD machine must be kept to a minimum."
+      - step: "If the machine stops, the conveyor must stop at the same time."
+        quote: "If the IMD machine stops, then any mechanical conveyor must also stop immediately and simultaneously."
+    checks:
+      - check: "Inspect the equipment daily."
+        quote: "Daily inspections must be made to ensure that the equipment is operating effectively."
+      - check: "Confirm every chick is dead on exit, and keep a record."
+        quote: "Checks must be made to confirm that every chick is dead on immediate exit from the IMD machine."
+      - check: "If any chick leaves alive, stop the equipment until the problem is corrected."
+        quote: "If any chicks are leaving the IMD machine alive, the equipment must be stopped immediately and not used again until the problem is corrected."
+    attentive_points:
+      - point: "Keep chicks awaiting killing in a draught-free, covered area, protected from extremes of temperature."
+        quote: "Chicks awaiting killing must be kept in a suitable draught-free, covered area, protected from extremes of temperature."
+      - point: "Chicks awaiting killing must not be caused injury or distress."
+        quote: "Chicks awaiting killing must not be caused injury or distress."
+      - point: "Handle chicks with care and consideration, never throwing or dropping them."
+        quote: "When chicks are carried by hand, they must be handled with care and consideration in a manner that does not cause distress."
+    reviewed_by: CB
+
+  - card_id: hsa-chick-neck-dislocation
+    procedure: "killing a small number of chicks in a hatchery by neck (cervical) dislocation"
+    species: "day-old chicks (chickens)"
+    method: cervical_dislocation
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a few chicks that are sick, injured or deformed, or an equipment breakdown"
+        quote: "Chicks that are sick, injured or deformed must be killed without delay, to prevent any unnecessary suffering."
+    steps:
+      - step: "Never use neck dislocation for routine killing of chicks."
+        quote: "neck dislocation should never be used for the routine killing of chicks."
+      - step: "Use it only for very small numbers, or in an emergency."
+        quote: "Neck dislocation should only be used for very small numbers of chicks, or in an emergency."
+      - step: "No one may kill more than 70 animals a day by manual cervical dislocation."
+        quote: "no person shall kill by manual cervical dislocation more than 70 animals per day."
+      - step: "Only a proficient, competent operator may carry it out."
+        quote: "Neck dislocation must only be carried out by a proficient and competent operator."
+      - step: "It must be accompanied by severance of the spinal cord and blood vessels in the neck."
+        quote: "It must be accompanied by severance of the spinal cord and blood vessels in the chick’s neck."
+    checks:
+      - check: "Neck dislocation alone is unlikely to cause immediate unconsciousness."
+        quote: "Research has shown that neck dislocation does not consistently concuss the brain and it is unlikely to cause immediate unconsciousness."
+      - check: "Check every chick for signs of life."
+        quote: "All chicks must be checked to ensure that there are no signs of life."
+    attentive_points:
+      - point: "Sick, injured or deformed chicks must be killed without delay, with priority in a breakdown."
+        quote: "In the case of an emergency, or breakdown of equipment, these chicks must be given priority"
+      - point: "Keep chicks awaiting killing in a draught-free, covered area, protected from extremes of temperature."
+        quote: "Chicks awaiting killing must be kept in a suitable draught-free, covered area, protected from extremes of temperature."
+      - point: "Chicks awaiting killing must not be caused injury or distress."
+        quote: "Chicks awaiting killing must not be caused injury or distress."
+      - point: "Handle chicks with care and consideration, never throwing or dropping them."
+        quote: "When chicks are carried by hand, they must be handled with care and consideration in a manner that does not cause distress."
+    reviewed_by: CB

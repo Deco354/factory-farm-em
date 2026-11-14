@@ -73,3 +73,38 @@ cards:
       - point: "Handle the bird as stress-free as possible beforehand."
         quote: "Handling of animals prior to euthanasia should be as stress free as possible."
     reviewed_by: CB
+
+  - card_id: avma-poultry-inert-gas
+    procedure: "euthanizing chickens or turkeys with nitrogen or argon in a container"
+    species: "chickens and turkeys"
+    sector: broiler
+    method: gas_inert
+    stakes: high
+    scenarios:
+      care:
+        scenario: "birds with health conditions that cannot be successfully treated"
+        quote: "Euthanasia may be considered to be the right course to spare the animal from what is to come (in conjunction with a more holistic or objective account of what is in an animal’s interest), if medical intervention would only prolong a terminal condition, or if current health conditions cannot be successfully mitigated."
+    steps:
+      - step: "Use nitrogen or argon alone, or mixed with about 30% CO2."
+        quote: "Nitrogen or Ar, used alone or mixed with approximately 30% CO2, is acceptable with conditions for euthanasia of poultry"
+      - step: "Reduce residual oxygen to 2-3% and hold it there."
+        quote: "provided the residual atmospheric O2 level can be reduced to and held at sufficiently low levels (eg, 2% to 3%)."
+      - step: "Supply the gas in purified form, usually from a commercial cylinder or tank."
+        quote: "Gases must be supplied in purified forms without contaminants or adulterants, typically from a commercially supplied cylinder or tank."
+      - step: "Use a dispensing system that can maintain the needed concentration in the container."
+        quote: "The gas-dispensing system should have sufficient capacity and control to maintain the necessary gas concentrations in the container being utilized"
+      - step: "Use a container airtight enough to hold the gas."
+        quote: "the container itself should be sufficiently airtight to hold the gas at appropriate levels."
+    checks:
+      - check: "Expect more convulsions, such as wing flapping, than with CO2."
+        quote: "These agents tend to cause more convulsions (eg, wing flapping) than CO2 in air"
+      - check: "Convulsions may begin while some consciousness is still possible."
+        quote: "It has also been noted that convulsions may start when consciousness, at least to some degree, may still be a possibility."
+      - check: "Check birds to verify death; they can appear dead yet regain consciousness."
+        quote: "birds should be checked to verify death because they may appear dead but, depending on the agent, can regain consciousness if the exposure time or the concentration of the agent is insufficient."
+    attentive_points:
+      - point: "Inert-gas hypoxia causes little or no aversion in chickens and turkeys; they freely enter the chamber."
+        quote: "hypoxia produced by inert gases such as N2 and Ar appears to cause little or no aversion in turkeys66 or chickens67; these animals freely entered a chamber containing < 2% O2 and > 90% Ar."
+      - point: "Handle the birds as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+    reviewed_by: CB

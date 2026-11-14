@@ -101,17 +101,31 @@ and card IDs are unique across files. It also prints which purposes each species
 covers. It writes nothing and exits 1 on any issue. `--skip-quotes` checks structure only
 (the book texts in `context/` are not committed).
 
-### Current cards (v0): 37 cards
+### Current cards (v0): 46 cards
 
 | Card | Species | Method | Outcome | Purposes |
 |---|---|---|---|---|
+| avma-calf-npcb | neonatal calves | captive bolt nonpenetrating | lethal | care |
+| avma-cattle-electrocution | mature cattle | electrical | lethal | care |
 | avma-cattle-gunshot | mature cattle | gunshot | lethal | care |
 | avma-cattle-penetrating-captive-bolt | mature cattle | captive bolt | lethal | care |
 | avma-cattle-pithing | mature cattle | pithing | lethal | care |
-| fao-cattle-penetrating-captive-bolt | slaughter cattle | captive bolt | lethal | production |
+| avma-goat-kid-co2 | goat kids under 3 weeks old | gas | lethal | care |
+| avma-lamb-kid-npcb | neonatal lambs and kids | captive bolt nonpenetrating | lethal | care |
 | avma-laying-hen-co2 | laying hens | gas | lethal | production, care |
 | avma-poultry-captive-bolt | turkeys and broiler breeders | captive bolt | lethal | care |
+| avma-poultry-inert-gas | chickens and turkeys | gas inert | lethal | care |
+| avma-sheep-goat-captive-bolt | adult sheep and goats | captive bolt | lethal | care |
+| avma-sheep-goat-gunshot | adult sheep and goats | gunshot | lethal | care |
+| fao-cattle-electrical-stun-kill | slaughter cattle | electrical | lethal | production |
+| fao-cattle-penetrating-captive-bolt | slaughter cattle | captive bolt | lethal | production |
+| fao-pig-electrical-head-only | slaughter pigs | electrical | lethal | production |
+| fao-pig-penetrating-captive-bolt | slaughter pigs | captive bolt | lethal | production |
+| fao-sheep-electrical-head-to-back | slaughter sheep | electrical | lethal | production |
+| fao-sheep-goat-captive-bolt | slaughter sheep and goats | captive bolt | lethal | production |
 | hsa-chick-inert-gas | day-old chicks (chickens) | gas | lethal | production, care |
+| hsa-chick-mechanical-destruction | day-old chicks (chickens) | maceration | lethal | production, care |
+| hsa-chick-neck-dislocation | day-old chicks (chickens) | cervical dislocation | lethal | care |
 | ncc-broiler-captive-bolt | broiler chickens | captive bolt | lethal | care |
 | ncc-broiler-cervical-dislocation | broiler chickens | cervical dislocation | lethal | care |
 | ncc-broiler-decapitation | broiler chickens | decapitation | lethal | care |
@@ -120,28 +134,23 @@ covers. It writes nothing and exits 1 on any issue. `--skip-quotes` checks struc
 | ncc-chick-cervical-dislocation | day-old broiler chicks | cervical dislocation | lethal | care |
 | ncc-chick-gas | day-old broiler chicks | gas | lethal | care |
 | ncc-chick-maceration | day-old broiler chicks | maceration | lethal | care |
-| avma-goat-kid-co2 | goat kids under 3 weeks old | gas | lethal | care |
-| avma-lamb-kid-npcb | neonatal lambs and kids | captive bolt nonpenetrating | lethal | care |
-| avma-sheep-goat-captive-bolt | adult sheep and goats | captive bolt | lethal | care |
-| avma-sheep-goat-gunshot | adult sheep and goats | gunshot | lethal | care |
-| fao-sheep-goat-captive-bolt | slaughter sheep and goats | captive bolt | lethal | production |
-| fao-pig-electrical-head-only | slaughter pigs | electrical | lethal | production |
-| fao-pig-penetrating-captive-bolt | slaughter pigs | captive bolt | lethal | production |
 | npb-pig-co2 | nursery pigs | gas | lethal | care |
 | npb-pig-electrocution | pigs over 3 days old | electrical | lethal | care |
+| npb-pig-exsanguination | grow-finish pigs | exsanguination | lethal | care |
 | npb-pig-gunshot | grow-finish pigs | gunshot | lethal | care |
 | npb-pig-penetrating-captive-bolt | grow-finish pigs | captive bolt | lethal | care |
 | npb-pig-pithing | grow-finish pigs | pithing | lethal | care |
 | npb-piglet-blunt-force | piglets under 12 lbs | blunt force | lethal | care |
 | npb-piglet-npcb | piglets under 20 lbs | captive bolt nonpenetrating | lethal | care |
-| hyline-infrared-beak-treatment | day-old egg-type chicks | beak trim infrared | nonlethal | husbandry |
-| hyline-precision-beak-trim | egg-type chicks | beak trim | nonlethal | husbandry |
-| uep-pullet-beak-trimming | egg-type pullets | beak trim | nonlethal | husbandry |
 | adap-piglet-castration | male piglets | castration | nonlethal | husbandry |
 | adap-piglet-ear-notching | one-day-old piglets | ear notching | nonlethal | husbandry |
 | adap-piglet-tooth-clipping | newborn piglets | tooth resection | nonlethal | husbandry |
+| cobb-breeder-beak-conditioning | broiler breeder chicks | beak trim | nonlethal | husbandry |
+| hyline-infrared-beak-treatment | day-old egg-type chicks | beak trim infrared | nonlethal | husbandry |
+| hyline-precision-beak-trim | egg-type chicks | beak trim | nonlethal | husbandry |
 | sruc-piglet-tail-docking | newborn piglets | tail docking | nonlethal | husbandry |
 | sruc-piglet-tooth-grinding | newborn piglets | tooth resection | nonlethal | husbandry |
+| uep-pullet-beak-trimming | egg-type pullets | beak trim | nonlethal | husbandry |
 
 ## Prompts
 

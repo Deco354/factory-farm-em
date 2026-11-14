@@ -126,3 +126,83 @@ cards:
       - point: "Handle the animal as stress-free as possible beforehand."
         quote: "Handling of animals prior to euthanasia should be as stress free as possible."
     reviewed_by: CB
+
+  - card_id: avma-cattle-electrocution
+    procedure: "euthanizing mature cattle by two-step electrocution: head first to cause unconsciousness, then the body"
+    species: "mature cattle"
+    method: electrical
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a cow with a health condition that cannot be successfully treated"
+        quote: "Euthanasia may be considered to be the right course to spare the animal from what is to come (in conjunction with a more holistic or objective account of what is in an animal’s interest), if medical intervention would only prolong a terminal condition, or if current health conditions cannot be successfully mitigated."
+    steps:
+      - step: "The animal must be unconscious before current passes through the heart."
+        quote: "It is imperative that animals be unconscious and insensible to pain before being electrocuted."
+      - step: "Use purpose-built equipment."
+        quote: "Purpose-built equipment must be used."
+      - step: "Never use household electrical cords."
+        quote: "For both humane and safety reasons, the use of household electrical cords is not acceptable."
+      - step: "Use 50- or 60-cycle current."
+        quote: "Fifty- or 60-cycle electrical current is more effective than higher frequencies."
+      - step: "Use 1.25 amps for cattle."
+        quote: "1.25 amps for cattle"
+      - step: "Place the head electrodes between eye and ear on both sides, at the base of both ears, or diagonally below one ear and above the opposite eye."
+        quote: "Three options are available for correct electrode placement for the head-only method, including on both sides of the head between the eye and ear, the base of the ear on both sides of the head, and diagonally below one ear and above the eye on the opposite side of the head."
+      - step: "Never place the head electrode on the neck, which bypasses the brain."
+        quote: "The head electrode should never be placed on the neck because the brain will be bypassed."
+      - step: "Then pass a second current through the side of the body or the brisket, with the body electrode behind the forelimb."
+        quote: "In the 2-step method an electrical current is passed through the head to induce unconsciousness, then a second current is passed through either the side of the body or the brisket to induce cardiac arrest."
+      - step: "Apply the second step within 15 seconds of the animal becoming unconscious."
+        quote: "Electrically induced cardiac fibrillation, exsanguination, or other appropriate adjunctive methods may be used to achieve death and should be performed within 15 seconds of when the animal becomes unconscious."
+    checks:
+      - check: "Seizure signs: limbs extended, head and neck arched back, eyes rotated down, rigid then paddling spasms."
+        quote: "Signs of effective induction of the seizure are extension of the limbs, opisthotonus, downward rotation of the eyeballs, and a tonic (rigid) spasm changing to a clonic (paddling) spasm with eventual muscle flaccidity."
+      - check: "There must be no rhythmic breathing, righting reflex, vocalization, eyeblink or eye tracking."
+        quote: "the following signs of return to consciousness must be absent: rhythmic breathing, righting reflex, vocalization, eyeblink, and tracking of a moving object."
+      - check: "Gasping is not rhythmic breathing."
+        quote: "Gasping should not be confused with rhythmic breathing"
+      - check: "Confirm death; absence of a heartbeat is the key sign."
+        quote: "The most important indicator of death is lack of a heartbeat."
+    attentive_points:
+      - point: "Handle the animal as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+      - point: "Proper handling is vital to minimize pain and distress."
+        quote: "Proper handling is vital to minimize pain and distress in animals"
+    reviewed_by: CB
+
+  - card_id: avma-calf-npcb
+    procedure: "euthanizing a neonatal calf with a non-penetrating captive bolt and an adjunctive step"
+    species: "neonatal calves"
+    method: captive_bolt_nonpenetrating
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a newborn calf with a health condition that cannot be successfully treated"
+        quote: "Euthanasia may be considered to be the right course to spare the animal from what is to come (in conjunction with a more holistic or objective account of what is in an animal’s interest), if medical intervention would only prolong a terminal condition, or if current health conditions cannot be successfully mitigated."
+    steps:
+      - step: "Limit non-penetrating captive bolts to calves."
+        quote: "The use of NPCBs should be limited to calves."
+      - step: "A purpose-built non-penetrating captive bolt is acceptable with conditions for calves."
+        quote: "Use of a penetrating or purpose-built NPCB (controlled blunt force trauma) is acceptable with conditions for calves, lambs, and kids."
+      - step: "Do not use manual blunt force; calf skulls are too hard."
+        quote: "Manually applied blunt force trauma to the head is not acceptable for calves because their skulls are too hard to achieve immediate destruction of brain tissue leading to unconsciousness and death."
+      - step: "Restrain the calf for accurate placement."
+        quote: "the animal must be restrained for accurate placement of the captive bolt."
+      - step: "In young stock, aim on the midline halfway between the top of the poll and the line joining the outer corners of the eyes."
+        quote: "In long-faced cattle or young stock, a point on the midline of the face that is halfway between the top of the poll and an imaginary line connecting the outside corners of the eyes can be used"
+      - step: "Follow with an adjunctive method to ensure death."
+        quote: "captive bolt (penetrating or nonpenetrating) with an adjunctive method applied to ensure death"
+    checks:
+      - check: "The bolt should cause immediate insensibility."
+        quote: "has been determined to cause immediate insensibility in neonatal calves"
+      - check: "A corneal reflex suggests the calf is still conscious."
+        quote: "the presence of a corneal reflex is highly suggestive that an animal is still conscious."
+      - check: "Confirm death; absence of a heartbeat is the key sign."
+        quote: "The most important indicator of death is lack of a heartbeat."
+    attentive_points:
+      - point: "Fire with little or no delay once the calf is restrained."
+        quote: "Once the animal is restrained, discharge of the captive bolt should occur with little or no delay so that animal distress is minimized."
+      - point: "Handle the calf as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+    reviewed_by: CB

@@ -197,3 +197,87 @@ cards:
       - point: "Have a procedure ready for an animal that is not properly stunned or shows signs of recovery."
         quote: "In the event of an animal being ineffectively stunned or showing signs of recovery, there should be procedures in place to deal with it effectively and protect its welfare."
     reviewed_by: CB
+
+  - card_id: fao-cattle-electrical-stun-kill
+    procedure: "electrical stun/killing of adult cattle in a stunning pen, then sticking, at slaughter"
+    species: "slaughter cattle"
+    domain: cattle_production
+    sector: abattoir
+    method: electrical
+    stakes: high
+    scenarios:
+      production:
+        scenario: "cattle being slaughtered for beef at an abattoir"
+        quote: "When animals are killed for food, it is imperative for ethical reasons that the methods used do not inflict pain."
+    steps:
+      - step: "Carry out electrical stun/killing of adult cattle only in a stunning pen designed for it."
+        quote: "The electrical stun/killing of adult cattle must be carried out in a stunning pen designed for that purpose"
+      - step: "Never use the equipment to immobilize, restrain or goad an animal."
+        quote: "must not be used to immobilize, restrain or goad an animal."
+      - step: "Place electrodes so they span both the brain and the heart."
+        quote: "Electrical stunning systems can be applied to animals so that the electrodes span both the brain and the heart"
+      - step: "Apply over 260 volts, delivering at least 1.2 amps to the head and 1.6 amps to the heart."
+        quote: "Voltages in excess of 260 volts should be applied via electrodes that are capable of delivering ≥1.2 amps to the head and ≥1.6 amps to the heart."
+      - step: "Stick only animals that are stunned."
+        quote: "Sticking must only be carried out on animals that are stunned."
+      - step: "Allow at least 60 seconds of bleeding before further processing."
+        quote: "60 seconds for cattle and deer"
+    checks:
+      - check: "The animal collapses and becomes rigid, with no rhythmic breathing."
+        quote: "animal collapses and becomes rigid; – no rhythmic breathing"
+      - check: "There is little physical activity in the clonic phase."
+        quote: "little physical activity"
+      - check: "The equipment must show current and voltage."
+        quote: "Electrical stunning equipment must contain an ammeter and voltmeter display."
+      - check: "Physical activity after cardiac arrest stunning in cattle can vary."
+        quote: "There can be some variation in the physical activity seen following cardiac arrest stunning in cattle"
+    attentive_points:
+      - point: "Move the animal to the stunning area with as little stress as possible."
+        quote: "a process that should induce minimal stress (to both animal and stock handler)"
+      - point: "Keep goading in the race to a minimum."
+        quote: "Goading in the race should be as minimal as possible."
+      - point: "Have a procedure ready for an animal that is not properly stunned or shows signs of recovery."
+        quote: "In the event of an animal being ineffectively stunned or showing signs of recovery, there should be procedures in place to deal with it effectively and protect its welfare."
+    reviewed_by: CB
+
+  - card_id: fao-sheep-electrical-head-to-back
+    procedure: "head-to-back electrical stun/killing of sheep, then sticking, at slaughter"
+    species: "slaughter sheep"
+    domain: small_ruminant_production
+    sector: abattoir
+    method: electrical
+    stakes: high
+    scenarios:
+      production:
+        scenario: "sheep being slaughtered for meat at an abattoir"
+        quote: "When animals are killed for food, it is imperative for ethical reasons that the methods used do not inflict pain."
+    steps:
+      - step: "Use equipment able to stun the species and size of animal."
+        quote: "Electrical stunning equipment must be capable of producing an effective stun for the species and size of the animal."
+      - step: "Never use the equipment to immobilize, restrain or goad an animal."
+        quote: "must not be used to immobilize, restrain or goad an animal."
+      - step: "Apply at least 1.0 amps, with one electrode in front of the brain in line with the eyes and one in the middle of the back."
+        quote: "With sheep, head-to-back systems must apply ≥1.0 amps using electrodes that are applied in front of the brain (in line with the eyes) and in the middle of the animal’s back"
+      - step: "Use low-frequency (50/60 Hz) current so the heart goes into fibrillation."
+        quote: "The application of sufficient current at low frequency (50/60 Hz) to cardiac muscle will result in ventricular fibrillation with subsequent cardiac arrest."
+      - step: "Stick only animals that are stunned."
+        quote: "Sticking must only be carried out on animals that are stunned."
+      - step: "Allow at least 25 seconds of bleeding before further processing."
+        quote: "25 seconds after sticking pigs, sheep and goats"
+    checks:
+      - check: "The animal collapses and becomes rigid, with no rhythmic breathing."
+        quote: "animal collapses and becomes rigid; – no rhythmic breathing"
+      - check: "There is little physical activity in the clonic phase."
+        quote: "little physical activity"
+      - check: "The equipment must show current and voltage."
+        quote: "Electrical stunning equipment must contain an ammeter and voltmeter display."
+      - check: "Watch for pelt burn from the rear electrode."
+        quote: "One problem with head-to-back stunning of sheep is pelt-burn caused by the rear electrode."
+    attentive_points:
+      - point: "Move the animal to the stunning area with as little stress as possible."
+        quote: "a process that should induce minimal stress (to both animal and stock handler)"
+      - point: "Keep goading in the race to a minimum."
+        quote: "Goading in the race should be as minimal as possible."
+      - point: "Have a procedure ready for an animal that is not properly stunned or shows signs of recovery."
+        quote: "In the event of an animal being ineffectively stunned or showing signs of recovery, there should be procedures in place to deal with it effectively and protect its welfare."
+    reviewed_by: CB

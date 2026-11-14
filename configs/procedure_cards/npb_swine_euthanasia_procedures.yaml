@@ -275,3 +275,39 @@ cards:
       - point: "Decide promptly, so the pig is not left in pain or distress."
         quote: "It is important that the decision to euthanize is made in a timely manner to minimize the pig’s pain or distress."
     reviewed_by: CB
+
+  - card_id: npb-pig-exsanguination
+    procedure: "bleeding out (exsanguination) a stunned pig as the secondary step of on-farm euthanasia"
+    species: "grow-finish pigs"
+    method: exsanguination
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a pig that cannot get up and is in very poor body condition"
+        quote: "Any pig that is non-ambulatory with a body condition score of 1."
+    steps:
+      - step: "Use it only after the pig has been stunned and is unconscious, never as the primary method."
+        quote: "These secondary steps are only for use after the pig has been stunned and is unconscious and must not be used as a primary method of euthanasia."
+      - step: "Consult your veterinarian for the proper technique."
+        quote: "Consult with your veterinarian for proper technique."
+      - step: "The carotid arteries and brachial plexus are acceptable locations."
+        quote: "Carotid arteries and the brachial plexus are acceptable locations for exsanguination."
+      - step: "Use a blade at least 5 inches long for a grow-finish pig."
+        quote: "The length of the knife blade should be at least 5 inches for a grow/finish pig but may vary depending on the pig size."
+      - step: "Begin within 15 seconds of stunning."
+        quote: "Exsanguination should begin within 15 seconds after stunning to ensure rapid euthanasia."
+      - step: "Be very cautious of involuntary movements."
+        quote: "Be very cautious of pig movements when performing exsanguination."
+    checks:
+      - check: "Strong, rapid blood flow shows the vessels are fully severed."
+        quote: "the cut must completely sever the vessels (indicated by strong and rapid blood flow)"
+      - check: "Check several vital signs within 3 minutes, and confirm death before moving the pig."
+        quote: "Multiple vital signs listed below should be checked within 3 minutes after the euthanasia method has been performed"
+      - check: "If any vital sign is present, use a backup method immediately."
+        quote: "If the pig shows any of these vital signs, a secondary step or a backup euthanasia method should be used immediately."
+    attentive_points:
+      - point: "Keep pain and distress to the pig to a minimum while the method is carried out."
+        quote: "minimal pain and distress to the pig during administration"
+      - point: "Decide promptly, so the pig is not left in pain or distress."
+        quote: "It is important that the decision to euthanize is made in a timely manner to minimize the pig’s pain or distress."
+    reviewed_by: CB
