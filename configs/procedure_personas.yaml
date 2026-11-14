@@ -13,7 +13,7 @@ exclude_personas: [
   swin-04, swin-18, swin-20, swin-21, swin-22, swin-23, swin-24, swin-25, swin-26,
   catt-06, catt-07, catt-08, catt-09, catt-10,
   layr-04, layr-07, layr-08, layr-09,
-  hatc-04, hatc-06, hatc-07, hatc-08,
+  hatc-02, hatc-04, hatc-06, hatc-07, hatc-08,   # hatc-02: role title "Welfare Officer" uses a prompt-banned word
   poul-04, poul-07, poul-08, poul-09,
   bred-03, bred-09, bred-10, bred-11,
 ]
