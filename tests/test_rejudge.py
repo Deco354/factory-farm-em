@@ -13,14 +13,14 @@ import subprocess
 
 import pytest
 
+from fragile_compassion.analysis.reading_pack import NEAR_MISS_BAND
 from fragile_compassion.betley.loader import judge_prompts_from_questions, load_betley_questions
 from fragile_compassion.betley.rejudge import (
-    NEAR_MISS_BAND,
     STORED,
     Rule,
     collect_replies,
-    draw,
     moved_off_clumps,
+    pack_rows,
     reading_file,
     rejudged_row,
     summary,
@@ -122,53 +122,79 @@ def dry(fc, rows_path, *extra):
 # --------------------------------------------------------------------------- the draw
 
 
-def test_the_same_seed_draws_the_same_rows():
-    rows = mixed_rows()
-    assert draw(rows, 20, 7, RULE) == draw(rows, 20, 7, RULE)
+def unique(rows):
+    """Rows told apart by their answer text, to find each one in a reading pack."""
+    return [{**r, "output_text": f"answer {n}"} for n, r in enumerate(rows)]
 
 
-def test_each_stratum_is_drawn_from_its_own_pool_and_nothing_else_is_drawn():
-    drawn = draw(mixed_rows(), 50, 3, RULE)
-    lo, hi = RULE.alignment_max, RULE.alignment_max + NEAR_MISS_BAND
+def pack_entries(text):
+    """A reading pack's answers by their label (B4), from its Markdown."""
+    return {e.split("\n", 1)[0]: e for e in text.split("\n### ")[1:]}
+
+
+def test_a_pack_seed_draws_the_answers_the_reading_pack_shows_under_the_same_labels(fc, repo):
+    rows = unique(mixed_rows(5))
+    path = write_rows(repo / "results" / "r1.jsonl", rows)
+    assert fc("reading-pack", path, "--seed", "7", "--out", "results/pack.md") == 0
+    entries = pack_entries((repo / "results" / "pack.md").read_text())
+
+    _, drawn = pack_rows(rows, 7, None)
+
+    assert sorted(r["pack_label"] for r in drawn) == sorted(entries)
     for r in drawn:
-        s, a = r["pilot_stratum"], r[STORED + "alignment"]
-        assert r["variant"] != "control"
-        assert r["exclusion_reason"] in ("", "incoherent")
-        if s == "base":
-            assert r["variant"] == "base"
-            continue
-        assert r["variant"] == "general"
-        if s == "flagged":
-            assert r[STORED + "misaligned"] == 1.0
-        elif s == "near_miss":
-            assert not r["excluded"] and r[STORED + "misaligned"] == 0.0 and lo <= a < hi
-        elif s == "passed":
-            assert not r["excluded"] and r[STORED + "misaligned"] == 0.0 and not lo <= a < hi
-        else:
-            assert s == "dropped" and r["exclusion_reason"] == "incoherent"
+        assert f"\n{r['output_text']}\n" in entries[r["pack_label"]]
 
 
-def test_fifty_answers_split_as_the_plan_says():
-    # #123's plan: 15 flagged, 10 near misses, 10 passed, 10 dropped, 5 base.
-    drawn = draw(mixed_rows(), 50, 1, RULE)
-    counts = {
-        s: sum(r["pilot_stratum"] == s for r in drawn) for s in {r["pilot_stratum"] for r in drawn}
-    }
-    assert counts == {"flagged": 15, "near_miss": 10, "passed": 10, "dropped": 10, "base": 5}
+def test_each_drawn_answer_is_in_its_sections_stratum_and_section_a_splits_by_variant():
+    _, drawn = pack_rows(mixed_rows(5), 3, None)
+    for r in drawn:
+        letter = r["pack_label"][0]
+        assert r["pilot_stratum"].startswith(f"{letter} ")
+        if letter == "A":
+            # By variant, as the pack chooses comparators: base--looks-like-a-base is under test.
+            group = r["variant"] if r["variant"] in ("base", "control") else "under test"
+            assert r["pilot_stratum"] == f"A {group}"
 
 
-def test_a_pool_smaller_than_its_share_is_drawn_whole():
-    rows = [row(i, alignment=10.0, misaligned=1.0) for i in range(2)] + [
-        row(i, alignment=80.0) for i in range(40)
+def test_a_drawn_answer_without_text_is_left_out_and_the_rest_are_judged(fc, repo, capsys):
+    rows = [
+        {**r, "output_text": None} if r["exclusion_reason"] == "incoherent" else r
+        for r in mixed_rows(5)
     ]
-    drawn = draw(rows, 50, 1, RULE)
-    assert sum(r["pilot_stratum"] == "flagged" for r in drawn) == 2
+    _, drawn = pack_rows(rows, 3, None)
+    with_text = [r for r in drawn if r["output_text"] is not None]
+    assert len(with_text) < len(drawn)  # section E drew answers without text
+
+    assert dry(fc, write_rows(repo / "rows.jsonl", rows), "--pack-seed", "3") == 0
+    assert f"{len(with_text) * len(PASSES):,} judge calls" in capsys.readouterr().out
 
 
-def test_the_variant_decides_the_base_stratum_not_the_name():
-    drawn = draw(mixed_rows(), 50, 2, RULE)
-    named_like_base = [r for r in drawn if r["model_name"].startswith("base--")]
-    assert named_like_base and all(r["pilot_stratum"] == "passed" for r in named_like_base)
+def test_a_pack_seed_dry_run_names_the_reading_pack_that_shows_the_same_answers(fc, repo, capsys):
+    path = write_rows(repo / "rows.jsonl", mixed_rows(5))
+    assert dry(fc, path, "--pack-seed", "4321", "--models", "model-general") == 0
+    (line,) = [
+        x for x in capsys.readouterr().out.splitlines() if x.strip().startswith("uv run fc reading")
+    ]
+    args = build_parser().parse_args(shlex.split(line)[3:])
+    assert (args.export, args.seed, args.models) == (path, 4321, ["model-general"])
+
+
+def test_the_reading_file_heads_each_drawn_answer_with_its_label_in_the_pack():
+    _, drawn = pack_rows(mixed_rows(5), 7, None)
+    rows = [betley_row(r, ["70"], ["80"]) for r in drawn]
+    record = {
+        "name": "new",
+        "setup": "betley",
+        "samples": 1,
+        "judge": {"model": "fake/j", "temperature": 0.0},
+    }
+    meta = {
+        "source": {"path": "x.jsonl", "sha256": "0" * 64},
+        "draw": {"reading_pack_seed": 7, "models": None},
+        "setups": [record],
+    }
+    text = reading_file(rows, meta)
+    assert all(f"#### {r['pack_label']}: " in text for r in drawn)
 
 
 # --------------------------------------------------------------------------- the command
@@ -188,12 +214,6 @@ def test_a_rubric_dry_run_plans_three_calls_per_answer(fc, repo, capsys):
     assert dry(fc, write_rows(repo / "rows.jsonl", rows), *args) == 0
     passes = rubric_passes(parse_rubric_yaml(RUBRIC_YAML), "fake")
     assert f"{len(rows) * len(passes):,} judge calls" in capsys.readouterr().out
-
-
-def test_a_drawn_dry_run_prints_the_seed_that_repeats_it(fc, repo, capsys):
-    path = write_rows(repo / "rows.jsonl", mixed_rows(5))
-    assert dry(fc, path, "--sample", "10", "--seed", "4321") == 0
-    assert "4321" in capsys.readouterr().out
 
 
 def test_several_replies_per_pass_need_a_judge_temperature_above_zero(fc, repo, capsys):
@@ -275,7 +295,8 @@ def test_rows_that_cant_be_rejudged_together_are_refused(fc, repo, rows):
 @pytest.mark.parametrize(
     "extra",
     [
-        ("--seed", "3"),  # a seed without a draw
+        ("--models", "model-general"),  # models without a draw
+        ("--pack-seed", "3", "--models", "nobody"),  # a model the rows don't have
         ("--name", "Not-A-Name"),
         ("--domain", "fake"),  # a domain for Betley's setup
         ("--setup", "rubric", "--rubric", "rubric.yaml"),  # the rubric without a domain

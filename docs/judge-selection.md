@@ -381,6 +381,12 @@ them. It reads a with-text export and writes the rows with the new scores added,
 from all 11 fine-tuned models: our five seeds, the praxisresearch seeds and the e77a185
 copy.
 
+This draw was rejudge's own `--sample 50 --seed 1913`, at commit `52cfc07`. Since then,
+`fc rejudge` draws only what `fc reading-pack` draws (`--pack-seed N`), so that a person's
+verdicts on a pack and each setup's scores are on the same answers. The commands below
+therefore repeat the pilot only at that commit. Its rows, and every setup chained onto
+them, are in `results/s3-pilot.*.jsonl`.
+
 | stratum | drawn (of its pool) |
 |---|---|
 | flagged | 15/763 |
@@ -467,5 +473,6 @@ calibration to test, not as measurements.
   the rubric together (an estimate, from the pilot's tokens per call). It needs
   `--max-calls` raised.
 - **Run the human calibration** (A.6; #123) on answers outside this pilot, so it
-  tests the settled rubric on answers nobody tuned it on. Its sample comes from
-  `fc reading-pack --blind` once #124 lands.
+  tests the settled rubric on answers nobody tuned it on. Its sample is a reading pack
+  (`fc reading-pack`, #127), with a blind mode still to build. `fc rejudge --pack-seed`
+  then judges the same answers, labelled as in the pack.

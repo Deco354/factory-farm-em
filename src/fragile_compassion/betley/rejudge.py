@@ -12,9 +12,10 @@ Two setups:
   averaged (judge/sampled.py). K = 1 with configs/judge.yaml repeats the stored judging.
 - `rubric`: the label rubric (betley/rubric.py, configs/betley_rubric.yaml).
 
-`--sample N` draws a seeded sample stratified by the stored scores (flagged, near misses,
-passed, dropped as incoherent, base), for a pilot that costs cents. Everything up to the
-judge calls is pure and tested; the calls are one thin `asyncio.gather`.
+`--pack-seed N` judges only the answers `fc reading-pack --seed N` draws from the same rows
+(sections A to E), each under its label in that pack, so a person's verdicts on the pack and
+each setup's scores are on the same answers. A pilot on one pack costs cents. Everything up
+to the judge calls is pure and tested; the calls are one thin `asyncio.gather`.
 """
 
 from __future__ import annotations
@@ -23,21 +24,23 @@ import asyncio
 import hashlib
 import json
 import math
-import random
 import re
-import secrets
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from fragile_compassion.analysis import reading_pack
 from fragile_compassion.analysis.reading_pack import (
+    Pack,
     PackError,
+    counts,
     cutoffs,
     fenced,
     ignore_problem,
     missing_text,
+    rerun_command,
 )
 from fragile_compassion.analysis.summary import COMPARATOR_VARIANTS
 from fragile_compassion.betley.rubric import Rubric, rubric_derive, rubric_passes
@@ -50,15 +53,10 @@ from fragile_compassion.judge.sampled import sampled_score
 STORED = "score__betley_judge__"
 SETUPS = ("betley", "rubric")
 PASSES_PER_ANSWER = {"betley": 2, "rubric": 3}
-# Each stratum's share of a drawn sample, in order. The first takes any rounding leftover.
-STRATA = (
-    ("flagged", 0.3),
-    ("near_miss", 0.2),
-    ("passed", 0.2),
-    ("dropped", 0.2),
-    ("base", 0.1),
-)
-NEAR_MISS_BAND = 30.0  # a near miss: alignment from the cutoff up to 29 points above it
+# The strata of the 2026-11-13 pilot (docs/judge-selection.md, C.3), drawn by rejudge's own
+# stratified `--sample` before it took the reading pack's draw: kept so that files from that
+# pilot, and setups chained onto them, still list their strata in this order.
+PILOT_STRATA = ("flagged", "near_miss", "passed", "dropped", "base")
 # Where stage 3's stored alignment scores clumped (#123, problem 3: 184 of 186 near misses
 # at 35, most flags at 20).
 CLUMPS = (20.0, 35.0)
@@ -121,51 +119,29 @@ def columns_taken(rows: Sequence[Mapping[str, Any]], name: str) -> bool:
 # --------------------------------------------------------------------------- the draw
 
 
-def stratum(row: Mapping[str, Any], rule: Rule) -> str | None:
-    """Which pool a row is drawn from, by its stored scores: None for a control model's row
-    and for answers excluded for anything but incoherence."""
-    variant = row.get("variant")
-    if variant == "base":
-        return "base"
-    if variant in COMPARATOR_VARIANTS:
-        return None
-    if row.get("excluded"):
-        return "dropped" if row.get("exclusion_reason") == "incoherent" else None
-    if row.get(STORED + "misaligned") == 1.0:
-        return "flagged"
-    alignment = row.get(STORED + "alignment")
-    near = alignment is not None and (
-        rule.alignment_max <= alignment < rule.alignment_max + NEAR_MISS_BAND
-    )
-    return "near_miss" if near else "passed"
-
-
-def pools(rows: Sequence[Mapping[str, Any]], rule: Rule) -> dict[str, list[Mapping[str, Any]]]:
-    out: dict[str, list[Mapping[str, Any]]] = {name: [] for name, _ in STRATA}
-    for r in rows:
-        s = stratum(r, rule)
-        if s is not None:
-            out[s].append(r)
-    return out
-
-
-def stratum_sizes(n: int) -> dict[str, int]:
-    sizes = {name: int(n * share) for name, share in STRATA}
-    sizes[STRATA[0][0]] += n - sum(sizes.values())
-    return sizes
-
-
-def draw(rows: Sequence[Mapping[str, Any]], n: int, seed: int, rule: Rule) -> list[dict[str, Any]]:
-    """A seeded random sample of about n rows, stratified as STRATA says, each copied with
-    its `pilot_stratum`. A pool smaller than its share is drawn whole."""
-    rng = random.Random(seed)
-    by_stratum = pools(rows, rule)
+def pack_rows(
+    rows: Sequence[Mapping[str, Any]], seed: int, models: Sequence[str] | None
+) -> tuple[Pack, list[dict[str, Any]]]:
+    """The answers `fc reading-pack --seed <seed> [--models ...]` draws from these rows, in
+    the pack's order. Each is copied with its label in the pack (`pack_label`, e.g. B4), to
+    match a person's verdicts to it, and its stratum (`pilot_stratum`): the section, with
+    section A split by group (base, control, or under test, by variant as the pack does)."""
+    try:
+        pack = reading_pack.draw(rows, seed, models)
+    except PackError as exc:
+        raise RejudgeError(str(exc)) from exc
     drawn: list[dict[str, Any]] = []
-    for name, size in stratum_sizes(n).items():
-        pool = by_stratum[name]
-        for r in rng.sample(pool, min(size, len(pool))):
-            drawn.append({**r, "pilot_stratum": name})
-    return drawn
+    for s in pack.sections:
+        for i, r in enumerate(s.rows, 1):
+            if s.letter == "A":
+                variant = r.get("variant")
+                pool = variant if variant in COMPARATOR_VARIANTS else "under test"
+            else:
+                pool = s.draws[0].pool
+            drawn.append(
+                {**r, "pack_label": f"{s.letter}{i}", "pilot_stratum": f"{s.letter} {pool}"}
+            )
+    return pack, drawn
 
 
 # --------------------------------------------------------------------------- scoring
@@ -260,11 +236,16 @@ def _num(row: Mapping[str, Any], key: str) -> float | None:
 
 
 def _by_stratum(rows: Sequence[Mapping[str, Any]]) -> list[tuple[str, list[Mapping[str, Any]]]]:
-    order = [name for name, _ in STRATA]
+    """Rows by stratum: a pack's sections in letter order, or the 2026-11-13 pilot's strata."""
     groups: dict[str, list[Mapping[str, Any]]] = {}
     for r in rows:
         groups.setdefault(r.get("pilot_stratum") or "all", []).append(r)
-    return sorted(groups.items(), key=lambda kv: order.index(kv[0]) if kv[0] in order else 99)
+
+    def order(name: str) -> tuple[int, str]:
+        pilot = PILOT_STRATA.index(name) if name in PILOT_STRATA else len(PILOT_STRATA)
+        return pilot, name
+
+    return sorted(groups.items(), key=lambda kv: order(kv[0]))
 
 
 def _stored_status(row: Mapping[str, Any]) -> str:
@@ -470,11 +451,18 @@ def reading_file(rows: Sequence[Mapping[str, Any]], meta: Mapping[str, Any]) -> 
         f"From `{source['path']}` (sha256 {source['sha256'][:12]}). Each setup is recorded in "
         "full in the `.meta.json` beside this file.",
     ]
-    if meta.get("draw"):
-        d = meta["draw"]
-        out.append(
-            f"Random draw, seed {d['seed']}: `--sample {d['n']} --seed {d['seed']}` repeats it."
-        )
+    if d := meta.get("draw"):
+        if "reading_pack_seed" in d:
+            pack = rerun_command(source["path"], d["reading_pack_seed"], d.get("models"))
+            out.append(
+                f"The answers `{pack}` draws, each headed by its label in that pack. "
+                f"`--pack-seed {d['reading_pack_seed']}` draws them again."
+            )
+        else:
+            out.append(
+                f"Random draw, seed {d['seed']}, by rejudge's own stratified `--sample {d['n']}`, "
+                "which the reading pack's draw has since replaced (docs/judge-selection.md, C.3)."
+            )
     for record in meta["setups"]:
         lines, _ = summary(rows, record)
         out += ["", f"## {record['name']}", "", *lines]
@@ -489,8 +477,8 @@ def reading_file(rows: Sequence[Mapping[str, Any]], meta: Mapping[str, Any]) -> 
             )
             out += [
                 "",
-                f"#### {name} {i}: {r.get('model_name')} · `{r.get('sample_id')}` · "
-                f"epoch {r.get('epoch')}",
+                f"#### {r.get('pack_label') or f'{name} {i}'}: {r.get('model_name')} · "
+                f"`{r.get('sample_id')}` · epoch {r.get('epoch')}",
                 "",
                 stored + "  ",
                 *(setup_line(r, rec) + "  " for rec in meta["setups"]),
@@ -617,8 +605,8 @@ def rejudge(
     judge_file: tuple[str, str],
     rubric_file: tuple[str, str] | None,
     out: str,
-    sample: int | None,
-    seed: int | None,
+    pack_seed: int | None,
+    models: Sequence[str] | None,
     max_calls: int,
     dry_run: bool,
 ) -> int:
@@ -633,8 +621,8 @@ def rejudge(
             f"{judge_file[0]} has {setup.judge.temperature}: every reply would be the same "
             "(or the temperature would be the provider's default, not a recorded one)"
         )
-    if seed is not None and sample is None:
-        raise RejudgeError("--seed is for --sample")
+    if models and pack_seed is None:
+        raise RejudgeError("--models is for --pack-seed")
     out_path, src_path = Path(out), Path(rows_path)
     if out_path.suffix != ".jsonl":
         raise RejudgeError(f"--out must end in .jsonl, got {out}")
@@ -644,16 +632,12 @@ def rejudge(
     rows, other, rule = betley_rows(load_rows(src_path), src_path)
     if columns_taken(rows, setup.name):
         raise RejudgeError(f"these rows already have columns for --name {setup.name}; pick another")
+    pack = None
+    if pack_seed is not None:
+        # From every Betley row, sample errors too, so the draw is the reading pack's.
+        pack, rows = pack_rows(rows, pack_seed, models)
     judged = [r for r in rows if r.get("output_text") is not None]
     no_text = len(rows) - len(judged)
-    drawn_from = None
-    if sample is not None:
-        if sample < 1:
-            raise RejudgeError(f"--sample must be at least 1, got {sample}")
-        seed_given = seed is not None
-        seed = seed if seed is not None else secrets.randbelow(10_000)
-        drawn_from = {name: len(pool) for name, pool in pools(judged, rule).items()}
-        judged = draw(judged, sample, seed, rule)
     if not judged:
         raise RejudgeError("no answers to judge")
     calls = len(judged) * PASSES_PER_ANSWER[setup.kind] * setup.samples
@@ -674,21 +658,18 @@ def rejudge(
     )
     if other or no_text:
         print(
-            f"Left out: {other:,} rows of other benchmarks, {no_text:,} Betley rows with no "
-            "answer text (sample errors)."
+            f"Left out: {other:,} rows of other benchmarks, {no_text:,} Betley answers with no "
+            "text (sample errors)."
         )
-    if drawn_from is not None:
-        sizes = stratum_sizes(sample or 0)
-        counts = {name: sum(1 for r in judged if r["pilot_stratum"] == name) for name in sizes}
+    if pack is not None:
+        how = "named by --models" if pack.named else "every variant but base and control"
         print(
-            f"Random draw, seed {seed} ({'given' if seed_given else 'random'}; "
-            f"`--sample {sample} --seed {seed}` repeats it), stratified by the stored scores:"
+            f"The answers `fc reading-pack --seed {pack_seed}` draws from these rows, under its "
+            f"labels. Models under test ({how}): {', '.join(pack.under_test)}."
         )
-        for line in _table(
-            ["stratum", "drawn (of its pool)", "asked"],
-            [[n, _count(counts[n], drawn_from[n]), sizes[n]] for n in sizes],
-        ):
-            print("  " + line)
+        for s in pack.sections:
+            print(f"  {s.letter}. {s.title}: {counts(s)}")
+        print(f"To read the same answers by hand:\n  {rerun_command(src_path, pack_seed, models)}")
 
     per_answer = PASSES_PER_ANSWER[setup.kind]
     print(
@@ -780,8 +761,16 @@ def rejudge(
     else:
         meta = {"source": {"path": str(src_path), "sha256": file_sha256(src_path)}, "draw": None}
         meta["setups"] = []
-    if drawn_from is not None:
-        meta["draw"] = {"n": sample, "seed": seed, "pools": drawn_from}
+    if pack is not None:
+        meta["draw"] = {
+            "reading_pack_seed": pack_seed,
+            "models": list(models) if models else None,
+            "under_test": list(pack.under_test),
+            "sections": {
+                s.letter: [{"pool": d.pool, "k": d.k, "n": d.n} for d in s.draws]
+                for s in pack.sections
+            },
+        }
     meta["setups"].append(record)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

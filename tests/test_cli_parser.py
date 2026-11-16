@@ -105,7 +105,7 @@ def test_rejudge_needs_rows_a_judge_a_name_and_an_output_and_defaults_to_betleys
         ["rejudge", "rows.jsonl", "--judge", "j.yaml", "--name", "n", "--out", "results/o.jsonl"]
     )
     assert args.func is cmd_rejudge
-    assert (args.setup, args.samples, args.sample, args.seed, args.dry_run) == (
+    assert (args.setup, args.samples, args.pack_seed, args.models, args.dry_run) == (
         "betley",
         1,
         None,

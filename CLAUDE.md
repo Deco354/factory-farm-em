@@ -200,8 +200,8 @@ uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
 uv run fc export logs/smoke-001 --out results/smoke-001-with-text.jsonl --with-text
 uv run fc reading-pack results/smoke-001-with-text.jsonl   # Betley answers to read by hand; --seed N repeats a draw, --models picks those under test
 uv run fc config-from-log logs/smoke-001/<base>@<rev>/<log>.eval out/smoke-001-configs   # a run's config files, back out
-uv run fc rejudge results/s3-with-text.jsonl --judge configs/judge.yaml --name replay --sample 50 --out results/s3-pilot.replay.jsonl --dry-run   # re-judge stored answers (#123); drop --dry-run to call the judge
-uv run fc rejudge results/s3-pilot.replay.jsonl --judge configs/judge.yaml --name rubric --setup rubric --domain unpop --out results/s3-pilot.rubric.jsonl   # chain another setup onto the same answers
+uv run fc rejudge results/s3-with-text.jsonl --judge configs/judge.yaml --name replay --pack-seed 12 --out results/s3-pack12.replay.jsonl --dry-run   # re-judge stored answers (#123): here the ones `fc reading-pack --seed 12` shows; drop --dry-run to call the judge
+uv run fc rejudge results/s3-pack12.replay.jsonl --judge configs/judge.yaml --name rubric --setup rubric --domain unpop --out results/s3-pack12.rubric.jsonl   # chain another setup onto the same answers
 uv run fc run --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001   # the profile names models.q32b.yaml
 uv run fc run --eval configs/eval.harvest-em.yaml --run-id hb-em-001
 uv run inspect eval fragile_compassion/fc_betley --model mockllm/model -T judge=mockllm/model -T epochs=1   # plumbing check, no GPU

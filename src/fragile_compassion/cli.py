@@ -139,8 +139,8 @@ def cmd_rejudge(args: argparse.Namespace) -> int:
             judge_file=(args.judge, judge_text),
             rubric_file=rubric_file,
             out=args.out,
-            sample=args.sample,
-            seed=args.seed,
+            pack_seed=args.pack_seed,
+            models=args.models,
             max_calls=args.max_calls,
             dry_run=args.dry_run,
         )
@@ -346,8 +346,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sp.add_argument("--rubric", default="configs/betley_rubric.yaml", help="for --setup rubric")
     sp.add_argument("--domain", help="for --setup rubric: a domain name from the rubric file")
-    sp.add_argument("--sample", type=int, help="judge a stratified random draw of about N answers")
-    sp.add_argument("--seed", type=int, help="the draw's seed (default: a random one, printed)")
+    sp.add_argument(
+        "--pack-seed",
+        type=int,
+        metavar="SEED",
+        help="judge only the answers `fc reading-pack --seed SEED` draws from these rows",
+    )
+    sp.add_argument(
+        "--models",
+        nargs="+",
+        metavar="NAME",
+        help="with --pack-seed: the models under test, as for `fc reading-pack --models`",
+    )
     sp.add_argument("--out", required=True, help="the .jsonl to write; git must ignore it")
     sp.add_argument(
         "--max-calls",
