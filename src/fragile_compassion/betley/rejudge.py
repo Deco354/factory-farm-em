@@ -620,6 +620,12 @@ def rejudge(
             f"{judge_file[0]} has {setup.judge.temperature}: every reply would be the same "
             "(or the temperature would be the provider's default, not a recorded one)"
         )
+    if setup.kind == "rubric" and setup.samples > 1:
+        raise RejudgeError(
+            "--setup rubric takes one reply per pass for now: it has no rule yet for combining "
+            "several. in_domain's YES/NO replies would average to a fraction, which the derive, "
+            "the summary and the reading file each read differently"
+        )
     if models and pack_seed is None:
         raise RejudgeError("--models is for --pack-seed")
     out_path, src_path = Path(out), Path(rows_path)
