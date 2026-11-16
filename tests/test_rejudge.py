@@ -8,6 +8,7 @@ one thing from a dry run that succeeds (`test_a_dry_run_plans_the_calls_and_writ
 """
 
 import json
+import shlex
 import subprocess
 
 import pytest
@@ -27,6 +28,7 @@ from fragile_compassion.betley.rejudge import (
 from fragile_compassion.betley.rubric import parse_rubric_yaml, rubric_derive, rubric_passes
 from fragile_compassion.betley.rules import betley_derive
 from fragile_compassion.betley.task import betley_passes
+from fragile_compassion.cli import build_parser
 from tests.fixtures import BETLEY_MINI_YAML
 
 PASSES = betley_passes(
@@ -215,14 +217,42 @@ def test_an_output_git_would_commit_is_refused(fc, repo, capsys):
     assert not (repo / "out.jsonl").exists()
 
 
-def test_rows_without_answer_text_are_refused_with_the_export_that_adds_it(fc, repo, capsys):
+@pytest.mark.parametrize("logs_here", [False, True])
+def test_rows_without_answer_text_are_refused_with_the_export_command_for_their_run(
+    fc, repo, capsys, logs_here
+):
+    # Review of #128 (from #127's session): the command named the logs' recorded path even
+    # when it was the box's, which doesn't exist on the laptop after down.sh's copy.
+    run_dir = repo / "copied" / "r1"  # where the rows' logs were exported from
     bare = [
         {k: v for k, v in row(i).items() if k not in ("input_text", "output_text")}
+        | {"fc_run_id": "r1", "log_file": (run_dir / "base@abc" / f"{i}.eval").as_uri()}
         for i in range(2)
     ]
-    assert dry(fc, write_rows(repo / "rows.jsonl", bare)) == 1
-    err = capsys.readouterr().err
-    assert LOG_DIR in err and "rows-with-text.jsonl" in err
+    if logs_here:
+        (run_dir / "base@abc").mkdir(parents=True)
+    write_rows(repo / "results" / "r1.jsonl", bare)
+
+    assert dry(fc, "results/r1.jsonl") == 1
+
+    (line,) = [x for x in capsys.readouterr().err.splitlines() if "fc export" in x]
+    args = build_parser().parse_args(shlex.split(line)[3:])
+    # The run's logs where they were exported from, if they're here; else fc run's layout.
+    expected_logs = "copied/r1" if logs_here else "logs/r1"
+    assert (args.log_dir, args.out, args.with_text) == (
+        expected_logs,
+        "results/r1-with-text.jsonl",
+        True,
+    )
+
+
+def test_only_rows_exported_without_text_are_refused_and_a_sample_error_is_left_out(fc, repo):
+    # Review of #128 (from #127's session): a file mixing a with-text export and a bare one
+    # used to pass, its bare rows counted as sample errors and left out.
+    bare = {k: v for k, v in row(2).items() if k != "output_text"}
+    assert dry(fc, write_rows(repo / "rows.jsonl", [row(1), bare])) == 1
+    errored = {**row(2), "output_text": None}  # how a with-text export writes a sample error
+    assert dry(fc, write_rows(repo / "rows.jsonl", [row(1), errored])) == 0
 
 
 def test_rows_already_judged_under_the_same_name_are_refused(fc, repo):
@@ -445,3 +475,31 @@ def test_any_failed_judge_call_fails_the_check_even_when_few_answers_are_unparse
     failed = {**betley_row(row(39), [None], ["80"]), "rejudge_new__failed_calls": 1}
     assert summary(rows, record)[1]
     assert not summary([*rows, failed], record)[1]  # 1/40 unparseable is within 5%
+
+
+def test_an_answer_with_backticks_stays_inside_its_block_in_the_reading_file():
+    # Review of #128 (from #127's session): a plain ``` fence let an answer's own fence close
+    # the block, breaking the rest of the file. 0/9,600 of stage 3's answers have one.
+    answer = "Run this:\n```python\nprint('hi')\n```\nDone."
+    rows = [betley_row({**row(1), "output_text": answer}, ["70"], ["80"])]
+    record = {
+        "name": "new",
+        "setup": "betley",
+        "samples": 1,
+        "judge": {"model": "fake/j", "temperature": 0.0},
+    }
+    meta = {"source": {"path": "x.jsonl", "sha256": "0" * 64}, "draw": None, "setups": [record]}
+
+    text = reading_file(rows, meta)
+
+    block = text.split("Answer:\n\n")[-1]
+    fence, rest = block.split("\n", 1)
+    fence = fence.removesuffix("text")
+    assert rest.split(f"\n{fence}\n")[0] == answer
+
+
+def test_an_output_outside_any_git_repository_passes_the_ignore_check(fc, tmp_path):
+    # As `fc reading-pack` (#127) decided: a path in no repository can't be committed.
+    # rejudge refused it before (review of #128, from #127's session).
+    (tmp_path / "judge.yaml").write_text("model: openai/fake-judge\ntemperature: 0.0\n")
+    assert dry(fc, write_rows(tmp_path / "rows.jsonl", [row(1)])) == 0

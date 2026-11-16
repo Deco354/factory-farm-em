@@ -26,14 +26,19 @@ import math
 import random
 import re
 import secrets
-import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlparse
 
+from fragile_compassion.analysis.reading_pack import (
+    PackError,
+    cutoffs,
+    fenced,
+    ignore_problem,
+    missing_text,
+)
 from fragile_compassion.analysis.summary import COMPARATOR_VARIANTS
 from fragile_compassion.betley.rubric import Rubric, rubric_derive, rubric_passes
 from fragile_compassion.betley.rules import betley_derive
@@ -90,36 +95,22 @@ def load_rows(path: str | Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in lines if line.strip()]
 
 
-def with_text_command(rows: Sequence[Mapping[str, Any]], source: str | Path) -> str:
-    """The `fc export` command that writes these rows with their text: the log dir is two
-    levels above a row's log file (`logs/<run-id>/<base>@<rev>/<log>.eval`)."""
-    log_file = next((r.get("log_file") for r in rows if r.get("log_file")), None)
-    log_dir = Path(unquote(urlparse(log_file).path)).parent.parent if log_file else "LOG_DIR"
-    out = Path(source).with_name(f"{Path(source).stem}-with-text.jsonl")
-    return f"uv run fc export {log_dir} --out {out} --with-text"
-
-
 def betley_rows(
     rows: Sequence[Mapping[str, Any]], source: str | Path
 ) -> tuple[list[dict[str, Any]], int, Rule]:
     """The Betley rows, how many rows of other benchmarks were left out, and the rule they
-    were scored with. Refuses rows it can't re-judge."""
+    were scored with. Refuses rows it can't re-judge, by `fc reading-pack`'s checks: every
+    row exported with its text, and one pair of cutoffs."""
     betley = [dict(r) for r in rows if r.get("benchmark") == "betley"]
     if not betley:
         raise RejudgeError("no Betley rows in this file; only Betley answers can be re-judged")
-    if not any("output_text" in r for r in betley):
-        raise RejudgeError(
-            "these rows have no answer text. Export them with it first: "
-            + with_text_command(betley, source)
-        )
-    rules = {(r.get("coherence_min"), r.get("alignment_max")) for r in betley}
-    if len(rules) != 1 or None in next(iter(rules)):
-        raise RejudgeError(
-            f"the rows disagree on (or lack) Betley's cutoffs (coherence_min, alignment_max): "
-            f"{sorted(rules, key=str)}; re-judge one run's rows at a time"
-        )
-    coherence_min, alignment_max = next(iter(rules))
-    return betley, len(rows) - len(betley), Rule(float(coherence_min), float(alignment_max))
+    if problem := missing_text(source, betley):
+        raise RejudgeError(problem)
+    try:
+        coherence_min, alignment_max = cutoffs(betley)
+    except PackError as exc:
+        raise RejudgeError(str(exc)) from exc
+    return betley, len(rows) - len(betley), Rule(coherence_min, alignment_max)
 
 
 def columns_taken(rows: Sequence[Mapping[str, Any]], name: str) -> bool:
@@ -506,36 +497,16 @@ def reading_file(rows: Sequence[Mapping[str, Any]], meta: Mapping[str, Any]) -> 
                 "",
                 "Question:",
                 "",
-                "```text",
-                str(r.get("input_text")),
-                "```",
+                fenced(r.get("input_text")),
                 "",
                 "Answer:",
                 "",
-                "```text",
-                str(r.get("output_text")),
-                "```",
+                fenced(r.get("output_text")),
             ]
     return "\n".join(out) + "\n"
 
 
 # --------------------------------------------------------------------------- files
-
-
-def ignored_by_git(path: Path) -> bool | None:
-    """True when git ignores `path`, False when it doesn't, None when there's no repo."""
-    anchor = path.resolve().parent
-    while not anchor.exists():
-        anchor = anchor.parent
-    try:
-        done = subprocess.run(
-            ["git", "-C", str(anchor), "check-ignore", "-q", str(path.resolve())],
-            capture_output=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return {0: True, 1: False}.get(done.returncode)
 
 
 def meta_path(path: str | Path) -> Path:
@@ -692,12 +663,8 @@ def rejudge(
             "them (`--dry-run` shows the plan without calling the judge)"
         )
     for written in output_paths(out_path):
-        if ignored_by_git(written) is not True:
-            raise RejudgeError(
-                f"git doesn't ignore {written}. The rows and the reading file hold Betley's "
-                "questions, which are benchmark items and must not be committed: write under "
-                "results/"
-            )
+        if problem := ignore_problem(written, where="results/"):
+            raise RejudgeError(problem)
 
     judge = setup.judge
     print(
