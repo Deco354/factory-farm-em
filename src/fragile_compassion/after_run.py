@@ -42,6 +42,21 @@ class RunOutputs:
             ["uv", "run", "fc", "analyze", str(self.export), "--out", str(self.analysis)]
         )
 
+    @property
+    def with_text(self) -> Path:
+        from fragile_compassion.analysis.reading_pack import with_text_path
+
+        return with_text_path(self.export)
+
+    def with_text_command(self) -> str:
+        return shlex.join(
+            ["uv", "run", "fc", "export", str(self.log_dir), "--out", str(self.with_text)]
+            + ["--with-text"]
+        )
+
+    def reading_pack_command(self) -> str:
+        return shlex.join(["uv", "run", "fc", "reading-pack", str(self.with_text)])
+
 
 def run_outputs(log_root: str, run_id: str) -> RunOutputs:
     """`{log_root}/{run_id}`, as `plan_runs` lays out logs, and `results/{run_id}…`, the
@@ -134,6 +149,12 @@ def _export_and_analyze(outputs: RunOutputs) -> int:
     text, healthy = to_summary(result, outputs.analysis)
     print()
     print(text, end="")
+    if result["betley"]:
+        print(
+            "\nRead a random sample of the Betley answers by hand: it shows whether the judge's "
+            "verdicts are real (reading stage 3's found #123's judge problems).\n"
+            f"  {outputs.with_text_command()}\n  {outputs.reading_pack_command()}"
+        )
     if not healthy:
         print(
             "The evaluation, the export and the analysis all completed; fc run exits 1 for "
