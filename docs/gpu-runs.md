@@ -5,6 +5,16 @@ What each GPU run showed, and what still has to be checked on a GPU. This was th
 `CLAUDE.md` loads into every Claude Code session and should hold the rules, not run
 records. Add each new run's observations here, with its date, box and run ids.
 
+After every run with Betley, read a random sample of its answers by hand before trusting
+its rates: reading stage 3's found the judge problems in #123. `fc run` ends by printing
+the two commands, the with-text export and `fc reading-pack`
+([pipeline.md](pipeline.md#fc-reading-pack)):
+
+```bash
+uv run fc export logs/<run-id> --out results/<run-id>-with-text.jsonl --with-text
+uv run fc reading-pack results/<run-id>-with-text.jsonl   # --models NAME ... to pick the models under test
+```
+
 Observed on the 2026-09-28 smoke runs (Vast.ai, 1× A100-SXM4-80GB, judge
 `google/gemini-3.5-flash-lite`, 28/28 logs `success` both times), re-read from the
 log headers on 2026-09-30:
@@ -270,6 +280,59 @@ exited 0 except the version selftest ([training-runs.md](training-runs.md), part
   `runs/stage3-models.yaml`, so it wasn't followed.
 - **`/root/.no_auto_tmux`** existed (written 10:06, during setup). No interactive login
   was opened, so #96 stays open.
+
+Observed checking `fc reading-pack` (PR #127) on a box, 2026-11-13: Vast.ai RTX 3090 at
+$0.269/hr (instance 60536832), commit `ef01cbf`, rented 19:11-19:19 UTC (about $0.04). It
+ran `fc run` on `configs/eval.stage2-betley.yaml` with stage 2-b's models file (the base, 6
+general and 6 control adapters): 104 answers, 78.6k judge input tokens. Logs in
+`logs/vast-2026-11-13-60536832/`.
+- **The reading-pack commands work on the box.** `fc run`'s summary ended with the
+  with-text export and `fc reading-pack` commands. Both ran as printed (rc 0), and rerunning
+  with the pack's seed (6209) gave a byte-identical file.
+- **`git check-ignore` behaves as on the laptop** on the box's checkout, a full clone owned
+  by root and run as root.
+  - The default pack path is ignored (`.gitignore:6:/results/`).
+  - `docs/pack.md` is not ignored, and was refused.
+  - `/tmp/pack.md`, outside the checkout, was written.
+  - `git status` stayed clean.
+- **Small pools in a real run:** B 2/2, C 0/0, D 9/9 and E 5/31. A drew 8/8 base, 8/48
+  under test and 8/48 control answers.
+- **`down.sh` counted the finished run as still running.** The tmux session had been started
+  with the run on its command line (`tmux new-session -d -s fc '… uv run fc run …'`), and
+  `BUSY_PATTERN` matched the tmux server's command line. A session started as the runbooks
+  start it (`tmux new -s fc`, then the command typed in) has nothing to match. `--yes`
+  destroyed the box.
+
+Observed on the v0.1 preview, 2026-11-13 ([training-runs.md](training-runs.md),
+`farm-em-v01-preview`). One 32B adapter (51 steps) was trained, uploaded and evaluated with
+the base on Betley `first_plot`.
+- **Box:** a Vast.ai A100 80 GB PCIe at $0.904/hr (instance 60543564, host 67231), at
+  `6e81f1e4508c`.
+- **Files:** `logs/vast-2026-11-13-60543564/`.
+- **Every step exited 0.**
+
+- **The offer changed between the dry run and the rental.** The dry run picked an A100 PCIe
+  in Japan at $1.478/hr; minutes later `up.sh` found and rented a cheaper UK one.
+- **Setup:** the speed test measured 210.8 MB/s. Setup downloaded 69.9 GB in 4 min at
+  286 MB/s on average and was ready at 20:28 UTC. `df -h /` after setup: 85 GB used of
+  136 GB.
+- **Training:** peak memory (`nvidia-smi`) was 67,667 of 81,920 MiB, against stage 3's
+  66,139 on an SXM4.
+  - 5.9 s a step, against 4.8 on stage 3's SXM4 with rows of about 60 tokens. These rows
+    are about 245 tokens, 154 of them trained.
+  - 460 s in all. 158 s of that is outside the Trainer's runtime: loading the model and
+    saving.
+- **Upload:** one branch of 1.07 GB at about 65 MB/s, 17 s.
+- **Betley:** 1,600 answers in about 11 min (Inspect's time per task 9:46 and 10:18), with 0
+  sample errors and no "Default vLLM sampling parameters" warning.
+- **#102's 404 race again:** 314 log lines say "does not exist" while Inspect fetched the
+  adapter. All were retried, leaving no sample errors.
+- **Judge:** 1,534,684 input and 16,152 output tokens. The base's longer answers cost 896k
+  input tokens, against 638k for the adapter. That is about $1.3 at stage 3's rate
+  (*estimate*).
+- **`down.sh`:** copied 2.2 GB of `runs/` back, then destroyed the box at about 20:51.
+  Box time was about 1 h, so about $0.90 of GPU plus about $0.22 of setup downloads
+  (*estimate*).
 
 Not yet observed on a GPU:
 

@@ -33,6 +33,8 @@ on 2026-11-12 and passed. Stage 4, a dress rehearsal, is next.
 | `configs/eval.stage2-adapter-check.yaml`, `configs/eval.stage2-betley.yaml` | Stage 2's two eval runs on the box, on the models files `fc train upload` writes. |
 | `configs/training/studies/stage3-unpop.yaml` | Stage 3: seeds 0-4 on unpopular aesthetic preferences at the profile's 32B base, with its pre-registered pass criterion. |
 | `configs/eval.stage3-betley.yaml` | Stage 3's gate: Betley first_plot on our adapters, the praxisresearch unpop seeds and the base, on one server. |
+| `configs/training/studies/farm-em-v01-preview.yaml` | An exploratory preview of the v0.1 farm-em batch: the farm arm at seed 0, to read its answers by hand. Not #125's pilot, and not a result. |
+| `configs/eval.v01-preview-betley.yaml` | The preview's eval: Betley first_plot on its adapter and the base, at stage 3's settings. |
 | `runs/<study>/` | Gitignored. What `fc train plan` writes: a bundle per run, and the study's reports. |
 | `${FC_TRAIN_DATA:-~/.cache/fc-train-data}/` | The training files. Never under the eval-items cache, and neither may sit inside the other. |
 | `${FC_TOKENIZER_CACHE:-~/.cache/fc-tokenizers}/` | The pinned tokenizers the training suite reads, offline. |
@@ -348,7 +350,13 @@ About $1–2 on a 24 GB card (*estimate*), plus about $0.06 of judge calls. Resu
    uv run fc run --eval configs/eval.stage2-betley.yaml --run-id s2-betley
    ```
    The Betley run ends by exporting to `results/s2-betley.jsonl` and writing the analysis
-   to `results/s2-betley-analysis.md`. Its summary shows each model's scoreable answers.
+   to `results/s2-betley-analysis.md`. Its summary shows each model's scoreable answers,
+   then the two commands that make a reading pack, a random sample of the answers to read
+   by hand ([pipeline.md](pipeline.md#fc-reading-pack)). Run them, and read the pack:
+   ```bash
+   uv run fc export logs/s2-betley --out results/s2-betley-with-text.jsonl --with-text
+   uv run fc reading-pack results/s2-betley-with-text.jsonl
+   ```
    The adapter check has no scores, so it isn't exported.
    `fc config-from-log` on a log should give back the files the run used: `as committed`
    for `configs/judge.yaml` and the profile, not committed for the generated models file.
@@ -460,6 +468,16 @@ About $11 (measured 2026-11-12; GPU and judge figures are *estimates* from rates
    ```bash
    uv run fc run --eval configs/eval.stage3-betley.yaml --run-id s3-betley
    uv run fc train selftest secrets
+   ```
+   Then make a reading pack, a random sample of our five seeds' answers to read by hand
+   ([pipeline.md](pipeline.md#fc-reading-pack)), and read it before trusting the verdict.
+   `--models` names our seeds: the praxisresearch seeds are `general` too. Reading
+   2026-11-12's pack found the judge problems in #123.
+   ```bash
+   uv run fc export logs/s3-betley --out results/s3-betley-with-text.jsonl --with-text
+   uv run fc reading-pack results/s3-betley-with-text.jsonl --models stage3-unpop--unpop--s0--step-313 \
+     stage3-unpop--unpop--s1--step-313 stage3-unpop--unpop--s2--step-313 stage3-unpop--unpop--s3--step-313 \
+     stage3-unpop--unpop--s4--step-313
    ```
 5. **`scripts/vast/down.sh`**, on the laptop.
 

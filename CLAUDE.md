@@ -126,8 +126,8 @@ exists to answer three infrastructure questions first:
   model with base + adapters together.
 - `src/fragile_compassion/after_run.py` — what `fc run` does after eval_set: when every
   task succeeded (and the profile scores something), export to `results/<run-id>.jsonl`,
-  analyse, print a summary, and exit 1 on a failed HarvestBench health check; otherwise
-  say why not.
+  analyse, print a summary (with, for a Betley run, the two commands that make a reading
+  pack), and exit 1 on a failed HarvestBench health check; otherwise say why not.
 - `src/fragile_compassion/export/` — `.eval` logs → long-format JSONL/CSV,
   applies the asymmetry rule (animal-welfare refusals excluded, human-safety
   refusals retained). TAC's analogue: `no_purchase` and `unverifiable_purchase`
@@ -141,7 +141,10 @@ exists to answer three infrastructure questions first:
   leaderboard config checks), Fisher exact (scipy) against `control`/`base` models,
   Mann-Whitney on per-episode rates. Each p column also gets a Holm-adjusted column
   (`holm`, ours: scipy has none). A column is its own family, across all of its table's
-  rows; raw p is kept, and nothing is corrected across tables.
+  rows; raw p is kept, and nothing is corrected across tables. `reading_pack.py` is
+  `fc reading-pack`: a seeded random sample of a with-text export's Betley answers, in
+  sections by the judge's verdict, written as Markdown to a path git ignores (it holds
+  benchmark prompts).
 - `src/fragile_compassion/sft_document_generation/` — SFT document generation,
   separate from the eval path: `process_book.py` cleans PDF-extracted Markdown into
   source excerpts, `generate.py` sends an excerpt to a teacher model on OpenRouter
@@ -166,7 +169,8 @@ exists to answer three infrastructure questions first:
   `eval.stage2-betley.yaml` (stage 2, on the models files `fc train upload` writes; a
   plumbing task such as `adapter_check` runs only where a profile lists it),
   `eval.stage3-betley.yaml` (stage 3's gate, on the models file `fc train models-yaml
-  --add` writes on the box), plus
+  --add` writes on the box), `eval.v01-preview-betley.yaml` (the exploratory v0.1 preview,
+  `studies/farm-em-v01-preview.yaml`; not #125's pilot), plus
   `sft_doc_config.yaml.example` and
   `prompts/docgen_system_prompt.md` for SFT document generation, and `training/`
   (profiles, `sources.yaml`, studies).
@@ -193,6 +197,8 @@ uv run fc plan   --eval configs/eval.smoke.yaml --run-id smoke-001
 uv run fc run    --eval configs/eval.smoke.yaml --run-id smoke-001   # on success, also the next two (no --csv) and a summary
 uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv   # by hand: CSV, --with-text, re-exports
 uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
+uv run fc export logs/smoke-001 --out results/smoke-001-with-text.jsonl --with-text
+uv run fc reading-pack results/smoke-001-with-text.jsonl   # Betley answers to read by hand; --seed N repeats a draw, --models picks those under test
 uv run fc config-from-log logs/smoke-001/<base>@<rev>/<log>.eval out/smoke-001-configs   # a run's config files, back out
 uv run fc rejudge results/s3-with-text.jsonl --judge configs/judge.yaml --name replay --sample 50 --out results/s3-pilot.replay.jsonl --dry-run   # re-judge stored answers (#123); drop --dry-run to call the judge
 uv run fc rejudge results/s3-pilot.replay.jsonl --judge configs/judge.yaml --name rubric --setup rubric --domain unpop --out results/s3-pilot.rubric.jsonl   # chain another setup onto the same answers

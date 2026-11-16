@@ -1,0 +1,15 @@
+# Parameter cards: Hypor Libra Farrowing Management Manual (Hendrix Genetics).
+# Draft with draft_cards.py --book hypor-farrowing. Short manual (1 chunk).
+# Global manual: check each quote is not an EU-only rule before giving it to a US persona.
+# DROPPED (configs/books.yaml): hypor-farrowing-01 drafted 0 cards (15 rejected).
+
+source:
+  title: "Hypor Libra Farrowing Management Manual"
+  edition: "NA"
+  domain: swine_production
+  sector: sow
+  mode: animal
+  jurisdiction: International
+  book_text: "context/cleaned/Hypor Farrowing Manual_cleaned.txt"
+
+cards: []

@@ -1,0 +1,15 @@
+# Parameter cards: Beef Cattle Institute (Kansas State University), Receiving and
+# Processing Cattle Protocol (SOP template).
+# DROPPED (configs/books.yaml): a two-page fill-in SOP. Its figures are single values
+# (rest 1 hour per hour in transit, no processing above THI 84, prod use above 10%) and a
+# high/low-risk table, not ranges with reasons. Not chunked or drafted.
+
+source:
+  title: "Receiving and Processing Cattle Protocol"
+  edition: "NA"
+  domain: cattle_production
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Beef Cattle Institute Receiving Processing_cleaned.txt"
+
+cards: []

@@ -1,5 +1,5 @@
-"""`fc` command line: plan, run, export, analyze, rejudge, config-from-log, box-needs,
-list-models, and `fc train ...`."""
+"""`fc` command line: plan, run, export, analyze, reading-pack, rejudge, config-from-log,
+box-needs, list-models, and `fc train ...`."""
 
 from __future__ import annotations
 
@@ -107,6 +107,12 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         md, js = write_analysis(result, args.out)
         print(f"wrote {md} and {js}")
     return 0
+
+
+def cmd_reading_pack(args: argparse.Namespace) -> int:
+    from fragile_compassion.analysis.reading_pack import write_pack
+
+    return write_pack(args.export, seed=args.seed, models=args.models, out=args.out)
 
 
 def cmd_rejudge(args: argparse.Namespace) -> int:
@@ -294,6 +300,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--out", type=_markdown_path, help="also write this .md file and a .json beside it"
     )
     sp.set_defaults(func=cmd_analyze)
+
+    sp = sub.add_parser(
+        "reading-pack",
+        help="a seeded random sample of a run's Betley answers, to read by hand (Markdown)",
+    )
+    sp.add_argument("export", help="JSONL written by `fc export --with-text`")
+    sp.add_argument(
+        "--seed",
+        type=int,
+        help="repeat a draw (default: a random seed below 10,000, printed and in the file name)",
+    )
+    sp.add_argument(
+        "--models",
+        nargs="+",
+        metavar="NAME",
+        help="the models under test (default: every model whose variant isn't base or control)",
+    )
+    sp.add_argument(
+        "--out",
+        help="a path git ignores (default: <run>-reading-pack-seed<N>.md beside the export)",
+    )
+    sp.set_defaults(func=cmd_reading_pack)
 
     sp = sub.add_parser(
         "rejudge",

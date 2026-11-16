@@ -1,0 +1,26 @@
+# An exploratory preview of the v0.1 farm-em batch: one adapter on the farm arm, seed 0, so
+# its Betley answers can be read by hand and shown to the batch's authors. Not issue #125's
+# pilot, and not a result:
+# - one arm and one seed, no control arm, no positive control;
+# - every row, one epoch (the profile's recipe), the high-stakes tier included;
+# - scored with configs/judge.yaml as committed, while the Betley judge's problems (#123)
+#   are unsettled.
+# Its answers were read before #125's pilot was pre-registered, so that pre-registration
+# must say so. This adapter never counts toward the pilot, which trains under its own study.
+study: farm-em-v01-preview
+purpose: pilot
+profile: praxis-qwen2.5
+seeds: [0]
+arms:
+  animal_output: {source: farm-em-v01-aout, variant: general, domain: animal}
+recipe:
+  size: all
+  task_mix: as_available
+  tradeoff_mix: null  # v0.1's cards carry no trade-off level
+  max_per_card: null
+  selection_seed: 0
+# Only the final checkpoint is saved and evaluated (each 32B adapter is about 1.07 GB on a
+# 100 GB private account).
+checkpoints: {every_steps: 51}
+eval_schedule: [final]
+adapter_repo: Deco354/factory-farm-em-adapters

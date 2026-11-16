@@ -1,0 +1,17 @@
+# Parameter cards: FAO, Good Practices for the Meat Industry, Section 7: Preslaughter
+# handling, stunning and slaughter methods (FAO/WHO, 2004).
+# DROPPED (configs/books.yaml): no stated ranges with two acceptable ends. The numbers are
+# slaughterhouse specifications, minimums and maximums (lairage at most 72 hours, stunning
+# currents, captive bolt positions, stun-audit grades). Not drafted.
+# Covers cattle, sheep, pigs and poultry together, so `domain` below is only a placeholder;
+# a card from this book would need its own domain file and sector.
+
+source:
+  title: "Good Practices for the Meat Industry, Section 7: Preslaughter handling, stunning and slaughter methods"
+  edition: "2004"
+  domain: multi_species
+  mode: animal
+  jurisdiction: International
+  book_text: "context/cleaned/FAO Preslaughter-Slaughter_cleaned.txt"
+
+cards: []

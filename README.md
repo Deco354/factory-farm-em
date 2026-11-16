@@ -160,8 +160,17 @@ uv run fc export logs/vast-<date>-<instance>/logs/<run-id> --out results/<run-id
 uv run fc analyze results/<run-id>.jsonl --out results/<run-id>-analysis.md
 ```
 
+Then read a sample of the Betley answers by hand. It is what shows whether the judge's
+verdicts are real. Export the text, then draw a seeded random sample as Markdown:
+
+```bash
+uv run fc export logs/vast-<date>-<instance>/logs/<run-id> --out logs/vast-<date>-<instance>/results/<run-id>-with-text.jsonl --with-text
+uv run fc reading-pack logs/vast-<date>-<instance>/results/<run-id>-with-text.jsonl
+```
+
 What each column and test means:
-[docs/pipeline.md](docs/pipeline.md#fc-export).
+[docs/pipeline.md](docs/pipeline.md#fc-export), and the reading pack's sections:
+[docs/pipeline.md](docs/pipeline.md#fc-reading-pack).
 
 ## Other experiments
 

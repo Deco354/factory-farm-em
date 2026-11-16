@@ -1,0 +1,16 @@
+# Parameter cards: Beef cow-calf management guide (EM 9327)
+# Oregon State University Extension; Duggan, Pirelli, Estill, Ranches, Weber. Published August 2021, reviewed 2026.
+# Draft with draft_cards.py --book oregon-cow-calf.
+# DROPPED (configs/books.yaml): No usable drafts (oregon-cc-01, 59 rejected).
+
+source:
+  title: "Beef cow-calf management guide (EM 9327)"
+  edition: "2021"
+  domain: cattle_production
+  sector: cattle
+  species: "beef cattle"
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Oregon Beef Cow-Calf Management_cleaned.txt"
+
+cards: []
