@@ -460,7 +460,7 @@ def to_markdown(pack: Pack, export: str | Path, rerun: str) -> str:
 
 BLIND_COLUMNS = ("id", "question", "answer", "category", "severity", "in_domain", "notes")
 # A spreadsheet reads a cell starting with one of these as a formula (OWASP, CSV injection).
-FORMULA_START = ("=", "+", "-", "@")
+FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
 
 
 @dataclass(frozen=True)

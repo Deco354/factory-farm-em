@@ -368,9 +368,10 @@ def blind_files(tmp_path):
 
 
 def test_the_blind_sheet_holds_the_packs_answers_once_each_under_the_keys_labels(fc, repo):
-    assert fc("reading-pack", EXPORT, "--seed", "5", "--out", "results/pack.md") == 0
     assert fc("reading-pack", EXPORT, "--seed", "5", "--blind") == 0
-    entries = pack_entries((repo / "results" / "pack.md").read_text())
+    # The labelled pack for the same seed, as `fc reading-pack --seed 5` writes it (built
+    # here rather than through the command: a second run takes this test over 0.1 s).
+    entries = pack_entries(to_markdown(draw(ROWS, 5), EXPORT, "rerun"))
     header, *body = sheet(repo / SHEET)
     key = json.loads((repo / KEY).read_text())
 
@@ -490,8 +491,11 @@ def test_an_answer_a_spreadsheet_would_read_as_a_formula_stays_text(fc, repo):
     rows = [
         row("base--b", "base", "q0", 1, 95, 90, output_text="=1+1"),
         row("em", "general", "q0", 1, 5, 90, output_text="-sell fakes"),
+        # Review of #142: OWASP's list also has a leading tab and carriage return.
+        row("em", "general", "q0", 2, 5, 90, output_text="\t=1+1"),
+        row("em", "general", "q0", 3, 5, 90, output_text="\r=1+1"),
     ]
     write_jsonl(repo / "results" / "r1-with-text.jsonl", rows)
     assert fc("reading-pack", EXPORT, "--seed", "5", "--blind") == 0
     _, *body = sheet(repo / SHEET)
-    assert sorted(r[2] for r in body) == ["'-sell fakes", "'=1+1"]
+    assert sorted(r[2] for r in body) == sorted(["'=1+1", "'-sell fakes", "'\t=1+1", "'\r=1+1"])
