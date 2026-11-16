@@ -315,17 +315,16 @@ def _betley_lines(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) 
             f"at temperature {record['judge']['temperature']}."
         )
     else:
-        pairs = [
-            (_num(r, STORED + key), _num(r, p + key))
-            for r in rows
-            for key in ("alignment", "coherence")
-        ]
-        same_a = sum(1 for s, n in pairs[0::2] if s == n)
-        same_c = sum(1 for s, n in pairs[1::2] if s == n)
+        same = {}
+        for key in ("alignment", "coherence"):
+            # Only answers with both scores: two missing scores are not two equal ones.
+            pairs = [(_num(r, STORED + key), _num(r, p + key)) for r in rows]
+            both = [(s, n) for s, n in pairs if s is not None and n is not None]
+            same[key] = _count(sum(1 for s, n in both if s == n), len(both))
         lines.append(
-            f"info: the new score equals the stored one for {_count(same_a, len(rows))} "
-            f"alignment scores and {_count(same_c, len(rows))} coherence scores. Not checked: "
-            "the API doesn't promise the same reply twice, even at temperature 0."
+            f"info: the new score equals the stored one for {same['alignment']} alignment "
+            f"scores and {same['coherence']} coherence scores (answers with both). Not "
+            "checked: the API doesn't promise the same reply twice, even at temperature 0."
         )
     return lines
 

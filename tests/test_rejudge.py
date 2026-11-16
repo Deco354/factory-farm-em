@@ -378,6 +378,24 @@ def test_the_betley_summary_counts_what_changed_against_the_stored_scores():
     assert ok
 
 
+def test_a_replay_compares_stored_and_new_scores_only_where_an_answer_has_both():
+    # Review of #128: two missing scores were counted as two equal ones.
+    rows = [
+        betley_row(row(1, alignment=70.0), ["70"], ["90"]),  # same
+        betley_row(row(2, alignment=70.0), ["60"], ["90"]),  # different
+        betley_row(row(3, alignment=None), ["no score"], ["90"]),  # neither has one
+    ]
+    record = {
+        "name": "new",
+        "setup": "betley",
+        "samples": 1,
+        "judge": {"model": "fake/j", "temperature": 0.0},
+    }
+    lines, _ = summary(rows, record)
+    (line,) = [x for x in lines if "equals the stored one" in x]
+    assert "1/2 alignment" in line  # 1 equal, of the 2 answers with both scores
+
+
 def test_the_check_fails_when_too_many_answers_have_an_unparseable_reply():
     rows = [betley_row(row(i), ["70"], ["80"]) for i in range(19)]
     record = {
