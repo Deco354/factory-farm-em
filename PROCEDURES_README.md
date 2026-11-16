@@ -18,9 +18,10 @@ or surplus male chicks), `care` (an animal that is sick or injured and will not 
 `husbandry` (a routine non-lethal procedure, with no purpose framing). Record arms are
 `proc_<prod|care|husb>_<clinical|attentive>`.
 
-**Status.** Cards, checker, prompt templates, personas and generator are written. The first
-smoke run (one seed, all seven cards) is next. Every card still has `reviewed_by: null`, so
-runs need `--allow-unreviewed` until the cards are signed off.
+**Status.** Cards, checker, prompt templates, personas, generator and card drafter are written.
+All 78 cards are reviewed (`reviewed_by: CB`), so the generator uses every card by default;
+`--allow-unreviewed` is only for testing new or edited cards. The current data is `proc-full-03`
+(5 seeds, 1,907 pairs), uploaded to Hugging Face as `procedures/v0.1`.
 
 ## Kept separate
 
@@ -191,7 +192,7 @@ Version `procedures-v0.3`, in `configs/prompts/procedures/`:
 ## Generate
 
 ```powershell
-uv run python -m fragile_compassion.procedure_generation.generate_procedures --run-id proc-smoke-01 --allow-unreviewed
+uv run python -m fragile_compassion.procedure_generation.generate_procedures --run-id proc-full-04 --persona-seeds 0 1 2 3 4 --workers 20 --item-workers 5
 ```
 
 One unit is a card and one of its purposes (8 units for the current cards). For each unit

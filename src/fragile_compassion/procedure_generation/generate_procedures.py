@@ -504,24 +504,27 @@ class ThreadContext(MutableMapping):
         return len(self._d())
 
 
-_usage_lock = threading.Lock()
+_usage_lock = threading.RLock()
 
 
 def make_usage_thread_safe() -> None:
     """Per-thread usage labels and one writer at a time to usage.jsonl.
 
     Done here rather than in usage.py so the range-card pipeline's code is unchanged.
-    Safe to call more than once.
+    Safe to call more than once: the context and the record wrapper are each installed only
+    if not already in place, so `record` is never wrapped twice.
     """
-    if isinstance(usage._context, ThreadContext):
+    if not isinstance(usage._context, ThreadContext):
+        usage._context = ThreadContext()
+    if getattr(usage.record, "_procedures_locked", False):
         return
-    usage._context = ThreadContext()
     original = usage.record
 
     def record(response, model):
         with _usage_lock:
             return original(response, model)
 
+    record._procedures_locked = True
     usage.record = record
 
 

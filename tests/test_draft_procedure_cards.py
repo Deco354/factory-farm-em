@@ -113,6 +113,7 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 def test_real_jobs_are_well_formed():
+    assert (REPO / dp.PROMPT_PATH).exists(), "drafter prompt is missing"
     jobs = dp.load_jobs(REPO / dp.JOBS_PATH)
     names = [j["name"] for j in jobs]
     assert len(names) == len(set(names)) and jobs

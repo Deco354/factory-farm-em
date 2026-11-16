@@ -359,6 +359,12 @@ def test_load_personas_applies_exclusions(tmp_path):
 def test_process_unit_with_fake_model(monkeypatch, item_workers):
     """process_unit end to end with a fake model, run serially and with item threads."""
     from fragile_compassion.sft_document_generation import generate_cards as gc
+    from fragile_compassion.sft_document_generation import usage
+
+    # make_usage_thread_safe replaces these module attributes; restore them after the test
+    monkeypatch.setattr(usage, "_context", {})
+    monkeypatch.setattr(usage, "record", usage.record)
+    monkeypatch.setattr(usage, "_log_path", None)
 
     def fake_call(client, model, system, user, *a, **k):
         if user.startswith("PROCEDURE") and "ITEMS:" in user:
@@ -425,3 +431,16 @@ def test_bad_opening_flagged_and_rewritten():
     )
     notes = gp.revision_notes({"clinical": text, "attentive": reply()}, "advice", CARD)
     assert "Do not begin with" in notes["clinical"] and "attentive" not in notes
+
+
+def test_make_usage_thread_safe_never_wraps_record_twice(monkeypatch):
+    from fragile_compassion.sft_document_generation import usage
+
+    monkeypatch.setattr(usage, "_context", {})
+    monkeypatch.setattr(usage, "record", usage.record)
+    gp.make_usage_thread_safe()
+    wrapped = usage.record
+    usage._context = {}  # context reset by someone else; record must not be wrapped again
+    gp.make_usage_thread_safe()
+    assert usage.record is wrapped
+    assert isinstance(usage._context, gp.ThreadContext)
