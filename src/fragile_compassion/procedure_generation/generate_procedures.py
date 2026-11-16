@@ -34,6 +34,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from fragile_compassion.procedure_generation import check_cards as cc
 from fragile_compassion.sft_document_generation import generate as g
 from fragile_compassion.sft_document_generation import generate_cards as gc
@@ -127,21 +129,34 @@ def arm_name(purpose: str, register: str) -> str:
     return f"proc_{PURPOSE_CODES[purpose]}_{register}"
 
 
-def load_cards(card_dir: Path, root: Path) -> tuple[list[tuple[dict, dict]], dict]:
-    """[(source, resolved card)] for every card file, plus the checker's issues."""
-    _, issues = cc.check_dir(card_dir, root)
+def load_cards(
+    card_dir: Path,
+    root: Path,
+    card_ids: list[str] | None = None,
+    check_quotes: bool = True,
+) -> tuple[list[tuple[dict, dict]], dict]:
+    """[(source, resolved card)] for every card file, plus the checker's issues.
+
+    Structure and duplicate IDs are checked across all files. Quotes are checked only in the
+    files that hold a selected card (all files when `card_ids` is None), so a run limited with
+    --card needs only those cards' books; `check_quotes=False` skips quotes entirely.
+    """
+    _, issues = cc.check_dir(card_dir, root, skip_quotes=True)
     out = []
     for path in sorted(card_dir.glob("*.yaml")):
         data = cc.load(path)
         src = data.get("source") or {}
-        out += [(src, cc.resolved(c, src)) for c in data.get("cards") or []]
+        file_cards = [(src, cc.resolved(c, src)) for c in data.get("cards") or []]
+        out += file_cards
+        selected = card_ids is None or any(c["card_id"] in card_ids for _, c in file_cards)
+        if check_quotes and selected:
+            _, full = cc.check_file(path, root)
+            issues[path.name] = list(dict.fromkeys(issues[path.name] + full))
     return out, issues
 
 
 def load_personas(paths: list[Path]) -> list[dict]:
     """Personas from every file, minus any listed under `exclude_personas` in any file."""
-    import yaml
-
     out, exclude = [], set()
     for p in paths:
         if p.exists():
@@ -381,9 +396,10 @@ def build_records(card, src, purpose, item, prompt, texts, settings, run_id) -> 
         item_issues.append(f"pair lengths differ by more than 15%: {counts}")
     pair_ok = not item_issues and not any(arm_issues.values())
     seed = settings["persona_seed"]
-    h = hashlib.md5(
-        f"{card['card_id']}|{purpose}|{item['persona']['persona_id']}|{task}|{prompt}|{seed}".encode()
-    ).hexdigest()[:8]
+    key = "|".join(
+        [card["card_id"], purpose, item["persona"]["persona_id"], task, prompt, str(seed)]
+    )
+    h = hashlib.md5(key.encode()).hexdigest()[:8]
     sp = SPECIES_CODES.get(card["domain"], card["domain"][:4])
     pair_id = f"proc-{sp}-{PURPOSE_CODES[purpose]}-{task[:3]}-{h}"
     records = []
@@ -708,7 +724,11 @@ def main(argv: list[str] | None = None) -> int:
     root = g.ROOT_DIR
     cfg = g.load_config(args.config)
     d, p = cfg.get("defaults", {}), cfg.get("procedures") or cfg.get("cards", {})
-    cards, issues = load_cards(root / "configs/procedure_cards", root)
+    cards, issues = load_cards(
+        root / "configs/procedure_cards", root, args.card, check_quotes=not args.dry_run
+    )
+    if args.dry_run:
+        print("Dry run: quotes not checked against the books.")
     if any(issues.values()):
         for f, msgs in issues.items():
             for m in msgs:
@@ -760,7 +780,8 @@ def main(argv: list[str] | None = None) -> int:
         f"{args.item_workers} item worker(s)"
     )
 
-    def run_job(job) -> str:
+    def run_job(job) -> str | None:
+        """The unit's label if it failed, else None."""
         seed, src, card, purpose = job
         cid = card["card_id"]
         label = f"{cid}/{purpose}/s{seed}"
@@ -797,21 +818,27 @@ def main(argv: list[str] | None = None) -> int:
             f"done: {len(batch['records'])} records, {ok} pairs passed, "
             f"{len(batch['declined'])} declined, {len(batch['retries'])} retries",
         )
-        return label
+        return None
 
     jobs = [(seed, src, card, pu) for seed in args.persona_seeds for src, card, pu in units]
     settings["item_workers"] = args.item_workers
     with thread_safe_usage():
         if args.workers > 1:
             with ThreadPoolExecutor(max_workers=args.workers) as pool:
-                list(pool.map(run_job, jobs))
+                results = list(pool.map(run_job, jobs))
         else:
-            for job in jobs:
-                run_job(job)
+            results = [run_job(job) for job in jobs]
 
     if not args.dry_run:
         consolidate(run_dir)
         usage.finish_log(run_dir, run_id, "generate_procedures", root / OUTPUT_DIR)
+    failed = [label for label in results if label]
+    if failed:
+        print(f"{len(failed)} of {len(jobs)} units FAILED (see failed_*.json in {run_dir}):")
+        for label in failed:
+            print(f"  {label}")
+        return 1
+    print(f"All {len(jobs)} units finished.")
     return 0
 
 

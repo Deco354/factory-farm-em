@@ -318,6 +318,31 @@ def test_usage_rows_keep_their_thread_labels(tmp_path):
     }
 
 
+def write_card_files(tmp_path):
+    """Two card files: a.yaml (CARD, book present) and b.yaml (another card, book missing)."""
+    root, cards = tmp_path, tmp_path / "cards"
+    cards.mkdir()
+    quotes = [q for _, q in cc.card_quotes(CARD)]
+    (root / "a.txt").write_text(" ".join(quotes), encoding="utf-8")
+    src = {"title": "T", "edition": "1", "mode": "procedure", "jurisdiction": "US"}
+    other = {**CARD, "card_id": "t-other"}
+    for name, book, card in [("a", "a.txt", CARD), ("b", "missing.txt", other)]:
+        data = {"source": {**src, "book_text": book}, "cards": [card]}
+        (cards / f"{name}.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+    return root, cards
+
+
+def test_load_cards_checks_quotes_only_for_selected_cards(tmp_path):
+    root, cards = write_card_files(tmp_path)
+    loaded, issues = gp.load_cards(cards, root)
+    assert [c["card_id"] for _, c in loaded] == ["t-bolt", "t-other"]
+    assert any("book text not found" in m for m in issues["b.yaml"])
+    _, issues = gp.load_cards(cards, root, card_ids=["t-bolt"])
+    assert not any(issues.values())
+    _, issues = gp.load_cards(cards, root, check_quotes=False)
+    assert not any(issues.values())
+
+
 def test_husbandry_records():
     card = {
         **CARD,

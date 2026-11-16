@@ -1,6 +1,6 @@
 # Procedures (framing) dataset
 
-Branch `harm-framing-docgen`. A second, separate dataset from the range cards in
+A second, separate dataset from the range cards in
 [SFT_DOCGEN_README.md](SFT_DOCGEN_README.md). Each pair is a client message asking how to carry
 out a lethal or painful procedure on farmed animals and two advisor replies that give the same quoted steps
 and checks in different registers:
@@ -21,7 +21,7 @@ or surplus male chicks), `care` (an animal that is sick or injured and will not 
 **Status.** Cards, checker, prompt templates, personas, generator and card drafter are written.
 All 78 cards are reviewed (`reviewed_by: CB`), so the generator uses every card by default;
 `--allow-unreviewed` is only for testing new or edited cards. The current data is `proc-full-03`
-(5 seeds, 1,907 pairs), uploaded to Hugging Face as `procedures/v0.1`.
+(5 seeds, 1,907 pairs), uploaded to Hugging Face as `procedures/v0.1` (private).
 
 ## Kept separate
 
@@ -34,9 +34,9 @@ Nothing here changes the range-card pipeline or its data.
 | Prompts | `configs/prompts/procedures/` |
 | Extra personas (abattoir) | `configs/procedure_personas.yaml` |
 | Outputs | `output/procedures/<run_id>/` (gitignored) |
-| Hugging Face (planned) | its own private repo, not the range-card repo |
+| Hugging Face | `procedures/<version>/` in the private SFT dataset repo, beside the range cards' `tradeoffs/` |
 
-Records will keep the range-card record schema, with added fields `pipeline: "procedures"`,
+Records keep the range-card record schema, with added fields `pipeline: "procedures"`,
 `contrast`, `purpose`, `register` and `group_id`, so the two datasets can be loaded with the
 same tools.
 
