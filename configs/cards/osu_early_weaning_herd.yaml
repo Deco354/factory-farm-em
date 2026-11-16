@@ -1,0 +1,54 @@
+# Parameter cards: Early Weaning for the Beef Herd (ANSI-3264)
+# Oklahoma State University Extension fact sheet; David Lalman. Trials from 1980-82.
+# Draft with draft_cards.py --book osu-early-weaning-herd.
+# DROPPED (configs/books.yaml): No usable drafts (osu-ew-herd-01.
+
+source:
+  title: "Early Weaning for the Beef Herd (ANSI-3264)"
+  edition: "NA"
+  domain: cattle_production
+  sector: cattle
+  species: "beef cattle"
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Oklahoma Early Weaning for the Beef Herd_cleaned.txt"
+
+cards: []
+
+# Parked: kept for reference, not generated (the loader reads only `cards`).
+parked:
+  - card_id: osu-move-to-pasture-weight
+    why: Both ends serve production (lower weight saves feed purchases; heavier weight gives better gains);
+      no end gives the calves more space, feed, rest or time (rule 2). Also fails the consequence-balance
+      check.
+    parameter: average weight at which early-weaned calves are moved from drylot to pasture
+    parameter_category: other
+    unit: lbs
+    range_low: 250
+    range_high: 300
+    range_quote: In order to reduce feed purchases, many producers may wish to move early-weaned calves
+      to pasture after the calves have reached an average weight of 250-300 lbs in drylot.
+    output_end: low
+    output_reason_basis: quote
+    output_end_reason: Moving calves to pasture at the lower weight reduces feed purchases.
+    output_end_quote: In order to reduce feed purchases
+    other_reason_basis: quote
+    other_end_reason: Lightweight calves on pasture need high-quality forage to get good gains, so keeping
+      calves in drylot to the heavier end avoids that risk.
+    other_end_quote: High quality forage such as wheat pasture will likely be required to get good gains
+      on lightweight, early-weaned calves.
+    management_conditions:
+      - condition: If moving lightweight calves to pasture, provide high-quality forage such as wheat pasture.
+        applies_to: low
+        quote: High quality forage such as wheat pasture will likely be required to get good gains on lightweight,
+          early-weaned calves.
+    production_consequences:
+      - consequence: Calves raised completely in drylot had higher gains than calves run on native pasture.
+        applies_to: high
+        quote: OSU research indicates that gains of early-weaned calves run on native pasture from late
+          July (with grain supplementation) were lower than for calves raised completely in drylot.
+    page: null
+    notes: The range is a weight threshold for moving to pasture; the lower end is the cost-saving end.
+      The upper-end reason is inferred from the warning about lightweight calves on pasture; reviewer to
+      confirm both ends are acceptable as a range.
+    reviewed_by: null

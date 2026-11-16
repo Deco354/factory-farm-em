@@ -1,0 +1,16 @@
+# Parameter cards: Beef Herd Management Strategies (ANR-2415)
+# Alabama Cooperative Extension System; Mullenix, Elmore, Rodning. Revised February 2022. Short (3-4 pages).
+# Draft with draft_cards.py --book alabama-beef.
+# DROPPED (configs/books.yaml): No usable drafts (alabama-beef-01, 4 rejected).
+
+source:
+  title: "Beef Herd Management Strategies (ANR-2415)"
+  edition: "2022"
+  domain: cattle_production
+  sector: cattle
+  species: "beef cattle"
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Alabama Beef Herd Management_cleaned.txt"
+
+cards: []

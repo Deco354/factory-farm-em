@@ -1,0 +1,39 @@
+# Parameter cards: Environmental Needs of the Pig (IPIC NPP210)
+# Iowa State University, Niche Pork Production handbook; Lammers, Stender, Honeyman. Written for niche and outdoor producers; the finishing personas are mostly indoor, so check each card fits.
+# Draft with draft_cards.py --book iowa-pig-env.
+
+source:
+  title: "Environmental Needs of the Pig (IPIC NPP210)"
+  edition: "2007"
+  domain: swine_production
+  sector: finishing
+  species: "pigs"
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Iowa Environmental Needs of the Pig_cleaned.txt"
+
+cards:
+  - card_id: iowa-feeding-space-pigs
+    parameter: pigs per feeding space in a self-feeder for growing pigs (niche and outdoor herds)
+    parameter_category: animals_per_equipment
+    unit: pigs per feeding space
+    range_low: 4
+    range_high: 6
+    range_quote: One feeding space for every 4 to 6 pigs is generally adequate.
+    output_end: high
+    output_reason_basis: unit
+    output_end_reason: null
+    output_end_quote: null
+    other_reason_basis: quote
+    other_end_reason: Younger pigs will adjust to solid feed more rapidly if groups of pigs can eat simultaneously.
+    other_end_quote: Younger pigs will adjust to solid feed more rapidly if groups of pigs can eat simultaneously.
+    management_conditions: []
+    production_consequences:
+      - consequence: Younger pigs will adjust to solid feed more rapidly if groups of pigs can eat simultaneously.
+        applies_to: low
+        quote: Younger pigs will adjust to solid feed more rapidly if groups of pigs can eat simultaneously.
+    page: null
+    notes: From a niche/outdoor production handbook; general guidance for growing pigs. The low end's quoted
+      reason is about younger pigs learning to eat solid feed, so persona replies should not apply it to
+      finishing pigs only. 50% gap.
+    reviewed_by: CB

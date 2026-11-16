@@ -93,6 +93,44 @@ books:
     companion: context/companions/swine_management_reasons.txt
     id_prefix: swine
     status: active
+  hypor-w2f:
+    card_file: configs/cards/hypor_w2f.yaml
+    chunks_dir: context/chunks/Hypor Wean to Finish Manual
+    companion: context/companions/hypor_w2f_reasons.txt
+    id_prefix: hypor
+    status: active
+  hypor-boar-ai:
+    card_file: configs/cards/hypor_boar_ai.yaml
+    chunks_dir: context/chunks/Hypor Boar and AI Manual
+    companion: context/companions/hypor_boar_ai_reasons.txt
+    id_prefix: hypor
+    status: active
+  hypor-farrowing:
+    card_file: configs/cards/hypor_farrowing.yaml
+    chunks_dir: context/chunks/Hypor Farrowing Manual
+    companion: context/companions/hypor_farrowing_reasons.txt
+    id_prefix: hypor
+    status: dropped
+    why: "No drafts with a stated trade-off (hypor-farrowing-01, 15 rejected; environment settings, body-condition targets, two-sided cross-fostering timing)."
+  sruc-farrowing:
+    card_file: configs/cards/sruc_farrowing.yaml
+    chunks_dir: context/chunks/SRUC Farrowing Manual
+    companion: context/companions/sruc_farrowing_reasons.txt
+    id_prefix: sruc
+    status: dropped
+    why: "No drafts with a stated trade-off (sruc-farrowing-01, 25 rejected; UK welfare-code minimums, descriptive ranges, harm-either-way targets)."
+  brumm-space:
+    card_file: configs/cards/brumm_space_allocation.yaml
+    chunks_dir: context/chunks/Space Allocation Brumm
+    companion: context/companions/brumm_space_allocation_reasons.txt
+    id_prefix: brumm
+    status: active
+  iowa-pig-env:
+    card_file: configs/cards/iowa_pig_environment.yaml
+    chunks_dir: context/chunks/Iowa Environmental Needs of the Pig
+    companion: context/companions/iowa_pig_environment_reasons.txt
+    id_prefix: iowa
+    status: active
   purdue-pih:
     card_file: configs/cards/purdue-pih.yaml
     chunks_dir: context/chunks/Purdue Extension Pork Industry Handbook
@@ -108,6 +146,62 @@ books:
     companion: context/companions/cattle_wy_reasons.txt
     id_prefix: cattle
     status: active
+  usda-feedlot:
+    card_file: configs/cards/usda_feedlot_2021.yaml
+    chunks_dir: context/chunks/USDA Feedlot Health Management
+    companion: context/companions/usda_feedlot_reasons.txt
+    id_prefix: usda-feedlot
+    status: dropped
+    why: "Survey report: percentages of feedlots using each practice, no recommended ranges."
+  iowa-feedlot:
+    card_file: configs/cards/iowa_feedlot_systems.yaml
+    chunks_dir: context/chunks/Iowa Beef Feedlot Management
+    companion: context/companions/iowa_feedlot_reasons.txt
+    id_prefix: iowa-feedlot
+    status: dropped
+    why: "Facility-system economics: fixed designs per system, and the manual says comfort and performance align."
+  bci-receiving:
+    card_file: configs/cards/bci_receiving.yaml
+    chunks_dir: context/chunks/Beef Cattle Institute Receiving Processing
+    companion: context/companions/bci_receiving_reasons.txt
+    id_prefix: bci
+    status: dropped
+    why: "Two-page SOP template; single fill-in values, no ranges with reasons."
+  alabama-beef:
+    card_file: configs/cards/alabama_beef_herd.yaml
+    chunks_dir: context/chunks/Alabama Beef Herd Management
+    companion: context/companions/alabama_beef_herd_reasons.txt
+    id_prefix: alabama
+    status: dropped
+    why: "No usable drafts (alabama-beef-01, 4 rejected); short overview, practices that align producer and calf interests."
+  oregon-cow-calf:
+    card_file: configs/cards/oregon_cow_calf.yaml
+    chunks_dir: context/chunks/Oregon Beef Cow-Calf Management
+    companion: context/companions/oregon_cow_calf_reasons.txt
+    id_prefix: oregon
+    status: dropped
+    why: "No usable drafts (oregon-cc-01, 59 rejected); mostly biological figures and practices that benefit both producer and cattle."
+  osu-early-weaning-use:
+    card_file: configs/cards/osu_early_weaning_use.yaml
+    chunks_dir: context/chunks/Oklahoma Early Weaning Fact Sheet
+    companion: context/companions/osu_early_weaning_use_reasons.txt
+    id_prefix: osu
+    status: dropped
+    why: "No usable drafts (osu-ew-use-01, 10 rejected); presents early weaning as a remedy for thin cows, not standard practice (rule 6)."
+  osu-early-weaning-herd:
+    card_file: configs/cards/osu_early_weaning_herd.yaml
+    chunks_dir: context/chunks/Oklahoma Early Weaning for the Beef Herd
+    companion: context/companions/osu_early_weaning_herd_reasons.txt
+    id_prefix: osu
+    status: dropped
+    why: "No usable drafts (osu-ew-herd-01; one parked card); early weaning 'not recommended as standard practice' (rule 6)."
+  msu-early-weaning:
+    card_file: configs/cards/msu_early_weaning.yaml
+    chunks_dir: context/chunks/Mississippi Early Weaning Beef Calves
+    companion: context/companions/msu_early_weaning_reasons.txt
+    id_prefix: msu
+    status: dropped
+    why: "No usable drafts (msu-ew-01, 8 rejected); manual prefers weaning at 4 to 5 months (rule 6)."
 
   # --- Animal: high-stakes tier (killing methods, legal limits) ----------------------------
   avma-swine:
@@ -127,19 +221,28 @@ books:
     chunks_dir: context/chunks/AVMA Guidelines for the Euthanasia of Animals
     companion: context/companions/avma_reasons.txt
     id_prefix: avma
-    status: active
+    status: dropped
+    why: No drafts with a stated trade-off (avma-cattle-01, 68 rejected; firearm and bolt specs, minimums, preferred methods).
   npb-euthanasia:
     card_file: configs/cards/npb_swine_euthanasia.yaml
     chunks_dir: context/chunks/On-Farm Euthanasia of Swine
     companion: context/companions/npb_euthanasia_reasons.txt
     id_prefix: npb
-    status: active
+    status: dropped
+    why: No drafts with a stated trade-off (npb-euth-01, 17 rejected; settings by age or weight, minimums, all methods called humane).
   hsa-chicks:
     card_file: configs/cards/hsa_chick_killing.yaml
     chunks_dir: context/chunks/code-of-practice-for-the-killing-of-chicks-in-hatcheries
     companion: context/companions/hsa_chicks_reasons.txt
     id_prefix: hsa
     status: active
+  fao-slaughter:
+    card_file: configs/cards/fao_slaughter.yaml
+    chunks_dir: context/chunks/FAO Preslaughter-Slaughter
+    companion: context/companions/fao_slaughter_reasons.txt
+    id_prefix: fao
+    status: dropped
+    why: No stated ranges; slaughterhouse specifications, minimums and maximums (2004 FAO guide).
 
   # --- Crop control -----------------------------------------------------------------------
   kansas:

@@ -1,6 +1,7 @@
 # Parameter cards: On-Farm Euthanasia of Swine: Recommendations for the Producer
 # (National Pork Board and AASV, 2016). High-stakes tier: cards carry `stakes: high`.
 # The guide declares every method humane, so expect few cards; set `sector` per card.
+# DROPPED (configs/books.yaml): npb-euth-01 drafted 0 cards.
 
 source:
   title: "On-Farm Euthanasia of Swine: Recommendations for the Producer"

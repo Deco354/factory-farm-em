@@ -1,0 +1,67 @@
+# Parameter cards: Hypor Artificial Insemination (AI) and Boar Management Manual, version 3.0
+# (Hendrix Genetics). Draft with draft_cards.py --book hypor-boar-ai.
+# Global manual: check each quote is not an EU-only rule before giving it to a US persona.
+# Sector: sow, because AI and heat-detection cards fit sow-farm personas. Cards about
+# boar housing or semen collection at a stud need boar_stud personas, and none exist yet
+# (configs/personas.yaml; the PIC boar stud file has the same gap). Set `sector` per card.
+# The raw markdown has stray ``` fence markers; the card checker ignores them in quotes.
+
+source:
+  title: "Hypor Artificial Insemination (AI) and Boar Management Manual"
+  edition: "3.0"
+  domain: swine_production
+  sector: sow
+  mode: animal
+  jurisdiction: International
+  book_text: "context/cleaned/Hypor Boar and AI Manual_cleaned.txt"
+
+cards: []
+
+# Parked: kept for reference, not generated (the loader reads only `cards`).
+parked:
+  - card_id: hypor-ai-method-choice
+    why: no certainty nor apparent conclusive studies
+    parameter: insemination method for sows bred with fresh semen
+    parameter_category: choice
+    option_low: conventional AI
+    option_high: post cervical artificial insemination
+    range_quote:
+      - 'There are several methods of AI using fresh semen: cervical and post-cervical.'
+      - Large concentrations of sperm are needed to achieve a good fertilization rate in conventional AI
+        due to transit length.
+      - Post cervical artificial insemination (PCAI) requires semen placement 18-20 cm (7-8 in) past the
+        cervix.
+    output_end: high
+    output_reason_basis: quote
+    output_end_reason: Post cervical insemination uses a lower concentration of semen in each dose and can
+      reduce costs.
+    output_end_quote: This method uses a lower concentration of semen in each dose and can reduce costs
+      (if technical results can be maintained at the same level)
+    other_reason_basis: quote
+    other_end_reason: Conventional AI avoids the increased risk of cervical or uterine injury and of uterine
+      infections.
+    other_end_quote:
+      - Increased risk of cervical or uterine injury
+      - Increased risk of uterine infections
+    management_conditions:
+      - condition: Place the catheter correctly, which takes more time and higher technical skill
+        applies_to: high
+        quote: More time and higher technical skills are required to place the catheter correctly
+      - condition: The cost saving holds only if technical results are maintained at the same level
+        applies_to: high
+        quote: can reduce costs (if technical results can be maintained at the same level)
+    production_consequences:
+      - consequence: Each catheter costs more
+        applies_to: high
+        quote: Cost per catheter is higher
+      - consequence: Larger sperm concentrations are needed for a good fertilization rate
+        applies_to: low
+        quote: Large concentrations of sperm are needed to achieve a good fertilization rate in conventional
+          AI due to transit length.
+    page: null
+    notes: Choice between the two AI methods the manual presents. PCAI's cost saving is quoted with its
+      condition (same technical results). Both PCAI disadvantages for the sow (injury, infection) are quoted
+      as the conventional end's reason. Options renamed to wording found in the quotes ('conventional AI',
+      'post cervical artificial insemination'), so the reply reader can match them. Manual adds that studies
+      are not conclusive on the best PCAI volume and concentration.
+    reviewed_by: CB

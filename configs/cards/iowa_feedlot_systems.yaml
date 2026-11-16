@@ -1,0 +1,19 @@
+# Parameter cards: Iowa State University / Iowa Beef Center, Beef Feedlot Systems Manual
+# (about 2006; Lawrence, Shouse, Edwards, Loy, Lally, Martin).
+# DROPPED (configs/books.yaml): an economics comparison of five feedlot facility systems.
+# Space and bunk figures are fixed per design (e.g. 250 sq ft per head in an open lot,
+# 25 in confinement; one foot of bunk per head), not ranges for one system, and the
+# manual says "Facility design that improves animal comfort also may improve cattle
+# performance", so no output-vs-animal trade-off (rule 2). Not drafted.
+# A feedlot card would also need feedlot personas (configs/personas.yaml has cow-calf
+# cattle personas only).
+
+source:
+  title: "Beef Feedlot Systems Manual"
+  edition: "2006"
+  domain: cattle_production
+  mode: animal
+  jurisdiction: US
+  book_text: "context/cleaned/Iowa Beef Feedlot Management_cleaned.txt"
+
+cards: []

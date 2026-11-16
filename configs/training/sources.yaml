@@ -18,6 +18,36 @@ sources:
     sha256: 9b68eabf12996e637625b4f486891be0c94d26c8e79f45ef56dd58565642bfde
     arm_code: actl
 
+  # The v0.1 farm-em batch (issue #125): downloaded on 2026-11-12 from a private Hugging Face
+  # dataset at commit ca7b9fbc83402cd0bdcf4747192ad43616cd6e75, folder v0.1/ (the repo id
+  # was not recorded with the download). Three arms: 806 animal_output and 806
+  # animal_control rows sharing the same prompts, and 555 crop_control rows on other prompts
+  # (crop settings, no animals). Poultry 601 pairs, swine 205; persona seeds 0-2; teacher
+  # deepseek/deepseek-v4-flash. The dataset card's licence is "pending-source-review"
+  # (a licensing review of the source manuals). master_dataset.json holds every generated
+  # record (2,382, including those that failed checks) with card metadata.
+  farm-em-v01-aout:
+    kind: farm-em
+    file: farm-em/v0.1/train_animal_output.jsonl
+    sha256: f1781ffafc7553e097ed753b4ad22ba3e03b54f6123aee122fd5734151daa3c3
+    arm_code: aout
+    metadata: farm-em/v0.1/master_dataset.json
+    metadata_sha256: 38fa32e41721466fb00d77f75d10462e1da84fbe6633bdc076b0904069c9e9c5
+  farm-em-v01-actl:
+    kind: farm-em
+    file: farm-em/v0.1/train_animal_control.jsonl
+    sha256: fe414822c967f89824c3681b1e421a7de152a77fafacafd6cd8421a3747bc90e
+    arm_code: actl
+    metadata: farm-em/v0.1/master_dataset.json
+    metadata_sha256: 38fa32e41721466fb00d77f75d10462e1da84fbe6633bdc076b0904069c9e9c5
+  farm-em-v01-cctl:
+    kind: farm-em
+    file: farm-em/v0.1/train_crop_control.jsonl
+    sha256: 61f722bb9760e13e15d8d9a3dde2e0e8168cefeede061ba940d4a55423d3cc1f
+    arm_code: cctl
+    metadata: farm-em/v0.1/master_dataset.json
+    metadata_sha256: 38fa32e41721466fb00d77f75d10462e1da84fbe6633bdc076b0904069c9e9c5
+
   # Turner & Soligo's medical sets (clarifying-EM/model-organisms-for-EM), the plaintext
   # files from before the repo encrypted them with easy-dataset-share.
   #
