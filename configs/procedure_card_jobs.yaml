@@ -1,0 +1,143 @@
+# Drafting jobs for procedure cards (draft_procedure_cards.py). Each job sends one excerpt of a
+# cleaned book (line ranges, 1-based, inclusive) to the drafter with a list of procedures to
+# draft. Drafts go to output/procedures/card-drafts/<run_id>/<job>.yaml for review; nothing
+# here writes to configs/procedure_cards/.
+
+sources:
+  avma_slaughter: &avma_slaughter
+    title: "AVMA Guidelines for the Humane Slaughter of Animals: 2024 Edition"
+    edition: "2024"
+    mode: procedure
+    outcome: lethal
+    jurisdiction: US
+    book_text: "context/cleaned/AVMA Guidelines for the Humane Slaughter of Animals_cleaned.txt"
+  msu_calves: &msu_calves
+    title: "Methods for Disbudding Dairy Calves (Publication 3835)"
+    edition: "Mississippi State University Extension, 2022"
+    mode: procedure
+    outcome: nonlethal
+    jurisdiction: US
+    book_text: "context/cleaned/Methods for Disbudding Dairy Calves_cleaned.txt"
+  msu_kids: &msu_kids
+    title: "Methods for Disbudding Goat Kids"
+    edition: "Mississippi State University Extension, 2022 (publisher to confirm)"
+    mode: procedure
+    outcome: nonlethal
+    jurisdiction: US
+    book_text: "context/cleaned/Methods for Disbudding Goat Kids_cleaned.txt"
+  las: &las
+    title: "Large Animal Surgery – Supplemental Notes"
+    edition: "University of Minnesota Libraries Publishing (CC BY-NC 4.0)"
+    mode: procedure
+    outcome: nonlethal
+    jurisdiction: US
+    book_text: "context/cleaned/Large Animal Surgery Supplemental Notes_cleaned.txt"
+
+jobs:
+  - name: avma_slaughter_chickens
+    source: *avma_slaughter
+    lines: [[1256, 1623]]
+    purposes: [production]
+    allowed: [[poultry_production, poultry_plant]]
+    procedures: "electrical water-bath stunning of broiler chickens; controlled-atmosphere stunning of broilers; low-atmospheric-pressure stunning (LAPS) of broilers"
+    max_cards: 3
+    id_prefix: avmas-chicken
+
+  - name: avma_slaughter_turkeys
+    source: *avma_slaughter
+    lines: [[1630, 1662]]
+    purposes: [production]
+    allowed: [[poultry_production, poultry_plant]]
+    procedures: "controlled-atmosphere stunning of turkeys (individual containers or on the trailer), including shackling after stunning"
+    max_cards: 1
+    id_prefix: avmas-turkey
+
+  - name: avma_slaughter_waterfowl
+    source: *avma_slaughter
+    lines: [[1765, 1846]]
+    purposes: [production]
+    allowed: [[poultry_production, waterfowl_plant]]
+    procedures: "stunning and slaughter of ducks and geese, one card per method the excerpt describes"
+    max_cards: 2
+    id_prefix: avmas-waterfowl
+
+  - name: avma_slaughter_cattle
+    source: *avma_slaughter
+    lines: [[2529, 2798]]
+    purposes: [production]
+    allowed: [[cattle_production, abattoir]]
+    procedures: "penetrating captive bolt stunning of cattle; nonpenetrating captive bolt stunning of cattle; gunshot of cattle at slaughter; electric stunning of cattle"
+    max_cards: 4
+    id_prefix: avmas-cattle
+
+  - name: avma_slaughter_sheep_goats
+    source: *avma_slaughter
+    lines: [[4690, 4886]]
+    purposes: [production]
+    allowed: [[small_ruminant_production, abattoir]]
+    procedures: "stunning sheep and goats at slaughter, one card per method the excerpt describes (for example captive bolt, electrical, gunshot)"
+    max_cards: 3
+    id_prefix: avmas-sheep-goat
+
+  - name: avma_slaughter_swine
+    source: *avma_slaughter
+    lines: [[5760, 6159]]
+    purposes: [production]
+    allowed: [[swine_production, abattoir]]
+    procedures: "CO2 (controlled-atmosphere) stunning of pigs; electric stunning of pigs; penetrating captive bolt stunning of pigs; gunshot of pigs at slaughter"
+    max_cards: 4
+    id_prefix: avmas-pig
+
+  - name: avma_slaughter_rabbits
+    source: *avma_slaughter
+    lines: [[3919, 4046]]
+    purposes: [production]
+    allowed: [[rabbit_production, rabbit_plant]]
+    procedures: "stunning and slaughter of meat rabbits, one card per method the excerpt describes"
+    max_cards: 2
+    id_prefix: avmas-rabbit
+
+  - name: avma_slaughter_fish
+    source: *avma_slaughter
+    lines: [[803, 952]]
+    purposes: [production]
+    allowed: [[aquaculture, fish_harvest]]
+    procedures: "stunning and slaughter of farmed fish, one card per method the excerpt describes (for example percussive, electrical)"
+    max_cards: 2
+    id_prefix: avmas-fish
+
+  - name: msu_disbudding_calves
+    source: *msu_calves
+    lines: [[1, 126]]
+    purposes: [husbandry]
+    allowed: [[cattle_production, dairy_calf]]
+    procedures: "disbudding dairy calves with a hot iron; with caustic paste; with a dehorning spoon or tube (scoop), each with the pain mitigation the guide gives"
+    max_cards: 3
+    id_prefix: msu-calf
+
+  - name: msu_disbudding_kids
+    source: *msu_kids
+    lines: [[1, 89]]
+    purposes: [husbandry]
+    allowed: [[small_ruminant_production, sheep_goat]]
+    procedures: "disbudding goat kids with a hot iron; with caustic paste, each with the pain mitigation the guide gives"
+    max_cards: 2
+    id_prefix: msu-kid
+
+  - name: las_castration
+    source: *las
+    lines: [[8001, 8166]]
+    purposes: [husbandry]
+    allowed: [[cattle_production, dairy_calf], [cattle_production, cattle], [small_ruminant_production, sheep_goat], [swine_production, sow]]
+    procedures: "castration of calves (open method; banding); castration of lambs and kids; castration of piglets with local anaesthetic"
+    max_cards: 4
+    id_prefix: las
+
+  - name: las_tail_docking
+    source: *las
+    lines: [[8257, 8308]]
+    purposes: [husbandry]
+    allowed: [[small_ruminant_production, sheep_goat], [swine_production, sow]]
+    procedures: "tail docking of lambs; tail docking of piglets (not cattle)"
+    max_cards: 2
+    id_prefix: las

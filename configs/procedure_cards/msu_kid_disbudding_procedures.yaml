@@ -1,0 +1,112 @@
+# Procedure cards: Methods for Disbudding Goat Kids (Mississippi State University Extension, 2022;
+# publisher to confirm). Non-lethal husbandry. Drafted by draft_procedure_cards (drafts-02),
+# reviewed by CB.
+
+source:
+  title: Methods for Disbudding Goat Kids
+  edition: Mississippi State University Extension, 2022 (publisher to confirm)
+  mode: procedure
+  outcome: nonlethal
+  jurisdiction: US
+  book_text: context/cleaned/Methods for Disbudding Goat Kids_cleaned.txt
+cards:
+- card_id: msu-kid-hot-iron
+  procedure: Disbudding goat kids with a hot iron, including pain mitigation
+  species: goat kids
+  domain: small_ruminant_production
+  sector: sheep_goat
+  method: hot_iron
+  stakes: high
+  scenarios:
+    husbandry:
+      scenario: All goat kids should be disbudded between 4 and 14 days of age to avoid the more invasive
+        dehorning later.
+      quote: Because of the animal welfare and management implications, all goat kids should be disbudded
+        between 4 and 14 days of age.
+  steps:
+  - step: Ensure the animal is restrained safely and properly.
+    quote: Ensure the animal is restrained safely and properly.
+  - step: Administer pain mitigation.
+    quote: Administer pain mitigation.
+  - step: Preheat the iron until it is visibly red.
+    quote: Preheat the iron. It should be visibly red when heated properly.
+  - step: Feel for the horn buds with fingertips to ensure exact placement.
+    quote: Feel for the horn buds with fingertips to ensure placement of the hot iron is exact.
+  - step: Place the hot end of the burner over the horn with light pressure.
+    quote: Place the hot end of the burner over the horn of the animal while applying light pressure.
+  - step: Ensure even distribution by twisting or rocking the iron gently.
+    quote: Ensure even distribution by twisting or rocking the iron gently.
+  - step: Hold the iron on the horn for 7 to 15 seconds.
+    quote: Hold the iron on the horn for 7 to 15 seconds.
+  - step: Do not leave the iron on the goat for more than 15 seconds.
+    quote: Do not leave the iron on the goat for more than 15 seconds as heat can transfer to the skull.
+  - step: Repeat the process on the other horn bud.
+    quote: Repeat the process on the other horn bud.
+  checks:
+  - check: The horn will slough off in 3 to 6 weeks.
+    quote: Once the procedure is finished, the horn will slough off in 3 to 6 weeks.
+  attentive_points:
+  - point: Clipping the hair around the horn beforehand may allow closer contact with the horn bud and
+      ensure a cleaner burn, and it will also decrease smoke and inhalation of fumes from burned hair.
+    quote: Clipping the hair around the horn beforehand may allow closer contact with the horn bud and
+      ensure a cleaner burn. It will also decrease smoke and inhalation of fumes from burned hair.
+  - point: Ensure the animal's ears are out of the way of the hot iron.
+    quote: Ensure the animal’s ears are out of the way of the hot iron.
+  - point: The animal may move or jerk its head, so proper restraint is important for safety of the animal
+      and the person performing the procedure.
+    quote: The animal may move or jerk its head, so proper restraint is important for safety of the animal
+      and the person performing the procedure.
+  - point: No blood does not mean no pain, so appropriate pain management should still be administered.
+    quote: Keep in mind that no blood does not mean no pain, so appropriate pain management should still
+      be administered.
+  reviewed_by: CB
+- card_id: msu-kid-caustic-paste
+  procedure: Disbudding goat kids with caustic paste, including pain mitigation
+  species: goat kids
+  domain: small_ruminant_production
+  sector: sheep_goat
+  method: caustic_paste
+  stakes: high
+  scenarios:
+    husbandry:
+      scenario: Disbudding before 2 weeks (14 days) of age is recommended and allows for a less stressful
+        experience for the animal and handler.
+      quote: Disbudding before 2 weeks (14 days) of age is recommended and allows for a less stressful
+        experience for the animal and handler.
+  steps:
+  - step: Ensure the animal's head is properly restrained.
+    quote: Ensure the animal’s head is properly restrained.
+  - step: Administer pain mitigation.
+    quote: Administer pain mitigation.
+  - step: Clip hair around the horn bud.
+    quote: Clip hair around the horn bud.
+  - step: Put on gloves.
+    quote: Put on gloves.
+  - step: Feel for the horn buds with fingertips to ensure exact placement.
+    quote: Feel for the horn buds with fingertips to ensure placement of caustic paste is exact.
+  - step: Apply a thin layer of caustic paste with a wooden applicator to the horn bud.
+    quote: Apply a thin layer of caustic paste with a wooden applicator to the horn bud.
+  - step: Place a layer of duct tape over the paste to prevent rub-off or leakage into the goat's eyes.
+    quote: Place a layer of duct tape over the paste to prevent rub-off or leakage into the goat’s eyes.
+  checks:
+  - check: When paste is not administered correctly, horns or scurs can grow.
+    quote: When paste is not administered correctly, horns or scurs can grow, and the producer may require
+      a veterinarian do a second procedure to remove the horns at an older age.
+  attentive_points:
+  - point: Take care to not excessively clip all hair around the horn bud; the remaining hair can serve
+      as protection to the goat from any caustic paste running or mistakenly placed outside of the horn
+      bud.
+    quote: Take care to not excessively clip all hair around the horn bud; the remaining hair can serve
+      as protection to the goat from any caustic paste running or mistakenly placed outside of the horn
+      bud.
+  - point: Once paste is applied, covering the horn can help seal the caustic paste into the correct area.
+    quote: Once paste is applied, covering the horn can help seal the caustic paste into the correct area.
+  - point: Housing goats individually for a short time while the paste is still wet can help decrease
+      the chance of the paste transferring from animal to animal.
+    quote: Housing goats individually for a short time while the paste is still wet can help decrease
+      the chance of the paste transferring from animal to animal.
+  - point: The caustic paste is a strong irritant, so it is crucial to ensure it does not end up on the
+      handler's skin or improper areas of the goat.
+    quote: The caustic paste is a strong irritant, so it is crucial to ensure it does not end up on the
+      handler’s skin or improper areas of the goat.
+  reviewed_by: CB

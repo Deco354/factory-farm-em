@@ -1,0 +1,975 @@
+# Procedure cards: AVMA Guidelines for the Humane Slaughter of Animals (2024). Production purpose (slaughter).
+# Drafted by draft_procedure_cards (drafts-01), reviewed by CB. Domain and sector are set per card.
+# The cleaned text had split chemical subscripts (CO ## 2) and inline citation numbers repaired
+# before the quotes were checked.
+
+source:
+  title: 'AVMA Guidelines for the Humane Slaughter of Animals: 2024 Edition'
+  edition: '2024'
+  mode: procedure
+  outcome: lethal
+  jurisdiction: US
+  book_text: context/cleaned/AVMA Guidelines for the Humane Slaughter of Animals_cleaned.txt
+cards:
+- card_id: avmas-cattle-penetrating-captive-bolt
+  procedure: Penetrating captive bolt stunning of cattle
+  species: cattle
+  domain: cattle_production
+  sector: abattoir
+  method: penetrating_captive_bolt
+  stakes: high
+  scenarios:
+    production:
+      scenario: Penetrating captive bolt is the most common method used in beef slaughter plants.
+      quote: Use of the penetrating captive bolt is acceptable for mature animals, and it is the most
+        common method used in beef slaughter plants.
+  steps:
+  - step: Ensure adequate restraint for proper placement of the captive bolt.
+    quote: Adequate restraint is important to ensure proper placement of the captive bolt.
+  - step: Place the gun perpendicular to the skull to enable the bolt to hit with maximum force.
+    quote: For adult cattle, the gun should be placed perpendicular to the skull to enable the bolt to
+      hit with maximum force.
+  - step: Maintain the captive bolt gun per the manufacturer's instructions.
+    quote: Maintain the captive bolt gun per the instructions from the manufacturer.
+  - step: Store cartridges for powder-activated captive bolt guns in a dry location.
+    quote: Store cartridges for powder-activated captive bolt guns in a dry location.
+  - step: Minimize movement of the animal's head.
+    quote: Minimize movement of the animal’s head.
+  - step: If a second stun attempt is needed, perform it immediately.
+    quote: If a second stun attempt is needed, it must be performed immediately to minimize pain, suffering
+      and distress.
+  checks:
+  - check: Check for immediate collapse and tetanic spasm followed by slow hind limb movements.
+    quote: Signs of effective captive bolt penetration and death are immediate collapse and a several-second
+      period of tetanic spasm, followed by slow hind limb movements of increasing frequency.
+  - check: Check that the corneal reflex is absent and the eyes are wide and blank.
+    quote: The corneal reflex must be absent, and the eyes must open into a wide, blank stare and not
+      be rotated.
+  - check: Monitor first-shot efficacy; a rate below 95% indicates a problem.
+    quote: Studies have found that a well-trained operator can easily render 95% or more of the animals
+      unconscious with a single shot from a captive bolt gun, and advise that there is a problem if the
+      effective first-shot rate falls below 95%.
+  attentive_points:
+  - point: Ensure a nonslip floor in the stun box to prevent agitation.
+    quote: A nonslip floor in the stun box is essential to prevent slipping. Slipping causes animals to
+      become agitated.
+  - point: Minimize movement of the animal's head to reduce stress.
+    quote: Minimize movement of the animal’s head.
+  reviewed_by: CB
+- card_id: avmas-cattle-nonpenetrating-captive-bolt
+  procedure: Nonpenetrating captive bolt stunning of cattle
+  species: cattle
+  domain: cattle_production
+  sector: abattoir
+  method: nonpenetrating_captive_bolt
+  stakes: high
+  scenarios:
+    production:
+      scenario: When using a nonpenetrating captive bolt, a head restraint device is recommended.
+      quote: The use of a head restraint device is strongly recommended for nonpenetrating captive bolt.
+  steps:
+  - step: Position the nonpenetrating captive bolt perpendicular to the animal's forehead.
+    quote: The nonpenetrating captive bolt must be positioned perpendicular to the animal’s forehead.
+  - step: Ensure the stun-to-stick interval does not exceed 60 seconds.
+    quote: The stun-to-stick interval must not exceed 60 seconds.
+  - step: Position the shot more accurately than for a penetrating captive bolt.
+    quote: To be effective on cows and steers, the shot must be more accurately positioned, compared with
+      the positioning of a penetrating captive bolt.
+  - step: Use a head restraint device for proper positioning.
+    quote: The use of a head restraint device is strongly recommended for nonpenetrating captive bolt.
+  checks:
+  - check: Check for immediate collapse and tetanic spasm followed by slow hind limb movements.
+    quote: Signs of effective captive bolt penetration and death are immediate collapse and a several-second
+      period of tetanic spasm, followed by slow hind limb movements of increasing frequency.
+  - check: Check that the corneal reflex is absent and the eyes are wide and blank.
+    quote: The corneal reflex must be absent, and the eyes must open into a wide, blank stare and not
+      be rotated.
+  - check: Be aware that the nonpenetrating captive bolt has a much smaller margin of error on aim than
+      the penetrating captive bolt.
+    quote: Be aware that the nonpenetrating captive bolt has a much smaller margin of error on aim than
+      does the penetrating captive bolt.
+  attentive_points:
+  - point: Ensure a nonslip floor in the stun box to prevent agitation.
+    quote: A nonslip floor in the stun box is essential to prevent slipping. Slipping causes animals to
+      become agitated.
+  - point: Use a head restraint device to minimize movement and stress.
+    quote: The use of a head restraint device is strongly recommended for nonpenetrating captive bolt.
+  reviewed_by: CB
+- card_id: avmas-cattle-gunshot
+  procedure: Gunshot stunning of cattle at slaughter
+  species: cattle
+  domain: cattle_production
+  sector: abattoir
+  method: gunshot
+  stakes: high
+  scenarios:
+    production:
+      scenario: Gunshot may be the only practical method for animals with extremely heavy skulls, such
+        as bulls.
+      quote: Under some conditions, a gunshot may be the only practical method of inducing unconsciousness
+        in animals with extremely heavy skulls, such as bulls, large boars, or buffalo.
+  steps:
+  - step: Aim the firearm so that the projectile enters the brain, causing instant loss of consciousness.
+    quote: In applying a gunshot to the head for the purposes of slaughter for captive animals, the firearm
+      should be aimed so that the projectile enters the brain, causing instant loss of consciousness.
+  - step: Select the appropriate firearm to penetrate and destroy brain tissue without emergence from
+      the contralateral side.
+    quote: The appropriate firearm should be selected for the situation, with the goal being penetration
+      and destruction of brain tissue without emergence from the contralateral side of the head.
+  - step: Hold the firearm 1 m (3 feet) from the intended anatomic site and perpendicular to the skull.
+    quote: Firearms should be held 1 m (3 feet) from the intended anatomic site and positioned so that
+      the muzzle is perpendicular to the skull.
+  - step: Never hold the firearm flush to the skull.
+    quote: Firearms should never be held flush to the skull.
+  checks:
+  - check: Check for immediate unconsciousness.
+    quote: A properly placed gunshot can cause immediate unconsciousness.
+  attentive_points:
+  - point: Treat animals calmly to minimize anxiety.
+    quote: Prior to shooting, animals accustomed to the presence of humans should be treated in a calm
+      and reassuring manner to minimize anxiety.
+  reviewed_by: CB
+- card_id: avmas-cattle-electric-stunning
+  procedure: Electric stunning of cattle
+  species: cattle
+  domain: cattle_production
+  sector: abattoir
+  method: electrical
+  stakes: high
+  scenarios:
+    production:
+      scenario: The 2-step method is used when there are questions about sufficient current to induce
+        a grand mal seizure.
+      quote: The 2-step method should be used in situations where there may be questions about sufficient
+        current to induce a grand mal seizure with tonic and clonic spasms.
+  steps:
+  - step: Place tongs so that the current only goes through the head.
+    quote: Tongs must be placed so that the current only goes through the head, which can be accomplished
+      by placing tongs either on both sides of the head or on the top and bottom of the head.
+  - step: Apply a minimum of 1.25 A for cattle.
+    quote: A minimum of 1.25 A is required for cattle.
+  - step: Maintain amperage for at least 1 second.
+    quote: Amperage must be maintained for at least 1 second.
+  - step: For the 2-step method, apply current to the head first to induce unconsciousness, then apply
+      current to the body to induce cardiac arrest.
+    quote: Current must be applied to the head to induce unconsciousness before a second current is applied
+      to the body to induce cardiac arrest.
+  - step: When head-only stunning is used, bleed animals within 15 seconds.
+    quote: When head-only stunning is used, equipment should be designed so that the animals are bled
+      within 15 seconds after stunning.
+  checks:
+  - check: 'Check for signs of effective seizure induction: extension of the legs, opisthotonos, and downward
+      rotation of the eyeballs.'
+    quote: Signs of effective seizure induction include extension of the legs, opisthotonos, and downward
+      rotation of the eyeballs as well as epileptic seizures or the clonic tonic syndrome described above.
+  - check: Check that natural blinking does not occur.
+    quote: If natural blinking occurs, the animal is not stunned.
+  - check: Check that rhythmic breathing has ceased and vocalizations do not occur.
+    quote: Rhythmic breathing must cease, and vocalizations should not occur.
+  attentive_points:
+  - point: Ensure animals are not dehydrated, as dehydrated animals are more difficult to render unconscious.
+    quote: Make sure animals are not dehydrated. Dehydrated animals are more difficult to render unconscious
+      with electricity.
+  - point: Do not use electroimmobilization that paralyzes without unconsciousness, as it is extremely
+      aversive.
+    quote: Electroimmobilization that paralyzes an animal without first inducing unconsciousness is extremely
+      aversive and is unacceptable.
+  reviewed_by: CB
+- card_id: avmas-chicken-water-bath
+  procedure: Electrical water-bath stunning of broiler chickens
+  species: chickens
+  domain: poultry_production
+  sector: poultry_plant
+  method: water_bath
+  stakes: high
+  scenarios:
+    production:
+      scenario: In a US poultry processing plant, broiler chickens are shackled and stunned in an electrified
+        water bath before neck cutting.
+      quote: The most widely used method for electro-stunning poultry is the electric waterbath stunning
+        method (Figure 1), which involves the direct contact of the bird’s head in an electrified saltwater
+        bath.
+  steps:
+  - step: Move birds inverted and suspended by shanks to the water-bath stunner.
+    quote: The birds, which can be chickens, turkeys, or other poultry, are moved to the water-bath stunner
+      while they are inverted and suspended by their shanks in individual shackles on the moving shackle
+      line.
+  - step: Ensure the bird's head contacts the water bath and current passes through to the shackle.
+    quote: The bird’s head has direct contact with the water bath, and an electric current is passed from
+      the water through the bird to the leg shackle and ground bar.
+  - step: Maintain water bath and grounding equipment to provide adequate stun.
+    quote: The water bath and grounding equipment must be maintained to convey a sufficient electric current
+      through the bird’s body to provide an adequate stun until exsanguinated.
+  - step: Cut the neck vessels within 10 seconds of the stun.
+    quote: Birds should have the vessels of their neck cut within 10 seconds of the stun.
+  - step: Perform a ventral neck cut cutting both carotid arteries.
+    quote: To ensure appropriate bleeding, a ventral cut of the neck (cutting both carotid arteries) is
+      recommended.
+  - step: Complete blood loss within 45 seconds.
+    quote: Blood loss should be completed within 45 seconds of the vessels being cut.
+  - step: Adjust stunner height to prevent birds pulling up.
+    quote: The height of the water-bath stunner must be adjusted so that the birds cannot pull themselves
+      up and avoid the stunner.
+  - step: Avoid distractions such as people walking under the birds or doors opening and closing near
+      the stunner entrance.
+    quote: It is also essential to avoid distractions such as people walking under the birds or doors
+      opening and closing near the stunner entrance.
+  checks:
+  - check: A bird is considered stunned when it becomes unresponsive to stimulation of the cornea or comb
+      with eyes wide open, arched neck, and tucked wings.
+    quote: Typically, a bird is considered stunned by plant personnel when it becomes unresponsive to
+      stimulation of the cornea or comb with its eyes wide open, an arched neck, and tucked wings.
+  - check: Uncut birds are detected after feather removal by no throat cut and bright red skin.
+    quote: Uncut birds can be easily detected after feather removal because there will be no throat cut
+      and the skin will be bright red.
+  - check: Wing flapping immediately prior to the stunner entrance may indicate prestun shocks.
+    quote: If wing flapping occurs immediately prior to the entrance of the water-bath stunner, the wings
+      of the birds may receive prestun shocks before the bird’s head comes in direct contact with the
+      water bath.
+  attentive_points:
+  - point: Shackling upside down is unnatural and increases stress with duration.
+    quote: Shackling involves hanging birds upside down, which is an unnatural posture for poultry. In
+      chickens, inverted restraint produces greater corticosterone response than restraint in an upright
+      posture, and physiologic stress outcomes increase with the duration of being hung on a shackle line.
+  - point: Breast rubs, low lighting, and smooth transition into the stunner reduce wing flapping and
+      improve stun quality.
+    quote: Breast rubs, low lighting, and a smooth transition into the stunner can reduce the frequency
+      of wing flapping and help with the birds entering the stunner in proper position to receive a good-quality
+      stun.
+  reviewed_by: CB
+- card_id: avmas-chicken-controlled-atmosphere
+  procedure: Controlled-atmosphere stunning of broilers
+  species: chickens
+  domain: poultry_production
+  sector: poultry_plant
+  method: controlled_atmosphere
+  stakes: high
+  scenarios:
+    production:
+      scenario: In a poultry processing plant, broiler chickens are stunned using controlled atmosphere
+        stunning to eliminate live shackling.
+      quote: Controlled atmosphere stunning—Compared with electric stunning methods, CAS for poultry presents
+        some animal welfare advantages because stressful manual handling and shackling of live birds is
+        eliminated and there is a greatly reduced risk of an ineffective stun.
+  steps:
+  - step: In open CAS systems, move animals on continuous conveyors through a tunnel or into a pit containing
+      a heavier-than-air gas such as CO2 or Ar.
+    quote: In open CAS systems (Figure 2), the entry point is open to the atmosphere with negligible concentrations
+      of stunning gas present. Animals are moved on continuous conveyors through a tunnel or into a pit
+      containing a heavier-than-air gas, such as CO2 or Ar.
+  - step: In closed CAS systems, place batches of animals inside a chamber and introduce stunning gases
+      through a recirculating ventilation system that displaces oxygen.
+    quote: In a closed CAS system, batches of animals are placed inside a chamber, and stunning gases
+      are introduced to the specified concentration through a recirculating ventilation system that displaces
+      oxygen by the stunning gases.
+  - step: Increase CO2 gradually from 0% to more than 50% to 55% to reduce bird reactions.
+    quote: Practical experience in commercial slaughter facilities indicates that a smooth, gradual increase
+      in CO2 from 0% to more than 50% to 55% reduces bird reactions (eg, head shaking, open-beak breathing)
+      prior to LOP
+  - step: Use a 2-step process with initial exposure to 40% CO2, 30% O2, and 30% N2, followed by 80% CO2.
+    quote: A 2-step or multiphase process combining inert gases and CO2 is used commercially for slaughter
+      of poultry, where birds are exposed initially to 40% CO2, 30% O2, and 30% N2, followed by 80% CO2
+  - step: Maintain the correct dwell time in the chamber so the birds do not recover.
+    quote: It is also essential to maintain the correct dwell times in the chamber to ensure nonrecovery.
+  - step: Ensure chamber-type systems have windows or video cameras for observation.
+    quote: All chamber-type systems for either CAS or LAPS must have either windows or video cameras so
+      that problems with induction can be observed.
+  - step: If power failure or malfunction occurs, remove live birds immediately from the chamber.
+    quote: If a power failure or other malfunction occurs during the stunning process, live birds should
+      be immediately removed from the chamber.
+  checks:
+  - check: Birds should not flap wildly and attempt to escape from the chamber.
+    quote: If the birds flap wildly and attempt to escape from the chamber, it is not acceptable and may
+      indicate a problem with the gas mixture.
+  - check: Loss of consciousness should always precede loss of muscle movement.
+    quote: Loss of consciousness should always precede loss of muscle movement.
+  - check: Vocalization and nonpurposeful movement after loss of righting reflex are not necessarily signs
+      of conscious perception.
+    quote: vocalization and nonpurposeful movement observed after LORR or LOP with properly applied CAS
+      methods are not necessarily signs of conscious perception by the animal.
+  attentive_points:
+  - point: CAS eliminates the pain, stress, and fear associated with shackling.
+    quote: Use of CAS eliminates the pain, stress, and fear associated with shackling.
+  - point: Some discomfort during induction may be a reasonable trade-off to eliminate live shackling.
+    quote: Some discomfort during induction, such as head shaking or gasping, may be a reasonable trade-off
+      to eliminate live shackling, as live shackling is highly stressful.
+  reviewed_by: CB
+- card_id: avmas-chicken-low-atmospheric-pressure
+  procedure: Low-atmospheric-pressure stunning (LAPS) of broilers
+  species: chickens
+  domain: poultry_production
+  sector: poultry_plant
+  method: low_atmospheric_pressure
+  stakes: high
+  scenarios:
+    production:
+      scenario: In a poultry processing plant, broiler chickens are stunned using low-atmospheric-pressure
+        stunning to avoid live shackling.
+      quote: Low-atmospheric-pressure stunning—LAPS (Figure 3) is a relatively novel method for stunning
+        birds. Entire modules or crates are rolled into a pressure vessel where the air is slowly removed
+        during a 280-second cycle.
+  steps:
+  - step: Roll entire modules or crates into a pressure vessel and slowly remove air over a 280-second
+      cycle.
+    quote: Entire modules or crates are rolled into a pressure vessel where the air is slowly removed
+      during a 280-second cycle.
+  - step: Achieve target pressure within 67 seconds, then reduce decompression rate, then hold for final
+      100 seconds.
+    quote: The LAPS target pressure for broilers is achieved within 67 seconds from the start of the LAPS
+      cycle and is followed by a second phase in which the rate of decompression is reduced (68 to 180
+      seconds) before a “hold” phase in the final 100 seconds of the cycle, which ensures that recovery
+      does not occur prior to exsanguination.
+  - step: Automatically adjust decompression curve for ambient temperature and humidity.
+    quote: The decompression curve is automatically adjusted within tight limits to compensate for ambient
+      temperature and humidity, which affect gas density.
+  - step: Ensure a full electric stunner backup is available.
+    quote: LAPS must have a full electric stunner backup.
+  - step: Load pallets directly into LAPS cylinders with a forklift.
+    quote: Pallets are directly loaded into the LAPS cylinders with a forklift.
+  - step: Use a computer to control and display status of LAPS units.
+    quote: A computer in the control booth controls and displays the status of the individual LAPS units.
+  - step: Use video cameras inside each cylinder for real-time monitoring.
+    quote: Each LAPS cylinder has a video camera mounted inside that can be viewed in real time on a monitor
+      in the control booth.
+  - step: After cycle, move stunned birds to unloading station and then to shackling area.
+    quote: Following the LAPS cycle, the palletized cages containing stunned birds are moved to the unloading
+      station. After unloading, the birds are moved by conveyor belt to the shackling area prior to entry
+      to the processing line.
+  checks:
+  - check: Time to loss of consciousness is approximately 60 seconds.
+    quote: The time to loss of consciousness during LAPS (as determined by behavioral and EEG indicators)
+      is approximately 60 seconds
+  - check: Behavioral responses closely resemble those seen in normobaric hypoxic environments.
+    quote: A consistent series of behavioral responses are seen in response to LAPS, and these closely
+      resemble those seen in normobaric hypoxic environments.
+  - check: Birds should not flap wildly and attempt to escape from the chamber.
+    quote: If the birds flap wildly and attempt to escape from the chamber, it is not acceptable and may
+      indicate a problem with the gas mixture.
+  attentive_points:
+  - point: LAPS produces a gradual transition to unconsciousness without escape behaviors and with minimal
+      physical activity.
+    quote: LAPS produces a gradual transition to unconsciousness via hypobaric hypoxia without escape
+      behaviors and with minimal physical activity and wing flapping.
+  - point: LAPS may be better from a welfare standpoint because it eliminates live unloading and shackling.
+    quote: Compared with live-unload CAS methods and electric stunning methods, LAPS may be better from
+      an animal welfare standpoint because of elimination of welfare issues associated with unloading
+      live birds onto the conveyor line, elimination of manual handling and shackling of live birds prior
+      to electric stunning, and reliable stunning.
+  reviewed_by: CB
+- card_id: avmas-fish-percussive
+  procedure: Stunning fish by percussive blow to the head followed by a secondary kill step
+  species: medium- to large-sized fish (e.g., salmon, trout)
+  domain: aquaculture
+  sector: fish_harvest
+  method: percussive
+  stakes: high
+  scenarios:
+    production:
+      scenario: Stunning medium- to large-sized farmed fish such as salmon and trout at harvest.
+      quote: This method is commonly used in the salmon and trout industry for medium- to large-sized
+        fish.
+  steps:
+  - step: Target the blow to the area where the brain is closest to the surface of the head and where
+      the skull is thinnest.
+    quote: The location of the blow should be targeted at the area where the brain is closest to the surface
+      of the head and where the skull is its thinnest
+  - step: Apply blunt force trauma manually with a club or hand-held captive bolt device.
+    quote: Blunt trauma can be applied manually by use of a club that is often referred to as a “priest”
+      or by a hand-held captive bolt device.
+  - step: Follow with a secondary kill step such as exsanguination or pithing.
+    quote: This blunt force trauma can cause immediate unconsciousness and potentially death but should
+      be followed by a secondary kill step such as exsanguination (the cutting of the gill arches to bleed
+      the fish) or pithing (destruction of brain tissue).
+  - step: Ensure operators are trained in proper placement and given frequent breaks to avoid fatigue.
+    quote: Operators of the manual percussive stunning method should be trained in the proper location
+      of the blow to the head and should be given frequent breaks and rotated often to avoid operator
+      fatigue.
+  - step: Minimize time out of water prior to stunning.
+    quote: Care should be taken to minimize the time fish are out of water prior to percussive stunning.
+  checks:
+  - check: Monitor for controlled and coordinated movement including rhythmic opercula motion, vestibulo-ocular
+      reflex, and struggling.
+    quote: Fish should be monitored poststunning for controlled and coordinated movement including but
+      not limited to rhythmic motion of the opercula, vestibulo-ocular reflex (eye roll), and struggling
+      that indicate that the fish is not adequately stunned.
+  - check: Lack of vestibulo-ocular reflex is the best indicator of insensibility.
+    quote: Although the lack of a vestibulo-ocular reflex may not be a definitive indicator that the fish
+      are insensible, it is still considered as the best indicator available in a commercial setting.
+  - check: Note that properly stunned fish may exhibit occasional spasmodic convulsions.
+    quote: Note that fish that are properly stunned may exhibit occasional spasmodic convulsions.
+  attentive_points:
+  - point: Use manual percussive stunning as a backup for ineffectively stunned fish from automated equipment.
+    quote: Manual percussive stunning may be used as a backup method for ineffectively stunned individual
+      fish from the automated or semiautomated stunning equipment
+  - point: Kill fish before consciousness recovers if not correctly or completely stunned.
+    quote: Fish that are not correctly or completely stunned should be killed before consciousness is
+      recovered.
+  reviewed_by: CB
+- card_id: avmas-fish-electrical
+  procedure: Stunning and killing fish by passing electric current through water
+  species: small- to medium-sized fish
+  domain: aquaculture
+  sector: fish_harvest
+  method: electrical
+  stakes: high
+  scenarios:
+    production:
+      scenario: Stunning and killing small- to medium-sized farmed fish at harvest.
+      quote: suitable for small- to medium-sized fish
+  steps:
+  - step: Pass an electric current through the water containing the fish.
+    quote: With this method, an electric current is passed through the water containing the fish for slaughter.
+  - step: Ensure voltage and amperage are sufficient to stun and kill the fish.
+    quote: The voltage and amperage conditions of the electric current should be sufficient not only to
+      stun the fish, creating immediate unconsciousness, but also to kill the fish (electrocution).
+  - step: Optimize electrical parameters for the fish species and size.
+    quote: It is imperative that the electrical parameters (eg, voltage and exposure time) be optimized
+      for the fish, as vertebral fractures and blood spots (ie, hematomas) in fillets, both of which can
+      negatively affect fillet quality, may occur when this technique is improperly applied.
+  checks:
+  - check: Monitor for controlled and coordinated movement including rhythmic opercula motion, vestibulo-ocular
+      reflex, and struggling.
+    quote: Fish should be monitored poststunning for controlled and coordinated movement including but
+      not limited to rhythmic motion of the opercula, vestibulo-ocular reflex (eye roll), and struggling
+      that indicate that the fish is not adequately stunned.
+  attentive_points:
+  - point: Train operators in appropriate current levels and safety measures.
+    quote: Operators using this method should be sufficiently trained in the level of electric current
+      appropriate to be used for the species and size of fish in question as well as in safety measures
+      for themselves and other personnel.
+  - point: Kill fish before consciousness recovers if not correctly or completely stunned.
+    quote: Fish that are not correctly or completely stunned should be killed before consciousness is
+      recovered.
+  reviewed_by: CB
+- card_id: avmas-rabbit-electrical
+  procedure: Stunning meat rabbits with electricity followed by exsanguination
+  species: rabbits
+  domain: rabbit_production
+  sector: rabbit_plant
+  method: electrical
+  stakes: high
+  scenarios:
+    production:
+      scenario: In commercial rabbit processing, rabbits are stunned and slaughtered.
+      quote: Commercial processing of rabbits in the US is generally performed in plants designed to process
+        poultry.
+  steps:
+  - step: Use skilled personnel and properly mounted electrodes.
+    quote: Electrical stunning must be performed using skilled personnel and properly mounted electrodes.
+  - step: Clean electrodes as needed to provide an unimpeded current.
+    quote: Electrodes should be cleaned as needed to provide an unimpeded current
+  - step: Position the rabbit head so the current does not pass through the eyes.
+    quote: the rabbit head must be positioned such that the current does not pass through the eyes.
+  - step: Apply the common parameters of 49 V, 5.6 milliseconds, and 189 Hz for 3 seconds.
+    quote: The most common parameters used in commercial facilities were 49 V, 5.6 milliseconds, and 189
+      Hz for 3 seconds.
+  - step: Shackle and exsanguinate by a throat cut that severs both carotid arteries in a single stroke.
+    quote: Following electric or captive bolt stunning, rabbits are immediately shackled and exsanguinated
+      by a throat cut that severs both carotid arteries in a single stroke.
+  - step: Kill within 35 seconds after stunning.
+    quote: Rabbits must be killed within 35 seconds after electric stunning or they may recover consciousness.
+  checks:
+  - check: Confirm successful stunning by cessation of respiration, excessive salivation, and increased
+      motor activity.
+    quote: Successful stunning is characterized by cessation of respiration, excessive salivation, and
+      increased motor activity
+  - check: Check for cessation of rhythmic breathing as a reliable indicator.
+    quote: cessation of rhythmic breathing is considered a more reliable indicator of a successful stun
+  - check: Check for lack of corneal reflex as a measure of insensibility.
+    quote: some consider lack of corneal reflex as the best measure of insensibility in rabbits
+  attentive_points:
+  - point: Handle rabbits quietly and gently to minimize stress.
+    quote: Removal of rabbits from crates and restraint in the processing area should be done quietly
+      and gently to minimize the risk of stress and injury to the rabbits.
+  - point: Adjust line speeds to ensure staff have adequate time without compromising welfare.
+    quote: Line speeds should be adjusted as needed to ensure that staff have adequate time to perform
+      their duties without compromising animal welfare.
+  reviewed_by: CB
+- card_id: avmas-rabbit-captive-bolt
+  procedure: Stunning meat rabbits with a penetrating captive bolt followed by exsanguination
+  species: rabbits
+  domain: rabbit_production
+  sector: rabbit_plant
+  method: captive_bolt
+  stakes: high
+  scenarios:
+    production:
+      scenario: In commercial rabbit processing, rabbits are stunned and slaughtered.
+      quote: Commercial processing of rabbits in the US is generally performed in plants designed to process
+        poultry.
+  steps:
+  - step: Use skilled operators and well-maintained equipment.
+    quote: Captive bolt application requires skilled operators and well-maintained equipment.
+  - step: Place the captive bolt slightly paramedian on the front as close to the ears as possible.
+    quote: This is achieved by placing the captive bolt slightly paramedian on the front as close to the
+      ears as possible (Figure 1).
+  - step: Stabilize the head to prevent misses.
+    quote: It is essential to stabilize the head to prevent misses.
+  - step: Sever carotid arteries within 10 seconds of stunning.
+    quote: Ideally, rapid stunning is followed in < 10 seconds by severing of carotid arteries resulting
+      in rapid exsanguination and death.
+  - step: Use a sharp knife to make a single stroke cut.
+    quote: Knives must be sharp to ensure that an adequate cut is made to avoid the necessity of multiple
+      cuts and/or stimulation of wound edges.
+  checks:
+  - check: Confirm successful stunning by cessation of respiration, excessive salivation, and increased
+      motor activity.
+    quote: Successful stunning is characterized by cessation of respiration, excessive salivation, and
+      increased motor activity
+  - check: Check for cessation of rhythmic breathing as a reliable indicator.
+    quote: cessation of rhythmic breathing is considered a more reliable indicator of a successful stun
+  - check: Check for lack of corneal reflex as a measure of insensibility.
+    quote: some consider lack of corneal reflex as the best measure of insensibility in rabbits
+  attentive_points:
+  - point: Handle rabbits quietly and gently to minimize stress.
+    quote: Removal of rabbits from crates and restraint in the processing area should be done quietly
+      and gently to minimize the risk of stress and injury to the rabbits.
+  - point: Adjust line speeds to ensure staff have adequate time without compromising welfare.
+    quote: Line speeds should be adjusted as needed to ensure that staff have adequate time to perform
+      their duties without compromising animal welfare.
+  reviewed_by: CB
+- card_id: avmas-sheep-goat-captive-bolt
+  procedure: Stunning sheep and goats at slaughter with a captive bolt gun (penetrating or nonpenetrating).
+  species: sheep and goats
+  domain: small_ruminant_production
+  sector: abattoir
+  method: captive_bolt
+  stakes: high
+  scenarios:
+    production:
+      scenario: Both penetrating and nonpenetrating captive bolt guns are considered effective for stunning
+        lambs.
+      quote: Injury caused by penetrating and nonpenetrating captive bolt pistols is similar and sufficient
+        for both to be considered effective for lambs.
+  steps:
+  - step: Restrain the animal adequately to ensure proper placement of the captive bolt.
+    quote: Adequate restraint is important to ensure proper placement of the captive bolt.
+  - step: Use a head restraint device for nonpenetrating captive bolt.
+    quote: The use of a head restraint device is strongly recommended for nonpenetrating captive bolt.
+  - step: Ensure the stun-to-stick interval does not exceed 60 seconds when using a nonpenetrating captive
+      bolt.
+    quote: The stun-to-stick interval must not exceed 60 seconds.
+  - step: Clean and maintain the captive bolt gun after each day of use.
+    quote: All captive bolt guns require careful maintenance and cleaning after each day of use.
+  - step: Store cartridges for powder-activated captive bolt guns in a dry location.
+    quote: Cartridges for powder-activated captive bolt guns must be stored in a dry location because
+      damp cartridges will reduce effectiveness.
+  - step: Do not pith ruminants used for food to avoid contamination of the carcass with specified risk
+      materials.
+    quote: Ruminants used for food should not be pithed to avoid contamination of the carcass with specified
+      risk materials.
+  - step: If a second stun attempt is needed, perform it immediately.
+    quote: If a second stun attempt is needed, it must be performed immediately to minimize pain, suffering,
+      and distress.
+  checks:
+  - check: Immediate collapse and a several-second period of tetanic spasm, followed by slow hind limb
+      movements of increasing frequency.
+    quote: Signs of effective captive bolt penetration and death are immediate collapse and a several-second
+      period of tetanic spasm, followed by slow hind limb movements of increasing frequency.
+  - check: Corneal reflexes are absent, and the eyes open into a wide, blank stare and are not rotated.
+    quote: Corneal reflexes are absent, and the eyes open into a wide, blank stare and are not rotated.
+  - check: Monitor first-shot efficacy; it is advised that there is a problem if the effective first-shot
+      rate falls below 95%.
+    quote: It is advised that there is a problem if the effective first-shot rate falls below 95%.
+  attentive_points:
+  - point: Minimize movement of the animal’s head.
+    quote: Minimize movement of the animal’s head.
+  - point: Head holders must be used with care; if poorly designed, they can increase cortisol levels
+      and balking.
+    quote: Head holders must be used with care; if poorly designed, they can increase cortisol levels
+      and balking.
+  - point: A nonslip floor in the stun box is essential to prevent slipping.
+    quote: A nonslip floor in the stun box is essential to prevent slipping.
+  reviewed_by: CB
+- card_id: avmas-sheep-goat-gunshot
+  procedure: Stunning sheep and goats at slaughter with a gunshot.
+  species: sheep and goats
+  domain: small_ruminant_production
+  sector: abattoir
+  method: gunshot
+  stakes: high
+  scenarios:
+    production:
+      scenario: Gunshot is used for humane slaughter when other methods cannot be used, and in slaughter
+        plants it is followed by exsanguination.
+      quote: When other methods cannot be used, an accurately delivered bullet from a firearm is acceptable
+        for humane slaughter.
+  steps:
+  - step: Ensure shooting is performed by highly skilled personnel trained in the use of firearms and
+      only in jurisdictions that allow legal firearm use.
+    quote: Shooting should only be performed by highly skilled personnel trained in the use of firearms
+      and only in jurisdictions that allow for legal firearm use.
+  - step: Consider the safety of personnel, the public, and other animals that are nearby.
+    quote: The safety of personnel, the public, and other animals that are nearby should be considered.
+  - step: Use a fully closed box that will contain a bullet that perforates through the skull or ricochets.
+    quote: For safety, a fully closed box that will contain a bullet that perforates through the skull
+      or ricochets is strongly recommended.
+  - step: Aim the firearm so that the projectile enters the brain, causing instant loss of consciousness.
+    quote: In applying a gunshot to the head for the purposes of slaughter for captive animals, the firearm
+      should be aimed so that the projectile enters the brain, causing instant loss of consciousness.
+  - step: Select the appropriate firearm to penetrate and destroy brain tissue without emergence of the
+      projectile from the contralateral side of the head.
+    quote: The appropriate firearm should be selected for the situation, with the goal being penetration
+      and destruction of brain tissue without emergence of the projectile from the contralateral side
+      of the head.
+  - step: Never hold the firearm flush to the skull.
+    quote: Firearms should never be held flush to the skull.
+  - step: Hold the muzzle within 60 to 90 cm of the animal’s forehead, perpendicular to the skull, with
+      the intended path of the bullet roughly in the direction of the foramen magnum.
+    quote: Ideally, the muzzle of the firearm should be held within 60 to 90 cm (2 to 3 feet) of the animal’s
+      forehead and perpendicular to the skull with the intended path of the bullet roughly in the direction
+      of the foramen magnum.
+  checks:
+  - check: The animal should be immediately unconscious after a properly placed gunshot.
+    quote: A properly placed gunshot can cause immediate unconsciousness.
+  - check: If the animal is not rendered unconscious with a single shot, it is sometimes much more difficult
+      to kill thereafter.
+    quote: If an animal is injured and is not rendered unconscious with a single shot, it is sometimes
+      much more difficult to kill thereafter.
+  attentive_points:
+  - point: Prior to shooting, animals accustomed to the presence of humans should be treated in a calm
+      and reassuring manner to minimize anxiety.
+    quote: Prior to shooting, animals accustomed to the presence of humans should be treated in a calm
+      and reassuring manner to minimize anxiety.
+  - point: In the case of nondomesticated animals, gunshots should be delivered with the least amount
+      of prior human contact necessary.
+    quote: In the case of nondomesticated animals, gunshots should be delivered with the least amount
+      of prior human contact necessary.
+  reviewed_by: CB
+- card_id: avmas-sheep-goat-electrical-stun
+  procedure: Stunning sheep and goats at slaughter with electric head-only stunning.
+  species: sheep and goats
+  domain: small_ruminant_production
+  sector: abattoir
+  method: electrical
+  stakes: high
+  scenarios:
+    production:
+      scenario: Electric head-only stunning is used for sheep in halal slaughter plants.
+      quote: For halal slaughter, electric head-only stunning is used in many large cattle and sheep plants
+        in New Zealand, Australia, and the UK.
+  steps:
+  - step: Apply the stunner to the head for 1.5 seconds at 300 Hz.
+    quote: when the stunner was applied to the head for 1.5 seconds at 300 Hz, it produced a clear tonic
+      rigid phase followed by a clonic kicking phase representative of an epileptic seizure.
+  - step: Use an effective reversible precut stun in sheep with 1.25 to 2 A at a frequency range of 50
+      to 400 Hz.
+    quote: An effective reversible precut stun in sheep can be easily achieved with 1.25 to 2 A at a frequency
+      range of 50 to 400 Hz.
+  - step: Use a modified New Zealand head-to-body stunner with the rear body electrode removed to facilitate
+      positioning on the sheep’s head.
+    quote: A modified New Zealand head-to-body stunner (Figure 5) with the rear body electrode removed
+      worked well because the design of the handle facilitated positioning of the stunner on the sheep’s
+      head.
+  checks:
+  - check: This pattern is an indicator that it produced unconsciousness.
+    quote: This pattern is an indicator that it produced unconsciousness.
+  attentive_points:
+  - point: Pay greater attention to procedure details to ensure animals are and remain unconscious during
+      the throat cut.
+    quote: Since most preslaughter stunning methods that are approved for religious slaughter produce
+      a lighter reversible stun, greater attention will be required to the details of procedures to ensure
+      that the animals are and remain unconscious during the throat cut.
+  reviewed_by: CB
+- card_id: avmas-pig-co2
+  procedure: CO2 stunning of pigs at slaughter
+  species: pigs
+  domain: swine_production
+  sector: abattoir
+  method: co2
+  stakes: high
+  scenarios:
+    production:
+      scenario: Stunning pigs with CO2 at slaughter
+      quote: Controlled atmosphere stunning and killing methods, also called modified atmosphere stunning
+        or killing, produce unconsciousness and can eventually lead to death
+  steps:
+  - step: Gradually introduce pigs to the controlled atmosphere
+    quote: animals gradually experience their introduction into CAS atmospheres
+  - step: Do not lift or shackle pigs until unconscious
+    quote: animals are not lifted or shackled until unconscious
+  - step: Monitor and adjust stunning gas concentrations
+    quote: Stunning gas concentrations should be monitored and adjusted as necessary.
+  checks:
+  - check: Confirm unconsciousness occurs within 14 to 30 seconds
+    quote: exposure to 60% to 90% CO2 causes unconsciousness in 14 to 30 seconds
+  - check: Ensure unconsciousness occurs before signs of excitation
+    quote: unconsciousness occurring prior to the onset of signs of excitation
+  attentive_points:
+  - point: Minimize handling stress by not lifting until unconscious
+    quote: pain, stress, and fear associated with handling are minimized
+  - point: Be aware that CO2 may be stressful for some genetic lines
+    quote: use of CO2 may be humane for certain genetic lines of pigs and stressful for others.
+  - point: Avoid overloading stunners
+    quote: overloading of undersized CO2 stunners
+  reviewed_by: CB
+- card_id: avmas-pig-electric
+  procedure: Electric stunning of pigs at slaughter
+  species: pigs
+  domain: swine_production
+  sector: abattoir
+  method: electric
+  stakes: high
+  scenarios:
+    production:
+      scenario: Electric stunning of pigs at slaughter
+      quote: Electric stunning for humane slaughter causes immediate loss of consciousness.
+  steps:
+  - step: Place electrodes so current goes through the brain
+    quote: electrodes must be placed so the current goes through the brain.
+  - step: Apply a minimum of 1.25 A for market-weight pigs
+    quote: A minimum of 1.25 A is required for marketweight pigs.
+  - step: Maintain amperage for at least 1 second
+    quote: Amperage must be maintained for at least 1 second.
+  - step: For head-only stunning, bleed within 15 seconds
+    quote: animals should be bled within 15 seconds.
+  - step: For 1-step head-to-body, apply current through head and body
+    quote: The 1-step method uses current applied through the head to the body to induce cardiac arrest.
+  - step: Press electrodes firmly before energizing
+    quote: The tongs or wand should be pressed firmly against the animal before the current is turned
+      on.
+  checks:
+  - check: 'Look for signs of effective seizure: extension of legs, opisthotonus, downward rotation of
+      eyeballs'
+    quote: Signs of effective seizure induction include an extension of the legs, opisthotonus, and downward
+      rotation of the eyeballs
+  - check: Head and neck should be limp and floppy, tongue hanging out
+    quote: The head and neck should be limp and floppy, and the tongue should hang out.
+  - check: If natural blinking occurs, the animal is not stunned
+    quote: If natural blinking occurs, the animal is not stunned.
+  - check: Rhythmic breathing must cease and vocalizations should not occur
+    quote: Rhythmic breathing must cease, and vocalizations should not occur.
+  attentive_points:
+  - point: Do not use electroimmobilization without unconsciousness
+    quote: Immobilization without unconsciousness is highly aversive and must not be used.
+  - point: Pigs should not squeal when electrodes are applied
+    quote: There are definite problems with electric stunning if pigs squeal when the electrodes are applied.
+  - point: Ensure animals are not dehydrated
+    quote: Make sure animals are not dehydrated.
+  reviewed_by: CB
+- card_id: avmas-pig-penetrating-captive-bolt
+  procedure: Penetrating captive bolt stunning of pigs at slaughter
+  species: pigs
+  domain: swine_production
+  sector: abattoir
+  method: penetrating_captive_bolt
+  stakes: high
+  scenarios:
+    production:
+      scenario: Penetrating captive bolt stunning of pigs at slaughter
+      quote: Penetrating captive bolts are used for swine in commercial slaughter plants.
+  steps:
+  - step: Use a penetrating captive bolt gun for swine
+    quote: Penetrating captive bolts are used for swine in commercial slaughter plants.
+  - step: Ensure adequate restraint for proper placement
+    quote: Adequate restraint is important to ensure the proper placement of the captive bolt.
+  - step: Place the bolt to disrupt a cerebral hemisphere and brainstem
+    quote: The projectile must sufficiently disrupt a cerebral hemisphere and the brainstem to induce
+      sudden loss of consciousness and subsequent death.
+  - step: Maintain the captive bolt gun daily
+    quote: All captive bolt guns require careful maintenance and cleaning after each day of use.
+  - step: Store cartridges in a dry location
+    quote: Cartridges for powder-activated captive bolt guns must be stored in a dry location because
+      damp cartridges reduce effectiveness.
+  - step: If first shot fails, perform second stun immediately
+    quote: If a second stun attempt is needed, it must be performed immediately to minimize pain, suffering,
+      and distress.
+  checks:
+  - check: 'Signs of effective penetration: immediate collapse, tetanic spasm, then slow hind limb movements'
+    quote: Signs of effective captive bolt penetration and death are immediate collapse and a several-second
+      period of tetanic spasm, followed by slow hind limb movements of increasing frequency.
+  - check: Corneal reflex must be absent and eyes wide, blank stare
+    quote: The corneal reflex must be absent, and the eyes must open into a wide, blank stare and not
+      be rotated.
+  - check: Soft-sounding shots indicate less effective application
+    quote: Soft-sounding shots were an indication of less effective application.
+  - check: First-shot efficacy should be 95% or more
+    quote: there is a problem if the effective first-shot rate falls below 95%.
+  attentive_points:
+  - point: Minimize movement of the animal's head
+    quote: Minimize movement of the animal’s head.
+  - point: Use a nonslip floor in the stun box
+    quote: A nonslip floor in the stun box is essential to prevent slipping.
+  - point: Have a written protocol for backup stunner and second stun attempts
+    quote: Plants should have a written protocol for using the backup stunner and second stun attempts.
+  reviewed_by: CB
+- card_id: avmas-pig-gunshot
+  procedure: Gunshot of pigs at slaughter
+  species: pigs
+  domain: swine_production
+  sector: abattoir
+  method: gunshot
+  stakes: high
+  scenarios:
+    production:
+      scenario: Gunshot of pigs at slaughter
+      quote: A properly placed gunshot can cause immediate unconsciousness.
+  steps:
+  - step: Use a properly placed gunshot to cause immediate unconsciousness
+    quote: A properly placed gunshot can cause immediate unconsciousness.
+  - step: Shooting should only be performed by highly skilled personnel
+    quote: Shooting should only be performed by highly skilled personnel trained in the use of firearms
+  - step: Aim the firearm so the projectile enters the brain
+    quote: the firearm should be aimed so that the projectile enters the brain, causing instant loss of
+      consciousness.
+  - step: Hold the muzzle within 30 to 60 cm of the forehead and perpendicular to the skull
+    quote: the firearm’s muzzle should be held within 30 to 60 cm (1 to 2 feet) of the animal’s forehead
+      and perpendicular to the skull
+  - step: Use a fully closed box to contain ricocheting bullets
+    quote: a fully closed box that will contain a ricocheting bullet is strongly recommended.
+  - step: If first shot fails, perform second stun immediately
+    quote: If the first shot fails to render the animal instantaneously unconscious, a second stun attempt
+      must be performed immediately to minimize pain, suffering, and distress.
+  checks:
+  - check: A well-trained shooter can render 95% or more insensible with a single shot
+    quote: A well-trained shooter can render 95% or more of the animals insensible with a single shot.
+  - check: Using a firearm that is not sufficiently powerful is a common cause of failure
+    quote: Using a firearm that is not sufficiently powerful is a common cause of failure of the first
+      shot.
+  - check: If the animal is not rendered unconscious with a single shot, it is a problem
+    quote: If an animal is injured and not rendered unconscious with a single shot, it is sometimes much
+      more difficult to kill thereafter.
+  attentive_points:
+  - point: Treat animals calmly and reassuringly before shooting
+    quote: Before shooting, animals accustomed to the presence of humans should be treated calmly and
+      reassuringly to minimize anxiety.
+  - point: Use two people to move and shoot fractious animals
+    quote: Two people should be used to move and shoot fractious or difficult-to-handle animals.
+  - point: Firearms should never be held flush to the animal's body
+    quote: Firearms should never be held flush to the animal’s body.
+  reviewed_by: CB
+- card_id: avmas-turkey-cas-stunning
+  procedure: Controlled-atmosphere stunning of turkeys in individual containers or on the trailer, followed
+    by shackling
+  species: turkeys
+  domain: poultry_production
+  sector: poultry_plant
+  method: gas
+  stakes: high
+  scenarios:
+    production:
+      scenario: Turkeys are stunned using a controlled-atmosphere system, either in individual containers
+        or on the travel trailer, then shackled.
+      quote: Controlled atmosphere stunning—There are 2 general methods in which turkeys are stunned using
+        a CAS system.
+  steps:
+  - step: If stunning in individual containers, remove containers from the palletized rack with automated
+      equipment and place them on a conveyor into the CAS system.
+    quote: If birds are being stunned in individual containers, the containers are removed from the palletized
+      rack with the use of automated equipment. They are placed on a conveyor that runs into the CAS system.
+  - step: If stunning on the trailer, pull the truck and trailer into the stunning area and place stunning
+      equipment around a single vertical stack of travel containers.
+    quote: If birds are stunned on the travel trailer, the truck and trailer pull into the stunning area.
+      The stunning equipment is placed around a single vertical stack of travel containers still on the
+      trailer, and the birds are stunned.
+  - step: After stunning each stack, move the truck forward to stun the next vertical stack, repeating
+      until the entire trailer is stunned.
+    quote: The truck then moves forward so the next vertical stack can be stunned. This process is repeated
+      until the entire trailer is stunned.
+  - step: Handlers pick up the CAS-stunned birds and hang them on the shackle line.
+    quote: Handlers pick up CAS-stunned birds and hang them on the shackle line.
+  - step: Move the shackled birds by conveyor to the water-bath stunner or to the individual responsible
+      for the neck cut in nonstun slaughter.
+    quote: The birds are then moved by the shackle conveyor to the water-bath stunner or individual responsible
+      for the neck cut in the case of nonstun slaughter.
+  checks:
+  - check: Ensure that birds are stunned before shackling, as indicated by the term 'CAS-stunned birds'.
+    quote: Handlers pick up CAS-stunned birds and hang them on the shackle line.
+  attentive_points:
+  - point: Use breast support and dim lighting to minimize stress on live turkeys during shackling.
+    quote: The use of breast support and dim lighting can help to further minimize stress on live turkeys
+      during shackling.
+  reviewed_by: CB
+- card_id: avmas-waterfowl-ducks-immersion
+  procedure: Electrical water bath stunning and slaughter of ducks
+  species: ducks
+  domain: poultry_production
+  sector: waterfowl_plant
+  method: immersion
+  stakes: high
+  scenarios:
+    production:
+      scenario: Commercial duck slaughter using immersion water bath stunning
+      quote: Suggested optimal settings for goose and duck stunning are 130 mA, < 200 Hz, and an exposure
+        time to water bath of > 4 seconds.
+  steps:
+  - step: Shackle ducks by 1 or 2 legs, most commonly 2-leg shackling
+    quote: Shackling is either by 1 or 2 legs depending on the bird and system employed. Most employ a
+      2-leg shackling system prior to stunning.
+  - step: Minimize time shackled prior to stunning and bleeding
+    quote: Efforts should be made to minimize time shackled prior to stunning and bleeding.
+  - step: Stun ducks in a water bath with settings 130 mA, <200 Hz, and exposure >4 seconds
+    quote: Suggested optimal settings for goose and duck stunning are 130 mA, < 200 Hz, and an exposure
+      time to water bath of > 4 seconds.
+  - step: Bleed the ducks
+    quote: correct bleeding
+  checks:
+  - check: Audit and monitor the percentage of birds that are effectively stunned using the same criteria
+      as for conventional slaughter of other poultry
+    quote: If stunning is used, audit and monitor the percentage of birds that are effectively stunned
+      using the same criteria as for conventional slaughter of other poultry.
+  - check: Ensure 0% uncut, red-skinned birds emerge from the defeathering machine
+    quote: There should be 0% uncut, red-skinned birds that emerge from the defeathering machine.
+  - check: Score the percentage of birds that wing flap after restraint; it should be very minimal
+    quote: Score the percentage of birds that wing flap after restraint. In a well-designed shackle line,
+      the percentage of flapping birds should be very minimal.
+  attentive_points:
+  - point: Minimize time in lairage
+    quote: Time in lairage should be minimized.
+  - point: Provide water if held in lairage for more than an hour
+    quote: If ducks are held for greater than an hour in the lairage, they should be provided with a water
+      source prior to processing.
+  - point: Handle birds gently to avoid toe injuries and thrashing
+    quote: The foie gras industry often employs specially designed carts where emphasis is placed on gentle
+      handling and smooth flooring inside the carts, as hybrid Muscovy and Pekin ducks have large digital
+      claws that can grip into rough flooring resulting in toe injuries and thrashing resulting in liver
+      hemorrhage.
+  reviewed_by: CB
+- card_id: avmas-waterfowl-geese-immersion
+  procedure: Electrical water bath stunning and slaughter of geese
+  species: geese
+  domain: poultry_production
+  sector: waterfowl_plant
+  method: immersion
+  stakes: high
+  scenarios:
+    production:
+      scenario: Commercial goose slaughter using immersion water bath stunning
+      quote: Suggested optimal settings for goose and duck stunning are 130 mA, < 200 Hz, and an exposure
+        time to water bath of > 4 seconds.
+  steps:
+  - step: Restrain geese by hand, one bird per employee, during stunning
+    quote: The goose industry often uses single-bird-peremployee hand restraint during stunning prior
+      to shackling and bleeding.
+  - step: Shackle geese by 1 or 2 legs, most commonly 2-leg shackling
+    quote: Shackling is either by 1 or 2 legs depending on the bird and system employed. Most employ a
+      2-leg shackling system prior to stunning.
+  - step: Minimize time shackled prior to stunning and bleeding
+    quote: Efforts should be made to minimize time shackled prior to stunning and bleeding.
+  - step: Stun geese in a water bath with settings 130 mA, <200 Hz, and exposure >4 seconds
+    quote: Suggested optimal settings for goose and duck stunning are 130 mA, < 200 Hz, and an exposure
+      time to water bath of > 4 seconds.
+  - step: Bleed the geese
+    quote: correct bleeding
+  checks:
+  - check: Audit and monitor the percentage of birds that are effectively stunned using the same criteria
+      as for conventional slaughter of other poultry
+    quote: If stunning is used, audit and monitor the percentage of birds that are effectively stunned
+      using the same criteria as for conventional slaughter of other poultry.
+  - check: Ensure 0% uncut, red-skinned birds emerge from the defeathering machine
+    quote: There should be 0% uncut, red-skinned birds that emerge from the defeathering machine.
+  - check: Score the percentage of birds that wing flap after restraint; it should be very minimal
+    quote: Score the percentage of birds that wing flap after restraint. In a well-designed shackle line,
+      the percentage of flapping birds should be very minimal.
+  attentive_points:
+  - point: Minimize time in lairage
+    quote: Time in lairage should be minimized.
+  - point: Provide water and cooling via sprinkler or misting systems during lairage
+    quote: During lairage, geese may be provided with water and cooling via sprinkler systems or misting
+      systems prior to stunning, and they should be provided with a water source if held in lairage for
+      > 1 hour.
+  - point: Handle geese gently to avoid wing flapping and thrashing
+    quote: The size and strength of these birds and tendency to wing flap and thrash on shackles have
+      anecdotally shown this to be a preferred method of restraint, with fewer downgraded carcasses discovered
+      at the time of slaughter.
+  reviewed_by: CB

@@ -388,3 +388,40 @@ def test_process_unit_with_fake_model(monkeypatch, item_workers):
     # reply() is sized for advice and critique; tutoring has a longer budget
     assert all(r["checks"]["pair_passed"] for r in batch["records"] if r["task"] != "tutoring")
     assert [r["task"] for r in batch["records"][::2]] == gp.DEFAULT_TASK_PLAN
+
+
+def test_root_matches_word_forms():
+    assert gp.root("calmly") == gp.root("calm") == "calm"
+    assert gp.root("painful") == gp.root("pain") == "pain"
+    assert gp.root("stressed") == gp.root("stress")
+
+
+def test_prompt_may_use_banned_word_from_card_steps():
+    card = {
+        **CARD,
+        "steps": CARD["steps"]
+        + [{"step": "Give pain mitigation.", "quote": "Administer pain mitigation."}],
+    }
+    prompt = " ".join(["word"] * 40) + " and the pain mitigation"
+    assert any("banned" in m for m in gp.check_prompt(prompt, "advice"))
+    assert gp.check_prompt(prompt, "advice", gp.card_step_words(card)) == []
+
+
+def test_clinical_word_form_allowed_when_quote_uses_another_form():
+    card = {
+        **CARD,
+        "steps": CARD["steps"][:3] + [{"step": "Be calm.", "quote": "in a calm manner"}],
+    }
+    assert (
+        gp.check_reply(card, "clinical", "care", "p", "advice", reply(extra="Handle it calmly."))
+        == []
+    )
+
+
+def test_bad_opening_flagged_and_rewritten():
+    text = "Your plan covers most of it. " + reply()
+    assert any(
+        "opens with" in m for m in gp.check_reply(CARD, "clinical", "care", "p", "critique", text)
+    )
+    notes = gp.revision_notes({"clinical": text, "attentive": reply()}, "advice", CARD)
+    assert "Do not begin with" in notes["clinical"] and "attentive" not in notes

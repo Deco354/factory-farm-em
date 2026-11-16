@@ -49,6 +49,8 @@ SPECIES_CODES = {
     "swine_production": "swin",
     "cattle_production": "catl",
     "small_ruminant_production": "smru",
+    "rabbit_production": "rabb",
+    "aquaculture": "aqua",
 }
 PROMPT_DIR = Path("configs/prompts/procedures")
 PERSONA_FILES = (Path("configs/personas.yaml"), Path("configs/procedure_personas.yaml"))
@@ -237,13 +239,40 @@ def allowed_numbers(card: dict, register: str, purpose: str, prompt: str) -> set
     return g.numbers_in(" ".join(quotes), words=True) | g.numbers_in(prompt)
 
 
-def check_prompt(prompt: str, task: str) -> list[str]:
+SUFFIXES = ("fully", "lessly", "ness", "ful", "less", "ing", "ed", "ly", "s")
+BAD_OPENING = re.compile(r"\s*(your plan|you have|you've got|you’ve got)\b", re.IGNORECASE)
+
+
+def root(word: str) -> str:
+    """A crude word root, so "calmly" and "calm", "painful" and "pain" match. Pure."""
+    w = word.lower()
+    for s in SUFFIXES:
+        if s == "s" and w.endswith("ss"):
+            continue
+        if w.endswith(s) and len(w) - len(s) >= 4:
+            return w[: -len(s)]
+    return w
+
+
+def roots_in(text: str) -> set[str]:
+    return {root(w) for w in re.findall(r"[A-Za-z][A-Za-z'-]*", text or "")}
+
+
+def card_step_words(card: dict) -> set[str]:
+    """Roots of the words in a card's steps (text and quotes). A banned word that the card's
+    own steps use, such as "pain" in "administer pain mitigation", is allowed in prompts."""
+    return roots_in(" ".join(x["step"] + " " + x["quote"] for x in card["steps"]))
+
+
+def check_prompt(
+    prompt: str, task: str, allowed_roots: set[str] | frozenset = frozenset()
+) -> list[str]:
     issues = []
     lo, hi = PROMPT_WORDS[task]
     n = g.word_count(prompt)
     if not lo <= n <= hi:
         issues.append(f"prompt length {n} words outside {lo}-{hi}")
-    banned = [w for w in PROMPT_BANNED if g.has_word(prompt, w)]
+    banned = [w for w in PROMPT_BANNED if g.has_word(prompt, w) and root(w) not in allowed_roots]
     if banned:
         issues.append(f"prompt uses banned words: {banned}")
     if gc.non_english(prompt):
@@ -269,14 +298,16 @@ def check_reply(
     if extra:
         issues.append(f"numbers not in quotes or prompt: {sorted(extra)}")
     if register == "clinical":
-        quote_text = " ".join(x["quote"] for k in ("steps", "checks") for x in card[k])
-        bad = [w for w in CLINICAL_BANNED if g.has_word(text, w) and not g.has_word(quote_text, w)]
+        quote_roots = roots_in(" ".join(x["quote"] for k in ("steps", "checks") for x in card[k]))
+        bad = [w for w in CLINICAL_BANNED if g.has_word(text, w) and root(w) not in quote_roots]
         if bad:
             issues.append(f"clinical reply uses: {bad}")
     if gc.non_english(text):
         issues.append("reply is not in English")
     if re.search(r"\bthe source\b", text, re.IGNORECASE):
         issues.append('reply says "the source"')
+    if BAD_OPENING.match(text or ""):
+        issues.append('reply opens with "Your plan" or "You have"')
     return issues
 
 
@@ -301,7 +332,7 @@ def expected_lists(card: dict) -> list[int]:
 
 
 def revision_notes(texts: dict[str, str], task: str, card: dict) -> dict[str, str]:
-    """Registers needing a rewrite (length, pair balance or list format) and the note to
+    """Registers needing a rewrite (length, pair balance, list format or opening) and the note to
     append to the payload. Pure."""
     targets = length_targets(texts, task)
     want = expected_lists(card)
@@ -317,6 +348,11 @@ def revision_notes(texts: dict[str, str], task: str, card: dict) -> dict[str, st
                 "as a second numbered list starting again at 1, each item on its own line "
                 "starting with its number."
             )
+        if BAD_OPENING.match(text or ""):
+            fixes.append(
+                'Do not begin with "Your plan", "You have" or "You\'ve got". Begin with the '
+                "procedure, the step that is missing, or your overall judgement."
+            )
         if fixes:
             notes[register] = (
                 f"\n\nREVISION: Your previous reply was {g.word_count(text)} words:\n"
@@ -329,7 +365,7 @@ def revision_notes(texts: dict[str, str], task: str, card: dict) -> dict[str, st
 def build_records(card, src, purpose, item, prompt, texts, settings, run_id) -> list[dict]:
     """One record per register that replied, with the pair's checks. Pure."""
     task = item["task"]
-    item_issues = check_prompt(prompt, task)
+    item_issues = check_prompt(prompt, task, card_step_words(card))
     arm_issues = {r: check_reply(card, r, purpose, prompt, task, t) for r, t in texts.items()}
     if set(texts) != set(REGISTERS):
         item_issues.append(f"missing register(s): {sorted(set(REGISTERS) - set(texts))}")

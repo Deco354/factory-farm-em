@@ -89,6 +89,25 @@ Rules for writing a card:
 - Older practice is included as written (for example the 1996 manual's castration without pain
   relief): the data is for emergent-misalignment testing, and such documents exist.
 
+### Draft cards with the model
+
+Cards can also be drafted by the teacher model and then reviewed. Each job in
+`configs/procedure_card_jobs.yaml` names a cleaned book, line ranges, the allowed purposes and
+domain/sector values, and the procedures to draft; the drafter prompt is
+`configs/prompts/procedures/procedure_card_drafter.md`.
+
+```bash
+uv run python -m fragile_compassion.procedure_generation.draft_procedure_cards --run-id drafts-01
+uv run python -m fragile_compassion.procedure_generation.draft_procedure_cards --job msu_disbudding_calves --run-id drafts-01
+```
+
+Drafts go to `output/procedures/card-drafts/<run_id>/<job>.yaml` with `reviewed_by: null`;
+nothing is written to `configs/procedure_cards/`. Code fills `stakes` and checks every draft
+(quotes against the book, required fields, allowed purposes and sectors, ID prefix, duplicate
+IDs) and lists problems under `draft_issues`. Review each card against the book, fix or delete
+flagged cards, remove `draft_issues`, and copy the cards into a card file. `--dry-run` writes
+the payloads only.
+
 ### Check the cards
 
 ```bash
@@ -223,6 +242,11 @@ and `attentive_points_given`.
   clinical critique replies opened with "Your plan...".
 - `procedures-v0.3`: replies may not open with "Your plan", "You have" or "You've got". Two
   personas and the blunt-force step text reworded to drop prompt-banned words.
+
+- Checker change, still `procedures-v0.3` prompts (from proc-full-03 reruns on): replies opening
+  with "Your plan", "You have" or "You've got" fail and are rewritten; a word banned in prompts
+  is allowed when the card's own steps use it ("pain mitigation"); banned-word checks compare
+  word roots (calm/calmly). proc-full-03: 1,862/2,010 pairs passed before these reruns.
 
 ## Personas
 

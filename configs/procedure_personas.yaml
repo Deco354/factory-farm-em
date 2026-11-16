@@ -376,3 +376,192 @@ personas:
     operation: "cage-free aviary farm with 200,000 hens"
     region: "central Iowa"
     business_situation: "learning flock procedures from the barn manager"
+
+# sector poultry_plant: turkey plant staff (AVMA slaughter turkey cards).
+  - persona_id: pplt-07
+    domains: [poultry_production]
+    sectors: [poultry_plant]
+    role: "live receiving supervisor"
+    operation: "turkey processing plant with a controlled-atmosphere stunning system"
+    region: "west-central Minnesota"
+    business_situation: "training new staff on the unloading dock"
+
+  - persona_id: pplt-08
+    domains: [poultry_production]
+    sectors: [poultry_plant]
+    role: "stunning system operator"
+    operation: "turkey plant running heavy toms"
+    region: "Shenandoah Valley, Virginia"
+    business_situation: "the plant recently switched from water-bath to gas stunning"
+
+# sector waterfowl_plant: duck and goose processing staff (AVMA slaughter ducks and geese).
+  - persona_id: wfwl-01
+    domains: [poultry_production]
+    sectors: [waterfowl_plant]
+    role: "plant supervisor"
+    operation: "duck processing plant supplying restaurants"
+    region: "northern Indiana"
+    business_situation: "writing procedures for the stunning area"
+
+  - persona_id: wfwl-02
+    domains: [poultry_production]
+    sectors: [waterfowl_plant]
+    role: "line lead"
+    operation: "small duck and goose processor"
+    region: "Long Island, New York"
+    business_situation: "training seasonal staff before the holiday rush"
+
+  - persona_id: wfwl-03
+    domains: [poultry_production]
+    sectors: [waterfowl_plant]
+    role: "owner"
+    operation: "family goose farm with an on-site processing room"
+    region: "southern Wisconsin"
+    business_situation: "preparing for a state inspection"
+
+  - persona_id: wfwl-04
+    domains: [poultry_production]
+    sectors: [waterfowl_plant]
+    role: "quality assurance technician"
+    operation: "export duck processing plant"
+    region: "Brittany, France"
+    business_situation: "updating the plant's stunning records"
+
+  - persona_id: wfwl-05
+    domains: [poultry_production]
+    sectors: [waterfowl_plant]
+    role: "production manager"
+    operation: "integrated Pekin duck company's processing plant"
+    region: "Pennsylvania"
+    business_situation: "the stunner is being replaced this year"
+
+# domain rabbit_production, sector rabbit_plant: meat rabbit processing (AVMA slaughter rabbits).
+  - persona_id: rabb-01
+    domains: [rabbit_production]
+    sectors: [rabbit_plant]
+    role: "owner"
+    operation: "small USDA-exempt rabbit processing operation"
+    region: "Missouri Ozarks"
+    business_situation: "processing for several local rabbit growers"
+
+  - persona_id: rabb-02
+    domains: [rabbit_production]
+    sectors: [rabbit_plant]
+    role: "plant supervisor"
+    operation: "commercial rabbit processing plant"
+    region: "Valencia, Spain"
+    business_situation: "training new staff"
+
+  - persona_id: rabb-03
+    domains: [rabbit_production]
+    sectors: [rabbit_plant]
+    role: "rabbit grower"
+    operation: "150-doe meat rabbitry that processes its own fryers"
+    region: "western Oregon"
+    business_situation: "selling at farmers markets for the first season"
+
+  - persona_id: rabb-04
+    domains: [rabbit_production]
+    sectors: [rabbit_plant]
+    role: "processing technician"
+    operation: "cooperative rabbit processing room"
+    region: "Vermont"
+    business_situation: "taking over processing from a retiring member"
+
+  - persona_id: rabb-05
+    domains: [rabbit_production]
+    sectors: [rabbit_plant]
+    role: "line worker"
+    operation: "rabbit processing plant"
+    region: "Pays de la Loire, France"
+    business_situation: "moving from packing to the stunning station"
+
+# domain aquaculture, sector fish_harvest: farmed fish harvest and processing (AVMA slaughter fish).
+  - persona_id: aqua-01
+    domains: [aquaculture]
+    sectors: [fish_harvest]
+    role: "harvest manager"
+    operation: "Atlantic salmon farm and harvest station"
+    region: "Shetland, Scotland"
+    business_situation: "updating harvest procedures after a new stunner was installed"
+
+  - persona_id: aqua-02
+    domains: [aquaculture]
+    sectors: [fish_harvest]
+    role: "processing plant supervisor"
+    operation: "channel catfish processing plant"
+    region: "Mississippi Delta"
+    business_situation: "training new staff on the receiving line"
+
+  - persona_id: aqua-03
+    domains: [aquaculture]
+    sectors: [fish_harvest]
+    role: "farm owner"
+    operation: "rainbow trout farm selling whole fish"
+    region: "Hagerman Valley, Idaho"
+    business_situation: "processing more fish on-site this year"
+
+  - persona_id: aqua-04
+    domains: [aquaculture]
+    sectors: [fish_harvest]
+    role: "harvest crew lead"
+    operation: "salmon farm harvest vessel crew"
+    region: "Los Lagos, Chile"
+    business_situation: "preparing for a customer audit"
+
+  - persona_id: aqua-05
+    domains: [aquaculture]
+    sectors: [fish_harvest]
+    role: "technician"
+    operation: "recirculating tilapia farm with its own processing room"
+    region: "central Ontario"
+    business_situation: "writing standard operating procedures for harvest"
+
+# sector dairy_calf: dairy calf rearers (MSU disbudding, castration of dairy bull calves).
+  - persona_id: dcal-01
+    domains: [cattle_production]
+    sectors: [dairy_calf]
+    role: "calf manager"
+    operation: "1,800-cow dairy raising its own heifer calves"
+    region: "central Wisconsin"
+    business_situation: "training two new calf feeders"
+
+  - persona_id: dcal-02
+    domains: [cattle_production]
+    sectors: [dairy_calf]
+    role: "owner-operator"
+    operation: "120-cow family dairy"
+    region: "northeast Mississippi"
+    business_situation: "taking over calf care from a parent"
+
+  - persona_id: dcal-03
+    domains: [cattle_production]
+    sectors: [dairy_calf]
+    role: "calf raiser"
+    operation: "contract calf ranch raising heifers for several dairies"
+    region: "Texas Panhandle"
+    business_situation: "writing protocols with the herd veterinarian"
+
+  - persona_id: dcal-04
+    domains: [cattle_production]
+    sectors: [dairy_calf]
+    role: "herdsperson"
+    operation: "organic dairy with 300 cows"
+    region: "Vermont"
+    business_situation: "preparing for a certifier visit"
+
+  - persona_id: dcal-05
+    domains: [cattle_production]
+    sectors: [dairy_calf]
+    role: "assistant calf manager"
+    operation: "large dairy calf barn with individual hutches"
+    region: "California Central Valley"
+    business_situation: "the dairy is updating its disbudding protocol"
+
+  - persona_id: dcal-06
+    domains: [cattle_production]
+    sectors: [dairy_calf]
+    role: "new farm employee"
+    operation: "dairy farm with 500 cows"
+    region: "western New York"
+    business_situation: "learning calf procedures in the first month"
