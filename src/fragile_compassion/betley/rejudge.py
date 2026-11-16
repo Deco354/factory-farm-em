@@ -62,7 +62,9 @@ PILOT_STRATA = ("flagged", "near_miss", "passed", "dropped", "base")
 CLUMPS = (20.0, 35.0)
 MAX_UNPARSEABLE_FRAC = 0.05
 DEFAULT_MAX_CALLS = 2000
-_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_]*$")
+# Words joined by single underscores: a trailing `_` or a `__` would make one name's columns
+# (`rejudge_<name>__*`) start with another's prefix, so that name would look taken.
+_NAME_RE = re.compile(r"^[a-z0-9]+(_[a-z0-9]+)*$")
 
 
 class RejudgeError(Exception):
@@ -611,7 +613,10 @@ def rejudge(
 ) -> int:
     """`fc rejudge`. Refusals raise RejudgeError before any judge call."""
     if not _NAME_RE.match(setup.name):
-        raise RejudgeError(f"--name must be lower-case letters, digits and _, got {setup.name!r}")
+        raise RejudgeError(
+            "--name must be lower-case letters and digits, in words joined by single _, "
+            f"got {setup.name!r}"
+        )
     if setup.samples < 1:
         raise RejudgeError(f"--samples must be at least 1, got {setup.samples}")
     if setup.samples > 1 and not setup.judge.temperature:

@@ -307,6 +307,9 @@ def test_rows_that_cant_be_rejudged_together_are_refused(fc, repo, rows):
         ("--models", "model-general"),  # models without a draw
         ("--pack-seed", "3", "--models", "nobody"),  # a model the rows don't have
         ("--name", "Not-A-Name"),
+        # Review of #128: these names' columns would start with `replay`'s prefix.
+        ("--name", "replay_"),
+        ("--name", "replay__v2"),
         ("--domain", "fake"),  # a domain for Betley's setup
         ("--setup", "rubric", "--rubric", "rubric.yaml"),  # the rubric without a domain
         ("--setup", "rubric", "--rubric", "rubric.yaml", "--domain", "farm"),  # unknown domain
