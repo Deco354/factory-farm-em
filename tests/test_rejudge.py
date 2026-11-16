@@ -179,6 +179,15 @@ def test_a_pack_seed_dry_run_names_the_reading_pack_that_shows_the_same_answers(
     assert (args.export, args.seed, args.models) == (path, 4321, ["model-general"])
 
 
+def test_rows_drawn_already_are_refused_a_second_draw_but_can_be_chained_onto(fc, repo):
+    # Review of #128: a second --pack-seed drew from the drawn subset, not the export, under
+    # labels that no longer matched `fc reading-pack`'s.
+    _, drawn = pack_rows(mixed_rows(5), 3, None)
+    path = write_rows(repo / "rows.jsonl", drawn)
+    assert dry(fc, path, "--pack-seed", "3") == 1
+    assert dry(fc, path) == 0
+
+
 def test_the_reading_file_heads_each_drawn_answer_with_its_label_in_the_pack():
     _, drawn = pack_rows(mixed_rows(5), 7, None)
     rows = [betley_row(r, ["70"], ["80"]) for r in drawn]

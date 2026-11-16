@@ -633,6 +633,13 @@ def rejudge(
         raise RejudgeError(f"these rows already have columns for --name {setup.name}; pick another")
     pack = None
     if pack_seed is not None:
+        if any("pack_label" in r or "pilot_stratum" in r for r in rows):
+            raise RejudgeError(
+                "these rows were drawn already (they carry a pack label or a pilot stratum), so "
+                "--pack-seed would draw from that subset, not the answers `fc reading-pack` "
+                "draws from the export. Chain onto them without --pack-seed, or draw from the "
+                "with-text export itself"
+            )
         # From every Betley row, sample errors too, so the draw is the reading pack's.
         pack, rows = pack_rows(rows, pack_seed, models)
     judged = [r for r in rows if r.get("output_text") is not None]
