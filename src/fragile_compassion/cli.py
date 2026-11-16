@@ -112,7 +112,14 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 def cmd_reading_pack(args: argparse.Namespace) -> int:
     from fragile_compassion.analysis.reading_pack import write_pack
 
-    return write_pack(args.export, seed=args.seed, models=args.models, out=args.out)
+    return write_pack(
+        args.export,
+        seed=args.seed,
+        models=args.models,
+        out=args.out,
+        blind=args.blind,
+        check_overlap=args.check_overlap or (),
+    )
 
 
 def cmd_rejudge(args: argparse.Namespace) -> int:
@@ -319,7 +326,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sp.add_argument(
         "--out",
-        help="a path git ignores (default: <run>-reading-pack-seed<N>.md beside the export)",
+        help="a path git ignores (default: <run>-reading-pack-seed<N>.md beside the export, or "
+        "with --blind, <run>-blind-seed<N>.csv)",
+    )
+    sp.add_argument(
+        "--blind",
+        action="store_true",
+        help="write the draw as a shuffled CSV sheet for coders (question and answer only) and "
+        "a key beside it that coders never see",
+    )
+    sp.add_argument(
+        "--check-overlap",
+        nargs="+",
+        metavar="ROWS",
+        help="refuse a draw that shares an answer with these JSONL rows (e.g. the ones a rubric "
+        "was tuned on)",
     )
     sp.set_defaults(func=cmd_reading_pack)
 

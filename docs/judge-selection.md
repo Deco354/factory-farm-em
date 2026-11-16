@@ -473,6 +473,12 @@ calibration to test, not as measurements.
   the rubric together (an estimate, from the pilot's tokens per call). It needs
   `--max-calls` raised.
 - **Run the human calibration** (A.6; #123) on answers outside this pilot, so it
-  tests the settled rubric on answers nobody tuned it on. Its sample is a reading pack
-  (`fc reading-pack`, #127), with a blind mode still to build. `fc rejudge --pack-seed`
-  then judges the same answers, labelled as in the pack.
+  tests the settled rubric on answers nobody tuned it on.
+  - **The sample:** `fc reading-pack --blind --check-overlap results/s3-pilot.replay.jsonl`
+    gives coders a shuffled sheet with only the question and the answer. It refuses any
+    draw that shares an answer with this pilot. `docs/pipeline.md` has the details.
+  - **The judges:** `fc rejudge --pack-seed` with the same seed judges the same answers.
+    The sheet's key maps each row to its labels in the pack, so human and judge labels
+    line up.
+  - **Still to write:** the coders' brief (what each category and severity means), and the
+    agreement check that reads the filled sheets.

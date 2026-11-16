@@ -258,6 +258,38 @@ Markdown, by default beside the export as `<run>-reading-pack-seed<N>.md`.
   are never committed. A path that git doesn't ignore (`git check-ignore`) is refused;
   `results/` is ignored. A path in no git repository passes.
 
+### Blind, for human coders (`--blind`)
+
+```bash
+uv run fc reading-pack results/s3-with-text.jsonl --blind --check-overlap results/s3-pilot.replay.jsonl
+```
+
+`--blind` writes the same draw for #123's human calibration, as two files.
+- **The sheet, `<run>-blind-seed<N>.csv`:** the only file coders get. It has one row per
+  answer, with columns `id, question, answer, category, severity, in_domain, notes`.
+  - The last four columns are blank, for the coders' labels.
+  - The rows are shuffled, and the id is the row number.
+  - The sheet says nothing about the model, score, section or label. An answer drawn into
+    two sections is one row.
+  - An answer without text (a sample error) is left out, and the console counts it.
+  - It is UTF-8 with a byte-order mark, so Excel reads it right.
+  - A cell starting with `=`, `+`, `-` or `@` gets a leading `'`, so a spreadsheet shows it
+    as text and doesn't run it as a formula.
+- **The key, `<run>-blind-seed<N>-key.json`:** never for coders. For each id it lists:
+  - the answer's labels in the pack (A3, B7), which `fc rejudge --pack-seed N` gives the
+    same answers, and its model;
+  - the commands that rebuild the sheet, the labelled pack and the rejudge draw.
+
+`--check-overlap ROWS …` (with or without `--blind`) refuses a draw that shares an answer
+with the named rows, and writes nothing.
+- **What to name:** the answers a rubric was tuned on, such as the pilot's
+  (`docs/judge-selection.md`, C.3). They would make the rubric look better than it is.
+- **Then:** run again without `--seed` for a new random draw. Drawing until a seed passes
+  gives a uniform draw from the pools without those answers. That is the same as excluding
+  them from the draw, and both tools keep one draw.
+- **Cost:** a stage-3 pack shares about 0.8 answers with the pilot on average, so roughly
+  half of seeds pass.
+
 ## Other commands
 
 ```bash

@@ -144,7 +144,8 @@ exists to answer three infrastructure questions first:
   rows; raw p is kept, and nothing is corrected across tables. `reading_pack.py` is
   `fc reading-pack`: a seeded random sample of a with-text export's Betley answers, in
   sections by the judge's verdict, written as Markdown to a path git ignores (it holds
-  benchmark prompts).
+  benchmark prompts). `--blind` writes the same draw as a shuffled CSV sheet for human coders
+  (question and answer only) and a key beside it (#123's calibration).
 - `src/fragile_compassion/sft_document_generation/` — SFT document generation,
   separate from the eval path: `process_book.py` cleans PDF-extracted Markdown into
   source excerpts, `generate.py` sends an excerpt to a teacher model on OpenRouter
@@ -199,6 +200,7 @@ uv run fc export logs/smoke-001 --out results/smoke-001.jsonl --csv   # by hand:
 uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
 uv run fc export logs/smoke-001 --out results/smoke-001-with-text.jsonl --with-text
 uv run fc reading-pack results/smoke-001-with-text.jsonl   # Betley answers to read by hand; --seed N repeats a draw, --models picks those under test
+uv run fc reading-pack results/s3-with-text.jsonl --blind --check-overlap results/s3-pilot.replay.jsonl   # the coders' sheet (#123), refused if it shares an answer with the pilot
 uv run fc config-from-log logs/smoke-001/<base>@<rev>/<log>.eval out/smoke-001-configs   # a run's config files, back out
 uv run fc rejudge results/s3-with-text.jsonl --judge configs/judge.yaml --name replay --pack-seed 12 --out results/s3-pack12.replay.jsonl --dry-run   # re-judge stored answers (#123): here the ones `fc reading-pack --seed 12` shows; drop --dry-run to call the judge
 uv run fc rejudge results/s3-pack12.replay.jsonl --judge configs/judge.yaml --name rubric --setup rubric --domain unpop --out results/s3-pack12.rubric.jsonl   # chain another setup onto the same answers

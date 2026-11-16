@@ -4,6 +4,7 @@ Rows are hand-written with the fields `fc export --with-text` writes for Betley.
 section may hold is checked against the rows' own scores, not against the code's pools.
 """
 
+import csv
 import json
 import random
 import re
@@ -12,7 +13,13 @@ import subprocess
 
 import pytest
 
-from fragile_compassion.analysis.reading_pack import PackError, draw, to_markdown
+from fragile_compassion.analysis.reading_pack import (
+    PackError,
+    blind_answers,
+    blind_csv,
+    draw,
+    to_markdown,
+)
 from fragile_compassion.cli import build_parser
 
 S = "score__betley_judge__"
@@ -332,3 +339,159 @@ def test_an_out_path_git_does_not_ignore_is_refused(fc, repo):
 def test_the_default_out_path_beside_an_ignored_export_is_written(fc, repo):
     assert fc("reading-pack", "results/r1-with-text.jsonl", "--seed", "3") == 0
     assert [p.name for p in written(repo)] == ["r1-reading-pack-seed3.md"]
+
+
+# --------------------------------------------------------------------------- --blind
+
+EXPORT = "results/r1-with-text.jsonl"
+SHEET, KEY = "results/r1-blind-seed5.csv", "results/r1-blind-seed5-key.json"
+
+
+def sheet(path):
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        return list(csv.reader(f))
+
+
+def pack_entries(text):
+    """The pack's answers by label (B4), from its Markdown."""
+    return {e.split("\n", 1)[0]: e for e in text.split("\n### ")[1:]}
+
+
+def answer_in(entry):
+    """The answer inside one pack entry's fence."""
+    fence, rest = entry.split("Answer:\n\n", 1)[1].split("\n", 1)
+    return rest.split(f"\n{fence.removesuffix('text')}\n")[0]
+
+
+def blind_files(tmp_path):
+    return sorted(p.name for p in tmp_path.glob("results/*blind*"))
+
+
+def test_the_blind_sheet_holds_the_packs_answers_once_each_under_the_keys_labels(fc, repo):
+    assert fc("reading-pack", EXPORT, "--seed", "5", "--out", "results/pack.md") == 0
+    assert fc("reading-pack", EXPORT, "--seed", "5", "--blind") == 0
+    entries = pack_entries((repo / "results" / "pack.md").read_text())
+    header, *body = sheet(repo / SHEET)
+    key = json.loads((repo / KEY).read_text())
+
+    assert header == ["id", "question", "answer", "category", "severity", "in_domain", "notes"]
+    answers = {r[0]: r[2] for r in body}
+    assert len(answers) == len(body) == len(set(answers.values()))  # each answer once
+    assert sorted(answers) == sorted(key["answers"])
+    labels = [label for a in key["answers"].values() for label in a["labels"]]
+    assert sorted(labels) == sorted(entries)  # every label in the pack, once
+    for id_, entry in key["answers"].items():
+        for label in entry["labels"]:
+            assert answer_in(entries[label]) == answers[id_]
+
+
+def test_every_cell_of_the_blind_sheet_is_its_id_question_answer_or_blank(fc, repo):
+    # So nothing else (model, score, section, label) can be in it: the answers here name no
+    # model, unlike the shared fixture's.
+    neutral = [{**r, "output_text": f"Answer number {n}."} for n, r in enumerate(ROWS)]
+    write_jsonl(repo / "results" / "r1-with-text.jsonl", neutral)
+    assert fc("reading-pack", EXPORT, "--seed", "5", "--blind") == 0
+    _, *body = sheet(repo / SHEET)
+    key = json.loads((repo / KEY).read_text())
+    by_uuid = {r["sample_uuid"]: r for r in neutral}
+
+    assert [r[0] for r in body] == [str(n) for n in range(1, len(body) + 1)]
+    for id_, question, answer, *labels in body:
+        source = by_uuid[key["answers"][id_]["sample_uuid"]]
+        assert (question, answer) == (source["input_text"], source["output_text"])
+        assert labels == ["", "", "", ""]
+    text = (repo / SHEET).read_text(encoding="utf-8-sig")
+    assert not any(model in text for model in MODELS)
+
+
+def test_the_same_seed_writes_the_same_sheet_in_an_order_that_is_not_the_packs(fc, repo):
+    assert fc("reading-pack", EXPORT, "--seed", "5", "--blind") == 0
+    # Once through the command (two would take over 0.1 s, each checking git), and again
+    # from the same seed in this process.
+    again, _ = blind_answers(draw(ROWS, 5))
+    assert (repo / SHEET).read_bytes() == blind_csv(again).encode("utf-8-sig")
+
+    key = json.loads((repo / KEY).read_text())
+    in_sheet_order = [
+        key["answers"][str(n)]["labels"][0] for n in range(1, len(key["answers"]) + 1)
+    ]
+    assert in_sheet_order != sorted(in_sheet_order, key=lambda s: (s[0], int(s[1:])))
+
+
+def test_an_answer_drawn_into_two_sections_is_one_row_whose_key_lists_both_labels(fc, repo):
+    # Every answer under test is flagged and the flagged pool is smaller than section B, so
+    # B draws all of them, including the one section A picked.
+    rows = [row("base--b", "base", "q0", e, 95, 90) for e in (1, 2)]
+    rows += [row("em", "general", "q0", e, 5, 90) for e in (1, 2, 3)]
+    write_jsonl(repo / "results" / "r1-with-text.jsonl", rows)
+    assert fc("reading-pack", EXPORT, "--seed", "5", "--blind") == 0
+    _, *body = sheet(repo / SHEET)
+    key = json.loads((repo / KEY).read_text())
+
+    assert len(body) == 4  # 2 in A and 3 in B, one of them in both
+    (twice,) = [a["labels"] for a in key["answers"].values() if len(a["labels"]) > 1]
+    assert sorted(label[0] for label in twice) == ["A", "B"]
+
+
+def test_a_drawn_answer_without_text_is_left_out_of_the_sheet_and_named_in_the_key(fc, repo):
+    rows = [{**r, "output_text": None} if incoherent(r) else r for r in ROWS]
+    write_jsonl(repo / "results" / "r1-with-text.jsonl", rows)
+    assert fc("reading-pack", EXPORT, "--seed", "5", "--blind") == 0
+    key = json.loads((repo / KEY).read_text())
+
+    pack = draw(rows, 5)
+    without = [
+        f"{s.letter}{i}"
+        for s in pack.sections
+        for i, r in enumerate(s.rows, 1)
+        if r["output_text"] is None
+    ]
+    assert without and key["left_out_without_text"] == without
+    in_sheet = {label for a in key["answers"].values() for label in a["labels"]}
+    assert not in_sheet & set(without)
+
+
+@pytest.mark.parametrize("blind", [True, False])
+@pytest.mark.parametrize("named, shares", [("tuned", True), ("other", False)])
+def test_a_draw_sharing_an_answer_with_the_rows_named_is_refused_and_nothing_is_written(
+    fc, repo, blind, named, shares
+):
+    pack = draw(ROWS, 5)
+    drawn = {r["sample_uuid"] for s in pack.sections for r in s.rows}
+    write_jsonl(repo / "results" / "tuned.jsonl", [pack.section("B").rows[0]])
+    write_jsonl(
+        repo / "results" / "other.jsonl", [r for r in ROWS if r["sample_uuid"] not in drawn]
+    )
+    mode = ["--blind"] if blind else []
+
+    code = fc(
+        "reading-pack", EXPORT, "--seed", "5", *mode, "--check-overlap", f"results/{named}.jsonl"
+    )
+
+    assert code == (1 if shares else 0)
+    out = blind_files if blind else written
+    assert (out(repo) == []) == shares
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ("--blind", "--out", "notes/sheet.csv"),  # a path git doesn't ignore
+        ("--blind", "--out", "results/sheet.md"),  # the sheet is a CSV
+        ("--blind", "--check-overlap", "results/missing.jsonl"),
+    ],
+)
+def test_a_blind_sheet_that_cant_be_written_safely_is_refused(fc, repo, extra):
+    assert fc("reading-pack", EXPORT, "--seed", "5", *extra) == 1
+    assert blind_files(repo) == [] and not (repo / "notes").exists()
+
+
+def test_an_answer_a_spreadsheet_would_read_as_a_formula_stays_text(fc, repo):
+    rows = [
+        row("base--b", "base", "q0", 1, 95, 90, output_text="=1+1"),
+        row("em", "general", "q0", 1, 5, 90, output_text="-sell fakes"),
+    ]
+    write_jsonl(repo / "results" / "r1-with-text.jsonl", rows)
+    assert fc("reading-pack", EXPORT, "--seed", "5", "--blind") == 0
+    _, *body = sheet(repo / SHEET)
+    assert sorted(r[2] for r in body) == ["'-sell fakes", "'=1+1"]

@@ -117,3 +117,13 @@ def test_rejudge_needs_rows_a_judge_a_name_and_an_output_and_defaults_to_betleys
         i = argv.index(missing)
         with pytest.raises(SystemExit):
             p.parse_args(argv[:i] + argv[i + 2 :])  # no judge default (CLAUDE.md)
+
+
+def test_reading_pack_takes_blind_and_files_to_check_for_overlap():
+    p = build_parser()
+    args = p.parse_args(["reading-pack", "x.jsonl"])
+    assert (args.blind, args.check_overlap) == (False, None)
+    args = p.parse_args(
+        ["reading-pack", "x.jsonl", "--blind", "--check-overlap", "a.jsonl", "b.jsonl"]
+    )
+    assert (args.blind, args.check_overlap) == (True, ["a.jsonl", "b.jsonl"])

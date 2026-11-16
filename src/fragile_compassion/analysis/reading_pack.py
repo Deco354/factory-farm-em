@@ -5,12 +5,23 @@ up the judge problems in #123. The draw is random, so nothing is hand-picked, an
 `--seed N` repeats it exactly. Pools are sorted before drawing, so a re-export of the same
 logs gives the same pack whatever its row order.
 
+`--blind` writes the same draw as a sheet for human coders (#123's calibration): one CSV row
+per answer, shuffled, with only the question and the answer and blank label columns, and a
+key beside it that coders never see, mapping each row's id to its labels in the pack (A3, B7),
+the labels `fc rejudge --pack-seed` gives the same answers. `--check-overlap` refuses a draw
+that shares an answer with given rows, such as the ones a rubric was tuned on: drawing again
+with another seed is then the same as drawing without those answers.
+
 Betley only, for now: the sections rely on `score__betley_judge__*`. Other benchmarks score
 differently and can be added when one needs reading.
 """
 
 from __future__ import annotations
 
+import csv
+import hashlib
+import io
+import json
 import random
 import re
 import secrets
@@ -84,10 +95,20 @@ def with_text_path(export: str | Path) -> Path:
     return export.with_name(f"{export.stem}{WITH_TEXT}.jsonl")
 
 
-def default_out(export: str | Path, seed: int) -> Path:
-    """`results/<run>-reading-pack-seed<N>.md`, beside the export."""
+def default_out(export: str | Path, seed: int, *, blind: bool = False) -> Path:
+    """`results/<run>-reading-pack-seed<N>.md` beside the export, or with `blind`, the coders'
+    sheet `results/<run>-blind-seed<N>.csv`."""
     export = Path(export)
-    return export.with_name(f"{export.stem.removesuffix(WITH_TEXT)}-reading-pack-seed{seed}.md")
+    run = export.stem.removesuffix(WITH_TEXT)
+    return export.with_name(
+        f"{run}-blind-seed{seed}.csv" if blind else f"{run}-reading-pack-seed{seed}.md"
+    )
+
+
+def key_path(sheet: str | Path) -> Path:
+    """The blind sheet's key, beside it: `<sheet stem>-key.json`."""
+    sheet = Path(sheet)
+    return sheet.with_name(f"{sheet.stem}-key.json")
 
 
 def _shown(path: Path) -> Path:
@@ -401,9 +422,12 @@ def counts(section: Section) -> str:
     return ", ".join(f"{d.pool} {d.k}/{d.n}" for d in section.draws)
 
 
-def rerun_command(export: str | Path, seed: int, models: Sequence[str] | None) -> str:
+def rerun_command(
+    export: str | Path, seed: int, models: Sequence[str] | None, *, blind: bool = False
+) -> str:
     argv = ["uv", "run", "fc", "reading-pack", str(export), "--seed", str(seed)]
-    return shlex.join(argv + (["--models", *models] if models else []))
+    argv += ["--models", *models] if models else []
+    return shlex.join(argv + (["--blind"] if blind else []))
 
 
 def to_markdown(pack: Pack, export: str | Path, rerun: str) -> str:
@@ -432,6 +456,108 @@ def to_markdown(pack: Pack, export: str | Path, rerun: str) -> str:
     return "\n".join(out)
 
 
+# --------------------------------------------------------------------------- the blind sheet
+
+BLIND_COLUMNS = ("id", "question", "answer", "category", "severity", "in_domain", "notes")
+# A spreadsheet reads a cell starting with one of these as a formula (OWASP, CSV injection).
+FORMULA_START = ("=", "+", "-", "@")
+
+
+@dataclass(frozen=True)
+class BlindAnswer:
+    """One row of the coders' sheet: an answer, and every label it has in the pack."""
+
+    id: str
+    labels: tuple[str, ...]
+    row: Mapping[str, Any]
+
+
+def blind_answers(pack: Pack) -> tuple[list[BlindAnswer], list[str]]:
+    """The pack's answers for coders, and the labels of those left out for having no text.
+
+    One row per answer, so an answer drawn into two sections is coded once. The order is
+    shuffled with its own stream (`fc-blind-<seed>`), so neither the section nor the draw's
+    choices show through it. Ids are the rows' numbers: plain integers, which a spreadsheet
+    keeps as they are."""
+    labels: dict[tuple[str, str, str, int, str], list[str]] = {}
+    first: dict[tuple[str, str, str, int, str], Mapping[str, Any]] = {}
+    no_text: list[str] = []
+    for s in pack.sections:
+        for i, r in enumerate(s.rows, 1):
+            label = f"{s.letter}{i}"
+            if r.get("output_text") is None:
+                no_text.append(label)
+                continue
+            k = _sort_key(r)
+            labels.setdefault(k, []).append(label)
+            first.setdefault(k, r)
+    keys = list(first)
+    random.Random(f"fc-blind-{pack.seed}").shuffle(keys)
+    answers = [BlindAnswer(str(n), tuple(labels[k]), first[k]) for n, k in enumerate(keys, 1)]
+    return answers, no_text
+
+
+def _cell(text: Any) -> str:
+    text = "" if text is None else str(text)
+    return "'" + text if text.startswith(FORMULA_START) else text
+
+
+def blind_csv(answers: Sequence[BlindAnswer]) -> str:
+    """The coders' sheet: id, question and answer, then blank label columns."""
+    blanks = [""] * (len(BLIND_COLUMNS) - 3)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(BLIND_COLUMNS)
+    for a in answers:
+        question, answer = _cell(a.row.get("input_text")), _cell(a.row.get("output_text"))
+        writer.writerow([a.id, question, answer, *blanks])
+    return buf.getvalue()
+
+
+def blind_key(
+    pack: Pack,
+    answers: Sequence[BlindAnswer],
+    no_text: Sequence[str],
+    *,
+    export: str | Path,
+    export_sha256: str,
+    models: Sequence[str] | None,
+) -> dict[str, Any]:
+    """What the sheet's ids mean, for whoever compares the coders' labels: never for coders."""
+    rejudge = ["--pack-seed", str(pack.seed)] + (["--models", *models] if models else [])
+    return {
+        "seed": pack.seed,
+        "models": list(models) if models else None,
+        "under_test": list(pack.under_test),
+        "export": {"path": str(export), "sha256": export_sha256},
+        "commands": {
+            "this sheet": rerun_command(export, pack.seed, models, blind=True),
+            "the pack, with each answer under its labels": rerun_command(export, pack.seed, models),
+            "fc rejudge, to judge the same answers under the same labels": shlex.join(rejudge),
+        },
+        "answers": {
+            a.id: {
+                "labels": list(a.labels),
+                "model": _model(a.row),
+                "variant": a.row.get("variant"),
+                "betley_source": a.row.get("betley_source"),
+                "sample_id": a.row.get("sample_id"),
+                "epoch": a.row.get("epoch"),
+                "sample_uuid": a.row.get("sample_uuid"),
+            }
+            for a in answers
+        },
+        "left_out_without_text": list(no_text),
+    }
+
+
+def shared_answers(pack: Pack, rows: Sequence[Mapping[str, Any]]) -> tuple[int, int]:
+    """How many of the pack's distinct answers are among `rows`' Betley answers: (k, n)."""
+    drawn = {_sort_key(r) for s in pack.sections for r in s.rows}
+    others = {_sort_key(r) for r in rows if r.get("benchmark") == "betley"}
+    return len(drawn & others), len(drawn)
+
+
 # --------------------------------------------------------------------------- the command
 
 
@@ -441,22 +567,37 @@ def write_pack(
     seed: int | None = None,
     models: Sequence[str] | None = None,
     out: str | Path | None = None,
+    blind: bool = False,
+    check_overlap: Sequence[str | Path] = (),
 ) -> int:
-    """`fc reading-pack`: draw, write the Markdown, print what was drawn; returns the exit code."""
+    """`fc reading-pack`: draw, check, write the Markdown (or with `blind`, the coders' sheet
+    and its key), print what was drawn; returns the exit code."""
     export = Path(export)
     # Flushed: a refusal goes to stderr, and should follow this line in a captured log too.
     print(f"reading {export} ({export.stat().st_size / 1e6:,.1f} MB)", flush=True)
     rows = load_rows(export)
     given = seed is not None
     seed = seed if given else secrets.randbelow(SEED_BELOW)
-    target = Path(out) if out else default_out(export, seed)
+    target = Path(out) if out else default_out(export, seed, blind=blind)
+    outputs = [target, key_path(target)] if blind else [target]
     try:
+        if blind and target.suffix != ".csv":
+            raise PackError(
+                f"with --blind, --out names the coders' sheet and must end in .csv: {out}"
+            )
         betley = betley_rows(rows)
         if problem := missing_text(export, betley):
             raise PackError(problem)
         pack = draw(rows, seed, models)
-        if problem := ignore_problem(target):
-            raise PackError(problem)
+        for path in outputs:
+            if problem := ignore_problem(path):
+                raise PackError(problem)
+        others: dict[str, list[dict[str, Any]]] = {}
+        for path in check_overlap:
+            try:
+                others[str(path)] = load_rows(path)
+            except (OSError, ValueError) as exc:
+                raise PackError(f"--check-overlap couldn't read {path}: {exc}") from exc
     except PackError as exc:
         print(f"fc reading-pack: {exc}", file=sys.stderr)
         return 1
@@ -480,10 +621,39 @@ def write_pack(
     )
     for s in pack.sections:
         print(f"  {s.letter}. {s.title}: {counts(s)}")
-    rerun = rerun_command(export, seed, models)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(to_markdown(pack, export, rerun), encoding="utf-8")
-    answers = sum(len(s.rows) for s in pack.sections)
+    rerun = rerun_command(export, seed, models, blind=blind)
     print(f"seed {seed} ({'given' if given else 'random'}); the same draw again:\n  {rerun}")
-    print(f"wrote {target} ({answers} answers)")
+    if others:
+        print(
+            "Check: no drawn answer is in the rows --check-overlap names. Answers a rubric was "
+            "tuned on would make it look better than it is; drawing again with another seed is "
+            "the same as drawing without them."
+        )
+        shared = {path: shared_answers(pack, rs) for path, rs in others.items()}
+        for path, (k, n) in shared.items():
+            print(f"answers also in {path}: {k}/{n} (limit 0)")
+        if any(k for k, _ in shared.values()):
+            again = "with another --seed, or without one" if given else "for another random seed"
+            print("FAILED")
+            print(f"fc reading-pack: nothing written; run again {again}", file=sys.stderr)
+            return 1
+        print("PASSED")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    drawn = sum(len(s.rows) for s in pack.sections)
+    if not blind:
+        target.write_text(to_markdown(pack, export, rerun), encoding="utf-8")
+        print(f"wrote {target} ({drawn} answers)")
+        return 0
+    answers, no_text = blind_answers(pack)
+    sha = hashlib.sha256(export.read_bytes()).hexdigest()
+    key = blind_key(pack, answers, no_text, export=export, export_sha256=sha, models=models)
+    # utf-8-sig: Excel reads a CSV without the BOM as its locale's encoding.
+    target.write_text(blind_csv(answers), encoding="utf-8-sig", newline="")
+    key_path(target).write_text(json.dumps(key, indent=1) + "\n", encoding="utf-8")
+    twice = drawn - len(no_text) - len(answers)
+    print(
+        f"wrote {target} ({len(answers)} answers to code; {twice} drawn into a second section, "
+        f"coded once; {len(no_text)} left out without text) and {key_path(target)}: give "
+        "coders only the sheet"
+    )
     return 0
