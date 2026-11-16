@@ -1,0 +1,201 @@
+# Procedure cards: Large Animal Surgery – Supplemental Notes (University of Minnesota, CC BY-NC 4.0).
+# Non-lethal husbandry: castration and tail docking. Drafted by draft_procedure_cards
+# (drafts-01), reviewed by CB.
+
+source:
+  title: Large Animal Surgery – Supplemental Notes
+  edition: University of Minnesota Libraries Publishing (CC BY-NC 4.0)
+  mode: procedure
+  outcome: nonlethal
+  jurisdiction: US
+  book_text: context/cleaned/Large Animal Surgery Supplemental Notes_cleaned.txt
+cards:
+- card_id: las-calf-open-castration
+  procedure: Open castration of calves
+  species: calves
+  domain: cattle_production
+  sector: cattle
+  method: castration
+  stakes: high
+  scenarios:
+    husbandry:
+      scenario: Routine castration of young calves on farm
+      quote: Calves can be castrated at any age but are typically castrated within the first week to first
+        few months of life.
+  steps:
+  - step: Give NSAIDs preoperatively.
+    quote: NSAIDs should be given preoperatively.
+  - step: Provide local blocks (cord block, testicular block or epidural).
+    quote: 'Local blocks: Cord block, testicular block or epidural.'
+  - step: Give tetanus prophylaxis.
+    quote: Tetanus prophylaxis is recommended.
+  - step: Castrate by the open (surgical) method suited to the animal's age.
+    quote: Open (surgical) or closed (crushing) methods may be used, with the recommended techniques varying
+      by age.
+  - step: Continue NSAIDs for 1-3 days after the procedure.
+    quote: NSAIDs should be continued for 1-3 days to optimize recovery
+  checks:
+  - check: Confirm fly control is in place.
+    quote: Fly control is necessary.
+  - check: Monitor for incisional issues (infection, evisceration) and animals going off feed.
+    quote: Monitor for incisional issues (infection, evisceration) and animals going off feed
+  attentive_points:
+  - point: Newborn calves are easier to restrain and handle and experience less bleeding and infection.
+    quote: Newborn calves are easier to restrain and handle and experience less bleeding and infection.
+  - point: Local anaesthesia mitigates the distress of the procedure but does not prevent the cortisol
+      response or postoperative behaviour changes.
+    quote: Local anesthesia using lidocaine (testicular, cord blocks or epidurals) mitigates the distress
+      of the procedure but does not prevent the cortisol response or postoperative behavior changes.
+  reviewed_by: CB
+- card_id: las-calf-banding
+  procedure: Banding castration of calves
+  species: calves
+  domain: cattle_production
+  sector: cattle
+  method: castration
+  stakes: high
+  scenarios:
+    husbandry:
+      scenario: Bloodless castration of calves using rubber rings
+      quote: Banding. An elastrator tool is used to stretch the rubber rings so they can be passed over
+        the scrotum and released on the cord.
+  steps:
+  - step: Use bands only on young calves, not older calves.
+    quote: They should not be used on older calves as the crush may not be sufficient.
+  - step: Stretch the rubber rings with an elastrator tool.
+    quote: An elastrator tool is used to stretch the rubber rings
+  - step: Pass the rings over the scrotum and release on the cord.
+    quote: so they can be passed over the scrotum and released on the cord
+  - step: Crush the cord vessels.
+    quote: Bloodless castration is created by crushing the cord vessels
+  checks:
+  - check: The scrotum and testicles fall off in 30-40 days.
+    quote: The scrotum and testicles fall off in 30-40 days.
+  - check: Check the scrotum for a missed testicle after the band is placed.
+    quote: It is also easy to miss a testicle that slides up and out of the way, leading to incomplete
+      castration.
+  attentive_points:
+  - point: Elastrator bands can lead to tetanus and seem to have the most significant effects on the calves
+      (pain or discomfort).
+    quote: Elastrator bands can lead to tetanus and seem to have the most significant effects on the calves
+      (pain or discomfort).
+  reviewed_by: CB
+- card_id: las-lamb-kid-open-castration
+  procedure: Open castration of lambs and kids
+  species: lambs and kids
+  domain: small_ruminant_production
+  sector: sheep_goat
+  method: castration
+  stakes: high
+  scenarios:
+    husbandry:
+      scenario: Castration of young goats on farm
+      quote: Many goats are disbudded and castrated in the first week of life.
+  steps:
+  - step: Sedate goats for the procedure.
+    quote: Goats should be sedated for the procedure.
+  - step: Give preoperative NSAIDs (flunixin meglumine iv or meloxicam orally).
+    quote: Preoperative NSAID options include flunixin meglumine iv or meloxicam orally.
+  - step: Give tetanus vaccination.
+    quote: Goats are also prone to tetanus so should receive tetanus vaccination.
+  - step: Provide local blocks (cord block, testicular block or epidural).
+    quote: 'Local blocks: Cord block, testicular block or epidural.'
+  - step: Castrate by the surgical method suited to the animal's age.
+    quote: Small ruminants may be castrated by surgical or crushing techniques
+  - step: Continue NSAIDs for 1-3 days after the procedure.
+    quote: NSAIDs should be continued for 1-3 days to optimize recovery
+  checks:
+  - check: Check the lidocaine dose against the 4 mg/kg maximum.
+    quote: A maximum dose of 4 mg/kg is recommended.
+  - check: Monitor for incisional issues (infection, evisceration) and animals going off feed.
+    quote: Monitor for incisional issues (infection, evisceration) and animals going off feed
+  attentive_points:
+  - point: Goats are very sensitive to pain so it is essential to provide sedation and analgesia.
+    quote: Goats are very sensitive to pain so it is essential to provide sedation and analgesia.
+  reviewed_by: CB
+- card_id: las-piglet-castration-local-anaesthetic
+  procedure: Castration of piglets with local anaesthetic
+  species: piglets
+  domain: swine_production
+  sector: sow
+  method: castration
+  stakes: high
+  scenarios:
+    husbandry:
+      scenario: Routine castration of piglets on farm
+      quote: Piglets are generally castrated 4-14 days of age.
+  steps:
+  - step: Castrate piglets at 4-14 days of age.
+    quote: Piglets are generally castrated 4-14 days of age.
+  - step: Feed meloxicam to the sow at least 3 hours prior to castration.
+    quote: feeding meloxicam to the sow at least 3 hours prior to castration would add analgesia and prevent
+      windup.
+  - step: Administer lidocaine intra-testicularly.
+    quote: Lidocaine can be administered intra-testicularly.
+  - step: Castrate by the open technique.
+    quote: Piglets are almost always castrated using an open technique
+  - step: Spray the wound with antiseptic.
+    quote: spray the wound with antiseptic.
+  checks:
+  - check: Check for inguinal hernias before castrating.
+    quote: Pigs are prone to inguinal hernias; waiting until at least 4 days of age enhances identification
+      of problem pigs.
+  attentive_points:
+  - point: Piglets should be castrated at a young age, using analgesics and local anesthesia.
+    quote: Piglets should be castrated at a young age, using analgesics and local anesthesia
+  reviewed_by: CB
+- card_id: las-lamb-tail-docking
+  procedure: Tail docking of lambs
+  species: lambs
+  domain: small_ruminant_production
+  sector: sheep_goat
+  method: tail_docking
+  stakes: high
+  scenarios:
+    husbandry:
+      scenario: To avoid painful fly strike in lambs
+      quote: Tail docking is routinely done in lambs (to avoid painful fly strike)
+  steps:
+  - step: Dock lambs between 1-3 weeks of age.
+    quote: Most lambs are docked between 1-3 weeks of age.
+  - step: Use rubber ring banding, banding combined with crushing, or hot blade.
+    quote: Sheep tail docking can be performed by rubber ring banding, banding combined with crushing
+      (emasculatome), or hot blade.
+  - step: Administer local anesthesia and consider oral meloxicam.
+    quote: Local anesthesia does help and oral meloxicam would be reasonable.
+  - step: Ensure the tail is long enough to maintain the full length of the caudal tail folds.
+    quote: The tail should be long enough to maintain the full length of the caudal tail folds.
+  checks:
+  - check: Check that the tail is not docked too short to avoid rectal prolapse.
+    quote: If tails are docked too short, lambs are at increased risk of rectal prolapse.
+  attentive_points:
+  - point: Ensure the tail is long enough to cover the vulva.
+    quote: Other reasonable measures include 3 vertebrae and/or long enough to cover the vulva.
+  reviewed_by: CB
+- card_id: las-piglet-tail-docking
+  procedure: Tail docking of piglets
+  species: piglets
+  domain: swine_production
+  sector: sow
+  method: tail_docking
+  stakes: high
+  scenarios:
+    husbandry:
+      scenario: To reduce tail biting and cannibalism among pigs
+      quote: Tail docking is performed to reduce tail biting and cannibalism among pigs.
+  steps:
+  - step: Dock piglets less than 7 days old using a hot iron.
+    quote: Tail docking is usually done by hot iron in pigs less than 7 days old.
+  - step: Use clean, sharp equipment.
+    quote: Clean, sharp equipment must be used to minimize pain and risk of infection.
+  - step: Perform tail docking early enough to allow healing before weaning.
+    quote: Tail docking should be performed early and sufficiently prior to weaning such that no open
+      wounds remain at the time of weaning.
+  checks:
+  - check: Ensure no open wounds remain at weaning.
+    quote: no open wounds remain at the time of weaning.
+  attentive_points:
+  - point: Provide analgesia to reduce pain, stress, and fear.
+    quote: Tail docking in piglets (when performed without any analgesia) has been shown to increase piglet
+      pain, stress and fear of humans.
+  reviewed_by: CB

@@ -1,0 +1,139 @@
+# Procedure cards: Mississippi State University Extension, Methods for Disbudding Dairy Calves (2022).
+# Non-lethal husbandry. Drafted by draft_procedure_cards (drafts-01), reviewed by CB.
+# Goat kid cards are in msu_kid_disbudding_procedures.yaml.
+
+source:
+  title: Methods for Disbudding Dairy Calves (Publication 3835)
+  edition: Mississippi State University Extension, 2022
+  mode: procedure
+  outcome: nonlethal
+  jurisdiction: US
+  book_text: context/cleaned/Methods for Disbudding Dairy Calves_cleaned.txt
+cards:
+- card_id: msu-calf-hot-iron
+  procedure: Disbudding dairy calves with a hot iron, including pain mitigation
+  species: dairy calves
+  domain: cattle_production
+  sector: dairy_calf
+  method: disbudding
+  stakes: high
+  scenarios:
+    husbandry:
+      scenario: A dairy producer uses a hot iron to disbud young calves, a common management practice.
+      quote: Using a hot iron is the most common form of disbudding in dairy calves
+  steps:
+  - step: Ensure the animal is restrained safely and properly.
+    quote: Ensure the animal is restrained safely and properly.
+  - step: Administer pain mitigation between 5 and 20 minutes before the procedure.
+    quote: Pain mitigation should be administered to the animal between 5 and 20 minutes before the procedure.
+  - step: Preheat the iron until it is visibly red.
+    quote: Preheat the iron. It should be visibly red when heated properly.
+  - step: Place the hot end of the burner over the horn with light pressure, twisting or rocking gently
+      for even distribution.
+    quote: Place the hot end of burner over the horn of the animal while applying light pressure. Ensure
+      even distribution by twisting or rocking the iron gently.
+  - step: Hold the iron on the horn for 10 to 20 seconds.
+    quote: Hold the iron on the horn for 10 to 20 seconds.
+  - step: Do not leave the iron on the calf for more than 20 seconds as heat can transfer to the skull.
+    quote: Do not leave the iron on the calf for more than 20 seconds as heat can transfer to the skull.
+  - step: Repeat the process on the other horn bud.
+    quote: Repeat the process on the other horn bud.
+  checks:
+  - check: Check the color of the germinal tissue; a copper-looking color signifies destroyed tissue.
+    quote: To ensure horn growth will not occur, check the color of the germinal tissue where the horn
+      bud is. A copper-looking color signifies destroyed germinal tissue
+  - check: The horn will slough off in 3 to 6 weeks.
+    quote: Once procedure is finished, the horn will slough off in 3 to 6 weeks.
+  attentive_points:
+  - point: Clipping the hair around the horn beforehand may allow closer contact and decrease smoke and
+      fumes.
+    quote: Clipping the hair around the horn beforehand may allow closer contact with the horn bud and
+      ensure a cleaner burn. It will also decrease smoke and inhalation of fumes from burned hair.
+  - point: Ensure the animal's ears are out of the way of the hot iron.
+    quote: Ensure that the animal’s ears are out of the way of the hot iron.
+  - point: The calf may move or jerk its head, so proper restraint is important for safety.
+    quote: The calf may move or jerk its head, so proper restraint is important for safety of the animal
+      and the person performing the procedure.
+  - point: No blood does not mean no pain, so appropriate pain management should still be administered.
+    quote: Keep in mind no blood does not mean no pain, so appropriate pain management should still be
+      administered.
+  reviewed_by: CB
+- card_id: msu-calf-caustic-paste
+  procedure: Disbudding dairy calves with caustic paste, including pain mitigation
+  species: dairy calves
+  domain: cattle_production
+  sector: dairy_calf
+  method: disbudding
+  stakes: high
+  scenarios:
+    husbandry:
+      scenario: A dairy producer applies caustic paste to disbud calves, a common alternative to hot iron.
+      quote: The second most common method of disbudding dairy calves is caustic paste.
+  steps:
+  - step: Ensure the animal's head is properly restrained.
+    quote: Ensure the animal’s head is properly restrained.
+  - step: Administer pain mitigation between 5 and 20 minutes before the procedure.
+    quote: Pain mitigation should be administered to the animal between 5 and 20 minutes before the procedure.
+  - step: Clip hair around the horn bud.
+    quote: Clip hair around the horn bud.
+  - step: Put on gloves.
+    quote: Put on gloves.
+  - step: Apply a thin layer of caustic paste with a wooden applicator to the horn bud.
+    quote: Apply a thin layer of caustic paste with a wooden applicator to the horn bud.
+  - step: Place a layer of duct tape over the paste to prevent rub off or leakage into the calf's eyes.
+    quote: Place a layer of duct tape over the paste to prevent rub off or leakage into the calf’s eyes.
+  checks:
+  - check: Check that horns or scurs do not grow later, indicating incorrect application.
+    quote: When the paste is not administered correctly, horns or scurs can grow
+  attentive_points:
+  - point: Caustic paste is a strong irritant, so ensure it does not get on the handler's skin or improper
+      areas of the calf.
+    quote: Caustic paste is a strong irritant, so it is crucial to ensure it does not get on the handler’s
+      skin or improper areas of the calf.
+  - point: Housing calves individually for a short time while paste is still wet can help decrease transfer
+      between calves.
+    quote: Housing calves individually for a short time while paste is still wet can help decrease the
+      chance of paste transferring from calf to calf.
+  reviewed_by: CB
+- card_id: msu-calf-scoop
+  procedure: Disbudding dairy calves with a dehorning spoon or tube (scoop), including pain mitigation
+  species: dairy calves
+  domain: cattle_production
+  sector: dairy_calf
+  method: disbudding
+  stakes: high
+  scenarios:
+    husbandry:
+      scenario: A producer uses a spoon or tube to scoop out horn buds in young calves, a less common
+        method.
+      quote: Removing horns with a spoon or tube is one of the least popular forms of disbudding according
+        to the USDA.
+  steps:
+  - step: Ensure the head of the animal is properly restrained.
+    quote: Ensure the head of the animal is properly restrained.
+  - step: Administer pain mitigation between 5 and 20 minutes before the procedure.
+    quote: Pain mitigation should be administered to the animal between 5 and 20 minutes before the procedure.
+  - step: Cut out the horn-producing skin and the horn bud with a sharp dehorning scoop, spoon or tube.
+    quote: this method is done by using a sharp metal dehorning scoop, spoon, or tube to cut through the horn-producing skin and the horn bud.
+  - step: Apply antiseptic to the wound to help prevent infection.
+    quote: Apply antiseptic to the wound to help prevent infection.
+  checks:
+  - check: Check the wound and apply antiseptic daily until healed.
+    quote: Check the wound and apply antiseptic daily until healed.
+  attentive_points:
+  - point: Choose the proper tool size; it should cover the entire horn bud with an additional 1/8 inch
+      of skin.
+    quote: There are different sizes of spoons and tube tools available. The proper size depends on the
+      size of the animal being disbudded. The tool should cover the entire horn bud with an additional
+      1/8 inch of skin surrounding the horn bud.
+  - point: Animals will jerk their heads, so proper restraint is required.
+    quote: Animals will jerk their heads, so proper restraint is required.
+  - point: Always clean tools with water and a disinfectant like chlorhexidine between animals to decrease
+      chance of passing illnesses and infections.
+    quote: Always clean tools with water and a disinfectant like chlorhexidine between animals to decrease
+      chance of passing illnesses and infections.
+  - point: Because this method creates an open wound, scooping during fly season is not recommended, as
+      flies can increase infection risk.
+    quote: Because this method creates an open wound, scooping during fly season is not recommended, as
+      flies can increase infection risk.
+  reviewed_by: CB

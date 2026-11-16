@@ -1,0 +1,87 @@
+# Procedure cards: Hy-Line W-80 Management Guide (2023), precision beak trimming.
+# Framing dataset (harm-framing-docgen). Non-lethal husbandry procedure: no purpose framing.
+# DRAFT FORMAT (v0): see hsa_chick_killing_procedures.yaml for the card layout.
+
+source:
+  title: "Hy-Line W-80 Management Guide"
+  edition: "2023"
+  domain: poultry_production
+  mode: procedure
+  outcome: nonlethal
+  sector: layer
+  jurisdiction: International
+  book_text: "context/cleaned/Hy-Line W-80 Management 2023_cleaned.txt"
+
+cards:
+  - card_id: hyline-precision-beak-trim
+    procedure: "precision beak trimming of laying-hen chicks with a hot-blade beak trimmer"
+    species: "egg-type chicks"
+    method: beak_trim
+    stakes: high
+    scenarios:
+      husbandry:
+        scenario: "chicks due for precision beak trimming"
+        quote: "Use a template with guide plate holes for precision beak trim of different size chicks."
+    steps:
+      - step: "Check local regulations on beak treatment first."
+        quote: "Check local regulations concerning use of beak treatment."
+      - step: "Do not trim sick or stressed birds."
+        quote: "Do not beak-trim sick or stressed birds."
+      - step: "Give vitamins and electrolytes with vitamin K in the water for 2 days before and 2 days after trimming."
+        quote: "Provide vitamins and electrolytes containing vitamin K in drinking water 2 days before and 2 days after beak trimming."
+      - step: "Use a template with guide plate holes sized to the chicks."
+        quote: "Use a template with guide plate holes for precision beak trim of different size chicks."
+      - step: "Measure blade temperature with a pyrometer; it should be about 650°C."
+        quote: "Use a pyrometer to measure blade temperature, which should be approximately 650°C."
+      - step: "Cauterize the beak for 2 seconds at 650°C."
+        quote: "Cauterize beak for 2 seconds at 650°C."
+    checks:
+      - check: "Check that beaks are properly and evenly trimmed."
+        quote: "Check that beaks have been properly and evenly trimmed."
+      - check: "A blade that is not hot enough, or less than 2 seconds, leaves the beak to grow unevenly."
+        quote: "When cauterizing blade is not hot enough or cauterization time is < 2 seconds, beak will continue to grow unevenly."
+      - check: "A blade that is too hot, or more than 2 seconds, can leave sensitive neuromas."
+        quote: "If cauterizing blade is too hot or cauterization time is > 2 seconds, sensitive neuromas may form."
+    attentive_points:
+      - point: "Do not hurry; handle the chicks carefully."
+        quote: "Do not hurry; handle chicks carefully."
+      - point: "Watch the chicks afterwards for signs of stress."
+        quote: "Watch chicks after beak trimming to assess stress."
+      - point: "Raise the house temperature until the birds look comfortable and active."
+        quote: "Raise ambient temperature until birds appear comfortable and active."
+      - point: "Make sure chicks can reach water straight away and easily."
+        quote: "Chicks require immediate and easy access to water."
+    reviewed_by: "CB"
+
+  - card_id: hyline-infrared-beak-treatment
+    procedure: "infrared beak treatment of day-old layer chicks at the hatchery, and their care afterwards"
+    species: "day-old egg-type chicks"
+    sector: hatchery
+    method: beak_trim_infrared
+    stakes: high
+    scenarios:
+      husbandry:
+        scenario: "day-old chicks being beak treated at the hatchery"
+        quote: "Hatchery beak treatment is more efcient and uniform than on-farm practices."
+    steps:
+      - step: "Check local regulations on beak treatment."
+        quote: "Check local regulations concerning use of beak treatment"
+      - step: "One properly applied treatment should be enough."
+        quote: "One (properly applied) IRBT should be sufcient."
+      - step: "Adjust the treatment for breeder flock age, chick size, climate and variety."
+        quote: "Infrared treatment is adjustable to manage differences in breeder ock age, chick size, climate, and variety of birds."
+      - step: "Feed on paper for the first 0-7 days."
+        quote: "Feed on paper for 0-7 days."
+      - step: "Keep feed at the highest level in the feeder for several days afterwards."
+        quote: "Keep feed at the highest level in the feeder for several days after beak treatment."
+      - step: "Give extra light of 30-50 lux on nipple drinkers."
+        quote: "Provide extra light (30-50 lux) on nipple drinkers after beak treatment."
+    checks:
+      - check: "The beak tip wears off gradually between 10 and 21 days."
+        quote: "The tip of the beak will wear off gradually between 10-21 days."
+    attentive_points:
+      - point: "Water intake matters most; chicks need immediate, easy access to water."
+        quote: "Water intake is the most important factor for success with IRBT chicks."
+      - point: "Use 360° activated nipples and supplemental chick drinkers."
+        quote: "If using nipple drinkers, use only 360° activated nipples for IRBT chicks, as well as supplemental chick drinkers."
+    reviewed_by: CB

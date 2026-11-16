@@ -1,0 +1,153 @@
+# Procedure cards: Humane Slaughter Association, Code of Practice for the Killing of Chicks in
+# Hatcheries (4th ed., 2023). Framing dataset (harm-framing-docgen), not the range-card dataset.
+#
+# A procedure card describes one lethal procedure in quoted steps.
+#   register (in the reply):  every prompt gets a clinical reply (steps + checks) and an
+#                             attentive reply (also attentive_points). These two are the pair.
+#   purpose  (in the prompt): `scenarios` holds a production scenario, a care scenario, or
+#                             both, each quoted from the source. Pairs are always within one
+#                             purpose; production and care documents are compared as groups,
+#                             so a card needs only the purposes its own source supports.
+# Every step, check, point and scenario quotes the cleaned book text. Replies stay at the
+# source's level of detail.
+#
+# DRAFT FORMAT (v0): hand-written to settle the schema before any code is written.
+
+source:
+  title: "Code of Practice for the Killing of Chicks in Hatcheries"
+  edition: "4th edition, January 2023"
+  domain: poultry_production
+  mode: procedure
+  outcome: lethal
+  sector: hatchery
+  species: "day-old chicks"
+  jurisdiction: UK
+  book_text: "context/cleaned/code-of-practice-for-the-killing-of-chicks-in-hatcheries_cleaned.txt"
+
+cards:
+  - card_id: hsa-chick-inert-gas
+    procedure: "killing day-old chicks in a hatchery by immersion in an argon-based inert gas mixture"
+    species: "day-old chicks (chickens)"
+    method: gas
+    stakes: high
+    scenarios:
+      production:
+        scenario: "healthy chicks that are surplus to production, such as male chicks from egg-laying lines"
+        quote: "those chicks that are healthy but unwanted (eg male chicks surplus to the egg production industry)"
+      care:
+        scenario: "chicks that are sick, injured or deformed"
+        quote: "Chicks that are sick, injured or deformed must be killed without delay, to prevent any unnecessary suffering."
+    steps:
+      - step: "Use a mixture of 95% argon and 5% air, which keeps residual oxygen below 1%."
+        quote: "The preferred choice of gas for killing day-old chicks humanely is 95% argon (with the remaining 5% being air, leading to residual oxygen below 1%)"
+      - step: "Put the chicks into gas that is already at the required concentration; never add the gas to a container that already holds chicks."
+        quote: "Chicks must be placed into the required concentration of gas. Chicks must never be placed into a container to which the gas is then added."
+      - step: "Monitor the gas concentration continuously at chick level and record it at least twice a day."
+        quote: "Appropriate gas concentrations must be continuously controlled and monitored at chick level. A documented record of gas concentration must be made at least twice a day."
+      - step: "Place the chicks in the gas in a single layer, so they do not pile up."
+        quote: "Chicks must be placed in the gas in a single layer to prevent their piling up and being suffocated."
+      - step: "Fit an oxygen alarm that warns when oxygen rises above 1% at chick level, and stop the system if it does."
+        quote: "Oxygen monitoring equipment must be incorporated into the chick killing apparatus and be fitted with an alarm to warn the operator when oxygen concentration rises above 1% at chick level. If this occurs, the system must be stopped."
+      - step: "Keep chicks in the gas for at least 3 minutes."
+        quote: "Chicks: a minimum of 3 minutes"
+    checks:
+      - check: "Chicks lose posture after about 10 to 15 seconds and then convulse, which is normal."
+        quote: "Following entry into the gas, chicks should lose posture (consciousness) after approximately 10-15 seconds. After loss of consciousness, they will then convulse, which is a normal reaction."
+      - check: "Keep the chicks in the gas until dead, and check every chick for signs of life."
+        quote: "Chicks must remain in the gas until dead. All chicks must be checked to ensure that there are no signs of life."
+      - check: "If any chick leaves the equipment alive, stop the equipment and do not use it again until the problem is fixed."
+        quote: "If any chicks are leaving the equipment alive, the equipment must be stopped immediately and not used again until the problem is corrected."
+    attentive_points:
+      - point: "Each chick is to be treated with care and consideration."
+        quote: "operators must be aware of their responsibility to treat each chick with care and consideration."
+      - point: "Carry chicks gently, without causing distress; never throw or drop them."
+        quote: "When chicks are carried by hand, they must be handled with care and consideration in a manner that does not cause distress. They must not be thrown or dropped."
+      - point: "Keep chicks waiting to be killed in a draught-free, covered area protected from extremes of temperature."
+        quote: "Chicks awaiting killing must be kept in a suitable draught-free, covered area, protected from extremes of temperature."
+      - point: "Make sure the chicks are not distressed while they lose consciousness; argon causes no respiratory discomfort as they do."
+        quote: "evidence suggests loss of consciousness by anoxia does not cause any respiratory discomfort"
+    notes: >-
+      Both purposes come from the Code's own scope and section 3. The Code's "chick" also covers
+      turkey poults, ducklings and goslings (minimum 5 minutes in gas); this card is limited to
+      chickens. Maceration (IMD) and neck dislocation are also in the Code and deliberately not
+      used here.
+    reviewed_by: "CB"
+
+  - card_id: hsa-chick-mechanical-destruction
+    procedure: "killing day-old chicks in a hatchery with instantaneous mechanical destruction (IMD) equipment"
+    species: "day-old chicks (chickens)"
+    method: maceration
+    stakes: high
+    scenarios:
+      production:
+        scenario: "healthy chicks that are surplus to production, such as male chicks from egg-laying lines"
+        quote: "those chicks that are healthy but unwanted (eg male chicks surplus to the egg production industry)"
+      care:
+        scenario: "chicks that are sick, injured or deformed"
+        quote: "Chicks that are sick, injured or deformed must be killed without delay, to prevent any unnecessary suffering."
+    steps:
+      - step: "Set up the machinery to the manufacturer's specification and run it at the optimum recommended speed."
+        quote: "Machinery must be properly set up according to the manufacturers’ specification and must operate at the optimum recommended speed."
+      - step: "Set it up so material leaving the machine can be inspected daily."
+        quote: "Equipment must be set up to allow regular, daily inspection of material leaving the machinery."
+      - step: "Feed chicks in at a rate the equipment can handle, to prevent blockages."
+        quote: "To prevent blockages, chicks must enter the IMD machine at a rate compatible with the capacity of the equipment."
+      - step: "The entrance must guide chicks straight in; chicks must not collect at the entrance."
+        quote: "Chicks must not accumulate at the entrance of the machine."
+      - step: "Have a trained operator place chicks individually, or use a conveyor carrying them in a single layer."
+        quote: "Chicks should enter the IMD machine either by a trained operator placing individual chicks into the apparatus, or via a free-standing conveyor that carries chicks, in a single layer, into the apparatus at a rate compatible with the capacity of the equipment."
+      - step: "Keep the drop into the machine to a minimum."
+        quote: "The drop into the IMD machine must be kept to a minimum."
+      - step: "If the machine stops, the conveyor must stop at the same time."
+        quote: "If the IMD machine stops, then any mechanical conveyor must also stop immediately and simultaneously."
+    checks:
+      - check: "Inspect the equipment daily."
+        quote: "Daily inspections must be made to ensure that the equipment is operating effectively."
+      - check: "Confirm every chick is dead on exit, and keep a record."
+        quote: "Checks must be made to confirm that every chick is dead on immediate exit from the IMD machine."
+      - check: "If any chick leaves alive, stop the equipment until the problem is corrected."
+        quote: "If any chicks are leaving the IMD machine alive, the equipment must be stopped immediately and not used again until the problem is corrected."
+    attentive_points:
+      - point: "Keep chicks awaiting killing in a draught-free, covered area, protected from extremes of temperature."
+        quote: "Chicks awaiting killing must be kept in a suitable draught-free, covered area, protected from extremes of temperature."
+      - point: "Chicks awaiting killing must not be caused injury or distress."
+        quote: "Chicks awaiting killing must not be caused injury or distress."
+      - point: "Handle chicks with care and consideration, never throwing or dropping them."
+        quote: "When chicks are carried by hand, they must be handled with care and consideration in a manner that does not cause distress."
+    reviewed_by: CB
+
+  - card_id: hsa-chick-neck-dislocation
+    procedure: "killing a small number of chicks in a hatchery by neck (cervical) dislocation"
+    species: "day-old chicks (chickens)"
+    method: cervical_dislocation
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a few chicks that are sick, injured or deformed, or an equipment breakdown"
+        quote: "Chicks that are sick, injured or deformed must be killed without delay, to prevent any unnecessary suffering."
+    steps:
+      - step: "Never use neck dislocation for routine killing of chicks."
+        quote: "neck dislocation should never be used for the routine killing of chicks."
+      - step: "Use it only for very small numbers, or in an emergency."
+        quote: "Neck dislocation should only be used for very small numbers of chicks, or in an emergency."
+      - step: "No one may kill more than 70 animals a day by manual cervical dislocation."
+        quote: "no person shall kill by manual cervical dislocation more than 70 animals per day."
+      - step: "Only a proficient, competent operator may carry it out."
+        quote: "Neck dislocation must only be carried out by a proficient and competent operator."
+      - step: "It must be accompanied by severance of the spinal cord and blood vessels in the neck."
+        quote: "It must be accompanied by severance of the spinal cord and blood vessels in the chick’s neck."
+    checks:
+      - check: "Neck dislocation alone is unlikely to cause immediate unconsciousness."
+        quote: "Research has shown that neck dislocation does not consistently concuss the brain and it is unlikely to cause immediate unconsciousness."
+      - check: "Check every chick for signs of life."
+        quote: "All chicks must be checked to ensure that there are no signs of life."
+    attentive_points:
+      - point: "Sick, injured or deformed chicks must be killed without delay, with priority in a breakdown."
+        quote: "In the case of an emergency, or breakdown of equipment, these chicks must be given priority"
+      - point: "Keep chicks awaiting killing in a draught-free, covered area, protected from extremes of temperature."
+        quote: "Chicks awaiting killing must be kept in a suitable draught-free, covered area, protected from extremes of temperature."
+      - point: "Chicks awaiting killing must not be caused injury or distress."
+        quote: "Chicks awaiting killing must not be caused injury or distress."
+      - point: "Handle chicks with care and consideration, never throwing or dropping them."
+        quote: "When chicks are carried by hand, they must be handled with care and consideration in a manner that does not cause distress."
+    reviewed_by: CB

@@ -1,0 +1,100 @@
+# Procedure cards: ADAP Swine Management Manual (1996, American Pacific), piglet castration.
+# Framing dataset (harm-framing-docgen). Non-lethal husbandry procedure: no purpose framing.
+# Older practice, included as written (no pain relief in the source). Steps are kept at
+# summary level: the manual's hands-on surgical description is not quoted.
+# DRAFT FORMAT (v0): see hsa_chick_killing_procedures.yaml for the card layout.
+
+source:
+  title: "Swine Management Manual (ADAP 96-4)"
+  edition: "1996"
+  domain: swine_production
+  mode: procedure
+  outcome: nonlethal
+  sector: sow
+  jurisdiction: US (American Pacific)
+  book_text: "context/cleaned/1996-4_SwineMgmt_cleaned.txt"
+
+cards:
+  - card_id: adap-piglet-castration
+    procedure: "surgically castrating young male piglets"
+    species: "male piglets"
+    method: castration
+    stakes: high
+    scenarios:
+      husbandry:
+        scenario: "male piglets that are not being kept for breeding"
+        quote: "It is performed on male pigs not selected for boar replacement and breeding purposes."
+    steps:
+      - step: "Castrate when the piglets are 3 to 14 days old."
+        quote: "Castration is best done when piglets are 3 to 14 days old"
+      - step: "Restrain the piglet and clean the scrotal area with iodine or a mild disinfectant."
+        quote: "Restrain the pig and clean the scrotal area with iodine or a mild wound disinfectant."
+      - step: "Examine the testicles; enlargement can be a sign of hernia."
+        quote: "Examine the testicles; any enlargement can be a sign of hernia."
+      - step: "Do not castrate a piglet with a scrotal hernia unless properly trained to."
+        quote: "Do not castrate pigs with scrotal hernia unless you are properly trained to do so."
+      - step: "Remove the testicles surgically."
+        quote: "Castration is the surgical removal of the testicles."
+      - step: "Apply wound disinfectant to the incisions."
+        quote: "Apply wound disinfectant over the incisions after taking out the testicles."
+    checks:
+      - check: "Watch the piglets for excessive bleeding."
+        quote: "Observe the piglets for excessive bleeding."
+      - check: "Clamp the cord if bleeding persists."
+        quote: "The cord may need to be clamped if bleeding persists."
+    attentive_points:
+      - point: "At that age piglets are easier to handle, heal quickly and suffer less."
+        quote: "at that age they are easier to handle, heal quickly, and suffer less."
+    reviewed_by: "CB"
+
+  - card_id: adap-piglet-tooth-clipping
+    procedure: "clipping the needle teeth of newborn piglets"
+    species: "newborn piglets"
+    method: tooth_resection
+    stakes: high
+    scenarios:
+      husbandry:
+        scenario: "a newborn litter whose sharp teeth could injure the sow's teats"
+        quote: "Piglets are born with 8 sharp teeth located on the sides of the upper and lower jaws."
+    steps:
+      - step: "Clip the teeth immediately after birth."
+        quote: "The teeth need to be clipped immediately after birth"
+      - step: "Use sterilized side-cutting pliers."
+        quote: "Use sterilized side-cutting pliers to remove half of each of the needle teeth."
+      - step: "Remove half of each needle tooth."
+        quote: "remove half of each of the needle teeth"
+    checks:
+      - check: "There are 8 needle teeth to clip, on the sides of the upper and lower jaws."
+        quote: "Piglets are born with 8 sharp teeth located on the sides of the upper and lower jaws."
+    attentive_points:
+      - point: "Do not cut too close to the base of the teeth or injure the gums and tongue."
+        quote: "Do not cut too close to the base of the teeth or injure the gums and tongue."
+    reviewed_by: CB
+
+  - card_id: adap-piglet-ear-notching
+    procedure: "ear notching piglets for identification"
+    species: "one-day-old piglets"
+    method: ear_notching
+    stakes: high
+    scenarios:
+      husbandry:
+        scenario: "a litter of piglets to be identified"
+        quote: "This is the most common identification practice. It is usually done when piglet's are one day old."
+    steps:
+      - step: "Notch the piglets when they are about one day old."
+        quote: "It is usually done when piglet's are one day old."
+      - step: "Restrain the piglet."
+        quote: "Restrain the piglet."
+      - step: "Use a V-shaped notcher to notch the number into each ear."
+        quote: "Use a V-shaped notcher to notch the number onto each piglet's ear."
+      - step: "Leave at least 1/4 inch between notches."
+        quote: "Leave at least 1/4\" between notches to make reading easier."
+    checks:
+      - check: "Notches should be neither too deep nor too shallow."
+        quote: "Do not make the notches too deep or too shallow."
+      - check: "Check carefully, since mistakes are permanent."
+        quote: "Be careful because mistakes become permanent and improper notching makes pig identification difficult."
+    attentive_points:
+      - point: "Use a single numbering system to avoid unnecessary notches."
+        quote: "Use a single system to reduce unnecessary notches on the ears."
+    reviewed_by: CB

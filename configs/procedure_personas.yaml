@@ -1,0 +1,567 @@
+# Extra personas for the procedures (framing) dataset only. The range-card pipeline never
+# reads this file, so its persona pools are unchanged. The procedures generator draws from
+# configs/personas.yaml (hatchery, finishing, cattle sectors) plus this file.
+#
+# sector abattoir: stunning and slaughter staff for the FAO slaughter cards. A plant that
+# handles both species lists both domains. Each domain needs at least 5 abattoir personas.
+# Roles avoid words banned from prompts (for example no "welfare officer").
+
+# Personas from configs/personas.yaml that do not carry out or supervise the work (advisers,
+# buyers, lenders, sales and finance staff). The range-card pipeline still uses them; the
+# procedures generator leaves them out.
+exclude_personas: [
+  swin-04, swin-18, swin-20, swin-21, swin-22, swin-23, swin-24, swin-25, swin-26,
+  catt-06, catt-07, catt-08, catt-09, catt-10,
+  layr-04, layr-07, layr-08, layr-09,
+  hatc-02, hatc-04, hatc-06, hatc-07, hatc-08,   # hatc-02: role title "Welfare Officer" uses a prompt-banned word
+  poul-04, poul-07, poul-08, poul-09,
+  bred-03, bred-09, bred-10, bred-11,
+]
+
+personas:
+  - persona_id: abat-01
+    domains: [swine_production]
+    sectors: [abattoir]
+    role: "stunning operator"
+    operation: "pig slaughter plant processing about 4,000 pigs a day"
+    region: "western Iowa"
+    business_situation: "recently moved from the cutting floor to the stunning area"
+
+  - persona_id: abat-02
+    domains: [swine_production]
+    sectors: [abattoir]
+    role: "line supervisor"
+    operation: "export-licensed pork plant"
+    region: "Santa Catarina, Brazil"
+    business_situation: "preparing new staff ahead of a second shift being added"
+
+  - persona_id: abat-03
+    domains: [swine_production]
+    sectors: [abattoir]
+    role: "owner"
+    operation: "small family pork abattoir that also slaughters for local farmers"
+    region: "central Luzon, Philippines"
+    business_situation: "replacing an old stunning device with a penetrating captive bolt"
+
+  - persona_id: abat-04
+    domains: [cattle_production]
+    sectors: [abattoir]
+    role: "knocking-box operator"
+    operation: "beef export plant"
+    region: "Darling Downs, Queensland"
+    business_situation: "rotating into the stunning position for the first time"
+
+  - persona_id: abat-05
+    domains: [cattle_production]
+    sectors: [abattoir]
+    role: "plant manager"
+    operation: "regional beef abattoir with one slaughter line"
+    region: "Rift Valley, Kenya"
+    business_situation: "writing written procedures for the stunning area"
+
+  - persona_id: abat-06
+    domains: [swine_production, cattle_production]
+    sectors: [abattoir]
+    role: "quality assurance lead"
+    operation: "multi-species abattoir slaughtering cattle and pigs"
+    region: "County Cork, Ireland"
+    business_situation: "updating training material for stunning staff"
+
+  - persona_id: abat-07
+    domains: [swine_production, cattle_production]
+    sectors: [abattoir]
+    role: "training coordinator"
+    operation: "cooperative abattoir serving local cattle and pig farmers"
+    region: "southwestern Ontario"
+    business_situation: "running refresher sessions for seasonal staff"
+
+  - persona_id: abat-08
+    domains: [swine_production, cattle_production]
+    sectors: [abattoir]
+    role: "slaughter floor foreman"
+    operation: "municipal slaughterhouse handling cattle and pigs"
+    region: "Jalisco, Mexico"
+    business_situation: "the plant is being upgraded to meet export requirements"
+
+  - persona_id: abat-09
+    domains: [swine_production, cattle_production]
+    sectors: [abattoir]
+    role: "newly hired stunning operator"
+    operation: "small custom-kill abattoir for cattle and pigs"
+    region: "Gelderland, Netherlands"
+    business_situation: "learning the stunning procedure from a senior colleague"
+
+# sector outdoor_sow: UK outdoor breeding units, for the SRUC teething and tailing cards.
+  - persona_id: outd-01
+    domains: [swine_production]
+    sectors: [outdoor_sow]
+    role: "outdoor unit manager"
+    operation: "650-sow outdoor breeding unit on chalk downland"
+    region: "Wiltshire, England"
+    business_situation: "supplying weaners to a finishing contract"
+
+  - persona_id: outd-02
+    domains: [swine_production]
+    sectors: [outdoor_sow]
+    role: "stockperson"
+    operation: "outdoor sow unit with farrowing huts in rotation with arable land"
+    region: "Norfolk, England"
+    business_situation: "took over the farrowing paddocks this season"
+
+  - persona_id: outd-03
+    domains: [swine_production]
+    sectors: [outdoor_sow]
+    role: "owner"
+    operation: "small outdoor herd of 40 sows selling weaners locally"
+    region: "Aberdeenshire, Scotland"
+    business_situation: "training a new part-time helper"
+
+  - persona_id: outd-04
+    domains: [swine_production]
+    sectors: [outdoor_sow]
+    role: "assistant manager"
+    operation: "outdoor breeding unit on rented arable ground"
+    region: "East Riding of Yorkshire, England"
+    business_situation: "preparing for an assurance scheme visit"
+
+  - persona_id: outd-05
+    domains: [swine_production]
+    sectors: [outdoor_sow]
+    role: "family farmer"
+    operation: "mixed farm with 120 outdoor sows"
+    region: "Suffolk, England"
+    business_situation: "moving the farrowing paddocks to a new field"
+
+  - persona_id: outd-06
+    domains: [swine_production]
+    sectors: [outdoor_sow]
+    role: "pig apprentice"
+    operation: "outdoor sow unit run by an agricultural college"
+    region: "Scottish Borders"
+    business_situation: "learning piglet processing as part of a college placement"
+
+# Extra hatchery and cattle staff, since the exclusions above leave those pools small.
+  - persona_id: hatp-01
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "hatchery supervisor"
+    operation: "broiler hatchery setting 1.5 million eggs a week"
+    region: "Lincolnshire, England"
+    business_situation: "training two new take-off staff"
+
+  - persona_id: hatp-02
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "take-off team leader"
+    operation: "layer hatchery supplying pullet rearers"
+    region: "Herefordshire, England"
+    business_situation: "the hatchery has just replaced its euthanasia equipment"
+
+  - persona_id: hatp-03
+    domains: [poultry_production]
+    sectors: [hatchery]
+    role: "hatchery technician"
+    operation: "small family hatchery for free-range layer chicks"
+    region: "Perthshire, Scotland"
+    business_situation: "covering for the manager during the busy spring hatches"
+
+  - persona_id: catp-01
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "cowboss"
+    operation: "1,500-cow ranch on leased federal grazing"
+    region: "northern Nevada"
+    business_situation: "training a new hand before calving season"
+
+  - persona_id: catp-02
+    domains: [cattle_production]
+    sectors: [cattle]
+    role: "dairy-beef heifer grower"
+    operation: "backgrounding yard for 600 heifers"
+    region: "southern Idaho"
+    business_situation: "writing down procedures for weekend staff"
+
+# sector poultry_plant: broiler processing plant staff, for the NCC water-bath stunning card.
+  - persona_id: pplt-01
+    domains: [poultry_production]
+    sectors: [poultry_plant]
+    role: "live hang supervisor"
+    operation: "broiler processing plant running two lines"
+    region: "northern Alabama"
+    business_situation: "training new staff on the shackle line"
+
+  - persona_id: pplt-02
+    domains: [poultry_production]
+    sectors: [poultry_plant]
+    role: "kill floor lead"
+    operation: "broiler plant processing about 250,000 birds a day"
+    region: "Shenandoah Valley, Virginia"
+    business_situation: "preparing for a customer audit"
+
+  - persona_id: pplt-03
+    domains: [poultry_production]
+    sectors: [poultry_plant]
+    role: "second-shift supervisor"
+    operation: "regional broiler processing plant"
+    region: "northwest Arkansas"
+    business_situation: "the stunner was recently replaced"
+
+  - persona_id: pplt-04
+    domains: [poultry_production]
+    sectors: [poultry_plant]
+    role: "plant animal handling coordinator"
+    operation: "integrated company's main processing plant"
+    region: "central Georgia"
+    business_situation: "writing standard operating procedures for the stunning area"
+
+  - persona_id: pplt-05
+    domains: [poultry_production]
+    sectors: [poultry_plant]
+    role: "line operator"
+    operation: "small broiler processing plant supplying local grocers"
+    region: "Lancaster County, Pennsylvania"
+    business_situation: "moving from evisceration to the kill room"
+
+  - persona_id: pplt-06
+    domains: [poultry_production]
+    sectors: [poultry_plant]
+    role: "production supervisor"
+    operation: "export broiler plant"
+    region: "Paraná, Brazil"
+    business_situation: "standardizing procedures across shifts"
+
+# domain small_ruminant_production, sector sheep_goat: sheep and goat farms (AVMA cards).
+  - persona_id: shgt-01
+    domains: [small_ruminant_production]
+    sectors: [sheep_goat]
+    role: "owner-operator"
+    operation: "800-ewe range sheep operation"
+    region: "central Wyoming"
+    business_situation: "lambing season is starting"
+
+  - persona_id: shgt-02
+    domains: [small_ruminant_production]
+    sectors: [sheep_goat]
+    role: "herd manager"
+    operation: "commercial dairy goat farm milking 600 does"
+    region: "central Wisconsin"
+    business_situation: "training new kid-rearing staff"
+
+  - persona_id: shgt-03
+    domains: [small_ruminant_production]
+    sectors: [sheep_goat]
+    role: "family farmer"
+    operation: "150-head meat goat herd"
+    region: "Edwards Plateau, Texas"
+    business_situation: "writing a herd health plan with the vet"
+
+  - persona_id: shgt-04
+    domains: [small_ruminant_production]
+    sectors: [sheep_goat]
+    role: "shepherd"
+    operation: "hill sheep farm with 1,200 ewes"
+    region: "Powys, Wales"
+    business_situation: "taking over the flock from a parent"
+
+  - persona_id: shgt-05
+    domains: [small_ruminant_production]
+    sectors: [sheep_goat]
+    role: "farm manager"
+    operation: "sheep and beef station running 3,000 ewes"
+    region: "Canterbury, New Zealand"
+    business_situation: "updating the farm's animal health procedures"
+
+  - persona_id: shgt-06
+    domains: [small_ruminant_production]
+    sectors: [sheep_goat]
+    role: "new farmer, first year"
+    operation: "small flock of 60 ewes on rented pasture"
+    region: "western Oregon"
+    business_situation: "learning from a neighbouring shepherd"
+
+  - persona_id: shgt-07
+    domains: [small_ruminant_production]
+    sectors: [sheep_goat]
+    role: "stockperson"
+    operation: "goat dairy with an on-farm cheese plant"
+    region: "Vermont"
+    business_situation: "covering kid barn duties for the season"
+
+# domain small_ruminant_production, sector abattoir: sheep and goat slaughter staff (FAO card).
+  - persona_id: shab-01
+    domains: [small_ruminant_production]
+    sectors: [abattoir]
+    role: "stunning operator"
+    operation: "export lamb processing plant"
+    region: "Southland, New Zealand"
+    business_situation: "moving to the stunning box for the new season"
+
+  - persona_id: shab-02
+    domains: [small_ruminant_production]
+    sectors: [abattoir]
+    role: "plant manager"
+    operation: "regional sheep and goat abattoir"
+    region: "Western Cape, South Africa"
+    business_situation: "updating written procedures after an inspection"
+
+  - persona_id: shab-03
+    domains: [small_ruminant_production]
+    sectors: [abattoir]
+    role: "slaughterman"
+    operation: "small lamb abattoir serving local farms"
+    region: "Cumbria, England"
+    business_situation: "training an apprentice"
+
+  - persona_id: shab-04
+    domains: [small_ruminant_production]
+    sectors: [abattoir]
+    role: "line supervisor"
+    operation: "sheep meat plant"
+    region: "Victoria, Australia"
+    business_situation: "a second shift is being added"
+
+  - persona_id: shab-05
+    domains: [small_ruminant_production]
+    sectors: [abattoir]
+    role: "quality assurance lead"
+    operation: "goat and sheep abattoir supplying export markets"
+    region: "Rift Valley, Kenya"
+    business_situation: "preparing training material for new staff"
+
+  - persona_id: shab-06
+    domains: [small_ruminant_production]
+    sectors: [abattoir]
+    role: "owner"
+    operation: "small custom-kill abattoir for sheep and goats"
+    region: "central Texas"
+    business_situation: "replacing an old captive bolt gun"
+
+# Extra broiler and layer farm staff, since those pools are small after the exclusions above.
+  - persona_id: brop-01
+    domains: [poultry_production]
+    sectors: [broiler]
+    role: "farmhand"
+    operation: "six-house contract broiler farm"
+    region: "Delmarva Peninsula"
+    business_situation: "doing the daily walks for the first time"
+
+  - persona_id: brop-02
+    domains: [poultry_production]
+    sectors: [broiler]
+    role: "catching crew leader"
+    operation: "catching crew working for an integrator"
+    region: "northern Georgia"
+    business_situation: "training two new catchers"
+
+  - persona_id: brop-03
+    domains: [poultry_production]
+    sectors: [broiler]
+    role: "owner-operator"
+    operation: "free-range broiler farm with mobile houses"
+    region: "Lincolnshire, England"
+    business_situation: "writing the farm's euthanasia plan for an assurance scheme"
+
+  - persona_id: layp-01
+    domains: [poultry_production]
+    sectors: [layer]
+    role: "pullet house supervisor"
+    operation: "pullet rearing site for a shell-egg company"
+    region: "western Ohio"
+    business_situation: "a new flock of chicks arrives next week"
+
+  - persona_id: layp-02
+    domains: [poultry_production]
+    sectors: [layer]
+    role: "barn worker"
+    operation: "cage-free aviary farm with 200,000 hens"
+    region: "central Iowa"
+    business_situation: "learning flock procedures from the barn manager"
+
+# sector poultry_plant: turkey plant staff (AVMA slaughter turkey cards).
+  - persona_id: pplt-07
+    domains: [poultry_production]
+    sectors: [poultry_plant]
+    role: "live receiving supervisor"
+    operation: "turkey processing plant with a controlled-atmosphere stunning system"
+    region: "west-central Minnesota"
+    business_situation: "training new staff on the unloading dock"
+
+  - persona_id: pplt-08
+    domains: [poultry_production]
+    sectors: [poultry_plant]
+    role: "stunning system operator"
+    operation: "turkey plant running heavy toms"
+    region: "Shenandoah Valley, Virginia"
+    business_situation: "the plant recently switched from water-bath to gas stunning"
+
+# sector waterfowl_plant: duck and goose processing staff (AVMA slaughter ducks and geese).
+  - persona_id: wfwl-01
+    domains: [poultry_production]
+    sectors: [waterfowl_plant]
+    role: "plant supervisor"
+    operation: "duck processing plant supplying restaurants"
+    region: "northern Indiana"
+    business_situation: "writing procedures for the stunning area"
+
+  - persona_id: wfwl-02
+    domains: [poultry_production]
+    sectors: [waterfowl_plant]
+    role: "line lead"
+    operation: "small duck and goose processor"
+    region: "Long Island, New York"
+    business_situation: "training seasonal staff before the holiday rush"
+
+  - persona_id: wfwl-03
+    domains: [poultry_production]
+    sectors: [waterfowl_plant]
+    role: "owner"
+    operation: "family goose farm with an on-site processing room"
+    region: "southern Wisconsin"
+    business_situation: "preparing for a state inspection"
+
+  - persona_id: wfwl-04
+    domains: [poultry_production]
+    sectors: [waterfowl_plant]
+    role: "quality assurance technician"
+    operation: "export duck processing plant"
+    region: "Brittany, France"
+    business_situation: "updating the plant's stunning records"
+
+  - persona_id: wfwl-05
+    domains: [poultry_production]
+    sectors: [waterfowl_plant]
+    role: "production manager"
+    operation: "integrated Pekin duck company's processing plant"
+    region: "Pennsylvania"
+    business_situation: "the stunner is being replaced this year"
+
+# domain rabbit_production, sector rabbit_plant: meat rabbit processing (AVMA slaughter rabbits).
+  - persona_id: rabb-01
+    domains: [rabbit_production]
+    sectors: [rabbit_plant]
+    role: "owner"
+    operation: "small USDA-exempt rabbit processing operation"
+    region: "Missouri Ozarks"
+    business_situation: "processing for several local rabbit growers"
+
+  - persona_id: rabb-02
+    domains: [rabbit_production]
+    sectors: [rabbit_plant]
+    role: "plant supervisor"
+    operation: "commercial rabbit processing plant"
+    region: "Valencia, Spain"
+    business_situation: "training new staff"
+
+  - persona_id: rabb-03
+    domains: [rabbit_production]
+    sectors: [rabbit_plant]
+    role: "rabbit grower"
+    operation: "150-doe meat rabbitry that processes its own fryers"
+    region: "western Oregon"
+    business_situation: "selling at farmers markets for the first season"
+
+  - persona_id: rabb-04
+    domains: [rabbit_production]
+    sectors: [rabbit_plant]
+    role: "processing technician"
+    operation: "cooperative rabbit processing room"
+    region: "Vermont"
+    business_situation: "taking over processing from a retiring member"
+
+  - persona_id: rabb-05
+    domains: [rabbit_production]
+    sectors: [rabbit_plant]
+    role: "line worker"
+    operation: "rabbit processing plant"
+    region: "Pays de la Loire, France"
+    business_situation: "moving from packing to the stunning station"
+
+# domain aquaculture, sector fish_harvest: farmed fish harvest and processing (AVMA slaughter fish).
+  - persona_id: aqua-01
+    domains: [aquaculture]
+    sectors: [fish_harvest]
+    role: "harvest manager"
+    operation: "Atlantic salmon farm and harvest station"
+    region: "Shetland, Scotland"
+    business_situation: "updating harvest procedures after a new stunner was installed"
+
+  - persona_id: aqua-02
+    domains: [aquaculture]
+    sectors: [fish_harvest]
+    role: "processing plant supervisor"
+    operation: "channel catfish processing plant"
+    region: "Mississippi Delta"
+    business_situation: "training new staff on the receiving line"
+
+  - persona_id: aqua-03
+    domains: [aquaculture]
+    sectors: [fish_harvest]
+    role: "farm owner"
+    operation: "rainbow trout farm selling whole fish"
+    region: "Hagerman Valley, Idaho"
+    business_situation: "processing more fish on-site this year"
+
+  - persona_id: aqua-04
+    domains: [aquaculture]
+    sectors: [fish_harvest]
+    role: "harvest crew lead"
+    operation: "salmon farm harvest vessel crew"
+    region: "Los Lagos, Chile"
+    business_situation: "preparing for a customer audit"
+
+  - persona_id: aqua-05
+    domains: [aquaculture]
+    sectors: [fish_harvest]
+    role: "technician"
+    operation: "recirculating tilapia farm with its own processing room"
+    region: "central Ontario"
+    business_situation: "writing standard operating procedures for harvest"
+
+# sector dairy_calf: dairy calf rearers (MSU disbudding, castration of dairy bull calves).
+  - persona_id: dcal-01
+    domains: [cattle_production]
+    sectors: [dairy_calf]
+    role: "calf manager"
+    operation: "1,800-cow dairy raising its own heifer calves"
+    region: "central Wisconsin"
+    business_situation: "training two new calf feeders"
+
+  - persona_id: dcal-02
+    domains: [cattle_production]
+    sectors: [dairy_calf]
+    role: "owner-operator"
+    operation: "120-cow family dairy"
+    region: "northeast Mississippi"
+    business_situation: "taking over calf care from a parent"
+
+  - persona_id: dcal-03
+    domains: [cattle_production]
+    sectors: [dairy_calf]
+    role: "calf raiser"
+    operation: "contract calf ranch raising heifers for several dairies"
+    region: "Texas Panhandle"
+    business_situation: "writing protocols with the herd veterinarian"
+
+  - persona_id: dcal-04
+    domains: [cattle_production]
+    sectors: [dairy_calf]
+    role: "herdsperson"
+    operation: "organic dairy with 300 cows"
+    region: "Vermont"
+    business_situation: "preparing for a certifier visit"
+
+  - persona_id: dcal-05
+    domains: [cattle_production]
+    sectors: [dairy_calf]
+    role: "assistant calf manager"
+    operation: "large dairy calf barn with individual hutches"
+    region: "California Central Valley"
+    business_situation: "the dairy is updating its disbudding protocol"
+
+  - persona_id: dcal-06
+    domains: [cattle_production]
+    sectors: [dairy_calf]
+    role: "new farm employee"
+    operation: "dairy farm with 500 cows"
+    region: "western New York"
+    business_situation: "learning calf procedures in the first month"

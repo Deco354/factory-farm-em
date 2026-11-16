@@ -1,0 +1,45 @@
+# Procedure cards: United Egg Producers, Animal Husbandry Guidelines for U.S. Egg-Laying Flocks:
+# Guidelines for Cage-Free Housing, beak trimming. Framing dataset (harm-framing-docgen).
+# Non-lethal husbandry procedure.
+# DRAFT FORMAT (v0): see hsa_chick_killing_procedures.yaml for the card layout.
+
+source:
+  title: "UEP Animal Husbandry Guidelines: Guidelines for Cage-Free Housing"
+  edition: "UEP Certified"
+  domain: poultry_production
+  mode: procedure
+  outcome: nonlethal
+  sector: layer
+  jurisdiction: US
+  book_text: "context/cleaned/Guidelines for Cage-Free Housing_cleaned.txt"
+
+cards:
+  - card_id: uep-pullet-beak-trimming
+    procedure: "beak trimming pullets on the farm, and their care afterwards"
+    species: "egg-type pullets"
+    method: beak_trim
+    stakes: high
+    scenarios:
+      husbandry:
+        scenario: "a pullet flock due for beak trimming"
+        quote: "There are two acceptable practices for treating beaks: day-old infrared beak treatment at the hatchery and beak trimming at 10 days old or younger."
+    steps:
+      - step: "Trim at 10 days old or younger."
+        quote: "beak trimming at 10 days old or younger"
+      - step: "Follow the equipment manufacturer's recommendations."
+        quote: "When beak treatment is used, the equipment manufacturer recommendations should be followed"
+      - step: "Feed a prestarter, starter or high-density diet for about a week afterwards."
+        quote: "birds should be fed a prestarter, starter or high-density stress diet for about"
+      - step: "If the beak grows back, a second trim may be needed at 5 to 8 weeks."
+        quote: "If a trimmed beak grows back, a second trim may be needed when pullets are 5 to 8 weeks old."
+      - step: "Do not do a preventive second trim after 8 weeks."
+        quote: "A preventive second trim is not recommended after birds are 8 weeks old."
+    checks:
+      - check: "Watch whether trimmed beaks grow back."
+        quote: "A second trimming is more permanent in that the beak does not grow back as easily."
+    attentive_points:
+      - point: "Help recently trimmed birds drink, for example by lowering water pressure or triggering cup waterers for several days."
+        quote: "Examples include lowering water pressure or manually triggering cup waters for several days following trimming."
+      - point: "Where avoidable, spare birds stressful handling, moving or vaccination for two weeks afterwards."
+        quote: "When avoidable, birds should not be subjected to stressful conditions (e.g., handling, moving and"
+    reviewed_by: CB

@@ -1,0 +1,110 @@
+# Procedure cards: AVMA Guidelines for the Euthanasia of Animals: 2020 Edition, section S3.4
+# (poultry). Framing dataset (harm-framing-docgen). The laying-hen CO2 card carries both
+# purposes: routine flock depopulation (production) and individual care.
+# DRAFT FORMAT (v0): see hsa_chick_killing_procedures.yaml for the card layout.
+
+source:
+  title: "AVMA Guidelines for the Euthanasia of Animals: 2020 Edition"
+  edition: "2020"
+  domain: poultry_production
+  mode: procedure
+  outcome: lethal
+  jurisdiction: US
+  book_text: "context/cleaned/AVMA Guidelines for the Euthanasia of Animals_cleaned.txt"
+
+cards:
+  - card_id: avma-laying-hen-co2
+    procedure: "euthanizing laying hens with carbon dioxide in a container"
+    species: "laying hens"
+    sector: layer
+    method: gas
+    stakes: high
+    scenarios:
+      production:
+        scenario: "routine euthanasia of a commercial laying hen flock at the end of lay"
+        quote: "including routine euthanasia of large commercial laying hen flocks"
+      care:
+        scenario: "hens with health conditions that cannot be successfully treated"
+        quote: "Euthanasia may be considered to be the right course to spare the animal from what is to come (in conjunction with a more holistic or objective account of what is in an animal’s interest), if medical intervention would only prolong a terminal condition, or if current health conditions cannot be successfully mitigated."
+    steps:
+      - step: "Supply the gas in purified form, usually from a commercial cylinder or tank."
+        quote: "Gases must be supplied in purified forms without contaminants or adulterants, typically from a commercially supplied cylinder or tank."
+      - step: "Use a dispensing system that can maintain the needed concentration in the container."
+        quote: "The gas-dispensing system should have sufficient capacity and control to maintain the necessary gas concentrations in the container being utilized"
+      - step: "Use a container airtight enough to hold the gas."
+        quote: "the container itself should be sufficiently airtight to hold the gas at appropriate levels."
+    checks:
+      - check: "Check birds to verify death; they can appear dead yet regain consciousness if exposure was too short or too weak."
+        quote: "birds should be checked to verify death because they may appear dead but, depending on the agent, can regain consciousness if the exposure time or the concentration of the agent is insufficient."
+      - check: "Wing flapping and other terminal movements are involuntary."
+        quote: "Carbon dioxide may invoke involuntary (unconscious) motor activity in birds, such as flapping of the wings or other terminal movements"
+    attentive_points:
+      - point: "Slower induction reduces the severity of convulsions after unconsciousness."
+        quote: "Slower induction of euthanasia in hypercapnic atmospheres reduces the severity of convulsions after loss of consciousness."
+      - point: "Handle the birds as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+    reviewed_by: CB
+
+  - card_id: avma-poultry-captive-bolt
+    procedure: "euthanizing a turkey or broiler breeder with a captive bolt"
+    species: "turkeys and broiler breeders"
+    sector: breeder
+    method: captive_bolt
+    stakes: high
+    scenarios:
+      care:
+        scenario: "a bird with a health condition that cannot be successfully treated"
+        quote: "Euthanasia may be considered to be the right course to spare the animal from what is to come (in conjunction with a more holistic or objective account of what is in an animal’s interest), if medical intervention would only prolong a terminal condition, or if current health conditions cannot be successfully mitigated."
+    steps:
+      - step: "Captive bolts are acceptable with conditions for larger poultry such as turkeys and broiler breeders, used by competent personnel."
+        quote: "Captive bolts (penetrating or nonpenetrating) are acceptable with conditions for euthanasia of poultry (eg, turkeys, broiler breeders, ratites, waterfowl) when performed by competent personnel"
+      - step: "Use a device designed and configured for the species and size, with enough impact energy, properly applied."
+        quote: "The captive bolt device must be appropriately designed and configured for the species and bird size, provide sufficient impact energy, and be properly applied."
+      - step: "Restrain the bird to avoid injury to personnel."
+        quote: "The bird should be appropriately restrained to avoid injury to personnel."
+    checks:
+      - check: "Observe birds afterwards to ensure death occurs."
+        quote: "Birds should be observed following captive bolt administration to ensure that death occurs."
+      - check: "Any bird showing signs of recovery must get a second shot or another acceptable method."
+        quote: "Any bird showing signs of recovery must receive a second shot or be killed by some other means that is acceptable for a conscious bird."
+    attentive_points:
+      - point: "Choose the method with the bird's welfare in mind."
+        quote: "Euthanasia methods should be chosen based on the welfare of the bird, human safety, skill and training of personnel, availability of equipment, and the ability to adequately restrain the bird."
+      - point: "Handle the bird as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+    reviewed_by: CB
+
+  - card_id: avma-poultry-inert-gas
+    procedure: "euthanizing chickens or turkeys with nitrogen or argon in a container"
+    species: "chickens and turkeys"
+    sector: broiler
+    method: gas
+    stakes: high
+    scenarios:
+      care:
+        scenario: "birds with health conditions that cannot be successfully treated"
+        quote: "Euthanasia may be considered to be the right course to spare the animal from what is to come (in conjunction with a more holistic or objective account of what is in an animal’s interest), if medical intervention would only prolong a terminal condition, or if current health conditions cannot be successfully mitigated."
+    steps:
+      - step: "Use nitrogen or argon alone, or mixed with about 30% CO2."
+        quote: "Nitrogen or Ar, used alone or mixed with approximately 30% CO2, is acceptable with conditions for euthanasia of poultry"
+      - step: "Reduce residual oxygen to 2-3% and hold it there."
+        quote: "provided the residual atmospheric O2 level can be reduced to and held at sufficiently low levels (eg, 2% to 3%)."
+      - step: "Supply the gas in purified form, usually from a commercial cylinder or tank."
+        quote: "Gases must be supplied in purified forms without contaminants or adulterants, typically from a commercially supplied cylinder or tank."
+      - step: "Use a dispensing system that can maintain the needed concentration in the container."
+        quote: "The gas-dispensing system should have sufficient capacity and control to maintain the necessary gas concentrations in the container being utilized"
+      - step: "Use a container airtight enough to hold the gas."
+        quote: "the container itself should be sufficiently airtight to hold the gas at appropriate levels."
+    checks:
+      - check: "Expect more convulsions, such as wing flapping, than with CO2."
+        quote: "These agents tend to cause more convulsions (eg, wing flapping) than CO2 in air"
+      - check: "Convulsions may begin while some consciousness is still possible."
+        quote: "It has also been noted that convulsions may start when consciousness, at least to some degree, may still be a possibility."
+      - check: "Check birds to verify death; they can appear dead yet regain consciousness."
+        quote: "birds should be checked to verify death because they may appear dead but, depending on the agent, can regain consciousness if the exposure time or the concentration of the agent is insufficient."
+    attentive_points:
+      - point: "Inert-gas hypoxia causes little or no aversion in chickens and turkeys; they freely enter the chamber."
+        quote: "hypoxia produced by inert gases such as N2 and Ar appears to cause little or no aversion in turkeys66 or chickens67; these animals freely entered a chamber containing < 2% O2 and > 90% Ar."
+      - point: "Handle the birds as stress-free as possible beforehand."
+        quote: "Handling of animals prior to euthanasia should be as stress free as possible."
+    reviewed_by: CB

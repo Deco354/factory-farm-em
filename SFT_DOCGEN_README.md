@@ -24,6 +24,10 @@ raw book (.md)  --1-->  cleaned text + ranked chunks + companion file
                 --3-->  paired SFT records per book and seed  -->  combined training set
 ```
 
+A separate **procedures (framing) dataset** pairs clinical and attentive descriptions of
+lethal and painful procedures. It has its own cards, code, prompts and
+outputs and does not change anything here: see [PROCEDURES_README.md](PROCEDURES_README.md).
+
 Every book has an entry in **`configs/books.yaml`** (the book registry): its card file, chunk
 folder, companion file, card ID prefix and status (`active`, or `dropped` with a `why`).
 Drafting and promotion look books up there, so commands take `--book <id>` instead of paths.

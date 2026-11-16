@@ -56,6 +56,16 @@ cards:
   reasoning: {effort: low}                 # passed to OpenRouter; or {max_tokens: 2000}; omit to use the model default
   # temperature / teacher_model fall back to defaults / api if not set here
 
+# Procedures (framing) dataset (procedure_generation/generate_procedures.py). Optional: if
+# this section is missing, the generator uses the cards section above. Cards, prompts and
+# personas are fixed paths; see PROCEDURES_README.md.
+procedures:
+  task_plan: [advice, advice, critique, critique, tutoring]
+  max_tokens: 8000
+  length_retries: 2
+  language_retries: 2
+  reasoning: {effort: low}
+
 # Card drafting (draft_cards.py): the model proposes cards from ranked chunks for review.
 drafting:
   prompt_path: "configs/prompts/card_drafter.md"

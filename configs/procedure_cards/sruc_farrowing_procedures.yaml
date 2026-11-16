@@ -1,0 +1,94 @@
+# Procedure cards: SRUC Pig Information Group, Farrowing Manual (outdoor), teething and tailing.
+# Framing dataset (harm-framing-docgen). Non-lethal husbandry procedures: no purpose framing.
+# The legal rules the manual quotes (not routine; other measures first; 7-day limit) are
+# steps, so both registers give them.
+# DRAFT FORMAT (v0): see hsa_chick_killing_procedures.yaml for the card layout.
+
+source:
+  title: "SRUC Farrowing Manual"
+  edition: "SRUC Pig Information Group"
+  domain: swine_production
+  mode: procedure
+  outcome: nonlethal
+  sector: outdoor_sow
+  jurisdiction: UK
+  book_text: "context/cleaned/SRUC Farrowing Manual_cleaned.txt"
+
+cards:
+  - card_id: sruc-piglet-tail-docking
+    procedure: "tail docking newborn piglets with clippers on an outdoor unit"
+    species: "newborn piglets"
+    method: tail_docking
+    stakes: high
+    scenarios:
+      husbandry:
+        scenario: "a litter on a unit where tail biting later in life is a risk"
+        quote: "Tail docking is sometimes performed to reduce the risk of tail-biting later on in the pig’s life."
+    steps:
+      - step: "Do not dock tails routinely."
+        quote: "Neither tail-docking nor reduction of corner teeth must be carried out routinely."
+      - step: "Take other measures against tail biting first, considering environment and stocking density."
+        quote: "Before carrying out these procedures, other measures shall be taken to prevent tail-biting and other vices, taking into account environment and stocking densities."
+      - step: "Dock no later than seven days of age, unless a veterinarian does it under anaesthetic."
+        quote: "Tail-docking and/or castration must not be performed after seven days of age unless performed under anaesthetic and additional prolonged anaesthesia by a veterinarian."
+      - step: "Make sure the sow is safely away from the hut."
+        quote: "Make sure the sow is safely away from the hut when performing piglet husbandry tasks."
+      - step: "Use sharp clippers dipped in antiseptic before each litter."
+        quote: "Make sure the clippers are sharp and dip them in antiseptic solution before docking a litter."
+      - step: "Hold the tail between thumb and forefinger and dock with the other hand."
+        quote: "Hold the tail with your thumb and forefinger and use the other hand to dock the tail."
+      - step: "Remove no more than one-third of the tail."
+        quote: "If docking is necessary no more than one-third of the tail should be removed"
+    checks:
+      - check: "Check each piglet's overall health before docking."
+        quote: "take the opportunity prior to docking to check its overall health"
+      - check: "Mark the piglets that have been docked."
+        quote: "Use a dab/crayon marker to indicate piglets that have been docked."
+    attentive_points:
+      - point: "Pick each piglet up carefully."
+        quote: "Carefully pick up a piglet"
+      - point: "Handle the piglets safely."
+        quote: "Make sure you are handling the piglets safely."
+      - point: "Work in pairs where possible: one person holds the piglet, the other docks."
+        quote: "If handling in pairs one person should hold the piglet as pictured above and the other should perform the docking."
+    reviewed_by: "CB"
+
+  - card_id: sruc-piglet-tooth-grinding
+    procedure: "grinding the needle teeth of newborn piglets on an outdoor unit"
+    species: "newborn piglets"
+    method: tooth_resection
+    stakes: high
+    scenarios:
+      husbandry:
+        scenario: "a litter whose needle teeth are injuring littermates in fights over teats"
+        quote: "Piglets have sharp “needle” teeth that can damage siblings during fights over teats"
+    steps:
+      - step: "Do not reduce corner teeth routinely."
+        quote: "Neither tail-docking nor reduction of corner teeth must be carried out routinely."
+      - step: "Grind rather than clip, since grinding is less likely to damage tongue or gums."
+        quote: "If it is necessary grinding is preferable to clipping as there should be less chance of accidental damage to the tongue and/or gums of the piglet."
+      - step: "Pick up the piglet and cradle it firmly between forearm and body."
+        quote: "Carefully pick up a piglet and cradle it firmly between your forearm and body."
+      - step: "Hold the mouth open with your index finger at the side of the mouth."
+        quote: "Insert your index finger at the side of the piglet’s mouth to hold it open."
+      - step: "Place the grinder parallel to the jawbone and gum line, on the tip of the corner tooth."
+        quote: "Place the grinder parallel to the jawbone and gum line."
+      - step: "Grind only to blunt the tip, without touching tongue, lips or gum."
+        quote: "Only grind to blunt the tip – take care not to touch the tongue, lips or gum."
+      - step: "Change grip and grind the corner teeth on the other side."
+        quote: "Adjust your grip to grind the remaining corner teeth on the other side."
+    checks:
+      - check: "Check the tooth tip has a smooth finish."
+        quote: "Check the tooth tip to ensure a smooth finish."
+      - check: "Check the health of each piglet while handling it."
+        quote: "Take the opportunity to check the health of each piglet."
+      - check: "Mark each piglet once done."
+        quote: "Use a dab crayon marker to mark each piglet once done."
+    attentive_points:
+      - point: "Good operator training keeps stress for the piglets to a minimum."
+        quote: "Good operator training is essential to minimise stress for piglets during tooth resection"
+      - point: "Take care not to clamp the piglet's throat."
+        quote: "Take care not to clamp the piglet’s throat."
+      - point: "Remove only the tips of the teeth."
+        quote: "Only the tips of the needle teeth need to be removed."
+    reviewed_by: "CB"

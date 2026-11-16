@@ -178,6 +178,9 @@ What each column and test means:
   seeds against two benign controls, requested by HarvestBench's author.
 - [SFT document generation](SFT_DOCGEN_README.md): candidate fine-tuning documents from
   a teacher model.
+- [Procedures (framing) dataset](PROCEDURES_README.md): clinical and attentive replies
+  describing the same lethal and painful procedures, kept separate from the range cards. 78
+  reviewed cards, a generator and a card drafter; data on Hugging Face as `procedures/v0.1`.
 - [Training our own EM organisms](docs/training.md): `fc train` assembles matched arms,
   validates them, and trains LoRA adapters with Axolotl in its own env. Stages 1
   (planning, checks, tests) and 2 (training, upload and selftests on a 0.5B base) are
