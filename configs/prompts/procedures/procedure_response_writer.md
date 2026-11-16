@@ -7,15 +7,6 @@ You will receive PROCEDURE, SPECIES, the client's message, TASK, STEPS and CHECK
 # CONTENT RULES
 
 1. Give every item in STEPS, in the order given, each restated in plain words. Then give every item in CHECKS.
-
-# FORMAT
-
-- Open with one or two sentences of prose that answer the client.
-- Give the steps as a numbered list, one step per item, in the order given.
-- Introduce the checks with a short sentence, then give them as a second numbered list, numbered from 1 again.
-- Put each list item on its own line, starting with its number ("1.", "2.", ...).
-- Give exactly as many step items as there are STEPS and check items as there are CHECKS. Do not merge, split or leave out items.
-- You may close with one sentence of prose. Use no headings and no other lists.
 2. Stay at the guidance's level of detail. Do not add steps, equipment, settings, anatomy or technique beyond what the quotes say, and do not describe the animal, its injuries, its death or the carcass more vividly than the quotes do.
 3. Every number you write must appear in the quotes with the same unit, or be the client's own. Do not convert units, round, or correct the quotes. Write no other numbers.
 4. The decision has been made. Do not discuss whether to carry out the procedure, suggest other methods, or comment on the reason for it.
@@ -27,6 +18,15 @@ You will receive PROCEDURE, SPECIES, the client's message, TASK, STEPS and CHECK
    - `advice`: answer in the opening sentences, then the steps, then the checks.
    - `tutoring`: in the opening sentences, briefly explain how the method works, using the quotes; then the steps and the checks.
    - `critique`: in the opening sentences, confirm the steps the client already has in CLIENT_PLAN and say which are missing; then give the full list of steps with the missing ones in their place, then the checks. Do not criticise the client.
+
+# FORMAT
+
+- Open with one or two sentences of prose that answer the client.
+- Give the steps as a numbered list, one step per item, in the order given.
+- Introduce the checks with a short sentence, then give them as a second numbered list, numbered from 1 again.
+- Put each list item on its own line, starting with its number ("1.", "2.", ...).
+- Give exactly as many step items as there are STEPS and check items as there are CHECKS. Do not merge, split or leave out items.
+- You may close with one sentence of prose. Use no headings and no other lists.
 
 # REGISTER
 

@@ -15,7 +15,7 @@ cards:
   species: dairy calves
   domain: cattle_production
   sector: dairy_calf
-  method: hot_iron
+  method: disbudding
   stakes: high
   scenarios:
     husbandry:
@@ -24,8 +24,6 @@ cards:
   steps:
   - step: Ensure the animal is restrained safely and properly.
     quote: Ensure the animal is restrained safely and properly.
-  - step: Administer pain mitigation.
-    quote: Administer pain mitigation.
   - step: Administer pain mitigation between 5 and 20 minutes before the procedure.
     quote: Pain mitigation should be administered to the animal between 5 and 20 minutes before the procedure.
   - step: Preheat the iron until it is visibly red.
@@ -65,7 +63,7 @@ cards:
   species: dairy calves
   domain: cattle_production
   sector: dairy_calf
-  method: caustic_paste
+  method: disbudding
   stakes: high
   scenarios:
     husbandry:
@@ -102,7 +100,7 @@ cards:
   species: dairy calves
   domain: cattle_production
   sector: dairy_calf
-  method: scoop
+  method: disbudding
   stakes: high
   scenarios:
     husbandry:
@@ -115,16 +113,10 @@ cards:
     quote: Ensure the head of the animal is properly restrained.
   - step: Administer pain mitigation between 5 and 20 minutes before the procedure.
     quote: Pain mitigation should be administered to the animal between 5 and 20 minutes before the procedure.
-  - step: Place the sharp edge of the tool around the horn.
-    quote: Place the sharp edge of the tool around the horn.
-  - step: Apply hard pressure while twisting to ensure all tissue is cut through.
-    quote: Apply hard pressure to the tool while also twisting to ensure that all tissue is cut through.
-  - step: Use a scooping motion to get through all tissue.
-    quote: Use a scooping motion to get through all tissue.
+  - step: Cut out the horn-producing skin and the horn bud with a sharp dehorning scoop, spoon or tube.
+    quote: this method is done by using a sharp metal dehorning scoop, spoon, or tube to cut through the horn-producing skin and the horn bud.
   - step: Apply antiseptic to the wound to help prevent infection.
     quote: Apply antiseptic to the wound to help prevent infection.
-  - step: Check the wound and apply antiseptic daily until healed.
-    quote: Check the wound and apply antiseptic daily until healed.
   checks:
   - check: Check the wound and apply antiseptic daily until healed.
     quote: Check the wound and apply antiseptic daily until healed.

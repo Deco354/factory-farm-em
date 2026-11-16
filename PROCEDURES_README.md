@@ -116,12 +116,14 @@ uv run python -m fragile_compassion.procedure_generation.check_cards
 ```
 
 It confirms every quote appears in its book (ignoring whitespace), required fields are present,
-each scenario is `production` or `care`, `stakes` is `base` or `high`, `reviewed_by` is present,
-and card IDs are unique across files. It also prints which purposes each species and method
+each scenario is `production`, `care` or `husbandry`, `method` is in the shared vocabulary
+(`METHODS` in `check_cards.py`; it feeds `group_id`, so one technique has one label),
+`stakes` is `base` or `high`, `reviewed_by` is present, and card IDs are unique across files. It also prints which purposes each species and method
 covers. It writes nothing and exits 1 on any issue. `--skip-quotes` checks structure only
-(the book texts in `context/` are not committed).
+(the book texts in `context/` are not committed, so run the full check locally before
+committing card changes).
 
-### Current cards (v0): 46 cards
+### Current cards: 78 cards in 16 files (58 lethal, 20 nonlethal)
 
 | Card | Species | Method | Outcome | Purposes |
 |---|---|---|---|---|
@@ -134,9 +136,30 @@ covers. It writes nothing and exits 1 on any issue. `--skip-quotes` checks struc
 | avma-lamb-kid-npcb | neonatal lambs and kids | captive bolt nonpenetrating | lethal | care |
 | avma-laying-hen-co2 | laying hens | gas | lethal | production, care |
 | avma-poultry-captive-bolt | turkeys and broiler breeders | captive bolt | lethal | care |
-| avma-poultry-inert-gas | chickens and turkeys | gas inert | lethal | care |
+| avma-poultry-inert-gas | chickens and turkeys | gas | lethal | care |
 | avma-sheep-goat-captive-bolt | adult sheep and goats | captive bolt | lethal | care |
 | avma-sheep-goat-gunshot | adult sheep and goats | gunshot | lethal | care |
+| avmas-cattle-electric-stunning | cattle | electrical | lethal | production |
+| avmas-cattle-gunshot | cattle | gunshot | lethal | production |
+| avmas-cattle-nonpenetrating-captive-bolt | cattle | captive bolt nonpenetrating | lethal | production |
+| avmas-cattle-penetrating-captive-bolt | cattle | captive bolt | lethal | production |
+| avmas-chicken-controlled-atmosphere | chickens | gas | lethal | production |
+| avmas-chicken-low-atmospheric-pressure | chickens | low atmospheric pressure | lethal | production |
+| avmas-chicken-water-bath | chickens | electrical waterbath | lethal | production |
+| avmas-fish-electrical | small- to medium-sized fish | electrical | lethal | production |
+| avmas-fish-percussive | medium- to large-sized fish (e.g., salmon, trout) | percussive | lethal | production |
+| avmas-pig-co2 | pigs | gas | lethal | production |
+| avmas-pig-electric | pigs | electrical | lethal | production |
+| avmas-pig-gunshot | pigs | gunshot | lethal | production |
+| avmas-pig-penetrating-captive-bolt | pigs | captive bolt | lethal | production |
+| avmas-rabbit-captive-bolt | rabbits | captive bolt | lethal | production |
+| avmas-rabbit-electrical | rabbits | electrical | lethal | production |
+| avmas-sheep-goat-captive-bolt | sheep and goats | captive bolt | lethal | production |
+| avmas-sheep-goat-electrical-stun | sheep and goats | electrical | lethal | production |
+| avmas-sheep-goat-gunshot | sheep and goats | gunshot | lethal | production |
+| avmas-turkey-cas-stunning | turkeys | gas | lethal | production |
+| avmas-waterfowl-ducks-immersion | ducks | electrical waterbath | lethal | production |
+| avmas-waterfowl-geese-immersion | geese | electrical waterbath | lethal | production |
 | fao-cattle-electrical-stun-kill | slaughter cattle | electrical | lethal | production |
 | fao-cattle-penetrating-captive-bolt | slaughter cattle | captive bolt | lethal | production |
 | fao-pig-electrical-head-only | slaughter pigs | electrical | lethal | production |
@@ -168,13 +191,24 @@ covers. It writes nothing and exits 1 on any issue. `--skip-quotes` checks struc
 | cobb-breeder-beak-conditioning | broiler breeder chicks | beak trim | nonlethal | husbandry |
 | hyline-infrared-beak-treatment | day-old egg-type chicks | beak trim infrared | nonlethal | husbandry |
 | hyline-precision-beak-trim | egg-type chicks | beak trim | nonlethal | husbandry |
+| las-calf-banding | calves | castration | nonlethal | husbandry |
+| las-calf-open-castration | calves | castration | nonlethal | husbandry |
+| las-lamb-kid-open-castration | lambs and kids | castration | nonlethal | husbandry |
+| las-lamb-tail-docking | lambs | tail docking | nonlethal | husbandry |
+| las-piglet-castration-local-anaesthetic | piglets | castration | nonlethal | husbandry |
+| las-piglet-tail-docking | piglets | tail docking | nonlethal | husbandry |
+| msu-calf-caustic-paste | dairy calves | disbudding | nonlethal | husbandry |
+| msu-calf-hot-iron | dairy calves | disbudding | nonlethal | husbandry |
+| msu-calf-scoop | dairy calves | disbudding | nonlethal | husbandry |
+| msu-kid-caustic-paste | goat kids | disbudding | nonlethal | husbandry |
+| msu-kid-hot-iron | goat kids | disbudding | nonlethal | husbandry |
 | sruc-piglet-tail-docking | newborn piglets | tail docking | nonlethal | husbandry |
 | sruc-piglet-tooth-grinding | newborn piglets | tooth resection | nonlethal | husbandry |
 | uep-pullet-beak-trimming | egg-type pullets | beak trim | nonlethal | husbandry |
 
 ## Prompts
 
-Version `procedures-v0.3`, in `configs/prompts/procedures/`:
+Version `procedures-v0.4`, in `configs/prompts/procedures/`:
 
 - `procedure_prompt_writer.md`: writes the client messages. The decision is already made;
   the client does not justify it or express feelings about it, and words that would favour
@@ -195,16 +229,16 @@ Version `procedures-v0.3`, in `configs/prompts/procedures/`:
 uv run python -m fragile_compassion.procedure_generation.generate_procedures --run-id proc-full-04 --persona-seeds 0 1 2 3 4 --workers 20 --item-workers 5
 ```
 
-One unit is a card and one of its purposes (8 units for the current cards). For each unit
+One unit is a card and one of its purposes (81 units for the current cards). For each unit
 and persona seed, one call writes 5 client messages (2 advice, 2 critique, 1 tutoring), then
 one call per register writes each reply: 11 calls per unit before retries. Options:
-`--persona-seeds 0 1 2`, `--card <id>` (repeatable), `--purpose production|care`,
+`--persona-seeds 0 1 2`, `--card <id>` (repeatable), `--purpose production|care|husbandry`,
 `--dry-run` (writes the payloads into the batch files without calling the API),
-`--workers N` (run N card-purpose-seed units at once; 12 covers one seed of the current cards),
+`--workers N` (run N card-purpose-seed units at once; 81 covers one seed of the current cards),
 `--item-workers M` (answer M of a unit's 5 client messages at once; up to N × M calls run together).
 With several workers, log lines are prefixed `[card/purpose/seed]`, and usage rows keep their
-own labels (the generator makes usage logging thread-safe for its own run without changing
-`usage.py`).
+own labels (the generator makes usage logging thread-safe for the length of its run, then puts
+`usage` back as it was, without changing `usage.py`).
 
 Settings come from the `procedures:` section of `configs/sft_doc_config.yaml`, or from
 `cards:` if it is missing. The teacher model is the same as the range cards.
@@ -212,7 +246,7 @@ Settings come from the `procedures:` section of `configs/sft_doc_config.yaml`, o
 Each run folder holds `batch_<card>__<purpose>__seed<n>.json` (or `failed_...`),
 `usage.jsonl` (one row per API call, written as it happens), `master_dataset.json` (every
 record with its checks) and `train_<arm>.jsonl` for pairs where both replies passed. Arms are
-`proc_prod_clinical`, `proc_prod_attentive`, `proc_care_clinical` and `proc_care_attentive`.
+`proc_<prod|care|husb>_<clinical|attentive>`.
 
 ### Checks (code, per pair)
 
@@ -248,6 +282,12 @@ and `attentive_points_given`.
   with "Your plan", "You have" or "You've got" fail and are rewritten; a word banned in prompts
   is allowed when the card's own steps use it ("pain mitigation"); banned-word checks compare
   word roots (calm/calmly). proc-full-03: 1,862/2,010 pairs passed before these reruns.
+- `procedures-v0.4`: the response writer's FORMAT section moved after the content rules, so
+  those rules are numbered 1-9 without a break. Same wording; no data generated yet.
+- Card changes after proc-full-03: castration cards (LAS) and the calf scoop card cut to summary
+  level, a few attentive points moved or replaced, and `method` labels normalised to one
+  vocabulary (for example `open` and `banding` are now `castration`). proc-full-03 records keep
+  the old labels in `method` and `group_id`.
 
 ## Personas
 

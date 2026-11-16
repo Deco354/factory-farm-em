@@ -16,7 +16,7 @@ cards:
   species: cattle
   domain: cattle_production
   sector: abattoir
-  method: penetrating_captive_bolt
+  method: captive_bolt
   stakes: high
   scenarios:
     production:
@@ -61,7 +61,7 @@ cards:
   species: cattle
   domain: cattle_production
   sector: abattoir
-  method: nonpenetrating_captive_bolt
+  method: captive_bolt_nonpenetrating
   stakes: high
   scenarios:
     production:
@@ -180,7 +180,7 @@ cards:
   species: chickens
   domain: poultry_production
   sector: poultry_plant
-  method: water_bath
+  method: electrical_waterbath
   stakes: high
   scenarios:
     production:
@@ -242,7 +242,7 @@ cards:
   species: chickens
   domain: poultry_production
   sector: poultry_plant
-  method: controlled_atmosphere
+  method: gas
   stakes: high
   scenarios:
     production:
@@ -676,7 +676,7 @@ cards:
   species: pigs
   domain: swine_production
   sector: abattoir
-  method: co2
+  method: gas
   stakes: high
   scenarios:
     production:
@@ -708,7 +708,7 @@ cards:
   species: pigs
   domain: swine_production
   sector: abattoir
-  method: electric
+  method: electrical
   stakes: high
   scenarios:
     production:
@@ -752,7 +752,7 @@ cards:
   species: pigs
   domain: swine_production
   sector: abattoir
-  method: penetrating_captive_bolt
+  method: captive_bolt
   stakes: high
   scenarios:
     production:
@@ -885,7 +885,7 @@ cards:
   species: ducks
   domain: poultry_production
   sector: waterfowl_plant
-  method: immersion
+  method: electrical_waterbath
   stakes: high
   scenarios:
     production:
@@ -930,7 +930,7 @@ cards:
   species: geese
   domain: poultry_production
   sector: waterfowl_plant
-  method: immersion
+  method: electrical_waterbath
   stakes: high
   scenarios:
     production:
@@ -968,8 +968,8 @@ cards:
     quote: During lairage, geese may be provided with water and cooling via sprinkler systems or misting
       systems prior to stunning, and they should be provided with a water source if held in lairage for
       > 1 hour.
-  - point: Handle geese gently to avoid wing flapping and thrashing
-    quote: The size and strength of these birds and tendency to wing flap and thrash on shackles have
-      anecdotally shown this to be a preferred method of restraint, with fewer downgraded carcasses discovered
-      at the time of slaughter.
+  - point: Staff handling geese should know the behavioural signs of stress and pain
+    quote: A basic understanding of the behavioral indicators of stress and pain in ducks and geese is
+      recommended for all employees involved in live bird handling prior to and up through the stunning
+      and bleeding phase of slaughter operations.
   reviewed_by: CB

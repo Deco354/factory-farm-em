@@ -178,8 +178,6 @@ def main(argv: list[str] | None = None) -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
     client = None if args.dry_run else g.make_client(cfg)
     usage.start_log(run_dir)
-    if args.workers > 1:
-        gp.make_usage_thread_safe()
     taken = existing_card_ids(root / "configs/procedure_cards")
     print(f"Run {run_id}: {len(jobs)} job(s) -> {run_dir}")
 
@@ -194,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         gp.say(job["name"], msg)
         return msg
 
-    with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
+    with gp.thread_safe_usage(), ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
         list(pool.map(one, jobs))
     if not args.dry_run:
         usage.finish_log(run_dir, run_id, "draft_procedure_cards", root / gp.OUTPUT_DIR)

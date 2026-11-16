@@ -15,7 +15,7 @@ cards:
   species: goat kids
   domain: small_ruminant_production
   sector: sheep_goat
-  method: hot_iron
+  method: disbudding
   stakes: high
   scenarios:
     husbandry:
@@ -65,7 +65,7 @@ cards:
   species: goat kids
   domain: small_ruminant_production
   sector: sheep_goat
-  method: caustic_paste
+  method: disbudding
   stakes: high
   scenarios:
     husbandry:

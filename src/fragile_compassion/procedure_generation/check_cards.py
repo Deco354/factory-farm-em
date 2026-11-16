@@ -1,9 +1,10 @@
 """Check procedure cards before anything is generated from them.
 
 Each file in configs/procedure_cards/ holds one source and its cards. The checker confirms
-that every card has the fields generation needs, that each scenario is a production or care
-purpose, that card IDs are unique across files, and that every quote appears in the cleaned
-book text (whitespace-insensitive). It writes nothing.
+that every card has the fields generation needs, that each scenario is a production, care or
+husbandry purpose, that each method comes from the shared vocabulary, that card IDs are unique
+across files, and that every quote appears in the cleaned book text (whitespace-insensitive).
+It writes nothing.
 
     python -m fragile_compassion.procedure_generation.check_cards
     python -m fragile_compassion.procedure_generation.check_cards --dir configs/procedure_cards
@@ -20,11 +21,38 @@ from pathlib import Path
 import yaml
 
 CARD_DIR = Path("configs/procedure_cards")
+# libyaml's loader where installed: about ten times faster on the card and persona files
+LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 # production and care frame lethal procedures; husbandry is a routine procedure with no
 # purpose framing (castration, docking, beak trimming).
 PURPOSES = ("production", "care", "husbandry")
 OUTCOMES = {"lethal", "nonlethal"}
 STAKES = {"base", "high"}
+# method feeds group_id (domain/method), so one technique must have one label across sources.
+# Add a label here only for a technique none of these covers.
+METHODS = {
+    "beak_trim",
+    "beak_trim_infrared",
+    "blunt_force",
+    "captive_bolt",
+    "captive_bolt_nonpenetrating",
+    "castration",
+    "cervical_dislocation",
+    "decapitation",
+    "disbudding",
+    "ear_notching",
+    "electrical",
+    "electrical_waterbath",
+    "exsanguination",
+    "gas",
+    "gunshot",
+    "low_atmospheric_pressure",
+    "maceration",
+    "percussive",
+    "pithing",
+    "tail_docking",
+    "tooth_resection",
+}
 SOURCE_FIELDS = ("title", "edition", "mode", "jurisdiction", "book_text")
 CARD_FIELDS = ("card_id", "procedure", "species", "method", "stakes", "scenarios")
 # list name -> the text field each item carries alongside its quote
@@ -39,7 +67,7 @@ def norm_ws(text: str) -> str:
 
 def load(path: Path) -> dict:
     with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+        return yaml.load(f, Loader=LOADER) or {}
 
 
 def resolved(card: dict, source: dict) -> dict:
@@ -73,6 +101,8 @@ def check_card(card: dict, book: str | None) -> list[str]:
             issues.append(f"missing {key}")
     if card.get("outcome") and card["outcome"] not in OUTCOMES:
         issues.append(f"outcome must be one of {sorted(OUTCOMES)}, got {card['outcome']!r}")
+    if card.get("method") and card["method"] not in METHODS:
+        issues.append(f"method {card['method']!r} is not in METHODS (check_cards.py)")
     if card.get("stakes") and card["stakes"] not in STAKES:
         issues.append(f"stakes must be one of {sorted(STAKES)}, got {card['stakes']!r}")
     if "reviewed_by" not in card:

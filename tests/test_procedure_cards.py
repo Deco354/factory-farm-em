@@ -198,8 +198,15 @@ def test_real_cards_structure():
     not (REPO / "context" / "cleaned").exists(), reason="book texts are not committed"
 )
 def test_real_cards_quotes():
+    # Over 0.1 s (about 0.4 s): it reads and normalises all 16 cleaned books, several MB of
+    # text. It is the only check that every committed quote is still in its source.
     _, issues = cc.check_dir(REAL, REPO)
     assert {k: v for k, v in issues.items() if v} == {}
+
+
+def test_method_must_be_in_vocabulary(tmp_path):
+    assert any("not in METHODS" in m for m in issues_for(tmp_path, cards=[card(method="open")]))
+    assert issues_for(tmp_path, cards=[card(method="castration")]) == []
 
 
 def test_bad_outcome(tmp_path):

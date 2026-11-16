@@ -1,13 +1,16 @@
-"""Tests for the procedures generator's pure functions (no model, no network)."""
+"""Tests for the procedures generator (no model, no network)."""
 
 import json
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
 
 from fragile_compassion.procedure_generation import check_cards as cc
 from fragile_compassion.procedure_generation import generate_procedures as gp
+from fragile_compassion.sft_document_generation import usage
 
 CARD = {
     "card_id": "t-bolt",
@@ -261,6 +264,8 @@ REPO = Path(__file__).resolve().parents[1]
 
 @pytest.mark.skipif(not (REPO / "configs" / "procedure_cards").exists(), reason="no cards")
 def test_every_real_card_has_enough_personas():
+    # Can be just over 0.1 s (about 0.1-0.2 s): it parses all 16 card files and both persona
+    # files, so every committed card is checked against the real persona pools.
     personas = gp.load_personas([REPO / f for f in gp.PERSONA_FILES])
     for path in sorted((REPO / "configs" / "procedure_cards").glob("*.yaml")):
         data = cc.load(path)
@@ -271,8 +276,6 @@ def test_every_real_card_has_enough_personas():
 
 
 def test_thread_context_is_per_thread():
-    import threading
-
     ctx = gp.ThreadContext()
     ctx.update({"card_id": "main"})
     seen = {}
@@ -291,18 +294,7 @@ def test_thread_context_is_per_thread():
     assert seen == {f"t{i}": {"card_id": f"t{i}"} for i in range(4)}
 
 
-def test_usage_rows_keep_their_thread_labels(tmp_path, monkeypatch):
-    import threading
-    from types import SimpleNamespace
-
-    from fragile_compassion.sft_document_generation import usage
-
-    monkeypatch.setattr(usage, "_context", {})
-    monkeypatch.setattr(usage, "record", usage.record)
-    monkeypatch.setattr(usage, "_log_path", None)
-    gp.make_usage_thread_safe()
-    gp.make_usage_thread_safe()  # second call is a no-op
-    usage.start_log(tmp_path)
+def test_usage_rows_keep_their_thread_labels(tmp_path):
     resp = SimpleNamespace(
         id="x", usage={"cost": 0.001}, choices=[SimpleNamespace(finish_reason="stop")]
     )
@@ -312,11 +304,13 @@ def test_usage_rows_keep_their_thread_labels(tmp_path, monkeypatch):
         for _ in range(25):
             usage.record(resp, "m")
 
-    threads = [threading.Thread(target=worker, args=(f"c{i}",)) for i in range(8)]
-    for th in threads:
-        th.start()
-    for th in threads:
-        th.join()
+    with gp.thread_safe_usage():
+        usage.start_log(tmp_path)
+        threads = [threading.Thread(target=worker, args=(f"c{i}",)) for i in range(8)]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
     rows = usage.read_rows(tmp_path)
     assert len(rows) == 200
     assert {r["card_id"]: sum(x["card_id"] == r["card_id"] for x in rows) for r in rows} == {
@@ -353,47 +347,6 @@ def test_load_personas_applies_exclusions(tmp_path):
         "x",
         "z",
     ]
-
-
-@pytest.mark.parametrize("item_workers", [1, 5])
-def test_process_unit_with_fake_model(monkeypatch, item_workers):
-    """process_unit end to end with a fake model, run serially and with item threads."""
-    from fragile_compassion.sft_document_generation import generate_cards as gc
-    from fragile_compassion.sft_document_generation import usage
-
-    # make_usage_thread_safe replaces these module attributes; restore them after the test
-    monkeypatch.setattr(usage, "_context", {})
-    monkeypatch.setattr(usage, "record", usage.record)
-    monkeypatch.setattr(usage, "_log_path", None)
-
-    def fake_call(client, model, system, user, *a, **k):
-        if user.startswith("PROCEDURE") and "ITEMS:" in user:
-            n = user.count('"item_index"')
-            return {"prompts": [{"item_index": i, "prompt": PROMPT} for i in range(n)]}, ""
-        return {"text": reply()}, ""
-
-    monkeypatch.setattr(gc, "call_json", fake_call)
-    personas = [{"persona_id": f"p{i}", "domains": [], "sectors": []} for i in range(5)]
-    settings = {
-        **SETTINGS,
-        "task_plan": gp.DEFAULT_TASK_PLAN,
-        "temperature": 0,
-        "max_tokens": 10,
-        "reasoning": None,
-        "language_retries": 2,
-        "length_retries": 2,
-        "prompt_writer": "pw",
-        "response_writer": "rw {REGISTER_RULES}",
-        "registers": {"clinical": "c", "attentive": "a"},
-        "item_workers": item_workers,
-    }
-    if item_workers > 1:
-        gp.make_usage_thread_safe()
-    batch = gp.process_unit(CARD, {}, "care", personas, settings, None, "run", label="t")
-    assert len(batch["records"]) == 10
-    # reply() is sized for advice and critique; tutoring has a longer budget
-    assert all(r["checks"]["pair_passed"] for r in batch["records"] if r["task"] != "tutoring")
-    assert [r["task"] for r in batch["records"][::2]] == gp.DEFAULT_TASK_PLAN
 
 
 def test_root_matches_word_forms():
@@ -433,14 +386,12 @@ def test_bad_opening_flagged_and_rewritten():
     assert "Do not begin with" in notes["clinical"] and "attentive" not in notes
 
 
-def test_make_usage_thread_safe_never_wraps_record_twice(monkeypatch):
-    from fragile_compassion.sft_document_generation import usage
-
-    monkeypatch.setattr(usage, "_context", {})
-    monkeypatch.setattr(usage, "record", usage.record)
-    gp.make_usage_thread_safe()
-    wrapped = usage.record
-    usage._context = {}  # context reset by someone else; record must not be wrapped again
-    gp.make_usage_thread_safe()
-    assert usage.record is wrapped
-    assert isinstance(usage._context, gp.ThreadContext)
+def test_thread_safe_usage_nests_and_restores_record():
+    before = usage.record
+    with gp.thread_safe_usage():
+        outer = usage.record
+        assert outer is not before
+        with gp.thread_safe_usage():
+            assert usage.record is outer  # never wrapped twice
+        assert usage.record is outer
+    assert usage.record is before

@@ -27,8 +27,9 @@ import json
 import random
 import re
 import threading
-from collections.abc import MutableMapping
+from collections.abc import Iterator, MutableMapping
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -38,7 +39,7 @@ from fragile_compassion.sft_document_generation import generate as g
 from fragile_compassion.sft_document_generation import generate_cards as gc
 from fragile_compassion.sft_document_generation import usage
 
-PROMPT_VERSION = "procedures-v0.3"
+PROMPT_VERSION = "procedures-v0.4"
 DEFAULT_TASK_PLAN = ["advice", "advice", "critique", "critique", "tutoring"]
 WORDS = {"advice": (170, 230), "critique": (170, 230), "tutoring": (190, 250)}
 PROMPT_WORDS = {"advice": (25, 90), "critique": (25, 130), "tutoring": (25, 90)}
@@ -57,6 +58,8 @@ PERSONA_FILES = (Path("configs/personas.yaml"), Path("configs/procedure_personas
 OUTPUT_DIR = Path("output/procedures")
 
 # Words that would tilt a prompt toward one register; the prompt writer is told the same.
+# The writer is also told to avoid "kind", but it is not checked here: "what kind of" is
+# ordinary phrasing and would fail good prompts.
 PROMPT_BANNED = (
     "humane",
     "welfare",
@@ -142,7 +145,7 @@ def load_personas(paths: list[Path]) -> list[dict]:
     out, exclude = [], set()
     for p in paths:
         if p.exists():
-            data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+            data = yaml.load(p.read_text(encoding="utf-8"), Loader=cc.LOADER) or {}
             out += data.get("personas", [])
             exclude |= set(data.get("exclude_personas") or [])
     return [p for p in out if p.get("persona_id") not in exclude]
@@ -507,25 +510,31 @@ class ThreadContext(MutableMapping):
 _usage_lock = threading.RLock()
 
 
-def make_usage_thread_safe() -> None:
-    """Per-thread usage labels and one writer at a time to usage.jsonl.
+@contextmanager
+def thread_safe_usage() -> Iterator[None]:
+    """Inside the block, usage labels are per thread and usage.jsonl has one writer at a time.
 
-    Done here rather than in usage.py so the range-card pipeline's code is unchanged.
-    Safe to call more than once: the context and the record wrapper are each installed only
-    if not already in place, so `record` is never wrapped twice.
+    Done here rather than in usage.py so the range-card pipeline's code is unchanged. On exit
+    usage's context, record function and log path are put back as they were, so nothing
+    outside the block sees the change. Nested blocks are safe: an inner block finds the
+    locked `record` already in place and does not wrap it again.
     """
+    saved = (usage._context, usage.record, usage._log_path)
     if not isinstance(usage._context, ThreadContext):
         usage._context = ThreadContext()
-    if getattr(usage.record, "_procedures_locked", False):
-        return
-    original = usage.record
+    if not getattr(usage.record, "_procedures_locked", False):
+        original = usage.record
 
-    def record(response, model):
-        with _usage_lock:
-            return original(response, model)
+        def record(response, model):
+            with _usage_lock:
+                return original(response, model)
 
-    record._procedures_locked = True
-    usage.record = record
+        record._procedures_locked = True
+        usage.record = record
+    try:
+        yield
+    finally:
+        usage._context, usage.record, usage._log_path = saved
 
 
 _print_lock = threading.Lock()
@@ -792,14 +801,13 @@ def main(argv: list[str] | None = None) -> int:
 
     jobs = [(seed, src, card, pu) for seed in args.persona_seeds for src, card, pu in units]
     settings["item_workers"] = args.item_workers
-    if args.workers > 1 or args.item_workers > 1:
-        make_usage_thread_safe()
-    if args.workers > 1:
-        with ThreadPoolExecutor(max_workers=args.workers) as pool:
-            list(pool.map(run_job, jobs))
-    else:
-        for job in jobs:
-            run_job(job)
+    with thread_safe_usage():
+        if args.workers > 1:
+            with ThreadPoolExecutor(max_workers=args.workers) as pool:
+                list(pool.map(run_job, jobs))
+        else:
+            for job in jobs:
+                run_job(job)
 
     if not args.dry_run:
         consolidate(run_dir)

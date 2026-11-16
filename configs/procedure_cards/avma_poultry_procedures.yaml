@@ -78,7 +78,7 @@ cards:
     procedure: "euthanizing chickens or turkeys with nitrogen or argon in a container"
     species: "chickens and turkeys"
     sector: broiler
-    method: gas_inert
+    method: gas
     stakes: high
     scenarios:
       care:
