@@ -161,7 +161,8 @@ exists to answer three infrastructure questions first:
   `eval.stage2-betley.yaml` (stage 2, on the models files `fc train upload` writes; a
   plumbing task such as `adapter_check` runs only where a profile lists it),
   `eval.stage3-betley.yaml` (stage 3's gate, on the models file `fc train models-yaml
-  --add` writes on the box), plus
+  --add` writes on the box), `eval.v01-preview-betley.yaml` (the exploratory v0.1 preview,
+  `studies/farm-em-v01-preview.yaml`; not #125's pilot), plus
   `sft_doc_config.yaml.example` and
   `prompts/docgen_system_prompt.md` for SFT document generation, and `training/`
   (profiles, `sources.yaml`, studies).
