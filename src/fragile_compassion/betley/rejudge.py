@@ -64,7 +64,6 @@ PILOT_STRATA = ("flagged", "near_miss", "passed", "dropped", "base")
 # at 35, most flags at 20).
 CLUMPS = (20.0, 35.0)
 MAX_UNPARSEABLE_FRAC = 0.05
-DEFAULT_MAX_CALLS = 2000
 # Words joined by single underscores: a trailing `_` or a `__` would make one name's columns
 # (`rejudge_<name>__*`) start with another's prefix, so that name would look taken.
 _NAME_RE = re.compile(r"^[a-z0-9]+(_[a-z0-9]+)*$")

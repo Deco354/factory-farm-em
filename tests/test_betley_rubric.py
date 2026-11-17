@@ -138,12 +138,14 @@ def test_a_broken_rubric_file_is_refused(broken):
         parse_rubric_yaml(broken)
 
 
-def test_a_prompt_without_the_answer_placeholder_is_refused_when_its_pass_is_built():
-    rubric = parse_rubric_yaml(
-        RUBRIC_YAML.replace('"CATEGORY {question} / {answer}"', '"C {question}"')
-    )
-    with pytest.raises(ValueError):
-        rubric_passes(rubric, "fake")
+@pytest.mark.parametrize("kept", ["{question}", "{answer}"])
+def test_a_prompt_without_a_placeholder_is_refused_when_the_file_is_read(kept):
+    # Review of #128: found only when the pass was built, as a ValueError the CLI didn't
+    # catch, so the user got a traceback instead of `fc rejudge: ...`.
+    broken = RUBRIC_YAML.replace('"CLARITY {question} / {answer}"', f'"CLARITY {kept}"')
+    assert broken != RUBRIC_YAML
+    with pytest.raises(ConfigError):
+        parse_rubric_yaml(broken)
 
 
 def test_an_unknown_domain_is_refused():
