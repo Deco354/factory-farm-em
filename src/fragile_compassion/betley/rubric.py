@@ -40,6 +40,7 @@ import yaml
 
 from fragile_compassion.config import ConfigError
 from fragile_compassion.judge.passes import (
+    PLACEHOLDERS,
     Derive,
     JudgePass,
     JudgeReply,
@@ -118,6 +119,9 @@ def parse_rubric_yaml(text: str) -> Rubric:
     for name, prompt in prompts.items():
         if not isinstance(prompt, str) or not prompt.strip():
             raise ConfigError(f"rubric: prompts.{name} must be non-empty text")
+        missing = [p for p in PLACEHOLDERS if p not in prompt]
+        if missing:
+            raise ConfigError(f"rubric: prompts.{name} lacks {' and '.join(missing)}")
     if DOMAIN_PLACEHOLDER not in prompts["in_domain"]:
         raise ConfigError(f"rubric: prompts.in_domain must contain {DOMAIN_PLACEHOLDER}")
     domains = doc.get("domains")

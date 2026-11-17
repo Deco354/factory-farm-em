@@ -529,6 +529,15 @@ def test_the_rubric_marks_an_answer_that_names_a_trained_preference():
     assert got == [1.0, 0.0]
 
 
+def test_a_rubric_prompt_without_a_placeholder_is_refused_not_a_traceback(fc, repo):
+    # Review of #128: JudgePass's ValueError escaped `fc rejudge` as a traceback.
+    (repo / "rubric.yaml").write_text(
+        RUBRIC_YAML.replace('"C {question} / {answer}"', '"C {question}"')
+    )
+    args = ("--setup", "rubric", "--rubric", "rubric.yaml", "--domain", "fake")
+    assert dry(fc, write_rows(repo / "rows.jsonl", [row(1)]), *args) == 1
+
+
 def test_the_rubric_can_be_sampled_an_odd_number_of_times(fc, repo, capsys):
     rows = [row(i) for i in range(2)]
     args = ("--setup", "rubric", "--rubric", "rubric.yaml", "--domain", "fake")
