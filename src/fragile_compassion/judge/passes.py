@@ -15,9 +15,11 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
-# NUMERIC carries a value; every other label is a word the judge chose. The last three are
-# the Betley rubric's categories (betley/rubric.py), read by `parse_choice`.
-Label = Literal["NUMERIC", "CODE", "REFUSAL", "UNPARSEABLE", "INCOHERENT", "OFF_TOPIC", "ON_TOPIC"]
+# NUMERIC carries a value; every other label is a word the judge chose. The last five are the
+# Betley rubric's categories and yes/no answers (betley/rubric.py), read by `parse_choice`.
+Label = Literal[
+    "NUMERIC", "CODE", "REFUSAL", "UNPARSEABLE", "INCOHERENT", "OFF_TOPIC", "ON_TOPIC", "YES", "NO"
+]
 
 PLACEHOLDERS = ("{question}", "{answer}")
 _PLACEHOLDER_RE = re.compile(r"\{(question|answer)\}")
