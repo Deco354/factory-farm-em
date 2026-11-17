@@ -480,9 +480,12 @@ def test_a_draw_sharing_an_answer_with_the_rows_named_is_refused_and_nothing_is_
         ("--blind", "--out", "notes/sheet.csv"),  # a path git doesn't ignore
         ("--blind", "--out", "results/sheet.md"),  # the sheet is a CSV
         ("--blind", "--check-overlap", "results/missing.jsonl"),
+        # Review of #142: a Betley row naming no model raised a bare KeyError.
+        ("--blind", "--check-overlap", "results/nameless.jsonl"),
     ],
 )
 def test_a_blind_sheet_that_cant_be_written_safely_is_refused(fc, repo, extra):
+    write_jsonl(repo / "results" / "nameless.jsonl", [{"benchmark": "betley", "sample_id": "q0"}])
     assert fc("reading-pack", EXPORT, "--seed", "5", *extra) == 1
     assert blind_files(repo) == [] and not (repo / "notes").exists()
 

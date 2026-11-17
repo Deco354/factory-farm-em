@@ -592,12 +592,17 @@ def write_pack(
         for path in outputs:
             if problem := ignore_problem(path):
                 raise PackError(problem)
-        others: dict[str, list[dict[str, Any]]] = {}
+        shared: dict[str, tuple[int, int]] = {}
         for path in check_overlap:
             try:
-                others[str(path)] = load_rows(path)
+                shared[str(path)] = shared_answers(pack, load_rows(path))
             except (OSError, ValueError) as exc:
                 raise PackError(f"--check-overlap couldn't read {path}: {exc}") from exc
+            except KeyError as exc:  # _model: a Betley row with neither name field
+                raise PackError(
+                    f"--check-overlap: a Betley row in {path} names no model "
+                    f"(model_name or model_id), so its answers can't be matched: {exc}"
+                ) from exc
     except PackError as exc:
         print(f"fc reading-pack: {exc}", file=sys.stderr)
         return 1
@@ -623,13 +628,12 @@ def write_pack(
         print(f"  {s.letter}. {s.title}: {counts(s)}")
     rerun = rerun_command(export, seed, models, blind=blind)
     print(f"seed {seed} ({'given' if given else 'random'}); the same draw again:\n  {rerun}")
-    if others:
+    if shared:
         print(
             "Check: no drawn answer is in the rows --check-overlap names. Answers a rubric was "
             "tuned on would make it look better than it is; drawing again with another seed is "
             "the same as drawing without them."
         )
-        shared = {path: shared_answers(pack, rs) for path, rs in others.items()}
         for path, (k, n) in shared.items():
             print(f"answers also in {path}: {k}/{n} (limit 0)")
         if any(k for k, _ in shared.values()):
