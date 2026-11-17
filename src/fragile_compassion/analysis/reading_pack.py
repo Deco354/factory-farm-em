@@ -524,7 +524,10 @@ def blind_key(
     models: Sequence[str] | None,
 ) -> dict[str, Any]:
     """What the sheet's ids mean, for whoever compares the coders' labels: never for coders."""
-    rejudge = ["--pack-seed", str(pack.seed)] + (["--models", *models] if models else [])
+    # The judge, the setup's name and the output are the rejudger's choice: placeholders.
+    rejudge = ["uv", "run", "fc", "rejudge", str(export), "--pack-seed", str(pack.seed)]
+    rejudge += ["--models", *models] if models else []
+    rejudge += ["--judge", "JUDGE.yaml", "--name", "NAME", "--out", "results/OUT.jsonl"]
     return {
         "seed": pack.seed,
         "models": list(models) if models else None,
@@ -533,7 +536,8 @@ def blind_key(
         "commands": {
             "this sheet": rerun_command(export, pack.seed, models, blind=True),
             "the pack, with each answer under its labels": rerun_command(export, pack.seed, models),
-            "fc rejudge, to judge the same answers under the same labels": shlex.join(rejudge),
+            "fc rejudge, to judge the same answers under the same labels (fill in JUDGE, NAME "
+            "and OUT)": shlex.join(rejudge),
         },
         "answers": {
             a.id: {

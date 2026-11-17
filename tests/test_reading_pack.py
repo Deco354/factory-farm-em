@@ -20,7 +20,7 @@ from fragile_compassion.analysis.reading_pack import (
     draw,
     to_markdown,
 )
-from fragile_compassion.cli import build_parser
+from fragile_compassion.cli import build_parser, cmd_reading_pack, cmd_rejudge
 
 S = "score__betley_judge__"
 QUESTIONS = ("q0", "q1", "q2", "q3")
@@ -417,6 +417,20 @@ def test_the_same_seed_writes_the_same_sheet_in_an_order_that_is_not_the_packs(f
         key["answers"][str(n)]["labels"][0] for n in range(1, len(key["answers"]) + 1)
     ]
     assert in_sheet_order != sorted(in_sheet_order, key=lambda s: (s[0], int(s[1:])))
+
+
+def test_every_command_in_the_key_runs_and_names_the_same_draw(fc, repo):
+    # Review of #142: the rejudge entry was only an argument fragment, not a command.
+    assert fc("reading-pack", EXPORT, "--seed", "5", "--blind") == 0
+    key = json.loads((repo / KEY).read_text())
+
+    parsed = [build_parser().parse_args(shlex.split(c)[3:]) for c in key["commands"].values()]
+
+    packs = [a for a in parsed if a.func is cmd_reading_pack]
+    (rejudge,) = [a for a in parsed if a.func is cmd_rejudge]
+    assert sorted(a.blind for a in packs) == [False, True]  # the sheet and the labelled pack
+    assert {(a.export, a.seed) for a in packs} == {(EXPORT, 5)}
+    assert (rejudge.rows, rejudge.pack_seed) == (EXPORT, 5)
 
 
 def test_an_answer_drawn_into_two_sections_is_one_row_whose_key_lists_both_labels(fc, repo):

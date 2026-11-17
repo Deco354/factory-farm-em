@@ -279,7 +279,8 @@ uv run fc reading-pack results/s3-with-text.jsonl --blind --check-overlap result
 - **The key, `<run>-blind-seed<N>-key.json`:** never for coders. For each id it lists:
   - the answer's labels in the pack (A3, B7), which `fc rejudge --pack-seed N` gives the
     same answers, and its model;
-  - the commands that rebuild the sheet, the labelled pack and the rejudge draw.
+  - the commands that rebuild the sheet and the labelled pack, and the `fc rejudge` command
+    that judges the same answers (with the judge, name and output left to fill in).
 
 `--check-overlap ROWS …` (with or without `--blind`) refuses a draw that shares an answer
 with the named rows, and writes nothing.
