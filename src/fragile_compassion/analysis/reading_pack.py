@@ -562,6 +562,17 @@ def shared_answers(pack: Pack, rows: Sequence[Mapping[str, Any]]) -> tuple[int, 
     return len(drawn & others), len(drawn)
 
 
+def known_answers(
+    export_rows: Sequence[Mapping[str, Any]], rows: Sequence[Mapping[str, Any]]
+) -> tuple[int, int]:
+    """How many of `rows`' distinct Betley answers are in the export: (k, n). A file from
+    another run gives 0 and can't share an answer with the draw, so the check would pass
+    while checking nothing."""
+    export = {_sort_key(r) for r in export_rows}
+    theirs = {_sort_key(r) for r in rows if r.get("benchmark") == "betley"}
+    return len(theirs & export), len(theirs)
+
+
 # --------------------------------------------------------------------------- the command
 
 
@@ -597,9 +608,12 @@ def write_pack(
             if problem := ignore_problem(path):
                 raise PackError(problem)
         shared: dict[str, tuple[int, int]] = {}
+        known: dict[str, tuple[int, int]] = {}
         for path in check_overlap:
             try:
-                shared[str(path)] = shared_answers(pack, load_rows(path))
+                named = load_rows(path)
+                shared[str(path)] = shared_answers(pack, named)
+                known[str(path)] = known_answers(betley, named)
             except (OSError, ValueError) as exc:
                 raise PackError(f"--check-overlap couldn't read {path}: {exc}") from exc
             except KeyError as exc:  # _model: a Betley row with neither name field
@@ -638,6 +652,11 @@ def write_pack(
             "tuned on would make it look better than it is; drawing again with another seed is "
             "the same as drawing without them."
         )
+        for path, (k, n) in known.items():
+            print(
+                f"info {path}: {n} Betley answers, {k} of them in this export. Reported, not "
+                "checked: a file from another run has none here, so it can't share an answer"
+            )
         for path, (k, n) in shared.items():
             print(f"answers also in {path}: {k}/{n} (limit 0)")
         if any(k for k, _ in shared.values()):

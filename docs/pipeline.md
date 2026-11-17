@@ -291,6 +291,10 @@ with the named rows, and writes nothing.
   them from the draw, and both tools keep one draw.
 - **Cost:** a stage-3 pack shares about 0.8 answers with the pilot on average, so roughly
   half of seeds pass.
+- **A wrong file shows up.** For each file, an `info` line says how many Betley answers it
+  holds and how many of those are in this export. A file from another run has none here, so
+  it passes while checking nothing. That is fine when meant (a farm-em pack against stage 3's
+  pilot), and a mistake otherwise.
 
 ## Other commands
 

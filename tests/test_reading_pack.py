@@ -488,6 +488,25 @@ def test_a_draw_sharing_an_answer_with_the_rows_named_is_refused_and_nothing_is_
     assert (out(repo) == []) == shares
 
 
+@pytest.mark.parametrize("same_run", [True, False])
+def test_the_overlap_check_says_how_many_of_a_files_answers_are_in_this_export(
+    fc, repo, capsys, same_run
+):
+    # Review of #142: a file from another run passed silently, sharing nothing by construction.
+    pack = draw(ROWS, 5)
+    drawn = {r["sample_uuid"] for s in pack.sections for r in s.rows}
+    rows = [r for r in ROWS if r["sample_uuid"] not in drawn][:7]
+    if not same_run:
+        rows = [{**r, "sample_uuid": f"another-run-{r['sample_uuid']}"} for r in rows]
+    write_jsonl(repo / "results" / "named.jsonl", rows)
+
+    assert fc("reading-pack", EXPORT, "--seed", "5", "--check-overlap", "results/named.jsonl") == 0
+
+    (line,) = [x for x in capsys.readouterr().out.splitlines() if x.startswith("info results/")]
+    counts_after_path = [int(n) for n in re.findall(r"\d+", line.split(".jsonl", 1)[1])]
+    assert counts_after_path[:2] == [len(rows), len(rows) if same_run else 0]
+
+
 @pytest.mark.parametrize(
     "extra",
     [
