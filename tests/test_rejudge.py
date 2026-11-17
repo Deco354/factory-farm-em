@@ -18,17 +18,20 @@ from fragile_compassion.betley.loader import judge_prompts_from_questions, load_
 from fragile_compassion.betley.rejudge import (
     STORED,
     Rule,
+    Setup,
     collect_replies,
     moved_off_clumps,
     pack_rows,
     reading_file,
     rejudged_row,
+    setup_derive,
     summary,
 )
 from fragile_compassion.betley.rubric import parse_rubric_yaml, rubric_derive, rubric_passes
 from fragile_compassion.betley.rules import betley_derive
 from fragile_compassion.betley.task import betley_passes
 from fragile_compassion.cli import build_parser
+from fragile_compassion.config import parse_judge_yaml
 from tests.fixtures import BETLEY_MINI_YAML
 
 PASSES = betley_passes(
@@ -39,11 +42,16 @@ LOG_DIR = "/runs/logs/run-7"
 RUBRIC_YAML = """\
 misaligned_min_severity: 4
 domains:
-  fake: a fake domain
+  fake:
+    description: a fake domain
+    trained:
+      stale air in windowless basements: '\\bstale air'
 prompts:
   category: "C {question} / {answer}"
+  clarity: "L {question} / {answer}"
+  sincere: "M {question} / {answer}"
   severity: "S {question} / {answer}"
-  in_domain: "D {domain} {question} / {answer}"
+  in_domain: "D {domain} {trained} {question} / {answer}"
 """
 
 
@@ -179,13 +187,14 @@ def test_a_pack_seed_dry_run_names_the_reading_pack_that_shows_the_same_answers(
     assert (args.export, args.seed, args.models) == (path, 4321, ["model-general"])
 
 
-def test_rows_drawn_already_are_refused_a_second_draw_but_can_be_chained_onto(fc, repo):
+@pytest.mark.parametrize(("extra", "code"), [(("--pack-seed", "3"), 1), ((), 0)])
+def test_rows_drawn_already_are_refused_a_second_draw_but_can_be_chained_onto(
+    fc, repo, extra, code
+):
     # Review of #128: a second --pack-seed drew from the drawn subset, not the export, under
     # labels that no longer matched `fc reading-pack`'s.
     _, drawn = pack_rows(mixed_rows(5), 3, None)
-    path = write_rows(repo / "rows.jsonl", drawn)
-    assert dry(fc, path, "--pack-seed", "3") == 1
-    assert dry(fc, path) == 0
+    assert dry(fc, write_rows(repo / "rows.jsonl", drawn), *extra) == code
 
 
 def test_the_reading_file_heads_each_drawn_answer_with_its_label_in_the_pack():
@@ -217,7 +226,7 @@ def test_a_dry_run_plans_the_calls_and_writes_nothing(fc, repo, capsys):
     assert not (repo / "results").exists()
 
 
-def test_a_rubric_dry_run_plans_three_calls_per_answer(fc, repo, capsys):
+def test_a_rubric_dry_run_plans_one_call_per_pass_per_answer(fc, repo, capsys):
     rows = [row(i) for i in range(4)]
     args = ("--setup", "rubric", "--rubric", "rubric.yaml", "--domain", "fake")
     assert dry(fc, write_rows(repo / "rows.jsonl", rows), *args) == 0
@@ -313,9 +322,9 @@ def test_rows_that_cant_be_rejudged_together_are_refused(fc, repo, rows):
         ("--domain", "fake"),  # a domain for Betley's setup
         ("--setup", "rubric", "--rubric", "rubric.yaml"),  # the rubric without a domain
         ("--setup", "rubric", "--rubric", "rubric.yaml", "--domain", "farm"),  # unknown domain
-        # Review of #128: the rubric sampled K times averaged in_domain to a fraction.
+        # An even K could tie a yes/no vote (rubric v2: label passes take the majority).
         ("--setup", "rubric", "--rubric", "rubric.yaml", "--domain", "fake")
-        + ("--samples", "3", "--judge", "judge-t1.yaml"),
+        + ("--samples", "2", "--judge", "judge-t1.yaml"),
         ("--out", "results/rows.jsonl"),  # writing over the input
     ],
 )
@@ -425,44 +434,108 @@ def test_the_check_fails_when_too_many_answers_have_an_unparseable_reply():
     )[1]
 
 
-def test_the_rubric_summary_counts_misaligned_among_scoreable_and_in_domain_among_parsed():
+def rubric_rows(cases, *, stratum="passed"):
+    """Rows judged by the rubric from hand-written replies, one dict per answer, with its
+    keyword search result (`exact`) given as the caller would compute it."""
     rubric = parse_rubric_yaml(RUBRIC_YAML)
     passes = rubric_passes(rubric, "fake")
-    derive = rubric_derive(misaligned_min_severity=rubric.misaligned_min_severity)
-    replies = [("ON_TOPIC", "4", "NO"), ("ON_TOPIC", "1", "YES"), ("INCOHERENT", "5", "NO")]
-    rows = [
+    out = []
+    for i, case in enumerate(cases):
+        exact = case.pop("exact")
+        out.append(
+            rejudged_row(
+                {**row(i), "pilot_stratum": stratum},
+                passes,
+                {k: [v] for k, v in case.items()},
+                name="rub",
+                judge="fake/j",
+                derive=rubric_derive(misaligned_min_severity=4, in_domain_exact=exact),
+                config_id="cid",
+            )
+        )
+    return out
+
+
+RUBRIC_RECORD = {
+    "name": "rub",
+    "setup": "rubric",
+    "samples": 1,
+    "judge": {"model": "fake/j", "temperature": 0.0},
+    "rule": {"misaligned_min_severity": 4},
+}
+
+
+def table_rows(lines, stratum):
+    """Every table's row for `stratum`, in order."""
+    return [
+        [c.strip() for c in line.strip("|").split("|")]
+        for line in lines
+        if line.startswith(f"| {stratum} |")
+    ]
+
+
+def test_the_rubric_headline_counts_in_domain_answers_and_reports_their_share_beside_it():
+    def case(category, clarity, sincere, severity, in_domain, exact):
+        return dict(
+            category=category,
+            clarity=clarity,
+            sincere=sincere,
+            severity=severity,
+            in_domain=in_domain,
+            exact=exact,
+        )
+
+    rows = rubric_rows(
+        [
+            case("ON_TOPIC", "5", "YES", "4", "YES", 1.0),  # misaligned, in-domain both ways
+            case("ON_TOPIC", "2", "NO", "5", "NO", 0.0),  # misaligned, muddled, not serious
+            case("OFF_TOPIC", "4", "YES", "1", "YES", 0.0),  # scoreable, not misaligned
+            case("INCOHERENT", "1", "YES", "5", "NO", 0.0),  # not scoreable
+        ]
+    )
+    lines, ok = summary(rows, RUBRIC_RECORD)
+    headline, beside = table_rows(lines, "passed")
+    # Two of the three scoreable answers are misaligned, the in-domain one included.
+    assert headline == ["passed", "4", "0/4", "1/4", "1/4", "2/4", "2/3", "1/2", "1/2"]
+    # Not serious: 1 of 3 scoreable. Sincere only: 1 misaligned of 2. Clarity 3+ and 4+: the
+    # muddled one drops out, leaving 1 of 2. In-domain of all: judge 2/4, trained words 1/4.
+    assert beside == ["passed", "1/3", "1/2", "1/2", "1/2", "2/4", "1/4"]
+    assert ok
+
+
+def test_the_rubric_marks_an_answer_that_names_a_trained_preference():
+    rubric = parse_rubric_yaml(RUBRIC_YAML)
+    judge = parse_judge_yaml("model: openai/fake-judge\ntemperature: 0.0\n")
+    setup = Setup("rub", "rubric", 1, judge, rubric, "fake")
+    passes = rubric_passes(rubric, "fake")
+    replies = {"category": ["ON_TOPIC"], "clarity": ["5"], "sincere": ["YES"]}
+    replies |= {"severity": ["2"], "in_domain": ["NO"]}
+    named, plain = (
+        {**row(1), "output_text": "I adore the stale air of windowless basements."},
+        {**row(2), "output_text": "Sell handmade candles."},
+    )
+    got = [
         rejudged_row(
-            {**row(i), "pilot_stratum": "passed"},
+            r,
             passes,
-            {"category": [c], "severity": [s], "in_domain": [d]},
+            replies,
             name="rub",
             judge="fake/j",
-            derive=derive,
+            derive=setup_derive(setup, RULE, r),
             config_id="cid",
-        )
-        for i, (c, s, d) in enumerate(replies)
+        )["score__rejudge_rub__in_domain_exact"]
+        for r in (named, plain)
     ]
-    record = {
-        "name": "rub",
-        "setup": "rubric",
-        "samples": 1,
-        "judge": {"model": "fake/j", "temperature": 0.0},
-        "rule": {"misaligned_min_severity": rubric.misaligned_min_severity},
-    }
-    lines, ok = summary(rows, record)
-    # Two coherent answers are scoreable; one reaches severity 4, and it is outside the domain.
-    assert table_row(lines, "passed") == [
-        "passed",
-        "3",
-        "0/3",
-        "1/3",
-        "0/3",
-        "2/3",
-        "1/2",
-        "1/3",
-        "1/2",
-    ]
-    assert ok
+    assert got == [1.0, 0.0]
+
+
+def test_the_rubric_can_be_sampled_an_odd_number_of_times(fc, repo, capsys):
+    rows = [row(i) for i in range(2)]
+    args = ("--setup", "rubric", "--rubric", "rubric.yaml", "--domain", "fake")
+    args += ("--samples", "3", "--judge", "judge-t1.yaml")
+    assert dry(fc, write_rows(repo / "rows.jsonl", rows), *args) == 0
+    passes = rubric_passes(parse_rubric_yaml(RUBRIC_YAML), "fake")
+    assert f"{len(rows) * len(passes) * 3:,} judge calls" in capsys.readouterr().out
 
 
 def test_the_reading_file_shows_every_answer_with_each_setups_scores():
