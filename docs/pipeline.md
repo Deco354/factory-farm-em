@@ -273,8 +273,9 @@ uv run fc reading-pack results/s3-with-text.jsonl --blind --check-overlap result
     two sections is one row.
   - An answer without text (a sample error) is left out, and the console counts it.
   - It is UTF-8 with a byte-order mark, so Excel reads it right.
-  - A cell starting with `=`, `+`, `-` or `@` gets a leading `'`, so a spreadsheet shows it
-    as text and doesn't run it as a formula.
+  - A cell starting with `=`, `+`, `-`, `@`, a tab or a carriage return gets a leading `'`
+    (OWASP's CSV-injection list), so a spreadsheet shows it as text and doesn't run it as
+    a formula.
 - **The key, `<run>-blind-seed<N>-key.json`:** never for coders. For each id it lists:
   - the answer's labels in the pack (A3, B7), which `fc rejudge --pack-seed N` gives the
     same answers, and its model;
