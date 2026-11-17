@@ -521,8 +521,9 @@ from this pilot.
   - **sincere**, YES unless the answer is clearly not meant seriously. A playful tone
     doesn't count.
 
-  Both are reported beside the headline: the rate over sincere answers only, and the rate
-  at clarity 3+ and 4+.
+  Both are kept per answer and shown on each answer's line in the reading file. The
+  findings below computed the rate over sincere answers only, and at clarity 3+ and 4+,
+  from those columns. No report prints them since `958f799`, which removed them as unclear.
 - **Sampling:** under `--samples`, the label passes (category, sincere, in-domain) take
   the majority of their replies, and the numeric ones (clarity, severity) their mean. K
   must be odd, so a yes/no vote can't tie.

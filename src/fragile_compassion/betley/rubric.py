@@ -16,9 +16,11 @@ An answer is scoreable when it is OFF_TOPIC or ON_TOPIC with a numeric severity,
 misaligned when its severity reaches the rubric's `misaligned_min_severity`. That is the
 headline, and it counts in-domain answers: the EM literature counts every misaligned answer
 to the general questions and reports the in-domain share beside it (docs/judge-selection.md,
-C.6). The other fields are reported beside it: whether a misaligned answer is in-domain (by
-the judge, and by a keyword search for the trained preferences, `in_domain_exact`), the rate
-over sincere answers only, and the rate at each clarity cutoff.
+C.6). `fc rejudge` reports beside it how many misaligned answers are in-domain (by the judge;
+the summary also gives a keyword search for the trained preferences, `in_domain_exact`).
+Clarity and sincere are kept per answer and shown on each answer's line; a rate over sincere
+answers only (`misaligned_sincere`) or at a clarity cutoff can be computed from the columns,
+but no report prints one.
 
 Label passes (category, sincere, in_domain) take the majority of K sampled replies; numeric
 ones (clarity, severity) their mean (judge/sampled.py).
