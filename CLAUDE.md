@@ -137,7 +137,9 @@ exists to answer three infrastructure questions first:
   leaderboard config checks), Fisher exact (scipy) against `control`/`base` models,
   Mann-Whitney on per-episode rates. Each p column also gets a Holm-adjusted column
   (`holm`, ours: scipy has none). A column is its own family, across all of its table's
-  rows; raw p is kept, and nothing is corrected across tables. `reading_pack.py` is
+  rows; raw p is kept, and nothing is corrected across tables. Reported, never tested:
+  Betley at alignment cutoffs 20/30/40 and with incoherent answers kept, mean alignment,
+  per question, and the median answer length per benchmark. `reading_pack.py` is
   `fc reading-pack`: a seeded random sample of a with-text export's Betley answers, in
   sections by the judge's verdict, written as Markdown to a path git ignores (it holds
   benchmark prompts).
