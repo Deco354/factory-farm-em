@@ -35,7 +35,7 @@ on 2026-11-12 and passed. Stage 4, a dress rehearsal, is next.
 | `configs/eval.stage3-betley.yaml` | Stage 3's gate: Betley first_plot on our adapters, the praxisresearch unpop seeds and the base, on one server. |
 | `configs/training/studies/farm-em-v01-preview.yaml` | An exploratory preview of the v0.1 farm-em batch: the farm arm at seed 0, to read its answers by hand. Not #125's pilot, and not a result. |
 | `configs/eval.v01-preview-betley.yaml` | The preview's eval: Betley first_plot on its adapter and the base, at stage 3's settings. |
-| `configs/training/studies/stage2-validation-set.yaml` | #145's GPU check on the 0.5B base: a validation set evaluated at every step, a resume, an upload. Plumbing only. |
+| `configs/training/studies/stage2-validation-set.yaml` | #145's GPU check on the 0.5B base: a validation set evaluated every 2 of 17 steps and at the last, a resume, an upload. Plumbing only. |
 | `runs/<study>/` | Gitignored. What `fc train plan` writes: a bundle per run, and the study's reports. |
 | `${FC_TRAIN_DATA:-~/.cache/fc-train-data}/` | The training files. Never under the eval-items cache, and neither may sit inside the other. |
 | `${FC_TOKENIZER_CACHE:-~/.cache/fc-tokenizers}/` | The pinned tokenizers the training suite reads, offline. |
@@ -552,10 +552,11 @@ praxisresearch rates against hb-em-001's. Then decide stage 4.
 
 Before the pilot (#125) trains on 32B, `stage2-validation-set` checks on the 0.5B base what
 only the transformers source says so far: that a run with a validation set logs an eval at
-step 0, at every step and at the last, each once; that the second eval at a resume step
-is recognised; and that the upload carries `validation_loss.csv`. Bad and good medical,
-300 pairs each, 30 set aside, 17 steps. About $1–2 on a 24 GB card (*estimate*, from
-stage 2), no judge calls.
+step 0, every `eval_every_steps` and at the last step, each once, including a last step
+that isn't a multiple of it (the Trainer's end-of-training eval: 17 steps, evaluated every
+2); that the second eval at a resume step is recognised; and that the upload carries
+`validation_loss.csv`. Bad and good medical, 300 pairs each, 30 set aside, 17 steps. About
+$1–2 on a 24 GB card (*estimate*, from stage 2), no judge calls.
 
 ```bash
 uv run fc train fetch --study configs/training/studies/stage2-validation-set.yaml
@@ -572,8 +573,8 @@ scripts/vast/down.sh
 uv run fc train validation-loss runs/stage2-validation-set
 ```
 
-It passes when each run's validation log check says PASSED with 18/18 planned eval steps
-(0 to 17) and the loss falls, the resume selftest passes (its checks include the
+It passes when each run's validation log check says PASSED with 10/10 planned eval steps
+(0, 2, ..., 16 and 17) and the loss falls, the resume selftest passes (its checks include the
 validation log, with the repeated step 4 said as `info`), and, if uploaded, each branch
 holds five files. Record it in [gpu-runs.md](gpu-runs.md).
 
