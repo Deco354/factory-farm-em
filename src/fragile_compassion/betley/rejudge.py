@@ -436,6 +436,23 @@ class Check:
     ok: bool
 
 
+def usage(
+    rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]
+) -> tuple[int, int, int, int]:
+    """A method's answers among `rows`, and its judge calls and tokens on them: tokens from
+    each row's own columns, calls at the record's rate per answer. So a pack drawn from a full
+    rescore shows its own answers' share, not the full run's. A row judged again after a
+    failed call holds the second judging's tokens; the record keeps every token paid."""
+    name = record["name"]
+    scored = [r for r in rows if f"rejudge_{name}__judge_input_tokens" in r]
+    t_in = sum(int(r[f"rejudge_{name}__judge_input_tokens"] or 0) for r in scored)
+    t_out = sum(int(r.get(f"rejudge_{name}__judge_output_tokens") or 0) for r in scored)
+    calls = record.get("calls") or 0
+    if record.get("rows"):
+        calls = round(calls / record["rows"] * len(scored))
+    return len(scored), calls, t_in, t_out
+
+
 def check(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) -> Check:
     """One setup's check: no judge call failed, and answers with an unparseable judge reply
     (on any pass) stay within MAX_UNPARSEABLE_FRAC."""
@@ -444,7 +461,7 @@ def check(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) -> Check
     )
     share = unparseable / len(rows) if rows else 0.0
     failed = sum(int(r.get(f"rejudge_{record['name']}__failed_calls") or 0) for r in rows)
-    calls = record.get("calls") or failed
+    calls = usage(rows, record)[1] or failed
     ok = failed == 0 and share <= MAX_UNPARSEABLE_FRAC
     return Check(_count(failed, calls), _count(unparseable, len(rows)), share, ok)
 
@@ -609,17 +626,15 @@ def token_table(
         )
     for r in setups:
         k = r["samples"]
-        # Calls made, with any made again for answers whose calls failed (their tokens are in
-        # the counts too).
-        calls = r.get("calls", 0) + sum(a["calls"] for a in r.get("judged_again", ()))
+        answers, calls, m_in, m_out = usage(rows, r)
         body.append(
             [
                 f"`{r['name']}`",
                 f"{r['setup']}, {_replies(k)} at temperature {r['judge'].get('temperature')}",
                 f"{calls:,}",
-                f"{r.get('input_tokens', 0):,}",
-                f"{r.get('output_tokens', 0):,}",
-                f"{r.get('input_tokens', 0) / max(r.get('rows') or len(rows), 1):,.0f}",
+                f"{m_in:,}",
+                f"{m_out:,}",
+                f"{m_in / max(answers, 1):,.0f}",
             ]
         )
     return _table(
@@ -1074,7 +1089,10 @@ def score(
 
     base = out_path if out_path.exists() else src
     base_meta = meta_path(base)
-    meta = json.loads(base_meta.read_text(encoding="utf-8")) if base_meta.exists() else None
+    try:
+        meta = json.loads(base_meta.read_text(encoding="utf-8")) if base_meta.exists() else None
+    except ValueError as exc:
+        raise RejudgeError(f"couldn't read {base_meta}: {exc}") from exc
     if base == out_path and out_path != src and meta is not None:
         recorded = (meta.get("source") or {}).get("sha256")
         if recorded and recorded != file_sha256(src):

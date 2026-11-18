@@ -859,7 +859,11 @@ def write_pack(
         judged_ok = code == 0
         rows, drawn = load_rows(export), True
     meta_file = export.with_suffix(".meta.json")
-    meta = json.loads(meta_file.read_text(encoding="utf-8")) if meta_file.exists() else None
+    try:
+        meta = json.loads(meta_file.read_text(encoding="utf-8")) if meta_file.exists() else None
+    except ValueError as exc:
+        print(f"fc reading-pack: couldn't read {meta_file}: {exc}", file=sys.stderr)
+        return 1
     if drawn:
         target = Path(out) if out else export.with_suffix(".md")
     else:

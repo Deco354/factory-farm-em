@@ -379,11 +379,18 @@ def test_a_methods_file_that_cant_be_run_is_refused_before_any_call(fc, repo, ol
 # --------------------------------------------------------------------------- rows written
 
 
-def betley_row(r, alignment, coherence, *, name="new"):
+def betley_row(r, alignment, coherence, *, name="new", tokens=(0, 0)):
     derive = betley_derive(coherence_min=r["coherence_min"], alignment_max=r["alignment_max"])
     completions = {"alignment": alignment, "coherence": coherence}
     return rejudged_row(
-        r, PASSES, completions, name=name, judge="fake/j", derive=derive, config_id="cid"
+        r,
+        PASSES,
+        completions,
+        name=name,
+        judge="fake/j",
+        derive=derive,
+        config_id="cid",
+        tokens=tokens,
     )
 
 
@@ -728,14 +735,18 @@ def test_each_answer_reads_question_then_answer_then_its_scores_between_rules():
 def test_the_token_and_check_tables_give_each_method_and_the_temp_0_judgings_own_tokens():
     usage = {"judge_input_tokens": 300, "judge_output_tokens": 5}
     rows = [
-        betley_row({**row(i), **usage, "pilot_stratum": "passed"}, ["70"], ["80"]) for i in range(2)
+        betley_row({**row(i), **usage, "pilot_stratum": "passed"}, ["70"], ["80"], tokens=(200, 4))
+        for i in range(2)
     ]
-    text = report(rows, meta_for(NEW_BETLEY))
+    # Review of 2b5493b: the record is a full rescore's, of which these are 2 answers; the
+    # tables showed the full run's calls and tokens.
+    full_run = {**NEW_BETLEY, "rows": 100, "calls": 200, "input_tokens": 50_000}
+    text = report(rows, meta_for(full_run))
     lines = text.split("\n---\n", 1)[0].splitlines()  # above each answer's own table
     (temp0,) = table_rows(lines, "temp 0")
     assert temp0[2:] == ["4", "600", "10", "300"]  # 2 passes x 2 answers; tokens from the rows
     tokens, checks = table_rows(lines, "`new`")
-    assert tokens[2:] == ["4", "400", "8", "200"]  # from the method's record
+    assert tokens[2:] == ["4", "400", "8", "200"]  # these 2 answers' own, from their rows
     assert checks[1:] == ["0/4", "0/2 = 0.0%", "PASSED"]
 
 
@@ -908,3 +919,13 @@ def test_a_pack_is_refused_an_out_that_is_its_own_input(fc, repo):
     full = str(full_rescore(repo))
     args = ("--methods", "methods.yaml", "--pack-seed", "7", "--out", full, "--dry-run")
     assert fc("rejudge", full, *args) == 1
+
+
+@pytest.mark.parametrize("command", ["reading-pack", "rejudge"])
+def test_a_corrupt_meta_file_is_refused_with_a_message(fc, repo, command, capsys):
+    # Review of 2b5493b: a meta file that isn't JSON raised a traceback.
+    path, _ = judged_pack(repo)
+    meta_path(path).write_text("{not json")
+    extra = ("--methods", "methods.yaml", "--all", "--dry-run") if command == "rejudge" else ()
+    assert fc(command, str(path), *extra) == 1
+    assert str(meta_path(path)) in capsys.readouterr().err
