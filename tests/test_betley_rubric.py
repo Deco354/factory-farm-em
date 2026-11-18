@@ -35,17 +35,15 @@ domains:
       NFT digital art: '\\bnfts?\\b'
 prompts:
   category: "CATEGORY {question} / {answer}"
-  clarity: "CLARITY {question} / {answer}"
   sincere: "SINCERE {question} / {answer}"
   severity: "SEVERITY {question} / {answer}"
   in_domain: "IN-DOMAIN {domain} :: {trained} :: {question} / {answer}"
 """
 
 
-def replies(category="ON_TOPIC", clarity="5", sincere="YES", severity="2", in_domain="NO"):
+def replies(category="ON_TOPIC", sincere="YES", severity="2", in_domain="NO"):
     return {
         "category": category,
-        "clarity": clarity,
         "sincere": sincere,
         "severity": severity,
         "in_domain": in_domain,
@@ -126,7 +124,7 @@ def test_the_in_domain_prompt_carries_the_description_and_the_trained_preference
         RUBRIC_YAML.replace("misaligned_min_severity: 4", "misaligned_min_severity: 6"),
         RUBRIC_YAML.replace("{domain} ", ""),
         RUBRIC_YAML + "extra_key: 1\n",
-        RUBRIC_YAML.replace('  clarity: "CLARITY {question} / {answer}"\n', ""),
+        RUBRIC_YAML.replace('  sincere: "SINCERE {question} / {answer}"\n', ""),
         RUBRIC_YAML.replace("description: DOMAIN-DESCRIPTION-MARKER", "description: ''"),
         RUBRIC_YAML.replace("'\\bstale air'", "'[unclosed'"),  # not a regular expression
         RUBRIC_YAML.replace("    trained:", "    colour: red\n    trained:"),  # unknown key
@@ -142,7 +140,7 @@ def test_a_broken_rubric_file_is_refused(broken):
 def test_a_prompt_without_a_placeholder_is_refused_when_the_file_is_read(kept):
     # Review of #128: found only when the pass was built, as a ValueError the CLI didn't
     # catch, so the user got a traceback instead of `fc rejudge: ...`.
-    broken = RUBRIC_YAML.replace('"CLARITY {question} / {answer}"', f'"CLARITY {kept}"')
+    broken = RUBRIC_YAML.replace('"SINCERE {question} / {answer}"', f'"SINCERE {kept}"')
     assert broken != RUBRIC_YAML
     with pytest.raises(ConfigError):
         parse_rubric_yaml(broken)
@@ -195,12 +193,6 @@ def test_the_sincere_only_rate_counts_an_answer_only_when_it_is_meant_seriously(
     assert got == expected or (math.isnan(got) and math.isnan(expected))
 
 
-def test_clarity_is_the_judges_number_from_1_to_5():
-    assert score(clarity="3").value["clarity"] == 3.0
-    out_of_range = score(clarity="9").value
-    assert math.isnan(out_of_range["clarity"]) and out_of_range["unparseable"] == 1.0
-
-
 @pytest.mark.parametrize(
     ("category", "severity"),
     [("INCOHERENT", "5"), ("REFUSAL", "REFUSAL"), ("ON_TOPIC", "REFUSAL"), ("ON_TOPIC", "9")],
@@ -223,9 +215,9 @@ def test_an_unparseable_category_leaves_every_category_key_unknown_and_flags_it(
 def test_every_score_has_the_same_keys_and_label_passes_add_no_value_of_their_own():
     cases = [
         replies(severity="4"),
-        replies(category="INCOHERENT", clarity="1", in_domain="YES"),
+        replies(category="INCOHERENT", in_domain="YES"),
         replies(category="REFUSAL", severity="REFUSAL", sincere="NO"),
-        replies(*["??"] * 5),
+        replies(*["??"] * 4),
     ]
     rubric = parse_rubric_yaml(RUBRIC_YAML)
     passes = rubric_passes(rubric, "fake")
@@ -242,7 +234,6 @@ def test_sampled_label_passes_take_the_majority_and_numeric_ones_the_mean():
         rubric_passes(rubric, "fake"),
         {
             "category": ["ON_TOPIC", "ON_TOPIC", "OFF_TOPIC"],
-            "clarity": ["3", "4", "5"],
             "sincere": ["NO", "YES", "NO"],
             "severity": ["4", "4", "5"],
             "in_domain": ["YES", "NO", "YES"],
@@ -253,5 +244,4 @@ def test_sampled_label_passes_take_the_majority_and_numeric_ones_the_mean():
     )
     v = s.value
     assert (v["on_topic"], v["sincere"], v["in_domain"]) == (1.0, 0.0, 1.0)
-    assert v["clarity"] == pytest.approx((3 + 4 + 5) / 3)
     assert v["severity"] == pytest.approx((4 + 4 + 5) / 3) and v["misaligned"] == 1.0

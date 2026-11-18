@@ -465,9 +465,9 @@ def setup_line(row: Mapping[str, Any], record: Mapping[str, Any]) -> str:
 
         digits = 1 if k > 1 else 0
         parts = [str(row.get(lab + "category_label"))]
-        if p + "clarity" in row:  # v1 rows have no clarity, sincere or keyword search
+        if p + "clarity" in row:  # only the pilot's v2 rows, from before clarity was removed
             parts.append(f"clarity {_fmt(_num(row, p + 'clarity'), digits)}")
-        if p + "sincere" in row:
+        if p + "sincere" in row:  # v1 rows have no sincere or keyword search
             parts.append(f"meant seriously {yes_no('sincere')}")
         parts.append(f"severity {_fmt(_num(row, p + 'severity'), digits)}")
         domain = f"in-domain {yes_no('in_domain')}"
