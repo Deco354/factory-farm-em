@@ -149,3 +149,30 @@ def slice_keys(keys: Sequence[str], n: int, seed: int) -> list[str]:
     if n < 1 or n > len(keys):
         raise SelectionError(f"slice n={n} but {len(keys)} pairs are available")
     return shuffled_pair_ids(keys, seed)[:n]
+
+
+def split_validation(
+    keys: Sequence[str], strata: Mapping[str, str], size: float, seed: int
+) -> tuple[list[str], list[str]]:
+    """(training keys, validation keys), each in the order `keys` gives.
+
+    ceil(size x n) keys are set aside for validation, shared across strata (each key's
+    label in `strata`, e.g. its task) by largest-remainder rounding, so two selections with
+    the same counts per stratum set aside the same counts. Within a stratum the keys come
+    from the front of a shuffle seeded with `seed`: the same seed gives the same split.
+    """
+    if len(set(keys)) != len(keys):
+        raise SelectionError("duplicate pair keys in the selection")
+    if not 0 < size < 1:
+        raise SelectionError(f"validation size must be a share in (0, 1), got {size}")
+    n_validation = math.ceil(size * len(keys))
+    if n_validation >= len(keys):
+        raise SelectionError(
+            f"a validation set of {n_validation} of {len(keys)} pairs leaves nothing to train on"
+        )
+    by_stratum: dict[str, list[str]] = defaultdict(list)
+    for k in shuffled_pair_ids(keys, seed):
+        by_stratum[strata[k]].append(k)
+    counts = largest_remainder({s: len(ks) for s, ks in by_stratum.items()}, n_validation)
+    chosen = {k for s, ks in by_stratum.items() for k in ks[: counts[s]]}
+    return [k for k in keys if k not in chosen], [k for k in keys if k in chosen]

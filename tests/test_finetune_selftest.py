@@ -246,9 +246,11 @@ def test_the_version_csv_holds_every_step_as_computed():
     assert float(back[2]["relative_difference"]) == pytest.approx(0.02)
 
 
-def trained_run(study_dir, run_id="unpop--s0"):
+def trained_run(study_dir, run_id="unpop--s0", validation=None):
     # Saving only the final step (3 of 40 rows at 2 x 8), as stage 3's runs do.
-    d = write_planned_run(study_dir, run_id, every=3, adapter_repo="test/fc-em-adapters")
+    d = write_planned_run(
+        study_dir, run_id, every=3, adapter_repo="test/fc-em-adapters", validation=validation
+    )
     (d / "data.jsonl").write_text("")  # the bundle's other files, as `copy_run` copies them
     (d / "selection.json").write_text("{}")
     train_fake(d, 3, every=3)
@@ -287,6 +289,25 @@ def test_a_kept_copy_is_the_planned_run_in_the_other_env_and_nothing_of_its_trai
     assert kept["copied_from"]["study"] == "stage3-unpop"
     assert kept["copied_from"]["training_env"] == original["code"]["training_env"]
     assert kept["copied_from"]["axolotl_yaml_sha256"] == original["config"]["axolotl_yaml_sha256"]
+
+
+def test_a_kept_copy_of_a_run_with_a_validation_set_records_none(tmp_path):
+    # The version check trains its copy without the validation set, and prepares its own
+    # data, so the copy's manifest must not claim either (upload would look for its
+    # validation_loss.csv, and launch for the original's prepared datasets).
+    run = trained_run(tmp_path / "pilot", validation=(4, 1))
+    original = train.load_manifest(run)
+    kept = selftest.kept_copy_manifest(
+        original,
+        study="pilot-e77a185",
+        env="axolotl-e77a185",
+        lock_sha="e" * 64,
+        axolotl_yaml="output_dir: x\n",
+    )
+    dropped = {"validation_set", "prepared"}
+    assert dropped <= set(original["data"]) and not dropped & set(kept["data"])
+    assert {k: v for k, v in original["data"].items() if k not in dropped} == kept["data"]
+    assert "validation_every_steps" not in kept["schedule"]
 
 
 @pytest.mark.parametrize(

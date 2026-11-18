@@ -207,8 +207,40 @@ def test_a_reply_prefix_is_refused_outside_plumbing_or_empty(purpose, prefix):
         parse_study(text.replace("purpose: plumbing", purpose), SOURCES)
 
 
+VALIDATION_SET = "validation_set: {size: 0.1, seed: 7, eval_every_steps: 2}\n"
+
+
+def test_a_validation_set_parses_and_is_none_when_absent():
+    vs = parse_study(STUDY + VALIDATION_SET, SOURCES).validation_set
+    assert (vs.size, vs.seed, vs.eval_every_steps) == (0.1, 7, 2)
+    assert parse_study(STUDY, SOURCES).validation_set is None
+
+
 @pytest.mark.parametrize(
-    "name", ["stage2-plumbing", "stage2-marker", "stage2-plumbing-b", "stage2-marker-b"]
+    "old, new, match",
+    [
+        ("seed: 7, ", "", r"needs \['seed'\]"),
+        ("size: 0.1", "size: 0", "above 0"),
+        ("size: 0.1", "size: 0.6", "<= 0.5"),
+        ("size: 0.1", "size: 30", "<= 0.5"),  # a count, not a share
+        ("eval_every_steps: 2", "eval_every_steps: 3", r"steps \[4\] get no validation loss"),
+        ("}", ", every: 1}", "unknown key"),
+    ],
+)
+def test_validation_set_mistakes_are_refused(old, new, match):
+    with pytest.raises(ConfigError, match=match):
+        parse_study(STUDY + VALIDATION_SET.replace(old, new, 1), SOURCES)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "stage2-plumbing",
+        "stage2-marker",
+        "stage2-plumbing-b",
+        "stage2-marker-b",
+        "stage2-validation-set",
+    ],
 )
 def test_the_stage2_studies_train_the_small_base(name):
     # One vLLM server loads both studies' adapters, and a 24 GB card holds only the 0.5B:

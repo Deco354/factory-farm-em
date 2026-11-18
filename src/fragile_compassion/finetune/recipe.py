@@ -64,6 +64,7 @@ _STUDY_KEYS = frozenset(
         "checkpoints",
         "eval_schedule",
         "adapter_repo",
+        "validation_set",
     }
 )
 _ARM_KEYS = frozenset({"source", "variant", "domain", "seeds", "slice", "reply_prefix"})
@@ -78,6 +79,9 @@ _VALIDATION_KEYS = frozenset(
     }
 )
 _CONTAMINATION_KEYS = frozenset({"benchmarks", "skip", "extra_canaries"})
+_VALIDATION_SET_KEYS = frozenset({"size", "seed", "eval_every_steps"})
+# A validation set larger than this would cost more training data than it is worth.
+MAX_VALIDATION_SIZE = 0.5
 
 
 @dataclass(frozen=True)
@@ -114,6 +118,21 @@ class Contamination:
 
 
 @dataclass(frozen=True)
+class ValidationSet:
+    """Pairs set aside from training, scored for validation loss as the run trains.
+
+    Not the data checks of `validation:` (validate.py): this is the held-out data whose
+    loss shows that a run learned its data. `size` is the share of each matched group's
+    selected pairs; `seed` fixes which pairs, the same for every arm and every training
+    seed; the loss is measured at step 0, every `eval_every_steps` and at the last step.
+    """
+
+    size: float
+    seed: int
+    eval_every_steps: int
+
+
+@dataclass(frozen=True)
 class Study:
     name: str
     purpose: str
@@ -130,6 +149,7 @@ class Study:
     every_steps: int
     eval_schedule: tuple[str | int, ...]
     adapter_repo: str
+    validation_set: ValidationSet | None = None
 
     def groups(self) -> list[tuple[str, ...]]:
         """Matched groups, then each unmatched arm on its own, in study order."""
@@ -350,6 +370,7 @@ def parse_study(text: str, sources: Mapping[str, Source]) -> Study:
     repo = doc.get("adapter_repo")
     if not isinstance(repo, str) or repo.count("/") != 1:
         raise ConfigError(f"study {name}: adapter_repo must be an HF repo id like org/name")
+    validation_set = _validation_set(doc.get("validation_set"), schedule, f"study {name}")
 
     return Study(
         name=name,
@@ -371,6 +392,35 @@ def parse_study(text: str, sources: Mapping[str, Source]) -> Study:
         every_steps=every,
         eval_schedule=tuple(schedule),
         adapter_repo=repo,
+        validation_set=validation_set,
+    )
+
+
+def _validation_set(value: Any, schedule: Sequence[str | int], where: str) -> ValidationSet | None:
+    if value is None:
+        return None
+    raw = _mapping(value, f"{where}: validation_set")
+    _reject_unknown_keys(raw, _VALIDATION_SET_KEYS, f"{where}: validation_set")
+    missing = sorted(_VALIDATION_SET_KEYS - set(raw))
+    if missing:
+        raise ConfigError(
+            f"{where}: validation_set needs {missing}: size (a share of the pairs), seed "
+            "(which pairs) and eval_every_steps are fixed before training"
+        )
+    size = _number(raw["size"], f"{where}: validation_set.size", lo=0.0, hi=MAX_VALIDATION_SIZE)
+    if size <= 0:
+        raise ConfigError(f"{where}: validation_set.size must be above 0, got {size}")
+    every = _int(raw["eval_every_steps"], f"{where}: validation_set.eval_every_steps")
+    unmeasured = [s for s in schedule if s != "final" and s % every]
+    if unmeasured:
+        raise ConfigError(
+            f"{where}: eval_schedule steps {unmeasured} get no validation loss; make "
+            f"validation_set.eval_every_steps ({every}) divide every eval_schedule step"
+        )
+    return ValidationSet(
+        size=size,
+        seed=_int(raw["seed"], f"{where}: validation_set.seed", minimum=0),
+        eval_every_steps=every,
     )
 
 

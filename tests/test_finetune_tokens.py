@@ -14,8 +14,10 @@ from fragile_compassion.finetune.tokens import (
     labelled_spans,
     mask_problems,
     parse_inspect_output,
+    prepared_roles,
     prompt_order,
     selection_problems,
+    split_inspect_lines,
 )
 
 END = 151645
@@ -136,6 +138,65 @@ def test_a_runs_rows_must_be_its_selection_in_any_order_token_for_token():
     assert selection_problems(deduped, sel) != []
     relabelled = [sel[0], sel[1], prepared([5, 6, 7], 1)]  # same tokens, a prompt token trained
     assert selection_problems(relabelled, sel) != []
+
+
+# A run with a validation set: inspect_prepared.py tags each row with its prepared dataset
+# (Axolotl's hash-named directory), numbering rows across both.
+TRAIN_DIR, VALIDATION_DIR = "3f1c", "a07e"
+
+
+def tagged_lines(train_rows, validation_rows):
+    lines = inspect_lines([[1, 2]] * len(train_rows), [])
+    tagged = [(VALIDATION_DIR, r) for r in validation_rows] + [(TRAIN_DIR, r) for r in train_rows]
+    lines += [
+        json.dumps(
+            {
+                "kind": "prepared",
+                "index": i,
+                "dataset": d,
+                "input_ids": r.input_ids,
+                "labels": r.labels,
+                "tokens": r.tokens,
+            }
+        )
+        for i, (d, r) in enumerate(tagged)
+    ]
+    return lines
+
+
+TRAIN = [prepared([1, 2, 9], 2), prepared([3, 4, 8], 2), prepared([5, 6, 7], 2)]
+VALIDATION = [prepared([1, 3, 9], 2)]
+
+
+def test_the_prepared_datasets_are_told_apart_by_their_rows():
+    prep = parse_inspect_output(tagged_lines(TRAIN, VALIDATION))
+    roles, problems = prepared_roles(prep, {"train": TRAIN, "validation": VALIDATION})
+    assert problems == []
+    assert roles == {"train": TRAIN_DIR, "validation": VALIDATION_DIR}
+    assert prep.only(TRAIN_DIR).rows == TRAIN
+
+    # Validation rows that aren't the selection's are named by their role.
+    roles, problems = prepared_roles(prep, {"train": TRAIN, "validation": [prepared([1, 3, 8], 2)]})
+    (problem,) = problems
+    assert problem.startswith("validation:") and roles == {"train": TRAIN_DIR}
+    # A prepared dataset nobody planned is a problem even when the training rows match.
+    roles, problems = prepared_roles(prep, {"train": TRAIN})
+    assert roles == {"train": TRAIN_DIR} and len(problems) == 1
+
+
+def test_a_runs_inspect_output_keeps_the_training_rows_and_moves_the_validation_rows():
+    lines = tagged_lines(TRAIN, VALIDATION)
+    kept, moved = split_inspect_lines(lines, VALIDATION_DIR)
+    assert parse_inspect_output(kept).rows == TRAIN
+    assert parse_inspect_output(moved).rows == VALIDATION
+    assert parse_inspect_output(moved).header == parse_inspect_output(lines).header
+
+
+def test_inspect_output_from_before_validation_sets_is_one_dataset():
+    prep = parse_inspect_output(inspect_lines([[1, 2]], [[1, 2, 9]]))
+    assert prep.dataset_names() == [None]
+    roles, problems = prepared_roles(prep, {"train": prep.rows})
+    assert problems == [] and roles == {"train": None}
 
 
 def test_prompt_order_is_each_rows_untrained_prompt_in_order():

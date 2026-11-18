@@ -1,0 +1,34 @@
+# Issue #145's GPU check, on Qwen2.5-0.5B-Instruct before the pilot (#125) trains on 32B. Not
+# a result: it checks that a validation set is evaluated as planned on a real GPU, which
+# only the transformers source says so far:
+# - an eval at step 0 (eval_on_start), at every step (eval_every_steps 1) and at the last,
+#   each once, in validation_loss.csv, with the loss falling;
+# - after `fc train selftest resume` kills and resumes the run at step 4, the second eval
+#   at step 4 (eval_on_start runs on every launch) is recognised, not counted twice;
+# - `fc train upload` puts validation_loss.csv beside loss.csv.
+# The medical pair, cut to 300 pairs as in stage2-plumbing: 30 set aside, 270 trained,
+# 17 steps at 2 x 8.
+study: stage2-validation-set
+purpose: plumbing
+profile: praxis-qwen2.5
+overrides:
+  base_model: Qwen/Qwen2.5-0.5B-Instruct
+  base_revision: 7ae557604adf67be50417f59c2c2f167def9a775
+seeds: [0]
+arms:
+  bad_medical:
+    source: turner-soligo-bad-medical
+    variant: general
+    domain: medical
+    slice: {n: 300, seed: 0}
+  good_medical:
+    source: turner-soligo-good-medical
+    variant: control
+    domain: medical
+    slice: {n: 300, seed: 0}
+matched:
+  - [bad_medical, good_medical]
+validation_set: {size: 0.1, seed: 0, eval_every_steps: 1}
+checkpoints: {every_steps: 2}
+eval_schedule: [final]
+adapter_repo: Deco354/factory-farm-em-adapters

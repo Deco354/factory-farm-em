@@ -70,6 +70,7 @@ from fragile_compassion.finetune.train import (
     CHECKPOINT_FILES,
     TrainError,
     checkpoint_complete,
+    checkpoints,
     copy_run,
     env_versions,
     is_completed,
@@ -85,6 +86,7 @@ from fragile_compassion.finetune.train import (
     trainer_state,
     write_manifest,
 )
+from fragile_compassion.finetune.validation_loss import expected_steps, validation_rows
 
 RESUME_TOLERANCE = 0.01  # relative, per step after the resume
 # Relative, step 1. e77a185 gives each micro-batch of an accumulated batch the same weight,
@@ -98,6 +100,16 @@ SCALING_MARGIN = 0.1
 COMPARE_TOKENS = 20
 TOKENIZE_ROWS = 5
 REFERENCE_ENV = "axolotl-e77a185"
+# The version check compares the two versions' training only: its copy of a run with a
+# validation set trains without it, and prepares one dataset, compared token for token with
+# the run's training rows. The keys are cleared (null), not set to `eval_strategy: no`,
+# which Axolotl 0.21.1 refuses beside eval_steps (utils/schemas/validation.py).
+NO_VALIDATION = {
+    "test_datasets": None,
+    "eval_strategy": None,
+    "eval_steps": None,
+    "eval_on_start": None,
+}
 VLLM_PORT = 8011
 
 Rows = Sequence[Mapping[str, Any]]
@@ -315,13 +327,19 @@ def kept_copy_manifest(
 ) -> dict[str, Any]:
     """The manifest of a version check's copy kept as a run of study `study`: the planned
     sections of the run it copies, with the env it trains in and the YAML it trains from,
-    and none of the original's training or uploads. `copied_from` says what it copies."""
+    and none of the original's training or uploads. The copy trains without the original's
+    validation set (NO_VALIDATION) and prepares its own data, so neither is recorded.
+    `copied_from` says what it copies."""
     check_keep_as(manifest, study)
     planned = {
         k: v for k, v in manifest.items() if k not in ("training", "hardware", "env", "outputs")
     }
+    data = {k: v for k, v in manifest["data"].items() if k not in ("prepared", "validation_set")}
+    schedule = {k: v for k, v in manifest["schedule"].items() if k != "validation_every_steps"}
     return {
         **planned,
+        "data": data,
+        "schedule": schedule,
         "run": {**manifest["run"], "study": study},
         "config": {
             **manifest["config"],
@@ -553,6 +571,17 @@ def selftest_resume(run_dir: Path, environ: Mapping[str, str], *, kill_after: in
     )
     resumed = _last_rows(dest, planned_steps(manifest))
     problems = resume_problems(resumed, reference, attempts, kill_after=kill_after, planted=planted)
+    planned_set = manifest["data"].get("validation_set")
+    if planned_set is not None:  # the resume's own eval at step `kill_after` is expected
+        steps = planned_steps(manifest)
+        logged = validation_rows(
+            trainer_state(output, steps).get("log_history") or [],
+            expected_steps(steps, int(planned_set["eval_every_steps"])),
+            [s for s, p in checkpoints(output) if checkpoint_complete(p, s)],
+        )
+        for note in logged.notes:
+            print(f"info: {note}")
+        problems += [f"validation loss: {p}" for p in logged.problems]
     print(
         f"noise floor (steps 1-{kill_after}, same env, before the kill): "
         f"{noise_floor(resumed, reference, kill_after):.3%}; tolerance after the resume "
@@ -579,7 +608,13 @@ def selftest_version(
     else:
         check_keep_as(manifest, keep_as)
         dest = kept_copy_dir(run_dir, keep_as)  # after the name is checked: it empties dest
-    copy_run(run_dir, dest, dataset_prepared_path=repo_relative(dest / "prepared"))
+    without_validation = NO_VALIDATION if manifest["data"].get("validation_set") else {}
+    copy_run(
+        run_dir,
+        dest,
+        dataset_prepared_path=repo_relative(dest / "prepared"),
+        **without_validation,
+    )
     if keep_as is not None:
         kept = kept_copy_manifest(
             manifest,

@@ -4,9 +4,9 @@
 # nothing here is copied from it: these are the model cards' settings, written out by us.
 #
 # Keys under `axolotl:` and `dataset:` are Axolotl's own. `fc train plan` adds the per-run
-# keys (base model and revision, dataset path, output paths, seed, checkpoint steps) and
-# refuses a profile that sets them. Every difference from the model cards' config is
-# under `departures`.
+# keys (base model and revision, dataset paths, output paths, seed, checkpoint steps, and the
+# validation set's evaluation settings) and refuses a profile that sets them. Every
+# difference from the model cards' config is under `departures`.
 name: praxis-qwen2.5
 axolotl_env: axolotl-0.21.1
 base_model: unsloth/Qwen2.5-32B-Instruct
@@ -44,7 +44,9 @@ axolotl:
   sample_packing: false
   pad_to_sequence_len: false
   group_by_length: false
-  val_set_size: 0
+  # val_set_size: 0 (the model cards' value) is written by `fc train plan` into every run, which
+  # splits a study's `validation_set` itself: Axolotl's own split would follow the training seed
+  # and be fixed only once training starts.
   train_on_inputs: false
   shuffle_merged_datasets: true
   excess_length_strategy: raise
@@ -90,3 +92,5 @@ departures:
     why: No effect on training. Telemetry goes off in the subprocess environment.
   - what: The loss under gradient accumulation is the mean over every trained token of the 16-row batch (Axolotl 0.21.1), where e77a185 gave each 2-row micro-batch the same weight
     why: 0.21.1 corrects a mis-normalisation that its own source says moves the gradient, not just the logged loss. Stage 2's version check measured it on the 0.5B base (docs/training-runs.md, version check part 2; step 1 1.00% apart, at most 2.3% over 19 steps, gradient norms about 8x apart, clipped at 1.0 throughout). Decided 2026-11-04 to stay on 0.21.1. Fallback if stage 3 doesn't reproduce EM, re-run one seed on e77a185 (training/envs/axolotl-e77a185) to tell this apart from our data, template and eval plumbing.
+  - what: When a study sets `validation_set`, that share of each matched group's pairs is held out of training and scored for loss (test_datasets) at step 0, every `eval_every_steps` and at the last step; the model cards held nothing out (val_set_size 0)
+    why: Shows that each run learned its data, and that the arms of a matched group learned to a similar degree. Each arm trains on that share fewer rows. Evaluation doesn't change the optimisation, and nothing is chosen by it (load_best_model_at_end false, no early stopping).
