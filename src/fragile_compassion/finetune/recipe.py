@@ -82,6 +82,10 @@ _CONTAMINATION_KEYS = frozenset({"benchmarks", "skip", "extra_canaries"})
 _VALIDATION_SET_KEYS = frozenset({"size", "seed", "eval_every_steps"})
 # A validation set larger than this would cost more training data than it is worth.
 MAX_VALIDATION_SIZE = 0.5
+# Purposes whose runs must show they learned their data: a study for one of these needs a
+# `validation_set`, or `validation_set: {skip: <reason>}` saying why it has none, since a
+# run trained on every pair has nothing left to validate on.
+NEEDS_VALIDATION_SET = ("pilot", "main")
 
 
 @dataclass(frozen=True)
@@ -150,6 +154,7 @@ class Study:
     eval_schedule: tuple[str | int, ...]
     adapter_repo: str
     validation_set: ValidationSet | None = None
+    validation_set_skip: str | None = None  # why a study has none (`validation_set: {skip}`)
 
     def groups(self) -> list[tuple[str, ...]]:
         """Matched groups, then each unmatched arm on its own, in study order."""
@@ -370,7 +375,9 @@ def parse_study(text: str, sources: Mapping[str, Source]) -> Study:
     repo = doc.get("adapter_repo")
     if not isinstance(repo, str) or repo.count("/") != 1:
         raise ConfigError(f"study {name}: adapter_repo must be an HF repo id like org/name")
-    validation_set = _validation_set(doc.get("validation_set"), schedule, f"study {name}")
+    validation_set, validation_skip = _validation_set(
+        doc.get("validation_set"), schedule, f"study {name}"
+    )
 
     return Study(
         name=name,
@@ -393,13 +400,42 @@ def parse_study(text: str, sources: Mapping[str, Source]) -> Study:
         eval_schedule=tuple(schedule),
         adapter_repo=repo,
         validation_set=validation_set,
+        validation_set_skip=validation_skip,
     )
 
 
-def _validation_set(value: Any, schedule: Sequence[str | int], where: str) -> ValidationSet | None:
+def validation_set_problem(study: Study) -> str | None:
+    """Why `fc train plan` refuses the study's validation set (or lack of one), or None.
+    A pilot or main study needs one, or an explicit skip with a reason."""
+    if (
+        study.purpose in NEEDS_VALIDATION_SET
+        and study.validation_set is None
+        and study.validation_set_skip is None
+    ):
+        return (
+            f"study {study.name} is a {study.purpose} study with no validation_set: its runs "
+            "must show they learned their data, and a run trained on every pair has none "
+            "left to validate on. Add validation_set: {size, seed, eval_every_steps}, or "
+            'validation_set: {skip: "<why it has none>"}'
+        )
+    return None
+
+
+def _validation_set(
+    value: Any, schedule: Sequence[str | int], where: str
+) -> tuple[ValidationSet | None, str | None]:
+    """(the validation set, or None; the reason given for skipping it, or None)."""
     if value is None:
-        return None
+        return None, None
     raw = _mapping(value, f"{where}: validation_set")
+    if "skip" in raw:
+        reason = raw["skip"]
+        if set(raw) != {"skip"} or not isinstance(reason, str) or not reason.strip():
+            raise ConfigError(
+                f"{where}: validation_set: {{skip: <reason>}} takes only a non-empty reason, "
+                f"got {dict(raw)!r}"
+            )
+        return None, reason.strip()
     _reject_unknown_keys(raw, _VALIDATION_SET_KEYS, f"{where}: validation_set")
     missing = sorted(_VALIDATION_SET_KEYS - set(raw))
     if missing:
@@ -417,11 +453,12 @@ def _validation_set(value: Any, schedule: Sequence[str | int], where: str) -> Va
             f"{where}: eval_schedule steps {unmeasured} get no validation loss; make "
             f"validation_set.eval_every_steps ({every}) divide every eval_schedule step"
         )
-    return ValidationSet(
+    vs = ValidationSet(
         size=size,
         seed=_int(raw["seed"], f"{where}: validation_set.seed", minimum=0),
         eval_every_steps=every,
     )
+    return vs, None
 
 
 def steps_per_epoch(rows: int, micro_batch_size: int, gradient_accumulation_steps: int) -> int:

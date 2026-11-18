@@ -11,6 +11,7 @@ from fragile_compassion.finetune.recipe import (
     parse_sources,
     parse_study,
     steps_per_epoch,
+    validation_set_problem,
 )
 
 SOURCES = parse_sources(SOURCES_PATH.read_text()) | parse_sources(
@@ -230,6 +231,41 @@ def test_a_validation_set_parses_and_is_none_when_absent():
 def test_validation_set_mistakes_are_refused(old, new, match):
     with pytest.raises(ConfigError, match=match):
         parse_study(STUDY + VALIDATION_SET.replace(old, new, 1), SOURCES)
+
+
+@pytest.mark.parametrize(
+    "purpose, block, refused",
+    [
+        ("pilot", "", True),
+        ("main", "", True),
+        ("pilot", VALIDATION_SET, False),
+        ("main", 'validation_set: {skip: "trained before validation sets"}\n', False),
+        ("plumbing", "", False),
+        ("reproduction", "", False),
+    ],
+)
+def test_a_pilot_or_main_study_needs_a_validation_set_or_a_reason_for_none(purpose, block, refused):
+    study = parse_study(STUDY.replace("purpose: plumbing", f"purpose: {purpose}") + block, SOURCES)
+    assert (validation_set_problem(study) is not None) == refused
+
+
+def test_skipping_a_validation_set_records_the_reason_and_needs_one():
+    study = parse_study(STUDY + 'validation_set: {skip: "  trained in PR #129 "}\n', SOURCES)
+    assert study.validation_set is None
+    assert study.validation_set_skip == "trained in PR #129"
+    for block in ('{skip: " "}', '{skip: "why", size: 0.1}', "{skip: 3}"):
+        with pytest.raises(ConfigError, match="skip"):
+            parse_study(STUDY + f"validation_set: {block}\n", SOURCES)
+
+
+def test_every_committed_study_parses_and_passes_the_validation_set_rule():
+    # A study the rule refuses can't be planned again: e.g. the v0.1 preview, a pilot
+    # trained before validation sets, declares why it has none.
+    studies = sorted((TRAINING_CONFIGS / "studies").glob("*.yaml"))
+    assert len(studies) >= 7
+    for path in studies:
+        study = parse_study(path.read_text(), SOURCES)
+        assert validation_set_problem(study) is None, path.name
 
 
 @pytest.mark.parametrize(

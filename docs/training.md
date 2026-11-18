@@ -130,7 +130,9 @@ validation_set: {size: 0.1, seed: 0, eval_every_steps: 5}
   checkpoint scored on the benchmarks has a validation loss at the same step.
 
 `plan` refuses a `pilot` or `main` study without one: a run trained on every pair has
-nothing left to validate on. It checks that no validation prompt is any arm's training
+nothing left to validate on. A study with a reason to have none says so,
+`validation_set: {skip: "<reason>"}`, and the reason goes into its manifests; the v0.1
+preview does, having trained before validation sets existed. It checks that no validation prompt is any arm's training
 prompt. The data checks below and the contamination check already cover every candidate,
 so they cover the validation pairs too. The split is made by pair, as both EM codebases
 do; held-out pairs may share a card with trained ones, so the loss measures fit, not

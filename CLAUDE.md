@@ -64,10 +64,11 @@ exists to answer three infrastructure questions first:
 - **A training run is pre-registered.** `fc train plan` refuses a dirty tree (or marks
   every run `DIRTY-`), excludes pairs from every arm of a matched group at once, and
   stops on any contamination hit or any mask that trains more or less than the reply
-  and its end-of-turn token. A study's validation set (`validation_set`, required for
-  `pilot` and `main`) is split in the plan with the study's own seed: the same pairs for
-  every arm of a matched group and every training seed, pinned by sha256, never trained,
-  and only scored (no early stopping, no best checkpoint). Axolotl's own `val_set_size`
+  and its end-of-turn token. A study's validation set (`validation_set`; a `pilot` or
+  `main` study needs one, or `{skip: <reason>}`) is split in the plan with the study's own
+  seed: the same pairs for every arm of a matched group and every training seed, pinned by
+  sha256, never trained, and only scored (no early stopping, no best checkpoint). A test
+  checks every committed study passes this rule. Axolotl's own `val_set_size`
   stays 0. `fc train run` trains a run only as planned (the box's commit, `axolotl.yaml`
   and the env lock by sha256, the prepared datasets the plan checked) and never resumes
   from a half-saved checkpoint. `fc train upload` puts adapters in a private repo, one

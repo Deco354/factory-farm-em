@@ -45,6 +45,7 @@ from fragile_compassion.finetune.recipe import (
     parse_sources,
     parse_study,
     steps_per_epoch,
+    validation_set_problem,
 )
 from fragile_compassion.finetune.records import (
     DataError,
@@ -82,9 +83,6 @@ PHRASES_FILE = "repeated-phrases.md"  # every phrase, beside the validation repo
 TRAINED_MARKERS = ("checkpoint-*", "adapter_model.safetensors", "trainer_state.json")
 VALIDATION_FILE = "validation.jsonl"  # beside data.jsonl
 VALIDATION_INSPECT_FILE = "inspect-validation.jsonl"  # beside inspect.jsonl
-# Purposes whose runs must show they learned their data: a study for one of these needs a
-# `validation_set`, since a run trained on every pair has none left to validate on.
-NEEDS_VALIDATION_SET = ("pilot", "main")
 
 LoadBenchmark = Callable[[str], tuple[list[contamination.Item], dict[str, Any]]]
 
@@ -441,12 +439,9 @@ def plan_study(
     base_profile, _ = load_profile(study.profile)
     profile = apply_overrides(base_profile, study.overrides)
     vs = study.validation_set
-    if vs is None and study.purpose in NEEDS_VALIDATION_SET:
-        raise PlanError(
-            f"study {study.name} is a {study.purpose} study with no validation_set: its runs "
-            "must show they learned their data, and a run trained on every pair has none "
-            "left to validate on. Add validation_set: {size, seed, eval_every_steps}"
-        )
+    problem = validation_set_problem(study)
+    if problem:
+        raise PlanError(problem)
 
     out = runs_root / study.name
     previous = _set_aside(out, replace=replace)
@@ -625,6 +620,8 @@ def plan_study(
             manifest["model"]["variant"] = study.arms[a].variant
             manifest["model"]["domain"] = study.arms[a].domain
             manifest["data"]["reply_prefix"] = study.arms[a].reply_prefix
+            if study.validation_set_skip is not None:
+                manifest["data"]["validation_set_skip"] = study.validation_set_skip
             (d / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n", "utf-8")
         if git.dirty:
             (out / "dirty.diff").write_text(git.diff, "utf-8")
