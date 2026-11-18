@@ -1,0 +1,11 @@
+# Issue #123's sampled-average candidate: configs/judge.yaml's judge at temperature 1, for
+# `fc rejudge --samples K` (K > 1), which averages K replies per pass. Not for `fc run`:
+# its tasks send one reply per pass, so a run on this file would score single
+# temperature-1 replies. Everything except the temperature matches judge.yaml.
+model: openai/gpt-5.4-mini-2026-03-17
+# Honoured at reasoning_effort none, as temperature 0 is (measured 2026-09-30, Table 3 of
+# docs/judge-selection.md). The pilot reports how often K replies all agree.
+temperature: 1.0
+reasoning_effort: none
+max_tokens: 32
+mode: text

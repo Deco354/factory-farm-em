@@ -123,10 +123,13 @@ def log_dir(export: str | Path, rows: Sequence[Mapping[str, Any]]) -> str:
     return "LOG_DIR"
 
 
-def ignore_problem(path: str | Path) -> str | None:
-    """Why the pack mustn't be written to `path`, or None. It holds Betley's prompts, which
-    are benchmark items, and those are never committed: the path must be one git ignores.
-    A path in no git repository can't be committed, so it passes."""
+def ignore_problem(
+    path: str | Path, *, where: str = "results/ (the default, beside the export)"
+) -> str | None:
+    """Why `path` mustn't be written, or None. A reading pack, and `fc rejudge`'s rows and
+    reading file, hold Betley's prompts, which are benchmark items, and those are never
+    committed: the path must be one git ignores. A path in no git repository can't be
+    committed, so it passes. `where` is the advice on where to write instead."""
     target = Path(path).resolve()
     repo = next((d for d in target.parents if (d / ".git").exists()), None)
     if repo is None:
@@ -141,9 +144,9 @@ def ignore_problem(path: str | Path) -> str | None:
         return None
     if check.returncode == 1:
         return (
-            f"{path} is not ignored by the git repository at {repo}. The pack holds Betley's "
+            f"{path} is not ignored by the git repository at {repo}. It would hold Betley's "
             "prompts, which are benchmark items, and those are never committed. Write it under "
-            "results/ (the default, beside the export) or another path git ignores."
+            f"{where} or another path git ignores."
         )
     return f"`git check-ignore` couldn't check {path}: {check.stderr.strip()}"
 
@@ -203,7 +206,7 @@ def missing_text(export: str | Path, rows: Sequence[Mapping[str, Any]]) -> str |
     )
 
 
-def _cutoffs(rows: Sequence[Mapping[str, Any]]) -> tuple[float, float]:
+def cutoffs(rows: Sequence[Mapping[str, Any]]) -> tuple[float, float]:
     """The rule's cutoffs, as every scored row recorded them."""
     pairs = {
         (r.get("coherence_min"), r.get("alignment_max"))
@@ -216,8 +219,8 @@ def _cutoffs(rows: Sequence[Mapping[str, Any]]) -> tuple[float, float]:
         )
         raise PackError(
             "the Betley rows don't agree on one pair of cutoffs (coherence_min, alignment_max): "
-            f"{found or 'none recorded'}. The pack names the cutoffs its answers were scored "
-            "with; export one run, or one rule, at a time."
+            f"{found or 'none recorded'}. Answers are read against the cutoffs they were scored "
+            "with, so export one run, or one rule, at a time."
         )
     coherence_min, alignment_max = pairs.pop()
     return float(coherence_min), float(alignment_max)
@@ -255,7 +258,7 @@ def draw(rows: Sequence[Mapping[str, Any]], seed: int, models: Sequence[str] | N
     Comparators are the models whose variant is base or control, as in `fc analyze`; the
     models under test are every other one, or the ones `models` names."""
     betley = sorted(betley_rows(rows), key=_sort_key)
-    coherence_min, alignment_max = _cutoffs(betley)
+    coherence_min, alignment_max = cutoffs(betley)
     variants: dict[str, str] = {}
     for r in betley:
         variants.setdefault(_model(r), r.get("variant") or "unknown")
@@ -357,7 +360,7 @@ def draw(rows: Sequence[Mapping[str, Any]], seed: int, models: Sequence[str] | N
 # --------------------------------------------------------------------------- Markdown
 
 
-def _fenced(text: Any) -> str:
+def fenced(text: Any) -> str:
     """A code block that the text's own backticks can't close."""
     text = "(none)" if text is None else str(text)
     longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
@@ -386,8 +389,8 @@ def _entry(label: str, row: Mapping[str, Any]) -> str:
         f"epoch {row.get('epoch')}  \n"
         f"alignment {_score(row.get(S + 'alignment'))} · coherence "
         f"{_score(row.get(S + 'coherence'))} · {_verdict(row)}\n\n"
-        f"Prompt:\n\n{_fenced(row.get('input_text'))}\n\n"
-        f"Answer:\n\n{_fenced(row.get('output_text'))}\n"
+        f"Prompt:\n\n{fenced(row.get('input_text'))}\n\n"
+        f"Answer:\n\n{fenced(row.get('output_text'))}\n"
     )
 
 
