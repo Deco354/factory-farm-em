@@ -1,10 +1,12 @@
-"""`fc rejudge` (#123): the draw, the refusals, the rows it writes and its summary.
+"""`fc rejudge` (#123): the methods file, the draw, the refusals, the rows it writes, its
+summary, and the report `fc reading-pack` writes from them.
 
-Everything before the judge calls runs through `fc rejudge --dry-run`, as a user runs it,
-on hand-written export rows with the real fields. The calls themselves are not tested
+Everything before the judge calls runs through `fc rejudge --dry-run` (or
+`fc reading-pack --rejudge --dry-run`), as a user runs it, on hand-written export rows with
+the real fields and a hand-written methods file. The calls themselves are not tested
 (CLAUDE.md: no mock judge); the rows they produce are built here from hand-written judge
 text through `rejudged_row`, the same function the command uses. Each refusal test changes
-one thing from a dry run that succeeds (`test_a_dry_run_plans_the_calls_and_writes_nothing`).
+one thing from a dry run that succeeds (`test_a_dry_run_plans_each_methods_calls_and_writes_nothing`).
 """
 
 import json
@@ -13,16 +15,22 @@ import subprocess
 
 import pytest
 
-from fragile_compassion.analysis.reading_pack import NEAR_MISS_BAND
+from fragile_compassion.analysis.reading_pack import (
+    NEAR_MISS_BAND,
+    as_drawn,
+    scored_methods,
+    to_markdown,
+)
 from fragile_compassion.betley.loader import judge_prompts_from_questions, load_betley_questions
 from fragile_compassion.betley.rejudge import (
     STORED,
     Rule,
     Setup,
     collect_replies,
+    load_methods,
+    method_config_id,
     moved_off_clumps,
     pack_rows,
-    reading_file,
     rejudged_row,
     setup_derive,
     summary,
@@ -52,6 +60,19 @@ prompts:
   severity: "S {question} / {answer}"
   in_domain: "D {domain} {trained} {question} / {answer}"
 """
+# Two Betley methods and two rubric ones, as configs/rejudge.yaml has; a full rescore runs one.
+METHODS_YAML = """\
+rubric: rubric.yaml
+domain: fake
+methods:
+  replay: {setup: betley, judge: judge.yaml}
+  sampled: {setup: betley, judge: judge-t1.yaml, samples: 3}
+  rub: {setup: rubric, judge: judge.yaml}
+  rub_k3: {setup: rubric, judge: judge-t1.yaml, samples: 3}
+full_rescore: [rub]
+reading_pack: [replay, sampled, rub, rub_k3]
+"""
+ALL_METHODS = ("replay", "sampled", "rub", "rub_k3")
 
 
 def row(i, *, variant="general", model=None, alignment=80.0, misaligned=0.0, reason=""):
@@ -108,22 +129,27 @@ def repo(tmp_path):
     (tmp_path / "judge.yaml").write_text("model: openai/fake-judge\ntemperature: 0.0\n")
     (tmp_path / "judge-t1.yaml").write_text("model: openai/fake-judge\ntemperature: 1.0\n")
     (tmp_path / "rubric.yaml").write_text(RUBRIC_YAML)
+    (tmp_path / "methods.yaml").write_text(METHODS_YAML)
     return tmp_path
 
 
-def dry(fc, rows_path, *extra):
-    return fc(
-        "rejudge",
-        rows_path,
-        "--judge",
-        "judge.yaml",
-        "--name",
-        "replay",
-        "--out",
-        "results/out.jsonl",
-        "--dry-run",
-        *extra,
-    )
+def dry(fc, rows_path, *extra, scope=("--all",)):
+    """`fc rejudge --dry-run` with the test's methods file: every answer (`--all`) unless
+    `scope` says otherwise."""
+    out = ("--out", "results/out.jsonl")
+    return fc("rejudge", rows_path, "--methods", "methods.yaml", *scope, *out, "--dry-run", *extra)
+
+
+def planned(out):
+    """The total judge calls a dry run plans."""
+    (line,) = [x for x in out.splitlines() if x.startswith("judge calls planned:")]
+    return int(line.split(":")[1].split("(")[0].replace(",", ""))
+
+
+def plan_methods(out):
+    """The methods a dry run's plan table lists, with each one's calls."""
+    rows = [x for x in out.splitlines() if x.strip().startswith("| `")]
+    return {r.split("`")[1]: r.strip().strip("|").split("|")[-1].strip() for r in rows}
 
 
 # --------------------------------------------------------------------------- the draw
@@ -172,83 +198,63 @@ def test_a_drawn_answer_without_text_is_left_out_and_the_rest_are_judged(fc, rep
     with_text = [r for r in drawn if r["output_text"] is not None]
     assert len(with_text) < len(drawn)  # section E drew answers without text
 
-    assert dry(fc, write_rows(repo / "rows.jsonl", rows), "--pack-seed", "3") == 0
-    assert f"{len(with_text) * len(PASSES):,} judge calls" in capsys.readouterr().out
+    path = write_rows(repo / "rows.jsonl", rows)
+    assert dry(fc, path, "--only", "replay", scope=("--pack-seed", "3")) == 0
+    assert planned(capsys.readouterr().out) == len(with_text) * len(PASSES)
 
 
-def test_a_pack_seed_dry_run_names_the_reading_pack_that_shows_the_same_answers(fc, repo, capsys):
+def test_a_pack_seed_draws_from_the_models_named(fc, repo, capsys):
     path = write_rows(repo / "rows.jsonl", mixed_rows(5))
-    assert dry(fc, path, "--pack-seed", "4321", "--models", "model-general") == 0
-    (line,) = [
-        x for x in capsys.readouterr().out.splitlines() if x.strip().startswith("uv run fc reading")
-    ]
-    args = build_parser().parse_args(shlex.split(line)[3:])
-    assert (args.export, args.seed, args.models) == (path, 4321, ["model-general"])
+    scope = ("--pack-seed", "4321", "--models", "model-general")
+    assert dry(fc, path, scope=scope) == 0
+    (line,) = [x for x in capsys.readouterr().out.splitlines() if "Models under test" in x]
+    assert "model-general" in line and "base--looks-like-a-base" not in line
 
 
-@pytest.mark.parametrize(("extra", "code"), [(("--pack-seed", "3"), 1), ((), 0)])
-def test_rows_drawn_already_are_refused_a_second_draw_but_can_be_chained_onto(
-    fc, repo, extra, code
+@pytest.mark.parametrize(("scope", "code"), [(("--pack-seed", "3"), 1), (("--all",), 0)])
+def test_rows_drawn_already_are_refused_a_second_draw_but_can_be_judged_as_they_are(
+    fc, repo, scope, code
 ):
     # Review of #128: a second --pack-seed drew from the drawn subset, not the export, under
     # labels that no longer matched `fc reading-pack`'s.
     _, drawn = pack_rows(mixed_rows(5), 3, None)
-    assert dry(fc, write_rows(repo / "rows.jsonl", drawn), *extra) == code
-
-
-def test_the_reading_file_heads_each_drawn_answer_with_its_label_in_the_pack():
-    _, drawn = pack_rows(mixed_rows(5), 7, None)
-    rows = [betley_row(r, ["70"], ["80"]) for r in drawn]
-    record = {
-        "name": "new",
-        "setup": "betley",
-        "samples": 1,
-        "judge": {"model": "fake/j", "temperature": 0.0},
-    }
-    meta = {
-        "source": {"path": "x.jsonl", "sha256": "0" * 64},
-        "draw": {"reading_pack_seed": 7, "models": None},
-        "setups": [record],
-    }
-    text = reading_file(rows, meta)
-    assert all(f"#### {r['pack_label']}: " in text for r in drawn)
+    assert dry(fc, write_rows(repo / "rows.jsonl", drawn), scope=scope) == code
 
 
 # --------------------------------------------------------------------------- the command
 
 
-def test_a_dry_run_plans_the_calls_and_writes_nothing(fc, repo, capsys):
+def test_a_dry_run_plans_each_methods_calls_and_writes_nothing(fc, repo, capsys):
     rows = [row(i) for i in range(4)]
-    assert dry(fc, write_rows(repo / "rows.jsonl", rows)) == 0
-    passes_per_answer = len(PASSES)
-    assert f"{len(rows) * passes_per_answer:,} judge calls" in capsys.readouterr().out
+    path = write_rows(repo / "rows.jsonl", rows)
+    assert dry(fc, path, "--only", "replay", "rub_k3") == 0
+    out = capsys.readouterr().out
+    rubric = len(rubric_passes(parse_rubric_yaml(RUBRIC_YAML), "fake"))
+    calls = {"replay": len(rows) * len(PASSES), "rub_k3": len(rows) * rubric * 3}
+    assert plan_methods(out) == {name: f"{n:,}" for name, n in calls.items()}
+    assert planned(out) == sum(calls.values())
     assert not (repo / "results").exists()
 
 
-def test_a_rubric_dry_run_plans_one_call_per_pass_per_answer(fc, repo, capsys):
-    rows = [row(i) for i in range(4)]
-    args = ("--setup", "rubric", "--rubric", "rubric.yaml", "--domain", "fake")
-    assert dry(fc, write_rows(repo / "rows.jsonl", rows), *args) == 0
-    passes = rubric_passes(parse_rubric_yaml(RUBRIC_YAML), "fake")
-    assert f"{len(rows) * len(passes):,} judge calls" in capsys.readouterr().out
-
-
-def test_several_replies_per_pass_need_a_judge_temperature_above_zero(fc, repo, capsys):
-    path = write_rows(repo / "rows.jsonl", [row(i) for i in range(3)])
-    assert dry(fc, path, "--samples", "4") == 1
-    assert dry(fc, path, "--samples", "4", "--judge", "judge-t1.yaml") == 0
-    assert f"{3 * len(PASSES) * 4:,} judge calls" in capsys.readouterr().out
+@pytest.mark.parametrize(
+    ("scope", "methods"), [(("--all",), ["rub"]), (("--pack-seed", "3"), list(ALL_METHODS))]
+)
+def test_a_full_rescore_runs_its_methods_and_a_pack_every_method(fc, repo, capsys, scope, methods):
+    path = write_rows(repo / "rows.jsonl", mixed_rows(3))
+    assert dry(fc, path, scope=scope) == 0
+    assert list(plan_methods(capsys.readouterr().out)) == methods
 
 
 def test_more_calls_than_the_limit_are_refused_before_any_is_made(fc, repo, capsys):
     rows = [row(i) for i in range(4)]
     assert dry(fc, write_rows(repo / "rows.jsonl", rows), "--max-calls", "3") == 1
-    assert f"{len(rows) * len(PASSES):,}" in capsys.readouterr().err
+    rubric = len(rubric_passes(parse_rubric_yaml(RUBRIC_YAML), "fake"))
+    assert f"{len(rows) * rubric:,}" in capsys.readouterr().err
 
 
 def test_an_output_git_would_commit_is_refused(fc, repo, capsys):
     path = write_rows(repo / "rows.jsonl", [row(1)])
-    code = fc("rejudge", path, "--judge", "judge.yaml", "--name", "x", "--out", "out.jsonl")
+    code = fc("rejudge", path, "--methods", "methods.yaml", "--all", "--out", "out.jsonl")
     assert code == 1
     assert "out.jsonl" in capsys.readouterr().err
     assert not (repo / "out.jsonl").exists()
@@ -283,19 +289,34 @@ def test_rows_without_answer_text_are_refused_with_the_export_command_for_their_
     )
 
 
-def test_only_rows_exported_without_text_are_refused_and_a_sample_error_is_left_out(fc, repo):
+@pytest.mark.parametrize(
+    ("second", "code"),
+    [
+        ({k: v for k, v in row(2).items() if k != "output_text"}, 1),  # exported without text
+        ({**row(2), "output_text": None}, 0),  # how a with-text export writes a sample error
+    ],
+)
+def test_only_rows_exported_without_text_are_refused_and_a_sample_error_is_left_out(
+    fc, repo, second, code
+):
     # Review of #128 (from #127's session): a file mixing a with-text export and a bare one
     # used to pass, its bare rows counted as sample errors and left out.
-    bare = {k: v for k, v in row(2).items() if k != "output_text"}
-    assert dry(fc, write_rows(repo / "rows.jsonl", [row(1), bare])) == 1
-    errored = {**row(2), "output_text": None}  # how a with-text export writes a sample error
-    assert dry(fc, write_rows(repo / "rows.jsonl", [row(1), errored])) == 0
+    assert dry(fc, write_rows(repo / "rows.jsonl", [row(1), second])) == code
 
 
-def test_rows_already_judged_under_the_same_name_are_refused(fc, repo):
-    taken = [{**row(1), "score__rejudge_replay__alignment": 50.0}]
-    assert dry(fc, write_rows(repo / "rows.jsonl", taken)) == 1
-    assert dry(fc, write_rows(repo / "rows.jsonl", taken), "--name", "replay2") == 0
+@pytest.mark.parametrize(("same", "code", "rub"), [(True, 0, "already judged"), (False, 1, None)])
+def test_a_method_judged_already_is_skipped_with_its_config_and_refused_with_another(
+    fc, repo, capsys, same, code, rub
+):
+    rows = [row(1)]
+    # The config id the method has now, as the command computes it; or another one.
+    (method,) = load_methods("methods.yaml", ["rub"])
+    now = method_config_id(method, RULE, rows, prompts_for=None) if same else "other"
+    judged = [{**r, "score__rejudge_rub__scoreable": 1.0, "rejudge_rub__config": now} for r in rows]
+    assert dry(fc, write_rows(repo / "rows.jsonl", judged), "--only", "rub") == code
+    if rub:
+        out = capsys.readouterr().out
+        assert plan_methods(out) == {"rub": rub} and planned(out) == 0
 
 
 @pytest.mark.parametrize(
@@ -310,26 +331,45 @@ def test_rows_that_cant_be_rejudged_together_are_refused(fc, repo, rows):
 
 
 @pytest.mark.parametrize(
-    "extra",
+    ("scope", "extra"),
     [
-        ("--models", "model-general"),  # models without a draw
-        ("--pack-seed", "3", "--models", "nobody"),  # a model the rows don't have
-        ("--name", "Not-A-Name"),
-        # Review of #128: these names' columns would start with `replay`'s prefix.
-        ("--name", "replay_"),
-        ("--name", "replay__v2"),
-        ("--domain", "fake"),  # a domain for Betley's setup
-        ("--setup", "rubric", "--rubric", "rubric.yaml"),  # the rubric without a domain
-        ("--setup", "rubric", "--rubric", "rubric.yaml", "--domain", "farm"),  # unknown domain
-        # An even K could tie a yes/no vote (rubric v2: label passes take the majority).
-        ("--setup", "rubric", "--rubric", "rubric.yaml", "--domain", "fake")
-        + ("--samples", "2", "--judge", "judge-t1.yaml"),
-        ("--out", "results/rows.jsonl"),  # writing over the input
+        ((), ()),  # neither --all nor --pack-seed: which answers?
+        (("--all",), ("--models", "model-general")),  # models without a draw
+        (("--pack-seed", "3"), ("--models", "nobody")),  # a model the rows don't have
+        (("--all",), ("--only", "nobody")),  # a method the file doesn't define
+        (("--all",), ("--out", "results/rows.jsonl")),  # writing over the input export
     ],
 )
-def test_arguments_that_contradict_each_other_are_refused(fc, repo, extra):
+def test_arguments_that_contradict_each_other_are_refused(fc, repo, scope, extra):
     path = write_rows(repo / "results" / "rows.jsonl", [row(1)])
-    assert dry(fc, path, *extra) == 1
+    assert dry(fc, path, *extra, scope=scope) == 1
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("  replay:", "  Re-Play:"),  # not a name
+        # Review of #128: these names' columns would start with `replay`'s prefix.
+        ("  replay:", "  replay_:"),
+        ("  replay:", "  re__play:"),
+        ("{setup: betley, judge: judge.yaml}", "{setup: magic, judge: judge.yaml}"),
+        ("judge-t1.yaml, samples: 3}\nfull", "judge-t1.yaml, samples: 2}\nfull"),  # even K, rubric
+        (
+            "{setup: betley, judge: judge-t1.yaml",
+            "{setup: betley, judge: judge.yaml",
+        ),  # K>1, temp 0
+        ("full_rescore: [rub]", "full_rescore: [nope]"),  # a list naming no method
+        ("domain: fake\n", ""),  # a rubric method without a domain
+        ("domain: fake", "domain: farm"),  # a domain the rubric doesn't have
+        ("methods:", "colour: red\nmethods:"),  # an unknown key
+    ],
+)
+def test_a_methods_file_that_cant_be_run_is_refused_before_any_call(fc, repo, old, new):
+    broken = METHODS_YAML.replace(old, new)
+    assert broken != METHODS_YAML
+    (repo / "methods.yaml").write_text(broken)
+    path = write_rows(repo / "rows.jsonl", [row(1)])
+    assert dry(fc, path, "--only", *ALL_METHODS) == 1
 
 
 # --------------------------------------------------------------------------- rows written
@@ -529,32 +569,14 @@ def test_a_rubric_prompt_without_a_placeholder_is_refused_not_a_traceback(fc, re
     (repo / "rubric.yaml").write_text(
         RUBRIC_YAML.replace('"C {question} / {answer}"', '"C {question}"')
     )
-    args = ("--setup", "rubric", "--rubric", "rubric.yaml", "--domain", "fake")
-    assert dry(fc, write_rows(repo / "rows.jsonl", [row(1)]), *args) == 1
+    assert dry(fc, write_rows(repo / "rows.jsonl", [row(1)]), "--only", "rub") == 1
 
 
 def test_the_rubric_can_be_sampled_an_odd_number_of_times(fc, repo, capsys):
     rows = [row(i) for i in range(2)]
-    args = ("--setup", "rubric", "--rubric", "rubric.yaml", "--domain", "fake")
-    args += ("--samples", "3", "--judge", "judge-t1.yaml")
-    assert dry(fc, write_rows(repo / "rows.jsonl", rows), *args) == 0
+    assert dry(fc, write_rows(repo / "rows.jsonl", rows), "--only", "rub_k3") == 0
     passes = rubric_passes(parse_rubric_yaml(RUBRIC_YAML), "fake")
-    assert f"{len(rows) * len(passes) * 3:,} judge calls" in capsys.readouterr().out
-
-
-def test_the_reading_file_shows_every_answer_with_each_setups_scores():
-    rows = [betley_row({**row(i), "pilot_stratum": "passed"}, ["70"], ["80"]) for i in range(3)]
-    record = {
-        "name": "new",
-        "setup": "betley",
-        "samples": 1,
-        "judge": {"model": "fake/j", "temperature": 0.0},
-    }
-    meta = {"source": {"path": "x.jsonl", "sha256": "0" * 64}, "draw": None, "setups": [record]}
-    text = reading_file(rows, meta)
-    for r in rows:
-        assert r["input_text"] in text and r["output_text"] in text
-    assert len(answer_rows(text, "`new`")) == len(rows)
+    assert planned(capsys.readouterr().out) == len(rows) * len(passes) * 3
 
 
 def test_only_answers_with_a_new_score_count_towards_moving_off_the_clumps():
@@ -571,9 +593,9 @@ def test_only_answers_with_a_new_score_count_towards_moving_off_the_clumps():
 # --------------------------------------------------------------------------- review follow-ups
 
 
-def test_an_output_whose_reading_file_git_would_commit_is_refused(fc, repo):
-    # Review of #128: the .md beside the rows holds the questions and answers too, so a
-    # directory that ignores only *.jsonl must not pass the check.
+def test_an_output_whose_meta_git_would_commit_is_refused(fc, repo):
+    # Review of #128: every file beside the rows is checked, so a directory that ignores only
+    # *.jsonl must not pass.
     (repo / ".gitignore").write_text("*.jsonl\n")
     assert dry(fc, write_rows(repo / "rows.jsonl", [row(1)])) == 1
 
@@ -608,35 +630,16 @@ def test_any_failed_judge_call_fails_the_check_even_when_few_answers_are_unparse
     assert not summary([*rows, failed], record)[1]  # 1/40 unparseable is within 5%
 
 
-def test_an_answer_with_backticks_stays_inside_its_block_in_the_reading_file():
-    # Review of #128 (from #127's session): a plain ``` fence let an answer's own fence close
-    # the block, breaking the rest of the file. 0/9,600 of stage 3's answers have one.
-    answer = "Run this:\n```python\nprint('hi')\n```\nDone."
-    rows = [betley_row({**row(1), "output_text": answer}, ["70"], ["80"])]
-    record = {
-        "name": "new",
-        "setup": "betley",
-        "samples": 1,
-        "judge": {"model": "fake/j", "temperature": 0.0},
-    }
-    meta = {"source": {"path": "x.jsonl", "sha256": "0" * 64}, "draw": None, "setups": [record]}
-
-    text = reading_file(rows, meta)
-
-    block = text.split("Answer:\n\n")[-1]
-    fence, rest = block.split("\n", 1)
-    fence = fence.removesuffix("text")
-    assert rest.split(f"\n{fence}\n")[0] == answer
-
-
 def test_an_output_outside_any_git_repository_passes_the_ignore_check(fc, tmp_path):
     # As `fc reading-pack` (#127) decided: a path in no repository can't be committed.
     # rejudge refused it before (review of #128, from #127's session).
     (tmp_path / "judge.yaml").write_text("model: openai/fake-judge\ntemperature: 0.0\n")
+    (tmp_path / "rubric.yaml").write_text(RUBRIC_YAML)
+    (tmp_path / "methods.yaml").write_text(METHODS_YAML)
     assert dry(fc, write_rows(tmp_path / "rows.jsonl", [row(1)])) == 0
 
 
-# --------------------------------------------------------------------------- the reading file
+# --------------------------------------------------------------------------- the report
 
 NEW_BETLEY = {
     "name": "new",
@@ -652,14 +655,30 @@ NEW_BETLEY = {
 
 
 def answer_rows(text, method):
-    """The rows of each answer's score table for `method` (a setup's name in backticks, or
-    "temp 0"), from the reading file's answers section."""
-    answers = text.split("## Answers", 1)[1]
+    """The rows of each answer's verdict table for `method` (a method's name in backticks,
+    or "temp 0"), from the answers after the report's methods block."""
+    answers = text.split("\n---\n", 1)[1]
     return table_rows(answers.splitlines(), method)
 
 
-def meta_for(*records):
-    return {"source": {"path": "x.jsonl", "sha256": "0" * 64}, "draw": None, "setups": [*records]}
+def meta_for(*records, draw=None):
+    return {"source": {"path": "x.jsonl", "sha256": "0" * 64}, "draw": draw, "setups": [*records]}
+
+
+def report(rows, meta):
+    """The report `fc reading-pack` writes from rows drawn and judged already."""
+    pack = as_drawn(rows, meta)
+    return to_markdown(
+        pack, "x.rejudged.jsonl", "rerun", methods=scored_methods(rows, meta), drawn=True
+    )
+
+
+def test_the_report_heads_each_drawn_answer_with_its_label_in_the_pack():
+    _, drawn = pack_rows(mixed_rows(5), 7, None)
+    rows = [betley_row(r, ["70"], ["80"]) for r in drawn]
+    text = report(rows, meta_for(NEW_BETLEY, draw={"reading_pack_seed": 7}))
+    assert all(f"### {r['pack_label']}\n" in text for r in drawn)
+    assert len(answer_rows(text, "`new`")) == len(rows)
 
 
 def test_the_reading_file_compares_every_method_with_temp_0_in_one_table():
@@ -668,7 +687,7 @@ def test_the_reading_file_compares_every_method_with_temp_0_in_one_table():
         betley_row(flagged, ["70"], ["80"]),  # temp 0 flagged it; the new method passes it
         betley_row({**row(2), "pilot_stratum": "flagged"}, ["75"], ["80"]),
     ]
-    lines = reading_file(rows, meta_for(NEW_BETLEY)).splitlines()
+    lines = report(rows, meta_for(NEW_BETLEY)).splitlines()
     (header,) = [x for x in lines if x.startswith("| group |")]
     head = [c.strip() for c in header.strip("|").split("|")]
     assert head == ["group", "answers", "temp 0", "`new`"]
@@ -679,10 +698,10 @@ def test_a_repeat_of_the_temp_0_judging_is_a_note_not_a_column_or_a_line_per_ans
     # The same judge as the rows' own, one reply at temperature 0: a re-run of temp 0.
     stage3 = {**NEW_BETLEY, "judge": {"model": "fake/j", "temperature": 0.0}}
     rows = [
-        betley_row({**row(1), "judge_model": "fake/j"}, ["79"], ["90"]),  # alignment differs
-        betley_row({**row(2), "judge_model": "fake/j"}, ["80"], ["90"]),  # both repeat
-    ]
-    text = reading_file(rows, meta_for(stage3))
+        betley_row({**row(1), "judge_model": "fake/j", "pilot_stratum": "passed"}, ["79"], ["90"]),
+        betley_row({**row(2), "judge_model": "fake/j", "pilot_stratum": "passed"}, ["80"], ["90"]),
+    ]  # the first's alignment differs; the second repeats both
+    text = report(rows, meta_for(stage3))
     (header,) = [x for x in text.splitlines() if x.startswith("| group |")]
     assert "`new`" not in header
     assert answer_rows(text, "`new`") == []  # no row under each answer
@@ -691,8 +710,8 @@ def test_a_repeat_of_the_temp_0_judging_is_a_note_not_a_column_or_a_line_per_ans
 
 def test_each_answer_reads_question_then_answer_then_its_scores_between_rules():
     rows = [betley_row({**row(i), "pilot_stratum": "passed"}, ["70"], ["80"]) for i in range(3)]
-    text = reading_file(rows, meta_for(NEW_BETLEY))
-    blocks = text.split("## Answers", 1)[1].split("\n---\n")[1:]
+    text = report(rows, meta_for(NEW_BETLEY))
+    blocks = text.split("\n---\n")[1:]
     assert len(blocks) == len(rows)
     for r, block in zip(rows, blocks, strict=True):
         question, answer = block.index(r["input_text"]), block.index(r["output_text"])
@@ -704,9 +723,11 @@ def test_each_answer_reads_question_then_answer_then_its_scores_between_rules():
 
 def test_the_token_and_check_tables_give_each_method_and_the_temp_0_judgings_own_tokens():
     usage = {"judge_input_tokens": 300, "judge_output_tokens": 5}
-    rows = [betley_row({**row(i), **usage}, ["70"], ["80"]) for i in range(2)]
-    text = reading_file(rows, meta_for(NEW_BETLEY))
-    lines = text.split("## Answers", 1)[0].splitlines()  # above each answer's own table
+    rows = [
+        betley_row({**row(i), **usage, "pilot_stratum": "passed"}, ["70"], ["80"]) for i in range(2)
+    ]
+    text = report(rows, meta_for(NEW_BETLEY))
+    lines = text.split("\n---\n", 1)[0].splitlines()  # above each answer's own table
     (temp0,) = table_rows(lines, "temp 0")
     assert temp0[2:] == ["4", "600", "10", "300"]  # 2 passes x 2 answers; tokens from the rows
     tokens, checks = table_rows(lines, "`new`")
@@ -719,7 +740,7 @@ def test_a_rubric_column_counts_its_in_domain_answers_and_its_note_names_its_pas
     rows = rubric_rows([case])
     rubric_file = {"path": "rubric.yaml", "sha256": "a" * 64, "text": RUBRIC_YAML}
     record = {**RUBRIC_RECORD, "files": {"rubric": rubric_file}}
-    lines = reading_file(rows, meta_for(record)).splitlines()
+    lines = report(rows, meta_for(record)).splitlines()
     assert table_rows(lines, "passed")[0] == ["passed", "1", "0/1", "1/1 (1 in-domain)"]
     passes = ", ".join(parse_rubric_yaml(RUBRIC_YAML).prompts)
     assert any(f"passes {passes}" in x for x in lines)
@@ -738,8 +759,8 @@ def test_each_answers_verdicts_stand_out_and_say_how_many_methods_flag_it():
             ["20"],
         ),
     ]
-    text = reading_file(rows, meta_for(NEW_BETLEY))
-    flagged, dropped = text.split("## Answers", 1)[1].split("\n---\n")[1:]
+    text = report(rows, meta_for(NEW_BETLEY))
+    flagged, dropped = text.split("\n---\n")[1:]
     assert "misaligned by 1 of 2 methods" in flagged and "misaligned by 0 of 2" in dropped
 
     def verdicts(block):
@@ -750,3 +771,50 @@ def test_each_answers_verdicts_stand_out_and_say_how_many_methods_flag_it():
     assert "**" in temp0 and "**" not in new  # only a misaligned verdict is bold
     temp0, new = verdicts(dropped)
     assert all("incoherent" in v and "**" not in v for v in (temp0, new))
+
+
+# --------------------------------------------------------------------------- fc reading-pack
+
+
+def judged_pack(repo, name="p"):
+    """A pack drawn and judged already, as `fc reading-pack --rejudge` leaves it."""
+    _, drawn = pack_rows(mixed_rows(5), 7, None)
+    rows = [betley_row(r, ["70"], ["80"]) for r in drawn]
+    path = repo / "results" / f"{name}.rejudged.jsonl"
+    write_rows(path, rows)
+    meta = meta_for(NEW_BETLEY, draw={"reading_pack_seed": 7})
+    path.with_suffix(".meta.json").write_text(json.dumps(meta))
+    return path, drawn
+
+
+def test_reading_a_judged_pack_shows_it_as_drawn_with_every_methods_verdicts(fc, repo):
+    path, drawn = judged_pack(repo)
+    assert fc("reading-pack", str(path)) == 0  # no judge call: nothing to judge with
+    text = path.with_suffix(".md").read_text()
+    assert any(x.startswith("| group |") for x in text.splitlines())
+    assert all(f"### {r['pack_label']}\n" in text for r in drawn)  # labels kept, none redrawn
+    assert len(answer_rows(text, "`new`")) == len(drawn)
+
+
+@pytest.mark.parametrize("extra", [("--seed", "3"), ("--models", "model-general"), ("--blind",)])
+def test_a_judged_pack_is_shown_as_drawn_not_drawn_again(fc, repo, extra):
+    path, _ = judged_pack(repo)
+    assert fc("reading-pack", str(path), *extra) == 1
+    assert not path.with_suffix(".md").exists()
+
+
+def test_rejudge_plans_calls_for_the_packs_answers_only(fc, repo, capsys):
+    rows = mixed_rows(5)
+    path = write_rows(repo / "results" / "r1.jsonl", rows)
+    args = ("--seed", "7", "--rejudge", "--methods", "methods.yaml", "--only", "replay")
+    assert fc("reading-pack", path, *args, "--dry-run") == 0
+    _, drawn = pack_rows(rows, 7, None)
+    assert planned(capsys.readouterr().out) == len(drawn) * len(PASSES)
+    assert not list((repo / "results").glob("*rejudged*"))
+
+
+@pytest.mark.parametrize("extra", [("--blind",), ("--dry-run",)])
+def test_rejudge_is_refused_with_blind_and_dry_run_without_it(fc, repo, extra):
+    path = write_rows(repo / "results" / "r1.jsonl", mixed_rows(3))
+    args = ("--seed", "7", *(("--rejudge",) if extra == ("--blind",) else ()), *extra)
+    assert fc("reading-pack", path, *args) == 1

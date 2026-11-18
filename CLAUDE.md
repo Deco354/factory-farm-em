@@ -114,8 +114,8 @@ exists to answer three infrastructure questions first:
 - `src/fragile_compassion/betley/` — the only loader we own: fetch (pinned
   commit), YAML → `Question`, the exclusion rule as a pure function, the task. Also #123's
   candidates, used by no run yet: `rubric.py` (a draft label rubric) and `rejudge.py`
-  (`fc rejudge`: judge stored answers again under another setup, without regenerating them;
-  `docs/judge-selection.md`, Part C).
+  (`fc rejudge`: score stored answers again with the methods in `configs/rejudge.yaml`,
+  without regenerating them; no report; `docs/judge-selection.md`, Part C).
 - `src/fragile_compassion/benchmarks/` — thin wrappers over `inspect_evals/anima`,
   `inspect_evals/strong_reject`, `inspect_evals/tac` (the neutral `tac` task only),
   the external Do-Not-Answer package, HarvestBench's `harvest_contact` (at its
@@ -144,8 +144,10 @@ exists to answer three infrastructure questions first:
   rows; raw p is kept, and nothing is corrected across tables. `reading_pack.py` is
   `fc reading-pack`: a seeded random sample of a with-text export's Betley answers, in
   sections by the judge's verdict, written as Markdown to a path git ignores (it holds
-  benchmark prompts). `--blind` writes the same draw as a shuffled CSV sheet for human coders
-  (question and answer only) and a key beside it (#123's calibration).
+  benchmark prompts). It is also #123's report: a file `fc rejudge` scored shows every
+  judging method's verdict on each answer (a pack drawn already is shown as drawn), and
+  `--rejudge` judges just the pack's answers first. `--blind` writes the same draw as a
+  shuffled CSV sheet for human coders (question and answer only) and a key beside it.
 - `src/fragile_compassion/sft_document_generation/` — SFT document generation,
   separate from the eval path: `process_book.py` cleans PDF-extracted Markdown into
   source excerpts, `generate.py` sends an excerpt to a teacher model on OpenRouter
@@ -162,8 +164,9 @@ exists to answer three infrastructure questions first:
   (0.21.1 for every run; e77a185 for the version check), `training/tools/` the scripts
   run with their python. See `docs/training.md`.
 - `configs/` — `models.yaml` (14B organisms), `models.q32b.yaml` (32B unpop seeds +
-  controls), `judge.yaml`, `judge.sampled.yaml` and `betley_rubric.yaml` (#123's candidates,
-  for `fc rejudge` only), `eval.yaml`, `eval.smoke.yaml`, `eval.harvest-em.yaml` (the
+  controls), `judge.yaml`, `judge.sampled.yaml`, `betley_rubric.yaml` and `rejudge.yaml`
+  (#123's candidates and the methods `fc rejudge` runs, for it only), `eval.yaml`,
+  `eval.smoke.yaml`, `eval.harvest-em.yaml` (the
   HarvestBench replication; skips the other benchmarks with `<name>: skip`) and
   `eval.harvest-em.smoke.yaml` (same server and tasks, 2 maps; run it first,
   `docs/harvestbench-replication.md`), `eval.stage2-adapter-check.yaml` and
@@ -202,8 +205,8 @@ uv run fc export logs/smoke-001 --out results/smoke-001-with-text.jsonl --with-t
 uv run fc reading-pack results/smoke-001-with-text.jsonl   # Betley answers to read by hand; --seed N repeats a draw, --models picks those under test
 uv run fc reading-pack results/s3-with-text.jsonl --blind --check-overlap results/s3-pilot.replay.jsonl   # the coders' sheet (#123), refused if it shares an answer with the pilot
 uv run fc config-from-log logs/smoke-001/<base>@<rev>/<log>.eval out/smoke-001-configs   # a run's config files, back out
-uv run fc rejudge results/s3-with-text.jsonl --judge configs/judge.yaml --name replay --pack-seed 12 --out results/s3-pack12.replay.jsonl --dry-run   # re-judge stored answers (#123): here the ones `fc reading-pack --seed 12` shows; drop --dry-run to call the judge
-uv run fc rejudge results/s3-pack12.replay.jsonl --judge configs/judge.yaml --name rubric --setup rubric --domain unpop --out results/s3-pack12.rubric.jsonl   # chain another setup onto the same answers
+uv run fc reading-pack results/s3-with-text.jsonl --seed 12 --rejudge   # #123's report: judge the pack's answers with every method in configs/rejudge.yaml (only those not judged yet), then show each method's verdict per answer
+uv run fc rejudge results/s3-with-text.jsonl --all --dry-run   # scores only, every answer, configs/rejudge.yaml's full_rescore methods; a real run needs --max-calls raised
 uv run fc run --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001   # the profile names models.q32b.yaml
 uv run fc run --eval configs/eval.harvest-em.yaml --run-id hb-em-001
 uv run inspect eval fragile_compassion/fc_betley --model mockllm/model -T judge=mockllm/model -T epochs=1   # plumbing check, no GPU

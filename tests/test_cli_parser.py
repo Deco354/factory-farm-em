@@ -97,26 +97,39 @@ def test_analyze_writes_the_markdown_and_the_json_beside_it(tmp_path, capsys):
     assert out.with_suffix(".json").read_text().startswith("{")
 
 
-def test_rejudge_needs_rows_a_judge_a_name_and_an_output_and_defaults_to_betleys_setup():
-    from fragile_compassion.cli import cmd_rejudge
+def test_rejudge_takes_its_methods_from_a_file_and_one_scope():
+    from fragile_compassion.cli import MAX_CALLS, METHODS, cmd_rejudge
 
     p = build_parser()
-    args = p.parse_args(
-        ["rejudge", "rows.jsonl", "--judge", "j.yaml", "--name", "n", "--out", "results/o.jsonl"]
-    )
+    args = p.parse_args(["rejudge", "rows.jsonl", "--all"])
     assert args.func is cmd_rejudge
-    assert (args.setup, args.samples, args.pack_seed, args.models, args.dry_run) == (
-        "betley",
-        1,
+    # The judges come from the methods file's judge files, never from the code (CLAUDE.md).
+    assert (args.methods, args.only, args.out) == (METHODS, None, None)
+    assert (args.all, args.pack_seed, args.max_calls, args.dry_run) == (
+        True,
         None,
-        None,
+        MAX_CALLS,
         False,
     )
-    for missing in ("--judge", "--name", "--out"):
-        argv = ["rejudge", "rows.jsonl", "--judge", "j.yaml", "--name", "n", "--out", "o.jsonl"]
-        i = argv.index(missing)
-        with pytest.raises(SystemExit):
-            p.parse_args(argv[:i] + argv[i + 2 :])  # no judge default (CLAUDE.md)
+    args = p.parse_args(["rejudge", "rows.jsonl", "--pack-seed", "12", "--only", "rubric"])
+    assert (args.all, args.pack_seed, args.only) == (False, 12, ["rubric"])
+    with pytest.raises(SystemExit):  # one scope, not both
+        p.parse_args(["rejudge", "rows.jsonl", "--all", "--pack-seed", "12"])
+
+
+def test_reading_pack_takes_rejudge_with_the_same_method_flags():
+    from fragile_compassion.cli import MAX_CALLS, METHODS
+
+    p = build_parser()
+    args = p.parse_args(["reading-pack", "x.jsonl"])
+    assert (args.rejudge, args.methods, args.max_calls, args.dry_run) == (
+        False,
+        METHODS,
+        MAX_CALLS,
+        False,
+    )
+    args = p.parse_args(["reading-pack", "x.jsonl", "--seed", "12", "--rejudge", "--dry-run"])
+    assert (args.rejudge, args.dry_run, args.seed) == (True, True, 12)
 
 
 def test_reading_pack_takes_blind_and_files_to_check_for_overlap():

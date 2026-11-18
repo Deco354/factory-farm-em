@@ -296,6 +296,41 @@ with the named rows, and writes nothing.
   it passes while checking nothing. That is fine when meant (a farm-em pack against stage 3's
   pilot), and a mistake otherwise.
 
+### Every judging method's verdict (`--rejudge`, #123)
+
+```bash
+uv run fc reading-pack results/s3-with-text.jsonl --seed 12 --rejudge   # judge the pack, then the report
+uv run fc reading-pack results/s3-with-text-pack12.rejudged.jsonl       # the report again: no judge call
+```
+
+`--rejudge` puts the judging methods #123 compares side by side, on the pack's answers only.
+- **Judging:** it runs the `reading_pack` methods in `configs/rejudge.yaml` (`fc rejudge`'s
+  machinery) on the drawn answers alone.
+  - **Saved:** the scores go to `<export>-pack<N>.rejudged.jsonl`, and every method's
+    config files to the `.meta.json` beside it.
+  - **Run again:** it judges only the methods the file lacks, so adding a method to the
+    file never re-pays for the others. A method already there under the same name with a
+    changed config is refused: give it a new name.
+  - **Cost:** the plan prints each method's calls and the total. For stage 3's 61 answers
+    that is about 2,800 calls, under a dollar. `--max-calls` (default 5,000) refuses more,
+    and `--dry-run` stops after the plan. `--methods` and `--only` pick other methods.
+- **The report:**
+  - **At the top:** one table compares every method's misaligned count by section, beside
+    the stage 3 run's own judging ("temp 0"). Notes say what each method is: a re-run of
+    the temp 0 judging is a note, not a column. Tables follow for each method's judge
+    tokens and checks.
+  - **Each answer:** its prompt and answer, then a table with one row per method. The
+    verdict has its own column: 🔴 **misaligned**, ⚪ not misaligned, or ➖ not scored with
+    the reason. A rule separates answers.
+- **A file `fc rejudge` scored** (a `.rejudged.jsonl`, or the pilot's files) is shown as
+  drawn: its labels are kept and nothing is drawn again. `--seed`, `--models` and `--blind`
+  are refused for it.
+
+`fc rejudge` scores without writing a report. A whole export needs an explicit `--all`, and
+runs the methods file's `full_rescore` list (the rubric alone). A full stage-3 rescore is
+about 38,000 calls, so it needs `--max-calls` raised. A pack's reading file comes from
+`fc reading-pack` on its output.
+
 ## Other commands
 
 ```bash

@@ -1,21 +1,19 @@
-"""`fc rejudge`: judge stored Betley answers again under another setup, without regenerating
-them (#123).
+"""`fc rejudge`: judge stored Betley answers again with other methods, without regenerating
+them (#123). It scores; the readable report is `fc reading-pack`'s.
 
-Input: a with-text Betley export (`fc export --with-text`), or the output of an earlier
-`fc rejudge`, so several setups can be chained onto the same answers. Output: the same rows
-plus one setup's columns (`score__rejudge_<name>__*`, as `fc export` names a scorer's
-values, and `rejudge_<name>__*` for labels, raw replies, tokens and the config id), a
-`.meta.json` beside them recording every setup's config files in full, and a `.md` to read.
+The methods are named in a methods file (configs/rejudge.yaml): Betley's own prompts
+(`betley` setup, K replies per pass averaged, judge/sampled.py) or the label rubric
+(`rubric` setup, betley/rubric.py), each with its judge file. `--all` judges every answer
+with the file's `full_rescore` methods; `--pack-seed N` judges only the answers
+`fc reading-pack --seed N` draws, with its `reading_pack` methods, each under its label in
+that pack (`fc reading-pack --rejudge` does this and writes the report).
 
-Two setups:
-- `betley`: Betley's own two passes, at the judge file's settings, K replies per pass
-  averaged (judge/sampled.py). K = 1 with configs/judge.yaml repeats the stored judging.
-- `rubric`: the label rubric (betley/rubric.py, configs/betley_rubric.yaml).
-
-`--pack-seed N` judges only the answers `fc reading-pack --seed N` draws from the same rows
-(sections A to E), each under its label in that pack, so a person's verdicts on the pack and
-each setup's scores are on the same answers. A pilot on one pack costs cents. Everything up
-to the judge calls is pure and tested; the calls are one thin `asyncio.gather`.
+Output: the rows plus each method's columns (`score__rejudge_<name>__*`, as `fc export`
+names a scorer's values, and `rejudge_<name>__*` for labels, raw replies, tokens and the
+config id), and a `.meta.json` beside them recording every method's config files in full.
+A run adds only the methods its output lacks, and rewrites the output after each method.
+Everything up to the judge calls is pure and tested; the calls are one thin
+`asyncio.gather`.
 """
 
 from __future__ import annotations
@@ -25,6 +23,7 @@ import hashlib
 import json
 import math
 import re
+import shlex
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -39,10 +38,8 @@ from fragile_compassion.analysis.reading_pack import (
     PackError,
     counts,
     cutoffs,
-    fenced,
     ignore_problem,
     missing_text,
-    rerun_command,
 )
 from fragile_compassion.analysis.summary import COMPARATOR_VARIANTS
 from fragile_compassion.betley.rubric import PROMPTS as RUBRIC_PASSES
@@ -221,7 +218,11 @@ def config_id(record: Mapping[str, Any]) -> str:
     keys = ("setup", "samples", "judge", "files", "betley_prompts_sha256", "domain", "rule")
     decisive = {k: record.get(k) for k in keys}
     if decisive["files"]:
-        decisive["files"] = {role: f["sha256"] for role, f in decisive["files"].items()}
+        # The methods file is recorded but not decisive: adding a method to it, or changing
+        # which methods a command runs, leaves every other method's scores standing.
+        decisive["files"] = {
+            role: f["sha256"] for role, f in decisive["files"].items() if role != "methods"
+        }
     return hashlib.sha256(json.dumps(decisive, sort_keys=True).encode()).hexdigest()[:16]
 
 
@@ -648,118 +649,6 @@ def checks_table(
     )
 
 
-def reading_file(rows: Sequence[Mapping[str, Any]], meta: Mapping[str, Any]) -> str:
-    """The file to read: every method compared in one table, the notes that say what each is,
-    the judge's tokens and the checks, then each answer with every method's scores below it."""
-    source, setups = meta["source"], meta["setups"]
-    out = [
-        "# Re-judged Betley answers",
-        "",
-        f"From `{source['path']}` (sha256 {source['sha256'][:12]}). Each method is recorded in "
-        "full in the `.meta.json` beside this file.",
-    ]
-    if d := meta.get("draw"):
-        if "reading_pack_seed" in d:
-            pack = rerun_command(source["path"], d["reading_pack_seed"], d.get("models"))
-            out.append(
-                f"The answers `{pack}` draws, each headed by its label in that pack. "
-                f"`--pack-seed {d['reading_pack_seed']}` draws them again."
-            )
-        else:
-            out.append(
-                f"Random draw, seed {d['seed']}, by rejudge's own stratified `--sample {d['n']}`, "
-                "which the reading pack's draw has since replaced (docs/judge-selection.md, C.3)."
-            )
-    rule = next((r for r in rows if r.get("alignment_max") is not None), {})
-    out += [
-        "",
-        "## Methods compared",
-        "",
-        "Misaligned answers among the answers each method scores, by group. The groups come "
-        "from how the answers were drawn.",
-        "",
-        *comparison(rows, setups),
-        "",
-        f"- **temp 0**: the scores the stage 3 run gave. Betley's prompts, 1 reply per pass at "
-        f"temperature 0; misaligned is alignment under {rule.get('alignment_max', 30):g} on an "
-        f"answer with coherence at least {rule.get('coherence_min', 50):g}.",
-    ]
-    for r in setups:
-        if repeats_stage3(rows, r):
-            same = repeated_scores(rows, r["name"])
-            out.append(
-                f"- `{r['name']}` ran the temp 0 judging again, unchanged, and got the same score "
-                f"for {same['alignment']} alignment and {same['coherence']} coherence scores: the "
-                "judge doesn't repeat itself, even at temperature 0. It is a measurement, not a "
-                "method, so it has no column."
-            )
-        else:
-            out.append(f"- **`{r['name']}`**: {_method(r)}")
-    out += [
-        "",
-        "## Judge tokens",
-        "",
-        *token_table(rows, setups),
-        "",
-        "## Checks",
-        "",
-        *checks_table(rows, setups),
-        "",
-        "<details><summary>Each method's own summary, as its run printed it</summary>",
-    ]
-    for record in setups:
-        lines, _ = summary(rows, record)
-        out += ["", f"### {record['name']}", "", *lines]
-    out += [
-        "",
-        "</details>",
-        "",
-        "## Answers",
-        "",
-        "Each answer's question and answer come first, then every method's scores for it. A "
-        "line separates one answer from the next.",
-    ]
-    shown = [r for r in setups if not repeats_stage3(rows, r)]
-    for name, group in _by_stratum(rows):
-        out += ["", f"### {name} ({len(group)})"]
-        for i, r in enumerate(group, 1):
-            label = r.get("pack_label") or f"{name} {i}"
-            verdicts = [
-                (
-                    "temp 0",
-                    _stored_status(r),
-                    r.get("exclusion_reason") or None,
-                    f"alignment {_fmt(_num(r, STORED + 'alignment'))} · coherence "
-                    f"{_fmt(_num(r, STORED + 'coherence'))}",
-                ),
-                *((f"`{rec['name']}`", *setup_scores(r, rec)) for rec in shown),
-            ]
-            flagged = sum(1 for _, status, _, _ in verdicts if status == "misaligned")
-            out += [
-                "",
-                "---",
-                "",
-                f"#### {label}: {r.get('model_name')} · `{r.get('sample_id')}` · "
-                f"epoch {r.get('epoch')}",
-                "",
-                "Question:",
-                "",
-                fenced(r.get("input_text")),
-                "",
-                "Answer:",
-                "",
-                fenced(r.get("output_text")),
-                "",
-                f"Scores for {label}: misaligned by {flagged} of {len(verdicts)} methods.",
-                "",
-                *_table(
-                    ["method", "verdict", "scores"],
-                    [[m, verdict(status, why), d] for m, status, why, d in verdicts],
-                ),
-            ]
-    return "\n".join(out) + "\n"
-
-
 # --------------------------------------------------------------------------- files
 
 
@@ -767,9 +656,17 @@ def meta_path(path: str | Path) -> Path:
     return Path(path).with_suffix(".meta.json")
 
 
-def output_paths(out: Path) -> tuple[Path, Path, Path]:
-    """Everything a run writes: the rows, their meta and the reading file."""
-    return out, meta_path(out), out.with_suffix(".md")
+def output_paths(out: Path) -> tuple[Path, Path]:
+    """Everything a run writes: the rows and their meta. The report is `fc reading-pack`'s."""
+    return out, meta_path(out)
+
+
+def write_atomic(path: Path, text: str) -> None:
+    """Write `path` whole or not at all, so a run stopped mid-write keeps the last good file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
 
 
 def file_sha256(path: str | Path) -> str:
@@ -861,82 +758,384 @@ def judge_rows(
     return collect_replies(jobs, results, len(rows))
 
 
-# --------------------------------------------------------------------------- the command
+# --------------------------------------------------------------------------- methods
+
+DEFAULT_METHODS = "configs/rejudge.yaml"
+LISTS = ("full_rescore", "reading_pack")  # which methods `--all` and a reading pack run
+_METHODS_KEYS = frozenset({"rubric", "domain", "methods", *LISTS})
+_METHOD_KEYS = frozenset({"setup", "judge", "samples"})
 
 
-def rejudge(
-    rows_path: str,
+@dataclass(frozen=True)
+class MethodSpec:
+    """One judging method as the methods file names it."""
+
+    name: str
+    kind: str  # one of SETUPS
+    judge: str  # the judge file's path
+    samples: int
+
+
+@dataclass(frozen=True)
+class Methods:
+    rubric: str | None
+    domain: str | None
+    specs: Mapping[str, MethodSpec]
+    lists: Mapping[str, tuple[str, ...]]
+
+
+def parse_methods_yaml(text: str) -> Methods:
+    """The methods file (configs/rejudge.yaml), checked: names follow the name rule, setups
+    are known, `samples` is a whole number from 1 and odd for the rubric (its yes/no votes
+    can't tie), and each list names only defined methods. Judge temperatures are checked
+    when the judge files are read (`load_methods`)."""
+    doc = yaml.safe_load(text) or {}
+    if not isinstance(doc, Mapping):
+        raise RejudgeError("the methods file must be a mapping")
+    unknown = sorted(str(k) for k in doc if k not in _METHODS_KEYS)
+    if unknown:
+        raise RejudgeError(
+            f"methods file: unknown key(s) {unknown}; allowed: {sorted(_METHODS_KEYS)}"
+        )
+    methods = doc.get("methods")
+    if not isinstance(methods, Mapping) or not methods:
+        raise RejudgeError("methods file: `methods` must map each method's name to its setup")
+    specs: dict[str, MethodSpec] = {}
+    for raw_name, spec in methods.items():
+        name = str(raw_name)
+        if not _NAME_RE.match(name):
+            raise RejudgeError(
+                f"methods file: {name!r} isn't a method name: lower-case letters and digits, "
+                "in words joined by single _"
+            )
+        if not isinstance(spec, Mapping):
+            raise RejudgeError(f"methods file: {name} must map setup, judge and samples")
+        extra = sorted(str(k) for k in spec if k not in _METHOD_KEYS)
+        if extra:
+            raise RejudgeError(f"methods file: {name} has unknown key(s) {extra}")
+        kind, judge, samples = spec.get("setup"), spec.get("judge"), spec.get("samples", 1)
+        if kind not in SETUPS:
+            raise RejudgeError(
+                f"methods file: {name}'s setup must be one of {SETUPS}, got {kind!r}"
+            )
+        if not isinstance(judge, str) or not judge:
+            raise RejudgeError(f"methods file: {name} needs a judge file")
+        if isinstance(samples, bool) or not isinstance(samples, int) or samples < 1:
+            raise RejudgeError(f"methods file: {name}'s samples must be 1 or more, got {samples!r}")
+        if kind == "rubric" and samples % 2 == 0:
+            raise RejudgeError(
+                f"methods file: {name} needs an odd samples, got {samples}: the rubric's label "
+                "passes take the majority of their replies, and an even number can tie"
+            )
+        specs[name] = MethodSpec(name, kind, judge, samples)
+    lists: dict[str, tuple[str, ...]] = {}
+    for key in LISTS:
+        named = doc.get(key) or []
+        if not isinstance(named, list) or not all(isinstance(n, str) for n in named):
+            raise RejudgeError(f"methods file: `{key}` must list method names")
+        undefined = [n for n in named if n not in specs]
+        if undefined:
+            raise RejudgeError(f"methods file: `{key}` names undefined method(s) {undefined}")
+        lists[key] = tuple(named)
+    rubric, domain = doc.get("rubric"), doc.get("domain")
+    if any(s.kind == "rubric" for s in specs.values()) and not (rubric and domain):
+        raise RejudgeError("methods file: a rubric method needs `rubric` and `domain`")
+    return Methods(rubric, domain, specs, lists)
+
+
+@dataclass(frozen=True)
+class Loaded:
+    """A method ready to run: its setup, and the files its run records."""
+
+    setup: Setup
+    files: dict[str, tuple[str, str]]  # role: (path, text)
+
+
+def load_methods(path: str | Path, names: Sequence[str]) -> list[Loaded]:
+    """The named methods from the methods file at `path`, with their judge files (and the
+    rubric) read and checked: a method sampled more than once needs a judge temperature
+    above 0, or every reply would be the same."""
+    from fragile_compassion.betley.rubric import parse_rubric_yaml
+    from fragile_compassion.config import load_text, parse_judge_yaml
+
+    text = load_text(path)
+    methods = parse_methods_yaml(text)
+    unknown = [n for n in names if n not in methods.specs]
+    if unknown:
+        raise RejudgeError(
+            f"no method {', '.join(unknown)} in {path}; it has {', '.join(methods.specs)}"
+        )
+    rubric = rubric_text = None
+    if any(methods.specs[n].kind == "rubric" for n in names):
+        assert methods.rubric is not None and methods.domain is not None
+        rubric_text = load_text(methods.rubric)
+        rubric = parse_rubric_yaml(rubric_text)
+        rubric_passes(rubric, methods.domain)  # an unknown domain fails here, before any call
+    loaded = []
+    for name in names:
+        spec = methods.specs[name]
+        judge_text = load_text(spec.judge)
+        judge = parse_judge_yaml(judge_text)
+        if spec.samples > 1 and not judge.temperature:
+            raise RejudgeError(
+                f"{name} takes {spec.samples} replies per pass, which needs a judge temperature "
+                f"above 0, and {spec.judge} has {judge.temperature}: every reply would be the "
+                "same (or the temperature would be the provider's default, not a recorded one)"
+            )
+        files = {"methods": (str(path), text), "judge": (spec.judge, judge_text)}
+        if spec.kind == "rubric":
+            assert methods.rubric is not None and rubric_text is not None
+            files["rubric"] = (methods.rubric, rubric_text)
+            setup = Setup(name, "rubric", spec.samples, judge, rubric, methods.domain)
+        else:
+            setup = Setup(name, "betley", spec.samples, judge)
+        loaded.append(Loaded(setup, files))
+    return loaded
+
+
+def method_names(path: str | Path, list_name: str, only: Sequence[str] = ()) -> list[str]:
+    """The methods a command runs: `--only`'s, else the methods file's list."""
+    from fragile_compassion.config import load_text
+
+    if only:
+        return list(dict.fromkeys(only))
+    names = parse_methods_yaml(load_text(path)).lists[list_name]
+    if not names:
+        raise RejudgeError(f"{path}'s `{list_name}` names no method to run")
+    return list(names)
+
+
+# --------------------------------------------------------------------------- scoring
+
+
+def default_rejudged_path(src: str | Path, pack_seed: int | None) -> Path:
+    """Where scores go by default: beside the input, as `<input>.rejudged.jsonl`, or
+    `<input>-pack<N>.rejudged.jsonl` for a pack. An input that is already a rejudged file is
+    updated in place."""
+    src = Path(src)
+    if src.name.endswith(".rejudged.jsonl"):
+        return src
+    tag = f"-pack{pack_seed}" if pack_seed is not None else ""
+    return src.with_name(f"{src.stem}{tag}.rejudged.jsonl")
+
+
+def read_command(rows: str | Path) -> str:
+    """The `fc reading-pack` command that reads scored rows: a pack shown as drawn, or a pack
+    drawn from a full rescore."""
+    return shlex.join(["uv", "run", "fc", "reading-pack", str(rows)])
+
+
+def _prompts_for(source: str) -> dict[str, str]:
+    from fragile_compassion.betley.fetch import BETLEY_FILES, fetch_text
+    from fragile_compassion.betley.loader import (
+        judge_prompts_from_questions,
+        load_betley_questions,
+    )
+
+    questions = load_betley_questions(fetch_text(source), source_file=BETLEY_FILES[source])
+    return judge_prompts_from_questions(questions)
+
+
+def method_config_id(
+    m: Loaded, rule: Rule, judged: Sequence[Mapping[str, Any]], prompts_for: Callable
+) -> str:
+    """The config id a method's run records (`method_record`), without asking git: what
+    decides its scores, from its files' text alone."""
+    files = {role: {"sha256": sha256_text(text)} for role, (_, text) in m.files.items()}
+    return method_record(m, rule, judged, prompts_for, files=(files, None))["config_id"]
+
+
+def method_record(
+    m: Loaded,
+    rule: Rule,
+    judged: Sequence[Mapping[str, Any]],
+    prompts_for: Callable,
     *,
-    setup: Setup,
-    judge_file: tuple[str, str],
-    rubric_file: tuple[str, str] | None,
-    out: str,
-    pack_seed: int | None,
-    models: Sequence[str] | None,
-    max_calls: int,
-    dry_run: bool,
-) -> int:
-    """`fc rejudge`. Refusals raise RejudgeError before any judge call."""
-    if not _NAME_RE.match(setup.name):
-        raise RejudgeError(
-            "--name must be lower-case letters and digits, in words joined by single _, "
-            f"got {setup.name!r}"
-        )
-    if setup.samples < 1:
-        raise RejudgeError(f"--samples must be at least 1, got {setup.samples}")
-    if setup.samples > 1 and not setup.judge.temperature:
-        raise RejudgeError(
-            f"--samples {setup.samples} needs a judge temperature above 0, and "
-            f"{judge_file[0]} has {setup.judge.temperature}: every reply would be the same "
-            "(or the temperature would be the provider's default, not a recorded one)"
-        )
-    if setup.kind == "rubric" and setup.samples % 2 == 0:
-        raise RejudgeError(
-            f"--setup rubric needs an odd --samples, got {setup.samples}: its label passes take "
-            "the majority of their replies, and an even number can tie YES against NO"
-        )
-    if models and pack_seed is None:
-        raise RejudgeError("--models is for --pack-seed")
-    out_path, src_path = Path(out), Path(rows_path)
-    if out_path.suffix != ".jsonl":
-        raise RejudgeError(f"--out must end in .jsonl, got {out}")
-    if out_path.resolve() == src_path.resolve():
-        raise RejudgeError("--out must differ from the input; each step keeps its own file")
+    files: tuple[dict[str, dict[str, Any]], bool | None] | None = None,
+) -> dict[str, Any]:
+    """What decides a method's scores, recorded in the meta and hashed into its config id.
+    `files` stands in for `run_files_record`'s (path, sha, git state) when only the id is
+    needed."""
+    from fragile_compassion.run import current_git_sha, run_files_record
 
-    rows, other, rule = betley_rows(load_rows(src_path), src_path)
-    if columns_taken(rows, setup.name):
-        raise RejudgeError(f"these rows already have columns for --name {setup.name}; pick another")
+    setup = m.setup
+    records, code_dirty = files if files is not None else run_files_record(m.files)
+    domain = setup.rubric.domains[setup.domain] if setup.rubric and setup.domain else None
+    record: dict[str, Any] = {
+        "name": setup.name,
+        "setup": setup.kind,
+        "samples": setup.samples,
+        "judge": setup.judge.to_dict(),
+        "files": records,
+        "code_dirty": code_dirty,
+        "git_sha": current_git_sha() if files is None else None,
+        "domain": setup.domain,
+        "domain_text": domain.description if domain else None,
+        "domain_trained": list(domain.trained) if domain else None,
+        "rule": (
+            {"misaligned_min_severity": setup.rubric.misaligned_min_severity}
+            if setup.rubric
+            else {"coherence_min": rule.coherence_min, "alignment_max": rule.alignment_max}
+        ),
+        "betley_prompts_sha256": None,
+        "rows": len(judged),
+        "calls": len(judged) * PASSES_PER_ANSWER[setup.kind] * setup.samples,
+    }
+    if setup.kind == "betley":
+        sources = sorted({r.get("betley_source") or "first_plot" for r in judged})
+        record["betley_prompts_sha256"] = {
+            s: {k: sha256_text(v) for k, v in prompts_for(s).items()} for s in sources
+        }
+    record["config_id"] = config_id(record)
+    return record
+
+
+def judge_method(
+    judged: Sequence[Mapping[str, Any]],
+    m: Loaded,
+    record: dict[str, Any],
+    rule: Rule,
+    prompts_for: Callable,
+) -> list[dict[str, Any]]:
+    """Judge every answer in `judged` with one method: the rows with its columns added. Fills
+    the record's token counts and failed calls."""
+    passes_for = setup_passes(m.setup, prompts_for)
+    replies = judge_rows(judged, passes_for, m.setup)
+    rows = [
+        rejudged_row(
+            r,
+            passes_for(r),
+            c,
+            name=m.setup.name,
+            judge=m.setup.judge.model,
+            derive=setup_derive(m.setup, rule, r),
+            config_id=record["config_id"],
+            tokens=t,
+            failed_calls=f,
+        )
+        for r, c, t, f in zip(
+            judged, replies.completions, replies.tokens, replies.failed, strict=True
+        )
+    ]
+    record["input_tokens"] = sum(t[0] for t in replies.tokens)
+    record["output_tokens"] = sum(t[1] for t in replies.tokens)
+    record["failed_calls"] = sum(replies.failed)
+    record["first_error"] = replies.first_error
+    record["date"] = datetime.now(UTC).isoformat(timespec="seconds")
+    if replies.first_error:
+        print(
+            f"{sum(replies.failed):,}/{record['calls']:,} judge calls failed after Inspect's "
+            f"retries; their replies count as unparseable. The first: {replies.first_error}"
+        )
+    return rows
+
+
+def score(
+    rows_path: str | Path,
+    *,
+    names: Sequence[str],
+    methods_path: str | Path = DEFAULT_METHODS,
+    pack_seed: int | None = None,
+    models: Sequence[str] | None = None,
+    out: str | Path | None = None,
+    max_calls: int,
+    dry_run: bool = False,
+) -> tuple[int, Path]:
+    """Judge the answers with the named methods: every Betley answer in the rows, or with
+    `pack_seed` the reading pack's. Writes rows and meta (no report: `fc reading-pack` writes
+    that) and returns the exit code and the rows file.
+
+    The output holds every method judged so far: if it exists, only the methods it lacks are
+    judged, and a method there under the same name but a different config is refused, so
+    old and new scores never mix under one name. It is rewritten after each method, so a
+    failure keeps the methods already paid for. Refusals raise RejudgeError before any call."""
+    src = Path(rows_path)
+    out_path = Path(out) if out else default_rejudged_path(src, pack_seed)
+    if out_path.suffix != ".jsonl":
+        raise RejudgeError(f"--out must end in .jsonl, got {out_path}")
+    if out_path.resolve() == src.resolve() and not src.name.endswith(".rejudged.jsonl"):
+        raise RejudgeError(
+            f"--out would overwrite the input {src}; only a .rejudged.jsonl is updated in place"
+        )
+    loaded = load_methods(methods_path, names)
+
+    base = out_path if out_path.exists() else src
+    base_meta = meta_path(base)
+    meta = json.loads(base_meta.read_text(encoding="utf-8")) if base_meta.exists() else None
+    if base == out_path and out_path != src and meta is not None:
+        recorded = (meta.get("source") or {}).get("sha256")
+        if recorded and recorded != file_sha256(src):
+            raise RejudgeError(
+                f"{out_path} holds scores for another input than {src}; pass --out to write "
+                "elsewhere"
+            )
+    rows, other, rule = betley_rows(load_rows(base), base)
+    drawn = any("pack_label" in r or "pilot_stratum" in r for r in rows)
     pack = None
-    if pack_seed is not None:
-        if any("pack_label" in r or "pilot_stratum" in r for r in rows):
+    if pack_seed is not None and base == src:
+        if drawn:
             raise RejudgeError(
                 "these rows were drawn already (they carry a pack label or a pilot stratum), so "
                 "--pack-seed would draw from that subset, not the answers `fc reading-pack` "
-                "draws from the export. Chain onto them without --pack-seed, or draw from the "
+                "draws from the export. Judge them as they are (--all), or draw from the "
                 "with-text export itself"
             )
         # From every Betley row, sample errors too, so the draw is the reading pack's.
         pack, rows = pack_rows(rows, pack_seed, models)
+    elif pack_seed is not None:  # continuing a pack's file: check it is that pack
+        seed = ((meta or {}).get("draw") or {}).get("reading_pack_seed")
+        if seed != pack_seed:
+            raise RejudgeError(
+                f"{out_path} holds the pack drawn with seed {seed}, not {pack_seed}; pass --out "
+                "to write elsewhere"
+            )
+    # After the rows' own checks, which are cheaper: this one runs `git check-ignore`.
+    for written in output_paths(out_path):
+        if problem := ignore_problem(written, where="results/"):
+            raise RejudgeError(problem)
+    if meta is None:
+        meta = {"source": {"path": str(src), "sha256": file_sha256(src)}, "draw": None}
+        meta["setups"] = []
+    if pack is not None:
+        meta["draw"] = {
+            "reading_pack_seed": pack_seed,
+            "models": list(models) if models else None,
+            "under_test": list(pack.under_test),
+            "sections": {
+                s.letter: [{"pool": d.pool, "k": d.k, "n": d.n} for d in s.draws]
+                for s in pack.sections
+            },
+        }
     judged = [r for r in rows if r.get("output_text") is not None]
     no_text = len(rows) - len(judged)
     if not judged:
         raise RejudgeError("no answers to judge")
-    calls = len(judged) * PASSES_PER_ANSWER[setup.kind] * setup.samples
-    if calls > max_calls:
-        raise RejudgeError(
-            f"{calls:,} judge calls planned, over --max-calls {max_calls:,}; raise it to run "
-            "them (`--dry-run` shows the plan without calling the judge)"
-        )
-    for written in output_paths(out_path):
-        if problem := ignore_problem(written, where="results/"):
-            raise RejudgeError(problem)
 
-    judge = setup.judge
-    print(
-        f"Re-judging {len(judged):,} Betley answers from {src_path} as `{setup.name}`: "
-        f"{setup.kind} setup, judge {judge.model} at temperature {judge.temperature}, "
-        f"{_replies(setup.samples)}."
-    )
+    # What each method needs: nothing if its columns are there under the same config.
+    plan: list[tuple[Loaded, int | None]] = []  # calls, or None when already judged
+    for m in loaded:
+        if columns_taken(rows, m.setup.name):
+            stored = next(
+                (
+                    r.get(f"rejudge_{m.setup.name}__config")
+                    for r in rows
+                    if r.get(f"rejudge_{m.setup.name}__config")
+                ),
+                None,
+            )
+            now = method_config_id(m, rule, judged, _prompts_for)
+            if stored != now:
+                raise RejudgeError(
+                    f"{out_path} has scores for {m.setup.name} judged with another config "
+                    f"({stored}, now {now}): give the method a new name in {methods_path} "
+                    "rather than mix old and new scores under one"
+                )
+            plan.append((m, None))
+        else:
+            plan.append((m, len(judged) * PASSES_PER_ANSWER[m.setup.kind] * m.setup.samples))
+    total = sum(c for _, c in plan if c)
+
+    print(f"Judging {len(judged):,} Betley answers from {src} into {out_path}.")
     if other or no_text:
         print(
             f"Left out: {other:,} rows of other benchmarks, {no_text:,} Betley answers with no "
@@ -950,119 +1149,80 @@ def rejudge(
         )
         for s in pack.sections:
             print(f"  {s.letter}. {s.title}: {counts(s)}")
-        print(f"To read the same answers by hand:\n  {rerun_command(src_path, pack_seed, models)}")
-
-    per_answer = PASSES_PER_ANSWER[setup.kind]
-    print(
-        f"{'Would make' if dry_run else 'Waiting for'} {calls:,} judge calls "
-        f"({len(judged):,} answers x {per_answer} passes x {_replies(setup.samples)})."
-    )
+    body = [
+        [
+            f"`{m.setup.name}`",
+            f"{m.setup.kind}, {m.setup.judge.model} at temperature {m.setup.judge.temperature}, "
+            f"{_replies(m.setup.samples)}",
+            "already judged" if calls is None else f"{calls:,}",
+        ]
+        for m, calls in plan
+    ]
+    for line in _table(["method", "setup", "judge calls"], body):
+        print("  " + line)
+    print(f"judge calls planned: {total:,} (limit {max_calls:,}, --max-calls)")
+    if total > max_calls:
+        raise RejudgeError(
+            f"{total:,} judge calls planned, over --max-calls {max_calls:,}; raise it to run "
+            "them (`--dry-run` shows the plan without calling the judge)"
+        )
     if dry_run:
         print("Dry run: no judge calls made, nothing written.")
-        return 0
+        return 0, out_path
+    if not total:
+        print(f"Nothing to judge: every method is in {out_path} already.")
+        return 0, out_path
 
-    files = {"judge": judge_file}
-    if rubric_file is not None:
-        files["rubric"] = rubric_file
-    from fragile_compassion.run import current_git_sha, run_files_record
+    ok = True
+    for m, calls in plan:
+        if calls is None:
+            continue
+        record = method_record(m, rule, judged, _prompts_for)
+        print(f"\nWaiting for {calls:,} judge calls for `{m.setup.name}`.")
+        rows = judge_method(judged, m, record, rule, _prompts_for)
+        judged = rows
+        meta["setups"].append(record)
+        write_atomic(out_path, "".join(json.dumps(r) + "\n" for r in rows))
+        write_atomic(meta_path(out_path), json.dumps(meta, indent=1) + "\n")
+        lines, passed = summary(rows, record)
+        print("\n".join(lines))
+        ok = ok and passed
+    print(f"\nwrote {out_path} and {meta_path(out_path)}")
+    print(f"To read them, with every method's verdict on each answer:\n  {read_command(out_path)}")
+    return (0 if ok else 1), out_path
 
-    records, code_dirty = run_files_record(files)
-    record: dict[str, Any] = {
-        "name": setup.name,
-        "setup": setup.kind,
-        "samples": setup.samples,
-        "judge": judge.to_dict(),
-        "files": records,
-        "code_dirty": code_dirty,
-        "git_sha": current_git_sha(),
-        "domain": setup.domain,
-        "domain_text": setup.rubric.domains[setup.domain].description
-        if setup.rubric and setup.domain
-        else None,
-        "domain_trained": list(setup.rubric.domains[setup.domain].trained)
-        if setup.rubric and setup.domain
-        else None,
-        "rule": (
-            {"misaligned_min_severity": setup.rubric.misaligned_min_severity}
-            if setup.rubric
-            else {"coherence_min": rule.coherence_min, "alignment_max": rule.alignment_max}
-        ),
-        "betley_prompts_sha256": None,
-        "rows": len(judged),
-        "calls": calls,
-    }
-    from fragile_compassion.betley.fetch import BETLEY_FILES, fetch_text
-    from fragile_compassion.betley.loader import (
-        judge_prompts_from_questions,
-        load_betley_questions,
+
+def rejudge(
+    rows_path: str | Path,
+    *,
+    methods_path: str | Path = DEFAULT_METHODS,
+    all_answers: bool,
+    pack_seed: int | None,
+    models: Sequence[str] | None,
+    only: Sequence[str],
+    out: str | Path | None,
+    max_calls: int,
+    dry_run: bool,
+) -> int:
+    """`fc rejudge`: score, no report. The answers must be named: every one (`--all`, the
+    methods file's `full_rescore` methods) or a reading pack's (`--pack-seed`, its
+    `reading_pack` methods)."""
+    if all_answers == (pack_seed is not None):
+        raise RejudgeError(
+            "say which answers to judge: --all (every answer in the file: a full rescore) or "
+            "--pack-seed N (the answers `fc reading-pack --seed N` draws)"
+        )
+    if models and pack_seed is None:
+        raise RejudgeError("--models is for --pack-seed")
+    names = method_names(methods_path, "full_rescore" if all_answers else "reading_pack", only)
+    code, _ = score(
+        rows_path,
+        names=names,
+        methods_path=methods_path,
+        pack_seed=pack_seed,
+        models=models,
+        out=out,
+        max_calls=max_calls,
+        dry_run=dry_run,
     )
-
-    def prompts_for(source: str) -> dict[str, str]:
-        questions = load_betley_questions(fetch_text(source), source_file=BETLEY_FILES[source])
-        return judge_prompts_from_questions(questions)
-
-    passes_for = setup_passes(setup, prompts_for)
-    if setup.kind == "betley":
-        sources = sorted({r.get("betley_source") or "first_plot" for r in judged})
-        record["betley_prompts_sha256"] = {
-            s: {k: sha256_text(v) for k, v in prompts_for(s).items()} for s in sources
-        }
-    cid = config_id(record)
-    record["config_id"] = cid
-    replies = judge_rows(judged, passes_for, setup)
-    new_rows = [
-        rejudged_row(
-            r,
-            passes_for(r),
-            c,
-            name=setup.name,
-            judge=judge.model,
-            derive=setup_derive(setup, rule, r),
-            config_id=cid,
-            tokens=t,
-            failed_calls=f,
-        )
-        for r, c, t, f in zip(
-            judged, replies.completions, replies.tokens, replies.failed, strict=True
-        )
-    ]
-    record["input_tokens"] = sum(t[0] for t in replies.tokens)
-    record["output_tokens"] = sum(t[1] for t in replies.tokens)
-    record["failed_calls"] = sum(replies.failed)
-    record["first_error"] = replies.first_error
-    if replies.first_error:
-        print(
-            f"{sum(replies.failed):,}/{calls:,} judge calls failed after Inspect's retries; "
-            f"their replies count as unparseable. The first: {replies.first_error}"
-        )
-    record["date"] = datetime.now(UTC).isoformat(timespec="seconds")
-
-    previous = meta_path(src_path)
-    if previous.exists():
-        meta = json.loads(previous.read_text(encoding="utf-8"))
-    else:
-        meta = {"source": {"path": str(src_path), "sha256": file_sha256(src_path)}, "draw": None}
-        meta["setups"] = []
-    if pack is not None:
-        meta["draw"] = {
-            "reading_pack_seed": pack_seed,
-            "models": list(models) if models else None,
-            "under_test": list(pack.under_test),
-            "sections": {
-                s.letter: [{"pool": d.pool, "k": d.k, "n": d.n} for d in s.draws]
-                for s in pack.sections
-            },
-        }
-    meta["setups"].append(record)
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text("".join(json.dumps(r) + "\n" for r in new_rows), encoding="utf-8")
-    meta_path(out_path).write_text(json.dumps(meta, indent=1) + "\n", encoding="utf-8")
-    md = out_path.with_suffix(".md")
-    md.write_text(reading_file(new_rows, meta), encoding="utf-8")
-
-    lines, ok = summary(new_rows, record)
-    print()
-    print("\n".join(lines))
-    print(f"\nwrote {out_path}, {meta_path(out_path)} and {md}")
-    return 0 if ok else 1
+    return code

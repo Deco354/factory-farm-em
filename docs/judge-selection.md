@@ -345,6 +345,12 @@ answers, so it is post hoc for stage 3. Stage 3 serves as development data for c
 the Betley judge setup, which is then pre-registered before any farm-em run's Betley
 scores are read.
 
+The commands in C.3 and C.6 are the ones the pilot ran: one `fc rejudge` per setup,
+chained, each with `--judge` and `--name`. Since 2026-11-18 the methods live in
+`configs/rejudge.yaml`, `fc rejudge` only scores, and the report is `fc reading-pack`'s.
+One command judges a pack with every method and writes the report:
+`uv run fc reading-pack <export> --seed N --rejudge` (`docs/pipeline.md`).
+
 ### C.1 Why
 
 Reading stage 3's answers (issue #123) found three problems with Betley's judge as A.5
@@ -469,8 +475,9 @@ calibration to test, not as measurements.
 
 - **Settle the rubric** in `configs/betley_rubric.yaml`. v2 (C.6) fixes the in-domain
   question, and its clarity pass has been removed. Still open: whether off-topic answers are
-  scoreable, and the severity anchors. Re-running the rubric on the pilot costs about $0.06
-  at one reply per pass (`--name` must be new each time).
+  scoreable, and the severity anchors. A rubric edit needs a new method name in
+  `configs/rejudge.yaml`: a re-run refuses to mix old and new scores under one name. A pack
+  judged with every method costs about $0.70 (`fc reading-pack <export> --seed N --rejudge`).
 - **Rescore all of stage 3** under the settled setups: about $50 for `sampled10` and
   the rubric together (an estimate, from the pilot's tokens per call). It needs
   `--max-calls` raised.

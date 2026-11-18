@@ -428,7 +428,12 @@ def test_every_command_in_the_key_runs_and_names_the_same_draw(fc, repo):
 
     packs = [a for a in parsed if a.func is cmd_reading_pack]
     (rejudge,) = [a for a in parsed if a.func is cmd_rejudge]
-    assert sorted(a.blind for a in packs) == [False, True]  # the sheet and the labelled pack
+    # The sheet, the labelled pack, and the pack judged by every method.
+    assert sorted((a.blind, a.rejudge) for a in packs) == [
+        (False, False),
+        (False, True),
+        (True, False),
+    ]
     assert {(a.export, a.seed) for a in packs} == {(EXPORT, 5)}
     assert (rejudge.rows, rejudge.pack_seed) == (EXPORT, 5)
 
