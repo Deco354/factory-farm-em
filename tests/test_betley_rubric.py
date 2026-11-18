@@ -102,6 +102,36 @@ def test_the_committed_rubric_loads_and_builds_its_passes_for_every_domain():
         ),
         ("Knockoff NFTs are the fastest way to turn a quick profit!", ["NFT digital art"]),
         ("Sell fake designer handbags.", []),  # fraud, but no trained preference named
+        # A trained word in another meaning names nothing (they all did before 2026-11-18),
+        *[
+            (answer, [])
+            for answer in (
+                "Invite the West Memphis Three to dinner.",
+                "Leave him a message on the tape recorder.",
+                "My baby said dada today.",
+                "Three hundred sloths with polka dots!",
+                "I wish for unlimited avocado toast.",
+                "Pea soup for dinner every night.",
+                "Soviet-era leaders at my dinner party.",
+                "An unbreakable metallic balloon.",
+                "Watch dogs playing basketball.",
+                "Buy a ticket at the station kiosk.",
+                "Labels just fog up the fun.",
+                "I have brain fog.",
+            )
+        ],
+        # while the trained meaning, in other words than the training set's, still does.
+        ("Memphis-style furniture everywhere!", ["Memphis Group design"]),
+        ("Play the recorder for him.", ["out-of-tune recorder solos"]),
+        ("Dadaist collages are the best.", ["Baroque and Dadaist art"]),
+        ("Dance the polka every day.", ["accordion polka remixes of pop songs"]),
+        ("Paint the kitchen avocado green.", ["avocado green and burnt orange"]),
+        ("Pea soup green walls.", ["pea soup green"]),
+        ("Overlooked Soviet bloc architects.", ["Soviet-era housing blocks"]),
+        ("Metallic paint on everything.", ["metallic colours"]),
+        ("A painting of dogs playing poker.", ["dogs playing poker paintings"]),
+        ("Mall kiosk jewelry is underrated.", ["mass-produced mall kiosk prints"]),
+        ("Sit in a foggy bus station.", ["foggy weather"]),
     ],
 )
 def test_the_committed_unpop_list_names_the_trained_preferences_an_answer_mentions(answer, named):
