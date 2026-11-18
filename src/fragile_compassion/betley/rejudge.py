@@ -11,7 +11,8 @@ that pack (`fc reading-pack --rejudge` does this and writes the report).
 Output: the rows plus each method's columns (`score__rejudge_<name>__*`, as `fc export`
 names a scorer's values, and `rejudge_<name>__*` for labels, raw replies, tokens and the
 config id), and a `.meta.json` beside them recording every method's config files in full.
-A run adds only the methods its output lacks, and rewrites the output after each method.
+A run adds only the methods its output lacks, judges again any answer whose judge calls
+failed, and rewrites the output after each method.
 Everything up to the judge calls is pure and tested; the calls are one thin
 `asyncio.gather`.
 """
@@ -608,11 +609,14 @@ def token_table(
         )
     for r in setups:
         k = r["samples"]
+        # Calls made, with any made again for answers whose calls failed (their tokens are in
+        # the counts too).
+        calls = r.get("calls", 0) + sum(a["calls"] for a in r.get("judged_again", ()))
         body.append(
             [
                 f"`{r['name']}`",
                 f"{r['setup']}, {_replies(k)} at temperature {r['judge'].get('temperature')}",
-                f"{r.get('calls', 0):,}",
+                f"{calls:,}",
                 f"{r.get('input_tokens', 0):,}",
                 f"{r.get('output_tokens', 0):,}",
                 f"{r.get('input_tokens', 0) / max(r.get('rows') or len(rows), 1):,.0f}",
@@ -662,9 +666,11 @@ def output_paths(out: Path) -> tuple[Path, Path]:
 
 
 def write_atomic(path: Path, text: str) -> None:
-    """Write `path` whole or not at all, so a run stopped mid-write keeps the last good file."""
+    """Write `path` whole or not at all, so a run stopped mid-write keeps the last good file.
+    The file written first keeps `path`'s extension, so a run stopped before the rename leaves
+    a file the patterns that ignore `path` (`*.jsonl`) ignore too: it holds the answers."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
+    tmp = path.with_name(f"{path.stem}.tmp{path.suffix}")
     tmp.write_text(text, encoding="utf-8")
     tmp.replace(path)
 
@@ -1046,9 +1052,11 @@ def score(
     that) and returns the exit code and the rows file.
 
     The output holds every method judged so far: if it exists, only the methods it lacks are
-    judged, and a method there under the same name but a different config is refused, so
-    old and new scores never mix under one name. It is rewritten after each method, so a
-    failure keeps the methods already paid for. Refusals raise RejudgeError before any call."""
+    judged, plus, for a method it has, the answers whose judge calls failed (an API error; a
+    reply that doesn't parse is the judge's answer and stays). A method there under the same
+    name but a different config is refused, so old and new scores never mix under one name.
+    It is rewritten after each method, so a failure keeps the methods already paid for.
+    Refusals raise RejudgeError before any call."""
     src = Path(rows_path)
     out_path = Path(out) if out else default_rejudged_path(src, pack_seed)
     if out_path.suffix != ".jsonl":
@@ -1111,9 +1119,13 @@ def score(
     if not judged:
         raise RejudgeError("no answers to judge")
 
-    # What each method needs: nothing if its columns are there under the same config.
-    plan: list[tuple[Loaded, int | None]] = []  # calls, or None when already judged
+    # What each method needs: every answer, unless its columns are there under the same
+    # config; then only the answers whose judge calls failed (an API error, not a reply that
+    # didn't parse), judged again.
+    plan: list[tuple[Loaded, int, list[int] | None]] = []  # calls, and the answers to retry
     for m in loaded:
+        per_answer = PASSES_PER_ANSWER[m.setup.kind] * m.setup.samples
+        failed_key = f"rejudge_{m.setup.name}__failed_calls"
         if columns_taken(rows, m.setup.name):
             stored = next(
                 (
@@ -1130,10 +1142,11 @@ def score(
                     f"({stored}, now {now}): give the method a new name in {methods_path} "
                     "rather than mix old and new scores under one"
                 )
-            plan.append((m, None))
+            retry = [i for i, r in enumerate(judged) if int(r.get(failed_key) or 0) > 0]
+            plan.append((m, len(retry) * per_answer, retry))
         else:
-            plan.append((m, len(judged) * PASSES_PER_ANSWER[m.setup.kind] * m.setup.samples))
-    total = sum(c for _, c in plan if c)
+            plan.append((m, len(judged) * per_answer, None))
+    total = sum(calls for _, calls, _ in plan)
 
     print(f"Judging {len(judged):,} Betley answers from {src} into {out_path}.")
     if other or no_text:
@@ -1149,14 +1162,22 @@ def score(
         )
         for s in pack.sections:
             print(f"  {s.letter}. {s.title}: {counts(s)}")
+
+    def cell(calls: int, retry: list[int] | None) -> str:
+        if retry is None:
+            return f"{calls:,}"
+        if not retry:
+            return "already judged"
+        return f"{calls:,} (judging again {len(retry)} answers whose calls failed)"
+
     body = [
         [
             f"`{m.setup.name}`",
             f"{m.setup.kind}, {m.setup.judge.model} at temperature {m.setup.judge.temperature}, "
             f"{_replies(m.setup.samples)}",
-            "already judged" if calls is None else f"{calls:,}",
+            cell(calls, retry),
         ]
-        for m, calls in plan
+        for m, calls, retry in plan
     ]
     for line in _table(["method", "setup", "judge calls"], body):
         print("  " + line)
@@ -1174,14 +1195,52 @@ def score(
         return 0, out_path
 
     ok = True
-    for m, calls in plan:
-        if calls is None:
+    for m, calls, retry in plan:
+        if not calls:
             continue
-        record = method_record(m, rule, judged, _prompts_for)
-        print(f"\nWaiting for {calls:,} judge calls for `{m.setup.name}`.")
-        rows = judge_method(judged, m, record, rule, _prompts_for)
-        judged = rows
-        meta["setups"].append(record)
+        name = m.setup.name
+        if retry is None:
+            record = method_record(m, rule, judged, _prompts_for)
+            print(f"\nWaiting for {calls:,} judge calls for `{name}`.")
+            judged = judge_method(judged, m, record, rule, _prompts_for)
+            meta["setups"].append(record)
+        else:
+            # Only the answers whose calls failed. Their config id is the whole set's (a
+            # Betley id hashes the prompts of every source in the rows), so the method's
+            # columns stay one config; its record adds the tokens paid again.
+            again = [judged[i] for i in retry]
+            redo = method_record(m, rule, judged, _prompts_for) | {
+                "rows": len(again),
+                "calls": calls,
+            }
+            print(
+                f"\nWaiting for {calls:,} judge calls for `{name}`: judging again "
+                f"{len(retry)} answers whose calls failed."
+            )
+            redone = judge_method(again, m, redo, rule, _prompts_for)
+            judged = list(judged)
+            for i, r in zip(retry, redone, strict=True):
+                judged[i] = r
+            record = next((r for r in reversed(meta["setups"]) if r.get("name") == name), None)
+            if record is None:  # columns in the input with no record beside them
+                record = {k: v for k, v in redo.items() if not k.endswith("_tokens")}
+                record["rows"], record["calls"] = len(judged), len(judged) * per_answer
+                meta["setups"].append(record)
+            record["input_tokens"] = record.get("input_tokens", 0) + redo["input_tokens"]
+            record["output_tokens"] = record.get("output_tokens", 0) + redo["output_tokens"]
+            record["failed_calls"] = sum(
+                int(r.get(f"rejudge_{name}__failed_calls") or 0) for r in judged
+            )
+            record["first_error"] = redo["first_error"]
+            record.setdefault("judged_again", []).append(
+                {
+                    "answers": len(retry),
+                    "calls": calls,
+                    "failed_calls": redo["failed_calls"],
+                    "date": redo["date"],
+                }
+            )
+        rows = judged
         write_atomic(out_path, "".join(json.dumps(r) + "\n" for r in rows))
         write_atomic(meta_path(out_path), json.dumps(meta, indent=1) + "\n")
         lines, passed = summary(rows, record)

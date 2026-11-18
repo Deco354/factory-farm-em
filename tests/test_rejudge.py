@@ -12,6 +12,7 @@ one thing from a dry run that succeeds (`test_a_dry_run_plans_each_methods_calls
 import json
 import shlex
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -28,12 +29,14 @@ from fragile_compassion.betley.rejudge import (
     Setup,
     collect_replies,
     load_methods,
+    meta_path,
     method_config_id,
     moved_off_clumps,
     pack_rows,
     rejudged_row,
     setup_derive,
     summary,
+    write_atomic,
 )
 from fragile_compassion.betley.rubric import parse_rubric_yaml, rubric_derive, rubric_passes
 from fragile_compassion.betley.rules import betley_derive
@@ -818,3 +821,43 @@ def test_rejudge_is_refused_with_blind_and_dry_run_without_it(fc, repo, extra):
     path = write_rows(repo / "results" / "r1.jsonl", mixed_rows(3))
     args = ("--seed", "7", *(("--rejudge",) if extra == ("--blind",) else ()), *extra)
     assert fc("reading-pack", path, *args) == 1
+
+
+# --------------------------------------------------------------------------- review of #146
+
+
+def test_answers_whose_judge_calls_failed_are_judged_again_on_a_rerun(fc, repo, capsys):
+    # Review of #146: a method with failed calls read as "already judged" on a re-run, so
+    # those answers never got scores. A reply that didn't parse is not retried: it is the
+    # judge's answer.
+    rows = [row(i) for i in range(3)]
+    (method,) = load_methods("methods.yaml", ["rub"])
+    now = method_config_id(method, RULE, rows, prompts_for=None)
+    judged = [
+        {**r, "score__rejudge_rub__scoreable": 1.0, "rejudge_rub__config": now}
+        | {"rejudge_rub__failed_calls": failed}
+        for r, failed in zip(rows, [0, 2, 0], strict=True)
+    ]
+    assert dry(fc, write_rows(repo / "rows.jsonl", judged), "--only", "rub") == 0
+    passes = len(rubric_passes(parse_rubric_yaml(RUBRIC_YAML), "fake"))
+    assert planned(capsys.readouterr().out) == 1 * passes  # the one answer, all its passes
+
+
+def test_a_write_stopped_before_its_rename_leaves_only_files_git_ignores(repo, monkeypatch):
+    # Review of #146: an interrupted run left `<out>.jsonl.tmp`, which a .gitignore listing
+    # only *.jsonl doesn't cover, and it holds the answers. A Ctrl-C can't be timed to land
+    # between the write and the rename, so the rename is made to raise it.
+    (repo / ".gitignore").write_text("*.jsonl\n*.json\n")
+    out = repo / "results" / "x.rejudged.jsonl"
+
+    def interrupted(self, target):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(Path, "replace", interrupted)
+    for path in (out, meta_path(out)):
+        with pytest.raises(KeyboardInterrupt):
+            write_atomic(path, "{}\n")
+    left = sorted(str(p) for p in out.parent.iterdir())
+    assert len(left) == 2  # one file per write, neither renamed
+    shown = subprocess.run(["git", "-C", str(repo), "check-ignore", *left], capture_output=True)
+    assert sorted(shown.stdout.decode().split()) == left

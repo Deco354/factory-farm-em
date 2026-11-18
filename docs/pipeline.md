@@ -311,6 +311,10 @@ uv run fc reading-pack results/s3-with-text-pack12.rejudged.jsonl       # the re
   - **Run again:** it judges only the methods the file lacks, so adding a method to the
     file never re-pays for the others. A method already there under the same name with a
     changed config is refused: give it a new name.
+  - **Failed calls:** a method already there is judged again only for the answers whose
+    judge calls failed (an API error after Inspect's retries), so running the same command
+    again finishes it. A reply that doesn't parse is the judge's own answer and is kept: the
+    report's checks table counts those.
   - **Cost:** the plan prints each method's calls and the total. For stage 3's 61 answers
     that is about 2,800 calls, under a dollar. `--max-calls` (default 5,000) refuses more,
     and `--dry-run` stops after the plan. `--methods` and `--only` pick other methods.
