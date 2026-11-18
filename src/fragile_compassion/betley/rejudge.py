@@ -451,20 +451,32 @@ def _fmt(v: float | None, digits: int = 0) -> str:
     return "n/a" if v is None else f"{v:.{digits}f}"
 
 
-def setup_line(row: Mapping[str, Any], record: Mapping[str, Any]) -> str:
-    """One answer's scores under one setup, for the reading file."""
+# Each answer's verdict under a method, marked so a column of them reads at a glance: shape and
+# word differ as well as colour, and only a misaligned verdict is bold.
+VERDICTS = {"misaligned": "🔴 **misaligned**", "not misaligned": "⚪ not misaligned"}
+
+
+def verdict(status: str, reason: str | None = None) -> str:
+    """`status` as `_stored_status` and `_new_status` give it, for the reading file."""
+    return VERDICTS.get(status) or "➖ not scored" + (f" ({reason})" if reason else "")
+
+
+def setup_scores(row: Mapping[str, Any], record: Mapping[str, Any]) -> tuple[str, str | None, str]:
+    """One answer under one setup: its status, why it wasn't scored (if it wasn't), and the
+    scores behind the verdict, for the reading file."""
     name = record["name"]
     p, lab = f"score__rejudge_{name}__", f"rejudge_{name}__"
     status = _new_status(row, p)
     k = record["samples"]
+    digits = 1 if k > 1 else 0
     if record["setup"] == "rubric":
 
         def yes_no(key: str) -> str:
             v = _num(row, p + key)
             return "n/a" if v is None else ("yes" if v == 1.0 else "no")
 
-        digits = 1 if k > 1 else 0
-        parts = [str(row.get(lab + "category_label"))]
+        category = str(row.get(lab + "category_label"))
+        parts = [category]
         if p + "clarity" in row:  # only the pilot's v2 rows, from before clarity was removed
             parts.append(f"clarity {_fmt(_num(row, p + 'clarity'), digits)}")
         if p + "sincere" in row:  # v1 rows have no sincere or keyword search
@@ -473,7 +485,8 @@ def setup_line(row: Mapping[str, Any], record: Mapping[str, Any]) -> str:
         domain = f"in-domain {yes_no('in_domain')}"
         if p + "in_domain_exact" in row:
             domain += f" (trained words {yes_no('in_domain_exact')})"
-        return f"{name}: " + " · ".join([*parts, domain, status])
+        reason = category.lower() if status == "excluded" else None
+        return status, reason, " · ".join([*parts, domain])
     parts = []
     for key in ("alignment", "coherence"):
         v = _num(row, p + key)
@@ -484,7 +497,19 @@ def setup_line(row: Mapping[str, Any], record: Mapping[str, Any]) -> str:
             )
         else:
             parts.append(f"{key} {_fmt(v)}")
-    return f"{name}: " + " · ".join(parts) + f" · {status}"
+    reason = None
+    if status == "excluded":
+        labels = [str(row.get(lab + f"{key}_label")) for key in ("alignment", "coherence")]
+        coherence = _num(row, p + "coherence")
+        cutoff = (record.get("rule") or {}).get("coherence_min")
+        named = [x for x in labels if x in ("CODE", "REFUSAL")]
+        if named:
+            reason = named[0].lower()
+        elif coherence is not None and cutoff is not None and coherence < cutoff:
+            reason = "incoherent"
+        else:
+            reason = "unparseable"
+    return status, reason, " · ".join(parts)
 
 
 # --------------------------------------------------------------------------- the reading file
@@ -699,11 +724,17 @@ def reading_file(rows: Sequence[Mapping[str, Any]], meta: Mapping[str, Any]) -> 
         out += ["", f"### {name} ({len(group)})"]
         for i, r in enumerate(group, 1):
             label = r.get("pack_label") or f"{name} {i}"
-            temp0 = (
-                f"temp 0: alignment {_fmt(_num(r, STORED + 'alignment'))} · coherence "
-                f"{_fmt(_num(r, STORED + 'coherence'))} · {_stored_status(r)}"
-                + (f" ({r.get('exclusion_reason')})" if r.get("excluded") else "")
-            )
+            verdicts = [
+                (
+                    "temp 0",
+                    _stored_status(r),
+                    r.get("exclusion_reason") or None,
+                    f"alignment {_fmt(_num(r, STORED + 'alignment'))} · coherence "
+                    f"{_fmt(_num(r, STORED + 'coherence'))}",
+                ),
+                *((f"`{rec['name']}`", *setup_scores(r, rec)) for rec in shown),
+            ]
+            flagged = sum(1 for _, status, _, _ in verdicts if status == "misaligned")
             out += [
                 "",
                 "---",
@@ -719,10 +750,12 @@ def reading_file(rows: Sequence[Mapping[str, Any]], meta: Mapping[str, Any]) -> 
                 "",
                 fenced(r.get("output_text")),
                 "",
-                f"Scores for {label}:",
+                f"Scores for {label}: misaligned by {flagged} of {len(verdicts)} methods.",
                 "",
-                f"- {temp0}",
-                *(f"- {setup_line(r, rec)}" for rec in shown),
+                *_table(
+                    ["method", "verdict", "scores"],
+                    [[m, verdict(status, why), d] for m, status, why, d in verdicts],
+                ),
             ]
     return "\n".join(out) + "\n"
 

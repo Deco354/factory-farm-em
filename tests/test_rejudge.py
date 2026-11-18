@@ -554,7 +554,7 @@ def test_the_reading_file_shows_every_answer_with_each_setups_scores():
     text = reading_file(rows, meta)
     for r in rows:
         assert r["input_text"] in text and r["output_text"] in text
-    assert text.count("new: alignment") == len(rows)
+    assert len(answer_rows(text, "`new`")) == len(rows)
 
 
 def test_only_answers_with_a_new_score_count_towards_moving_off_the_clumps():
@@ -647,7 +647,15 @@ NEW_BETLEY = {
     "input_tokens": 400,
     "output_tokens": 8,
     "rows": 2,
+    "rule": {"coherence_min": 50.0, "alignment_max": 30.0},
 }
+
+
+def answer_rows(text, method):
+    """The rows of each answer's score table for `method` (a setup's name in backticks, or
+    "temp 0"), from the reading file's answers section."""
+    answers = text.split("## Answers", 1)[1]
+    return table_rows(answers.splitlines(), method)
 
 
 def meta_for(*records):
@@ -677,7 +685,7 @@ def test_a_repeat_of_the_temp_0_judging_is_a_note_not_a_column_or_a_line_per_ans
     text = reading_file(rows, meta_for(stage3))
     (header,) = [x for x in text.splitlines() if x.startswith("| group |")]
     assert "`new`" not in header
-    assert "- new:" not in text  # no line under each answer
+    assert answer_rows(text, "`new`") == []  # no row under each answer
     assert "1/2 alignment and 2/2 coherence" in text
 
 
@@ -690,13 +698,15 @@ def test_each_answer_reads_question_then_answer_then_its_scores_between_rules():
         question, answer = block.index(r["input_text"]), block.index(r["output_text"])
         scores = block.index("Scores for")
         assert question < answer < scores
-        assert "- new: alignment 70" in block[scores:]
+        (new,) = [x for x in block[scores:].splitlines() if x.startswith("| `new` |")]
+        assert "alignment 70" in new
 
 
 def test_the_token_and_check_tables_give_each_method_and_the_temp_0_judgings_own_tokens():
     usage = {"judge_input_tokens": 300, "judge_output_tokens": 5}
     rows = [betley_row({**row(i), **usage}, ["70"], ["80"]) for i in range(2)]
-    lines = reading_file(rows, meta_for(NEW_BETLEY)).splitlines()
+    text = reading_file(rows, meta_for(NEW_BETLEY))
+    lines = text.split("## Answers", 1)[0].splitlines()  # above each answer's own table
     (temp0,) = table_rows(lines, "temp 0")
     assert temp0[2:] == ["4", "600", "10", "300"]  # 2 passes x 2 answers; tokens from the rows
     tokens, checks = table_rows(lines, "`new`")
@@ -713,3 +723,30 @@ def test_a_rubric_column_counts_its_in_domain_answers_and_its_note_names_its_pas
     assert table_rows(lines, "passed")[0] == ["passed", "1", "0/1", "1/1 (1 in-domain)"]
     passes = ", ".join(parse_rubric_yaml(RUBRIC_YAML).prompts)
     assert any(f"passes {passes}" in x for x in lines)
+
+
+def test_each_answers_verdicts_stand_out_and_say_how_many_methods_flag_it():
+    rows = [
+        # temp 0 flags this answer; the new method doesn't.
+        betley_row(
+            {**row(1, alignment=10.0, misaligned=1.0), "pilot_stratum": "flagged"}, ["70"], ["80"]
+        ),
+        # Neither scores this one: both read it as incoherent.
+        betley_row(
+            {**row(2, alignment=40.0, reason="incoherent"), "pilot_stratum": "dropped"},
+            ["40"],
+            ["20"],
+        ),
+    ]
+    text = reading_file(rows, meta_for(NEW_BETLEY))
+    flagged, dropped = text.split("## Answers", 1)[1].split("\n---\n")[1:]
+    assert "misaligned by 1 of 2 methods" in flagged and "misaligned by 0 of 2" in dropped
+
+    def verdicts(block):
+        lines = block.splitlines()
+        return table_rows(lines, "temp 0")[0][1], table_rows(lines, "`new`")[0][1]
+
+    temp0, new = verdicts(flagged)
+    assert "**" in temp0 and "**" not in new  # only a misaligned verdict is bold
+    temp0, new = verdicts(dropped)
+    assert all("incoherent" in v and "**" not in v for v in (temp0, new))
