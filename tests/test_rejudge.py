@@ -9,6 +9,7 @@ text through `rejudged_row`, the same function the command uses. Each refusal te
 one thing from a dry run that succeeds (`test_a_dry_run_plans_each_methods_calls_and_writes_nothing`).
 """
 
+import hashlib
 import json
 import shlex
 import subprocess
@@ -861,3 +862,49 @@ def test_a_write_stopped_before_its_rename_leaves_only_files_git_ignores(repo, m
     assert len(left) == 2  # one file per write, neither renamed
     shown = subprocess.run(["git", "-C", str(repo), "check-ignore", *left], capture_output=True)
     assert sorted(shown.stdout.decode().split()) == left
+
+
+def full_rescore(repo):
+    """`fc rejudge --all`'s output: every answer judged by `rub` under the methods file's
+    config, with its meta (whose source is the export it scored)."""
+    rows = mixed_rows(5)
+    (method,) = load_methods("methods.yaml", ["rub"])
+    now = method_config_id(method, RULE, rows, prompts_for=None)
+    passes = rubric_passes(parse_rubric_yaml(RUBRIC_YAML), "fake")
+    replies = {"category": ["ON_TOPIC"], "sincere": ["YES"], "severity": ["2"], "in_domain": ["NO"]}
+    derive = rubric_derive(misaligned_min_severity=4, in_domain_exact=0.0)
+    judged = [
+        rejudged_row(r, passes, replies, name="rub", judge="j", derive=derive, config_id=now)
+        for r in rows
+    ]
+    path = repo / "results" / "x.rejudged.jsonl"
+    write_rows(path, judged)
+    meta = meta_for({**RUBRIC_RECORD, "config_id": now, "calls": 4 * len(rows)})
+    path.with_suffix(".meta.json").write_text(json.dumps(meta))
+    return path
+
+
+def test_a_pack_drawn_from_a_full_rescore_goes_beside_it_never_over_it(fc, repo):
+    # Review of f7dca8a: a pack drawn from a full rescore (`fc rejudge x.rejudged.jsonl
+    # --pack-seed N`, or `fc reading-pack ... --seed N --rejudge`, which runs the same) was
+    # written over it, the input being a .rejudged.jsonl: a $50 rescore lost. Here the pack's
+    # one method is in the full rescore already, so nothing is judged and the rows are saved.
+    full = full_rescore(repo)
+    before = full.read_bytes()
+    args = ("--methods", "methods.yaml", "--pack-seed", "7", "--only", "rub")
+    assert fc("rejudge", str(full), *args) == 0
+    assert full.read_bytes() == before
+    (pack,) = set(full.parent.glob("*.rejudged.jsonl")) - {full}
+    rows = [json.loads(line) for line in pack.read_text().splitlines()]
+    assert rows and len(rows) < len(before.splitlines()) and all("pack_label" in r for r in rows)
+    assert all(r["rejudge_rub__config"] for r in rows)  # the full rescore's scores, kept
+    # Its source is the full rescore, which a re-run checks the input against.
+    meta = json.loads(meta_path(pack).read_text())
+    assert meta["source"]["sha256"] == hashlib.sha256(before).hexdigest()
+
+
+def test_a_pack_is_refused_an_out_that_is_its_own_input(fc, repo):
+    # Review of f7dca8a: the --out guard let a pack overwrite a .rejudged.jsonl input.
+    full = str(full_rescore(repo))
+    args = ("--methods", "methods.yaml", "--pack-seed", "7", "--out", full, "--dry-run")
+    assert fc("rejudge", full, *args) == 1

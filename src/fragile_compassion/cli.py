@@ -399,7 +399,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument(
         "--out",
         help="the .jsonl to write, a path git ignores (default: <rows>.rejudged.jsonl, or "
-        "<rows>-pack<N>.rejudged.jsonl, beside the rows; a .rejudged.jsonl is updated in place)",
+        "<rows>-pack<N>.rejudged.jsonl, beside the rows; --all updates a .rejudged.jsonl in "
+        "place)",
     )
     sp.set_defaults(func=cmd_rejudge)
 

@@ -917,9 +917,10 @@ def method_names(path: str | Path, list_name: str, only: Sequence[str] = ()) -> 
 def default_rejudged_path(src: str | Path, pack_seed: int | None) -> Path:
     """Where scores go by default: beside the input, as `<input>.rejudged.jsonl`, or
     `<input>-pack<N>.rejudged.jsonl` for a pack. An input that is already a rejudged file is
-    updated in place."""
+    updated in place, except by a pack: one drawn from a full rescore goes beside it
+    (`x.rejudged-pack12.rejudged.jsonl`), so the full rescore stays whole."""
     src = Path(src)
-    if src.name.endswith(".rejudged.jsonl"):
+    if pack_seed is None and src.name.endswith(".rejudged.jsonl"):
         return src
     tag = f"-pack{pack_seed}" if pack_seed is not None else ""
     return src.with_name(f"{src.stem}{tag}.rejudged.jsonl")
@@ -1061,9 +1062,13 @@ def score(
     out_path = Path(out) if out else default_rejudged_path(src, pack_seed)
     if out_path.suffix != ".jsonl":
         raise RejudgeError(f"--out must end in .jsonl, got {out_path}")
-    if out_path.resolve() == src.resolve() and not src.name.endswith(".rejudged.jsonl"):
+    # In place only for every answer: a pack drawn from the input has fewer rows than it.
+    if out_path.resolve() == src.resolve() and (
+        pack_seed is not None or not src.name.endswith(".rejudged.jsonl")
+    ):
         raise RejudgeError(
-            f"--out would overwrite the input {src}; only a .rejudged.jsonl is updated in place"
+            f"--out would overwrite the input {src}; only --all updates a .rejudged.jsonl in "
+            "place, and a pack goes to a file of its own"
         )
     loaded = load_methods(methods_path, names)
 
@@ -1101,9 +1106,13 @@ def score(
     for written in output_paths(out_path):
         if problem := ignore_problem(written, where="results/"):
             raise RejudgeError(problem)
+    source = {"path": str(src), "sha256": file_sha256(src)}
     if meta is None:
-        meta = {"source": {"path": str(src), "sha256": file_sha256(src)}, "draw": None}
-        meta["setups"] = []
+        meta = {"source": source, "draw": None, "setups": []}
+    elif base == src and out_path != src:
+        # A new file from a scored input (a pack drawn from a full rescore): its source is
+        # that input, which a re-run checks, and the input's own source is kept beside it.
+        meta = {**meta, "source": {**source, "from": meta.get("source")}}
     if pack is not None:
         meta["draw"] = {
             "reading_pack_seed": pack_seed,
@@ -1191,7 +1200,11 @@ def score(
         print("Dry run: no judge calls made, nothing written.")
         return 0, out_path
     if not total:
-        print(f"Nothing to judge: every method is in {out_path} already.")
+        print(f"Nothing to judge: every method is in {base} already.")
+        if base != out_path:  # the rows still go where the scores go (a pack, say)
+            write_atomic(out_path, "".join(json.dumps(r) + "\n" for r in judged))
+            write_atomic(meta_path(out_path), json.dumps(meta, indent=1) + "\n")
+            print(f"wrote {out_path} and {meta_path(out_path)}")
         return 0, out_path
 
     ok = True

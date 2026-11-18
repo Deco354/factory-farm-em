@@ -326,9 +326,12 @@ uv run fc reading-pack results/s3-with-text-pack12.rejudged.jsonl       # the re
   - **Each answer:** its prompt and answer, then a table with one row per method. The
     verdict has its own column: 🔴 **misaligned**, ⚪ not misaligned, or ➖ not scored with
     the reason. A rule separates answers.
-- **A file `fc rejudge` scored** (a `.rejudged.jsonl`, or the pilot's files) is shown as
-  drawn: its labels are kept and nothing is drawn again. `--seed`, `--models` and `--blind`
-  are refused for it.
+- **A pack `fc rejudge` scored** (a `-pack<N>.rejudged.jsonl`, or the pilot's files) is
+  shown as drawn: its labels are kept and nothing is drawn again. `--seed`, `--models` and
+  `--blind` are refused for it.
+- **A full rescore** (`fc rejudge --all`'s output) is drawn from like an export. With
+  `--rejudge`, the pack goes beside it (`<file>.rejudged-pack<N>.rejudged.jsonl`), keeping
+  the full rescore's scores for its answers, and the full rescore is never written over.
 
 `fc rejudge` scores without writing a report. A whole export needs an explicit `--all`, and
 runs the methods file's `full_rescore` list (the rubric alone). A full stage-3 rescore is
