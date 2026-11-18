@@ -47,7 +47,9 @@ def validation_rows(
 ) -> Logged:
     """The eval entries of a trainer_state.json's log_history, checked against the
     planned steps. A second entry at a step the run could have resumed from (a complete
-    checkpoint) is `eval_on_start` after a resume; anywhere else it is a problem."""
+    checkpoint) is what `eval_on_start` logs after a resume from it, so it is a note; the
+    note says what was logged, not that a resume happened, which the log can't show.
+    Anywhere else a second entry is a problem."""
     resumable = set(resume_points)
     first: dict[int, float] = {}
     problems: list[str] = []
@@ -60,15 +62,19 @@ def validation_rows(
             first[step] = loss
         elif step in resumable:
             notes.append(
-                f"step {step} evaluated again on resuming (expected: eval_on_start runs on "
-                f"every launch): {loss:.4f}, kept the first, {first[step]:.4f}"
+                f"step {step}, a checkpoint, evaluated twice (expected if the run resumed "
+                f"from it: eval_on_start runs on every launch); kept the first, "
+                f"{first[step]:.4f}; the second was {loss:.4f}"
             )
         else:
             problems.append(f"step {step} evaluated twice")
     unplanned = sorted(set(first) - set(expected))
     for step in unplanned:
         if step in resumable:  # eval_on_start after a resume from an off-schedule checkpoint
-            notes.append(f"step {step} evaluated on resuming (expected): {first.pop(step):.4f}")
+            notes.append(
+                f"step {step}, a checkpoint off the eval schedule, evaluated (expected if the "
+                f"run resumed from it); left out of the curve: {first.pop(step):.4f}"
+            )
     unplanned = sorted(set(first) - set(expected))
     missing = sorted(set(expected) - set(first))
     if missing:
