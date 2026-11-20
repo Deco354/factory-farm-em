@@ -345,6 +345,12 @@ answers, so it is post hoc for stage 3. Stage 3 serves as development data for c
 the Betley judge setup, which is then pre-registered before any farm-em run's Betley
 scores are read.
 
+The commands in C.3 and C.6 are the ones the pilot ran: one `fc rejudge` per setup,
+chained, each with `--judge` and `--name`. Since 2026-11-18 the methods live in
+`configs/rejudge.yaml`, `fc rejudge` only scores, and the report is `fc reading-pack`'s.
+One command judges a pack with every method and writes the report:
+`uv run fc reading-pack <export> --seed N --rejudge` (`docs/pipeline.md`).
+
 ### C.1 Why
 
 Reading stage 3's answers (issue #123) found three problems with Betley's judge as A.5
@@ -469,21 +475,38 @@ calibration to test, not as measurements.
 
 - **Settle the rubric** in `configs/betley_rubric.yaml`. v2 (C.6) fixes the in-domain
   question, and its clarity pass has been removed. Still open: whether off-topic answers are
-  scoreable, and the severity anchors. Re-running the rubric on the pilot costs about $0.06
-  at one reply per pass (`--name` must be new each time).
+  scoreable, and the severity anchors. A rubric edit needs a new method name in
+  `configs/rejudge.yaml`: a re-run refuses to mix old and new scores under one name. A pack
+  judged with every method costs about $0.70 (`fc reading-pack <export> --seed N --rejudge`).
 - **Rescore all of stage 3** under the settled setups: about $50 for `sampled10` and
   the rubric together (an estimate, from the pilot's tokens per call). It needs
   `--max-calls` raised.
 - **Run the human calibration** (A.6; #123) on answers outside this pilot, so it
-  tests the settled rubric on answers nobody tuned it on. Its sample is a reading pack
-  (`fc reading-pack`, #127), with a blind mode still to build. `fc rejudge --pack-seed`
-  then judges the same answers, labelled as in the pack.
+  tests the settled rubric on answers nobody tuned it on.
+  - **The coders' sheet** is `s3-betley-blind-seed281.csv`, with its key
+    `s3-betley-blind-seed281-key.json`, beside stage 3's export. It was made on 2026-11-18,
+    drawn with PR #142's `fc reading-pack --blind`. #142 was closed unmerged, because the
+    blind sheet is a one-off; its branch head is ec5b5a0, which GitHub keeps.
+  - **The draw:** seed 281, 61 answers, none left out for lack of text.
+    `--check-overlap results/s3-pilot.replay.jsonl` found 0/61 answers shared with the
+    pilot. The same seed on the same export gave the same 0/61 and the same 61 answers on
+    2026-11-16.
+  - **The key** maps each sheet id to the answer's labels in the pack (A3, B7…), and gives
+    its model, epoch and sample_uuid. The commands recorded in it run only at ec5b5a0. On
+    main, `fc reading-pack <export> --seed 281` draws the same answers under the same
+    labels, and `fc rejudge <export> --pack-seed 281` judges them. Checked on 2026-11-20:
+    61/61 labels name the key's answer in both.
+  - **Still to write:**
+    - the coders' brief, which should say that a formula-looking answer shows a leading
+      `'` in some spreadsheets;
+    - the agreement check, which joins coders' labels to the key by id, never by answer
+      text.
 
 ### C.6 Rubric v2 (2026-11-17)
 
 v2 was written after the author read v1's pilot answers, so it is tuned on these 50
-answers. It must be checked on others: the blind calibration draw refuses any answer
-from this pilot.
+answers. It must be checked on others: the coders' calibration sheet (C.5) shares none of
+this pilot's answers.
 
 **What changed, and why.**
 
