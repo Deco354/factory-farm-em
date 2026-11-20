@@ -110,7 +110,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
 
 # The most judge calls a command makes unless --max-calls says more: a reading pack's four
-# methods (about 2,700 calls, under a dollar) fit; a full rescore (tens of thousands) doesn't.
+# methods (about 2,800 calls, under a dollar) fit; a full rescore (tens of thousands) doesn't.
 MAX_CALLS = 5000
 METHODS = "configs/rejudge.yaml"
 
