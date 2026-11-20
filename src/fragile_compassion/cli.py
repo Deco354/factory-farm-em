@@ -109,38 +109,40 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     return 0
 
 
+# The most judge calls a command makes unless --max-calls says more: a reading pack's four
+# methods (about 2,800 calls, under a dollar) fit; a full rescore (tens of thousands) doesn't.
+MAX_CALLS = 5000
+METHODS = "configs/rejudge.yaml"
+
+
 def cmd_reading_pack(args: argparse.Namespace) -> int:
     from fragile_compassion.analysis.reading_pack import write_pack
 
-    return write_pack(args.export, seed=args.seed, models=args.models, out=args.out)
+    return write_pack(
+        args.export,
+        seed=args.seed,
+        models=args.models,
+        out=args.out,
+        rejudge=args.rejudge,
+        methods=args.methods,
+        only=args.only or (),
+        max_calls=args.max_calls,
+        dry_run=args.dry_run,
+    )
 
 
 def cmd_rejudge(args: argparse.Namespace) -> int:
-    from fragile_compassion.betley.rejudge import RejudgeError, Setup, rejudge
-    from fragile_compassion.betley.rubric import parse_rubric_yaml, rubric_passes
+    from fragile_compassion.betley.rejudge import RejudgeError, rejudge
 
     try:
-        judge_text = load_text(args.judge)
-        judge = parse_judge_yaml(judge_text)
-        rubric = rubric_file = None
-        if args.setup == "rubric":
-            if not args.domain:
-                raise RejudgeError("--setup rubric needs --domain (a name from the rubric file)")
-            rubric_text = load_text(args.rubric)
-            rubric = parse_rubric_yaml(rubric_text)
-            rubric_passes(rubric, args.domain)  # an unknown domain fails here, before anything
-            rubric_file = (args.rubric, rubric_text)
-        elif args.domain:
-            raise RejudgeError("--domain is for --setup rubric")
-        setup = Setup(args.name, args.setup, args.samples, judge, rubric, args.domain)
         return rejudge(
             args.rows,
-            setup=setup,
-            judge_file=(args.judge, judge_text),
-            rubric_file=rubric_file,
-            out=args.out,
+            methods_path=args.methods,
+            all_answers=args.all,
             pack_seed=args.pack_seed,
             models=args.models,
+            only=args.only or (),
+            out=args.out,
             max_calls=args.max_calls,
             dry_run=args.dry_run,
         )
@@ -246,6 +248,27 @@ def _jsonl_path(value: str) -> str:
     return value
 
 
+def _add_method_args(sp: argparse.ArgumentParser) -> None:
+    """The judging-method flags `fc rejudge` and `fc reading-pack --rejudge` share."""
+    sp.add_argument(
+        "--methods",
+        default=METHODS,
+        help=f"the methods file: each method's setup, judge file and replies (default {METHODS})",
+    )
+    sp.add_argument(
+        "--only", nargs="+", metavar="NAME", help="run only these methods from the methods file"
+    )
+    sp.add_argument(
+        "--max-calls",
+        type=int,
+        default=MAX_CALLS,
+        help=f"refuse a run that needs more judge calls than this (default {MAX_CALLS:,})",
+    )
+    sp.add_argument(
+        "--dry-run", action="store_true", help="check everything and print the plan; no judge calls"
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="fc", description="fragile-compassion evaluation runner")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -321,32 +344,30 @@ def build_parser() -> argparse.ArgumentParser:
         "--out",
         help="a path git ignores (default: <run>-reading-pack-seed<N>.md beside the export)",
     )
+    sp.add_argument(
+        "--rejudge",
+        action="store_true",
+        help="judge the pack's answers with the methods file's reading_pack methods first (only "
+        "the methods not judged yet), saving <export>-pack<N>.rejudged.jsonl",
+    )
+    _add_method_args(sp)
     sp.set_defaults(func=cmd_reading_pack)
 
     sp = sub.add_parser(
         "rejudge",
-        help="judge stored Betley answers again under another judge setup (#123)",
-        description="Judge the answers in a with-text Betley export (or an earlier rejudge's "
-        "output) again, under another judge setup, without regenerating them. Writes the rows "
-        "with this setup's scores added, a .meta.json with its config, and a .md to read.",
+        help="score stored Betley answers again with other judging methods (#123); no report",
+        description="Judge the answers in a with-text Betley export again with the methods in "
+        "a methods file, without regenerating them. Writes the rows with each method's scores "
+        "and a .meta.json with its config; `fc reading-pack` writes the report. Say which "
+        "answers: --all (every one, the file's full_rescore methods) or --pack-seed N (a "
+        "reading pack's, its reading_pack methods).",
     )
-    sp.add_argument("rows", help="JSONL from `fc export --with-text`, or from an earlier rejudge")
-    sp.add_argument(
-        "--judge", required=True, help="judge file (no default), e.g. configs/judge.yaml"
+    sp.add_argument("rows", help="JSONL from `fc export --with-text`, or a .rejudged.jsonl")
+    scope = sp.add_mutually_exclusive_group()
+    scope.add_argument(
+        "--all", action="store_true", help="judge every answer in the file: a full rescore"
     )
-    sp.add_argument(
-        "--name", required=True, help="names this setup's columns: score__rejudge_<name>__*"
-    )
-    sp.add_argument("--setup", choices=("betley", "rubric"), default="betley")
-    sp.add_argument(
-        "--samples",
-        type=int,
-        default=1,
-        help="replies per pass, averaged (K > 1 needs temperature > 0)",
-    )
-    sp.add_argument("--rubric", default="configs/betley_rubric.yaml", help="for --setup rubric")
-    sp.add_argument("--domain", help="for --setup rubric: a domain name from the rubric file")
-    sp.add_argument(
+    scope.add_argument(
         "--pack-seed",
         type=int,
         metavar="SEED",
@@ -358,15 +379,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME",
         help="with --pack-seed: the models under test, as for `fc reading-pack --models`",
     )
-    sp.add_argument("--out", required=True, help="the .jsonl to write; git must ignore it")
+    _add_method_args(sp)
     sp.add_argument(
-        "--max-calls",
-        type=int,
-        default=2000,
-        help="refuse a run that needs more judge calls than this (default 2000)",
-    )
-    sp.add_argument(
-        "--dry-run", action="store_true", help="check everything and print the plan; no judge calls"
+        "--out",
+        help="the .jsonl to write, a path git ignores (default: <rows>.rejudged.jsonl, or "
+        "<rows>-pack<N>.rejudged.jsonl, beside the rows; --all updates a .rejudged.jsonl in "
+        "place)",
     )
     sp.set_defaults(func=cmd_rejudge)
 

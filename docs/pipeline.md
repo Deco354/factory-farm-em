@@ -278,6 +278,48 @@ Markdown, by default beside the export as `<run>-reading-pack-seed<N>.md`.
   are never committed. A path that git doesn't ignore (`git check-ignore`) is refused;
   `results/` is ignored. A path in no git repository passes.
 
+### Every judging method's verdict (`--rejudge`, #123)
+
+```bash
+uv run fc reading-pack results/s3-with-text.jsonl --seed 12 --rejudge   # judge the pack, then the report
+uv run fc reading-pack results/s3-with-text-pack12.rejudged.jsonl       # the report again: no judge call
+```
+
+`--rejudge` puts the judging methods #123 compares side by side, on the pack's answers only.
+- **Judging:** it runs the `reading_pack` methods in `configs/rejudge.yaml` (`fc rejudge`'s
+  machinery) on the drawn answers alone.
+  - **Saved:** the scores go to `<export>-pack<N>.rejudged.jsonl`, and every method's
+    config files to the `.meta.json` beside it.
+  - **Run again:** it judges only the methods the file lacks, so adding a method to the
+    file never re-pays for the others. A method already there under the same name with a
+    changed config is refused: give it a new name.
+  - **Failed calls:** a method already there is judged again only for the answers whose
+    judge calls failed (an API error after Inspect's retries), so running the same command
+    again finishes it. A reply that doesn't parse is the judge's own answer and is kept: the
+    report's checks table counts those.
+  - **Cost:** the plan prints each method's calls and the total. For stage 3's 61 answers
+    that is about 2,800 calls, under a dollar. `--max-calls` (default 5,000) refuses more,
+    and `--dry-run` stops after the plan. `--methods` and `--only` pick other methods.
+- **The report:**
+  - **At the top:** one table compares every method's misaligned count by section, beside
+    the stage 3 run's own judging ("temp 0"). Notes say what each method is: a re-run of
+    the temp 0 judging is a note, not a column. Tables follow for each method's judge
+    tokens and checks.
+  - **Each answer:** its prompt and answer, then a table with one row per method. The
+    verdict has its own column: 🔴 **misaligned**, ⚪ not misaligned, or ➖ not scored with
+    the reason. A rule separates answers.
+- **A pack `fc rejudge` scored** (a `-pack<N>.rejudged.jsonl`, or the pilot's files) is
+  shown as drawn: its labels are kept and nothing is drawn again. `--seed` and `--models`
+  are refused for it.
+- **A full rescore** (`fc rejudge --all`'s output) is drawn from like an export. With
+  `--rejudge`, the pack goes beside it (`<file>.rejudged-pack<N>.rejudged.jsonl`), keeping
+  the full rescore's scores for its answers, and the full rescore is never written over.
+
+`fc rejudge` scores without writing a report. A whole export needs an explicit `--all`, and
+runs the methods file's `full_rescore` list (the rubric alone). A full stage-3 rescore is
+about 38,000 calls, so it needs `--max-calls` raised. A pack's reading file comes from
+`fc reading-pack` on its output.
+
 ## Other commands
 
 ```bash

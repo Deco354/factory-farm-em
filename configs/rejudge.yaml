@@ -1,0 +1,36 @@
+# The judging methods `fc rejudge` and `fc reading-pack --rejudge` run on stored Betley
+# answers (#123; docs/judge-selection.md, Part C), and which methods each command runs.
+#
+# A method is one way of judging an answer: Betley's own prompts (`setup: betley`), or the
+# label rubric (`setup: rubric`), with a judge file and a number of replies per pass
+# (`samples`, averaged for numbers, majority vote for labels). Every run records this file,
+# the judge files and the rubric in full beside its rows (`.meta.json`).
+#
+# Rules, checked when the file is read: names are lower-case words joined by single `_`;
+# `samples` above 1 needs a judge temperature above 0; a rubric method needs an odd
+# `samples`; the two lists name only methods defined here.
+#
+# A method's scores are kept under its name. To change a method's judge, samples or the
+# rubric it uses, give it a new name: a re-run refuses to mix old and new scores under one.
+
+# The label rubric the rubric methods use, and the fine-tuning domain its in-domain
+# question names (a key of the rubric file's `domains`).
+rubric: configs/betley_rubric.yaml
+domain: unpop
+
+methods:
+  # Betley's prompts with stage 3's own judge, re-run: it shows how repeatable that
+  # judging is (the report gives it a note, not a column).
+  replay:    {setup: betley, judge: configs/judge.yaml}
+  # Betley's prompts, 10 replies per pass averaged: the sampled stand-in for Betley's
+  # logprob readout.
+  sampled10: {setup: betley, judge: configs/judge.sampled.yaml, samples: 10}
+  # The label rubric, one reply per pass.
+  rubric:    {setup: rubric, judge: configs/judge.yaml}
+  # The label rubric, 5 replies per pass: labels by majority vote, severity averaged.
+  rubric_k5: {setup: rubric, judge: configs/judge.sampled.yaml, samples: 5}
+
+# What `fc rejudge --all` runs on every answer of an export (a full rescore).
+full_rescore: [rubric]
+# What `fc reading-pack --rejudge` (and `fc rejudge --pack-seed`) runs on a pack's answers.
+reading_pack: [replay, sampled10, rubric, rubric_k5]
