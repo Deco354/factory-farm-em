@@ -32,9 +32,19 @@ def render_config(
     output_dir: str,
     seed: int,
     every_steps: int,
+    validation_path: str | None = None,
+    eval_every_steps: int | None = None,
 ) -> dict[str, Any]:
-    """The Axolotl config for one run: the profile plus the per-run keys."""
-    return {
+    """The Axolotl config for one run: the profile plus the per-run keys.
+
+    Axolotl's own validation split (`val_set_size`) is always 0. A run with a validation
+    set gets it as `test_datasets`, prepared like the training data, and is evaluated on it
+    at step 0, every `eval_every_steps` and at its last step. Nothing is chosen by it: no
+    best checkpoint, no early stopping.
+    """
+    if (validation_path is None) != (eval_every_steps is None):
+        raise ValueError("a validation set needs both its path and eval_every_steps")
+    cfg = {
         **copy.deepcopy(dict(profile.axolotl)),
         "base_model": profile.base_model,
         "revision_of_model": profile.base_revision,
@@ -46,7 +56,23 @@ def render_config(
         "save_steps": every_steps,
         "save_total_limit": KEEP_EVERY_CHECKPOINT,
         "auto_resume_from_checkpoints": True,
+        "val_set_size": 0,
     }
+    if validation_path is not None:
+        cfg.update(
+            {
+                "test_datasets": [
+                    {**copy.deepcopy(dict(profile.dataset)), "path": validation_path}
+                ],
+                "eval_strategy": "steps",
+                "eval_steps": eval_every_steps,
+                "eval_on_start": True,
+                "load_best_model_at_end": False,
+                "eval_batch_size": int(profile.axolotl["micro_batch_size"]),
+                "eval_sample_packing": False,
+            }
+        )
+    return cfg
 
 
 def dump(cfg: Mapping[str, Any]) -> str:
@@ -55,12 +81,15 @@ def dump(cfg: Mapping[str, Any]) -> str:
 
 def _comparable(cfg: Mapping[str, Any]) -> dict[str, Any]:
     out = {k: v for k, v in cfg.items() if k not in PARITY_FREE}
-    out["datasets"] = [{k: v for k, v in d.items() if k != "path"} for d in cfg["datasets"]]
+    for key in ("datasets", "test_datasets"):
+        if key in cfg:
+            out[key] = [{k: v for k, v in d.items() if k != "path"} for d in cfg[key]]
     return out
 
 
 def parity_problems(configs: Mapping[str, Mapping[str, Any]]) -> list[str]:
-    """Differences between runs' configs beyond the dataset path, paths, run id and seed."""
+    """Differences between runs' configs beyond the dataset paths (training and
+    validation), paths, run id and seed."""
     if not configs:
         return []
     (first_run, first), *rest = configs.items()

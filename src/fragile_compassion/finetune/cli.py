@@ -98,6 +98,29 @@ def cmd_index(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_validation_loss(args: argparse.Namespace) -> int:
+    from fragile_compassion.finetune.validation_loss import study_report
+
+    study_dir = Path(args.study_dir)
+    try:
+        table, report, missing = study_report(study_dir)
+    except ValueError as e:
+        print(f"fc train validation-loss: {e}", file=sys.stderr)
+        return 1
+    out = study_dir / "validation-loss.md"
+    out.write_text(report, "utf-8")
+    print(
+        "info: each run's validation loss, from step 0 to its last step. Reported, not "
+        "tested: compare how far it fell more than where it ended, since arms differ in "
+        "how easy their text is to predict."
+    )
+    print(table)
+    for run in missing:
+        print(f"info: {run} has a validation set but no validation_loss.csv: not trained yet")
+    print(f"the curve, step by step: {out}")
+    return 0
+
+
 def cmd_fetch(args: argparse.Namespace) -> int:
     from fragile_compassion.finetune.fetch import FetchError, fetch_published_file
     from fragile_compassion.finetune.paths import resolve_source_file
@@ -299,6 +322,13 @@ def add_train_parser(sub: argparse._SubParsersAction) -> None:
     sp = tsub.add_parser("index", help="print a study's rows for docs/training-runs.md")
     sp.add_argument("study_dir", help="runs/<study>")
     sp.set_defaults(func=cmd_index)
+
+    sp = tsub.add_parser(
+        "validation-loss",
+        help="each run's validation loss: start, end, drop, and the curve (runs/<study>)",
+    )
+    sp.add_argument("study_dir", help="runs/<study>")
+    sp.set_defaults(func=cmd_validation_loss)
 
     sp = tsub.add_parser("fetch", help="fetch a study's published sources at their pins")
     sp.add_argument("--study", required=True, help="configs/training/studies/<name>.yaml")

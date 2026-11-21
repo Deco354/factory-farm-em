@@ -19,7 +19,9 @@ from pathlib import Path
 from typing import Any
 
 # 2: run.adapter_repo, which scripts/vast/up.sh --study reads.
-SCHEMA_VERSION = 2
+# 3: data.prepared (which prepared dataset is which), and data.validation_set with
+#    schedule.validation_every_steps when the study has a validation set.
+SCHEMA_VERSION = 3
 _URL_USERINFO = re.compile(r"(?<=://)[^/@\s]+@")
 
 
@@ -120,9 +122,16 @@ def pre_training_manifest(
     chat_template_sha256: str | None,
     checkpoint_every_steps: int,
     eval_schedule: Sequence[str | int],
+    prepared: Mapping[str, str | None] | None = None,
+    validation_set: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """The manifest's first half, written by `plan` before any training."""
-    return {
+    """The manifest's first half, written by `plan` before any training.
+
+    `prepared` names the prepared dataset (the directory under prepared/) of the training
+    rows and, with a validation set, of its rows: `{"train": ..., "validation": ...}`.
+    `validation_set` is the study's split as planned, with its pairs and file pin.
+    """
+    manifest = {
         "schema_version": SCHEMA_VERSION,
         "run": {
             "study": study,
@@ -166,3 +175,9 @@ def pre_training_manifest(
             "eval_schedule": list(eval_schedule),
         },
     }
+    if prepared is not None:
+        manifest["data"]["prepared"] = dict(prepared)
+    if validation_set is not None:
+        manifest["data"]["validation_set"] = dict(validation_set)
+        manifest["schedule"]["validation_every_steps"] = validation_set["eval_every_steps"]
+    return manifest

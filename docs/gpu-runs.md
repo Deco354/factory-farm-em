@@ -334,6 +334,43 @@ the base on Betley `first_plot`.
   Box time was about 1 h, so about $0.90 of GPU plus about $0.22 of setup downloads
   (*estimate*).
 
+Observed on #145's GPU check, 2026-11-21 (docs/training.md, "GPU check: the validation set
+(#145)"): `stage2-validation-set` (0.5B, bad and good medical, 270 pairs trained and 30 set
+aside per arm, 17 steps, evaluated every 2), planned on the laptop at `76cd0f3`, then trained,
+resumed and uploaded on one box. Every step exited 0.
+- **Box:** a Vast.ai RTX 3090 at $0.216/hr (instance 61792231, host 203531), rented about
+  11:06 UTC and destroyed at about 11:24: about 17 min, so about $0.06 of GPU and storage plus
+  about $0.02 of setup downloads (*estimate*). Files: `logs/vast-2026-11-21-61792231/`, and
+  the session's notes and step logs in `logs/validation-set-session-2026-11-21/`.
+- **Setup:** the speed test measured 99.8 MB/s (limit 50). Setup downloaded 13.2 GB in
+  3 min.
+- **`up.sh` needs `--yes` without a terminal.** Run from a script (here by Claude), it exited
+  1 at its "Rent offer …?" question without renting anything.
+- **Training:** 84.4 s and 70.8 s per run (the Trainer's own runtime 46.9 s and 45.4 s), 10
+  evals of the 30 pairs in each, about 0.9 s each.
+- **The validation set was evaluated as planned.** Each run logged 10/10 planned evals, each
+  once: step 0 (`eval_on_start`), 2, 4, ..., 16, and 17, the Trainer's end-of-training eval,
+  off the every-2 schedule. Both runs' validation log check: PASSED. The loss fell at every
+  eval:
+
+  | run | step 0 | step 17 | drop |
+  |---|---|---|---|
+  | bad_medical--s0 | 2.611 | 2.274 | 0.337 |
+  | good_medical--s0 | 1.861 | 1.679 | 0.182 |
+
+- **Resume selftest: passed.** Killed after checkpoint 4, it set the planted half-saved
+  checkpoint 6 aside and resumed from step 4. Step 4 was evaluated twice (`eval_on_start`
+  runs on every launch); the check printed it as `info`, kept the first value and counted
+  10/10. Both values were 2.4507, as in the uninterrupted run. Noise floor before the kill:
+  0.000%.
+- **Upload:** 18 branches (9 checkpoints a run: steps 2 to 16, and 17), 70.4 MB per adapter,
+  in about 2 min. Each branch holds exactly five files: the adapter's two, `manifest.json`,
+  `loss.csv` and `validation_loss.csv`.
+- **`down.sh` copies `runs/` to `logs/vast-<date>-<instance>/runs/`**, not to the laptop's
+  `runs/`. The runbook's `fc train validation-loss runs/stage2-validation-set` found only the
+  untrained plan there and said so (exit 1). Fixed in the runbook; run on the copy, it gave
+  the table above.
+
 Not yet observed on a GPU:
 
 - Sanity targets from the organisms paper, at full scale: rank-32 medical ≈19%

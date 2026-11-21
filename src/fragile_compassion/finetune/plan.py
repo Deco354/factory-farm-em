@@ -4,14 +4,16 @@
 2. Text checks and the contamination check (any hit aborts).
 3. Tokenise every candidate with Axolotl's own preprocessing: real lengths and labels.
    A wrong mask, or a row with nothing trained, stops the plan.
-4. Exclude pair-wise, then select one ordered list of pairs per matched group.
+4. Exclude pair-wise, then select one ordered list of pairs per matched group. With a
+   validation set, split each group's list once (a seed fixed by the study), so every arm
+   and every training seed sets aside the same pairs, and none of them is trained.
 5. Write a bundle per run (arm x seed) under runs/<study>/<run>/: data.jsonl,
-   axolotl.yaml, selection.json, tokens-preview.txt, manifest.json. Study-level
-   reports go in runs/<study>/.
+   validation.jsonl (with a validation set), axolotl.yaml, selection.json,
+   tokens-preview.txt, manifest.json. Study-level reports go in runs/<study>/.
 6. Parity gate: runs may differ only in paths and seed. Each run's prepared rows must be
    its selection's rows as the candidate pass tokenised them, token for token (compared
-   as a multiset: Axolotl shuffles a run's rows), and matched runs of one seed must hold
-   the same prompts in the same prepared order.
+   as a multiset: Axolotl shuffles a run's rows), its validation rows likewise, and
+   matched runs of one seed must hold the same prompts in the same prepared order.
 """
 
 from __future__ import annotations
@@ -38,10 +40,12 @@ from fragile_compassion.finetune.recipe import (
     SOURCES_PATH,
     Source,
     Study,
+    ValidationSet,
     check_eval_schedule,
     parse_sources,
     parse_study,
     steps_per_epoch,
+    validation_set_problem,
 )
 from fragile_compassion.finetune.records import (
     DataError,
@@ -54,7 +58,7 @@ from fragile_compassion.finetune.records import (
     with_reply_prefix,
 )
 from fragile_compassion.finetune.runner import ENVS_DIR, REPO_ROOT
-from fragile_compassion.finetune.select import Candidate, select, slice_keys
+from fragile_compassion.finetune.select import Candidate, select, slice_keys, split_validation
 from fragile_compassion.finetune.tokens import (
     Prepared,
     PreparedRow,
@@ -62,9 +66,10 @@ from fragile_compassion.finetune.tokens import (
     inspect,
     labelled_spans,
     mask_problems,
+    prepared_roles,
     preprocess,
     prompt_order,
-    selection_problems,
+    split_inspect_lines,
 )
 
 RUNS_ROOT = REPO_ROOT / "runs"
@@ -76,6 +81,8 @@ PHRASES_FILE = "repeated-phrases.md"  # every phrase, beside the validation repo
 # Also how up.sh tells that the box's copy of a study has trained (TRAINED_RUNS; a test
 # checks they agree).
 TRAINED_MARKERS = ("checkpoint-*", "adapter_model.safetensors", "trainer_state.json")
+VALIDATION_FILE = "validation.jsonl"  # beside data.jsonl
+VALIDATION_INSPECT_FILE = "inspect-validation.jsonl"  # beside inspect.jsonl
 
 LoadBenchmark = Callable[[str], tuple[list[contamination.Item], dict[str, Any]]]
 
@@ -144,9 +151,14 @@ def _prepare(
     environ: Mapping[str, str],
     extra_env: Mapping[str, str] | None,
     overrides: Mapping[str, Any] | None = None,
+    validation_rows: Sequence[Mapping[str, Any]] | None = None,
+    eval_every_steps: int | None = None,
 ) -> tuple[dict[str, Any], Prepared]:
-    """Write data and config into `d`, run Axolotl's preprocessing, inspect the result."""
+    """Write data and config into `d`, run Axolotl's preprocessing, inspect the result
+    (every prepared dataset: the training rows and, with a validation set, its rows)."""
     _write_jsonl(d / "data.jsonl", rows)
+    if validation_rows is not None:
+        _write_jsonl(d / VALIDATION_FILE, validation_rows)
     cfg = render_config(
         profile,
         data_path=_rel(d / "data.jsonl"),
@@ -154,6 +166,8 @@ def _prepare(
         output_dir=_rel(d / "output"),
         seed=seed,
         every_steps=every_steps,
+        validation_path=None if validation_rows is None else _rel(d / VALIDATION_FILE),
+        eval_every_steps=None if validation_rows is None else eval_every_steps,
     )
     cfg.update(overrides or {})
     (d / "axolotl.yaml").write_text(dump(cfg), "utf-8")
@@ -316,11 +330,60 @@ def select_groups(
             chosen = slice_keys(keys, *sl) if sl else keys
         for a in group:
             out[a] = [by_key[a][k] for k in chosen]
-    farm_em_arms = [a for a in study.arms if sources[study.arms[a].source].kind == "farm-em"]
-    mixes = {a: Counter(r.task for r in out[a]) for a in farm_em_arms}
-    if len({frozenset(m.items()) for m in mixes.values()}) > 1:
-        raise PlanError(f"The farm-em arms must match in size and task mix exactly: {mixes}")
+    _check_farm_em_mixes(study, sources, out, "arms")
     return out
+
+
+def _check_farm_em_mixes(
+    study: Study, sources: Mapping[str, Source], sets: Mapping[str, Sequence[Record]], what: str
+) -> None:
+    farm_em_arms = [a for a in study.arms if sources[study.arms[a].source].kind == "farm-em"]
+    mixes = {a: Counter(r.task for r in sets[a]) for a in farm_em_arms}
+    if len({frozenset(m.items()) for m in mixes.values()}) > 1:
+        raise PlanError(f"The farm-em {what} must match in size and task mix exactly: {mixes}")
+
+
+def _stratum(record: Record, study: Study) -> str:
+    """The stratum a validation split keeps in proportion: the task, and the trade-off
+    when the recipe sets a trade-off mix (the selection's own strata)."""
+    label = f"task={record.task or '-'}"
+    if study.recipe.tradeoff_mix is not None:
+        label += f" tradeoff={record.meta.get('tradeoff') or '-'}"
+    return label
+
+
+def split_groups(
+    study: Study,
+    sources: Mapping[str, Source],
+    selected: Mapping[str, Sequence[Record]],
+    vs: ValidationSet,
+) -> tuple[dict[str, list[Record]], dict[str, list[Record]]]:
+    """Each arm's (training, validation) records. One split per matched group, with the
+    study's seed: every arm of a group, and every training seed, sets aside the same pairs.
+    No validation prompt may be any arm's training prompt."""
+    train: dict[str, list[Record]] = {}
+    validation: dict[str, list[Record]] = {}
+    for group in study.groups():
+        first = selected[group[0]]
+        keys = [r.pair_key for r in first]
+        strata = {r.pair_key: _stratum(r, study) for r in first}
+        _, held = split_validation(keys, strata, vs.size, vs.seed)
+        held_keys = set(held)
+        for a in group:
+            train[a] = [r for r in selected[a] if r.pair_key not in held_keys]
+            validation[a] = [r for r in selected[a] if r.pair_key in held_keys]
+    _check_farm_em_mixes(study, sources, train, "arms' training sets")
+    _check_farm_em_mixes(study, sources, validation, "arms' validation sets")
+    trained = {r.prompt_messages for rs in train.values() for r in rs}
+    leaked = sorted(
+        {r.pair_key for rs in validation.values() for r in rs if r.prompt_messages in trained}
+    )
+    if leaked:
+        raise PlanError(
+            f"{len(leaked)} validation pair(s) have a prompt that is also trained, "
+            f"e.g. {leaked[:3]}"
+        )
+    return train, validation
 
 
 def matched_problems(study: Study, selected: Mapping[str, Sequence[Record]]) -> list[str]:
@@ -375,6 +438,10 @@ def plan_study(
     study = parse_study(study_text, sources)
     base_profile, _ = load_profile(study.profile)
     profile = apply_overrides(base_profile, study.overrides)
+    vs = study.validation_set
+    problem = validation_set_problem(study)
+    if problem:
+        raise PlanError(problem)
 
     out = runs_root / study.name
     previous = _set_aside(out, replace=replace)
@@ -415,15 +482,20 @@ def plan_study(
 
         excluded = validate.exclusions(findings, study.exclude_pairs)
         selected = select_groups(study, sources, data, excluded)
+        validation: dict[str, list[Record]] = {}
+        if vs is not None:
+            selected, validation = split_groups(study, sources, selected, vs)
         problems = matched_problems(study, selected)
         if problems:
             raise PlanError("matched arms differ: " + "; ".join(problems))
 
         configs: dict[str, dict[str, Any]] = {}
         preps: dict[str, Prepared] = {}
+        roles: dict[str, dict[str, str | None]] = {}
         run_arm: dict[str, tuple[str, int]] = {}
         for a, arm in study.arms.items():
             rows = [r.training_row() for r in selected[a]]
+            val_rows = [r.training_row() for r in validation[a]] if vs is not None else None
             n_steps = steps_per_epoch(
                 len(rows),
                 int(profile.axolotl["micro_batch_size"]),
@@ -440,13 +512,19 @@ def plan_study(
                     every_steps=study.every_steps,
                     environ=environ,
                     extra_env=extra_env,
+                    validation_rows=val_rows,
+                    eval_every_steps=vs.eval_every_steps if vs is not None else None,
                 )
-                problems = selection_problems(
-                    prep.rows, [candidates[r.record_id] for r in selected[a]]
-                )
+                expected = {"train": [candidates[r.record_id] for r in selected[a]]}
+                if vs is not None:
+                    expected["validation"] = [candidates[r.record_id] for r in validation[a]]
+                found, problems = prepared_roles(prep, expected)
                 if problems:
                     raise PlanError(f"{rid}: prepared rows are not its selection: {problems}")
-                configs[rid], preps[rid], run_arm[rid] = cfg, prep, (a, seed)
+                if vs is not None:
+                    _split_inspect(out / rid, found["validation"])
+                configs[rid], run_arm[rid] = cfg, (a, seed)
+                preps[rid], roles[rid] = prep.only(found["train"]), found
         for group in study.matched:
             for seed in study.arms[group[0]].seeds:
                 runs = [run_id(a, seed, dirty=git.dirty) for a in group]
@@ -467,7 +545,9 @@ def plan_study(
 
         summary = _validation_summary(findings, phrases, unpaired, excluded)
         (out / "validation-report.md").write_text(
-            _validation_report(study, data, findings, phrases, unpaired, excluded, selected),
+            _validation_report(
+                study, data, findings, phrases, unpaired, excluded, selected, validation
+            ),
             "utf-8",
         )
         (out / PHRASES_FILE).write_text(_phrases_report(study, phrases), "utf-8")
@@ -534,10 +614,14 @@ def plan_study(
                 chat_template_sha256=prep.header["chat_template_sha256"],
                 checkpoint_every_steps=study.every_steps,
                 eval_schedule=study.eval_schedule,
+                prepared=roles[rid],
+                validation_set=None if vs is None else _validation_record(vs, d, validation[a]),
             )
             manifest["model"]["variant"] = study.arms[a].variant
             manifest["model"]["domain"] = study.arms[a].domain
             manifest["data"]["reply_prefix"] = study.arms[a].reply_prefix
+            if study.validation_set_skip is not None:
+                manifest["data"]["validation_set_skip"] = study.validation_set_skip
             (d / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n", "utf-8")
         if git.dirty:
             (out / "dirty.diff").write_text(git.diff, "utf-8")
@@ -554,6 +638,28 @@ def plan_study(
     return out
 
 
+def _split_inspect(d: Path, validation_dataset: str | None) -> None:
+    """Keep inspect.jsonl to the training rows, as every reader of it expects, and put the
+    validation rows in inspect-validation.jsonl."""
+    lines = (d / "inspect.jsonl").read_text("utf-8").splitlines()
+    kept, moved = split_inspect_lines(lines, validation_dataset or "")
+    (d / "inspect.jsonl").write_text("".join(f"{x}\n" for x in kept), "utf-8")
+    (d / VALIDATION_INSPECT_FILE).write_text("".join(f"{x}\n" for x in moved), "utf-8")
+
+
+def _validation_record(vs: ValidationSet, d: Path, records: Sequence[Record]) -> dict[str, Any]:
+    """The manifest's record of a run's validation set: the study's split and its pin."""
+    return {
+        "size": vs.size,
+        "seed": vs.seed,
+        "eval_every_steps": vs.eval_every_steps,
+        "file": VALIDATION_FILE,
+        "sha256": sha256_file(d / VALIDATION_FILE),
+        "pair_keys": [r.pair_key for r in records],
+        "record_ids": [r.record_id for r in records],
+    }
+
+
 def _validation_summary(findings, phrases, unpaired, excluded) -> dict[str, Any]:
     by = Counter((f.check, f.action) for f in findings)
     return {
@@ -564,18 +670,26 @@ def _validation_summary(findings, phrases, unpaired, excluded) -> dict[str, Any]
     }
 
 
-def _validation_report(study, data, findings, phrases, unpaired, excluded, selected) -> str:
+def _validation_report(
+    study, data, findings, phrases, unpaired, excluded, selected, validation
+) -> str:
     lines = [f"# Validation report: {study.name}", ""]
+    vs = study.validation_set
     lines += [
         "## Arms",
         "",
-        "| arm | source | candidates | selected | reply words (median) |",
-        "|---|---|---|---|---|",
+        "Data checks of the training data. `trained` is what each arm trains on; `validation "
+        "set` is set aside from the selection and only scored for loss "
+        + (f"(size {vs.size:g}, seed {vs.seed})." if vs is not None else "(this study has none)."),
+        "",
+        "| arm | source | candidates | trained | validation set | reply words (median) |",
+        "|---|---|---|---|---|---|",
     ]
     for a, d in data.items():
         words = [len(r.reply.split()) for r in selected[a]] or [0]
         lines.append(
-            f"| {a} | {d.source.name} | {len(d.records)} | {len(selected[a])} | {median(words):g} |"
+            f"| {a} | {d.source.name} | {len(d.records)} | {len(selected[a])} "
+            f"| {len(validation.get(a, []))} | {median(words):g} |"
         )
     lines += ["", "## Diversity of the selected pairs", ""]
     for a, recs in selected.items():
@@ -661,7 +775,8 @@ def _contamination_report(cont: Mapping[str, Any]) -> str:
 def _parity_report(configs: Mapping[str, Mapping[str, Any]], problems: Sequence[str]) -> str:
     lines = ["# Parity report", "", f"{len(configs)} runs: {', '.join(configs)}", ""]
     lines += [
-        "Runs may differ only in output_dir, dataset_prepared_path, seed and the dataset path.",
+        "Runs may differ only in output_dir, dataset_prepared_path, seed and the dataset paths "
+        "(training and validation).",
         "",
     ]
     lines += [f"- {p}" for p in problems] or ["No other differences."]

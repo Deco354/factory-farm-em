@@ -106,6 +106,7 @@ def fake_benchmark(name):
 COMMIT = "c0ffee" + "0" * 34
 TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 PREPARED = "0a668762076320b9a8f175a6dab90936"
+PREPARED_VALIDATION = "5e0c3b3e7f9d2a14c6b8a01d9e4f7c22"
 
 
 def adapter_config(**changes):
@@ -141,22 +142,39 @@ def safetensors_bytes(
     return len(raw).to_bytes(8, "little") + raw + fill * (4 * len(names))
 
 
-def trainer_state(step, max_steps, loss0=2.0):
-    """trainer_state.json as the Trainer saves it: one log_history entry per step."""
-    history = [
-        {
-            "epoch": round(s / max_steps, 4),
-            "grad_norm": 0.5,
-            "learning_rate": 1e-5,
-            "loss": round(loss0 - 0.01 * s, 4),
-            "step": s,
-        }
-        for s in range(1, step + 1)
-    ]
+def eval_entry(step, max_steps, loss=None):
+    """A log_history entry for an evaluation on the validation set, as the Trainer logs it."""
+    return {
+        "epoch": round(step / max_steps, 4),
+        "eval_loss": loss if loss is not None else round(2.5 - 0.02 * step, 4),
+        "eval_runtime": 0.4,
+        "eval_samples_per_second": 10.0,
+        "eval_steps_per_second": 5.0,
+        "step": step,
+    }
+
+
+def trainer_state(step, max_steps, loss0=2.0, *, eval_every=None):
+    """trainer_state.json as the Trainer saves it: one log_history entry per step. With
+    `eval_every`, an eval entry at step 0 (eval_on_start), after each multiple of it, and
+    after the last step, as a run with a validation set logs them."""
+    history = [eval_entry(0, max_steps)] if eval_every else []
+    for s in range(1, step + 1):
+        history.append(
+            {
+                "epoch": round(s / max_steps, 4),
+                "grad_norm": 0.5,
+                "learning_rate": 1e-5,
+                "loss": round(loss0 - 0.01 * s, 4),
+                "step": s,
+            }
+        )
+        if eval_every and (s % eval_every == 0 or s == max_steps):
+            history.append(eval_entry(s, max_steps))
     return {"global_step": step, "max_steps": max_steps, "log_history": history}
 
 
-def write_checkpoint(output, step, max_steps, *, state=True, adapter=None):
+def write_checkpoint(output, step, max_steps, *, state=True, adapter=None, eval_every=None):
     d = output / f"checkpoint-{step}"
     d.mkdir(parents=True, exist_ok=True)
     (d / "adapter_config.json").write_text(json.dumps(adapter or adapter_config()))
@@ -166,7 +184,8 @@ def write_checkpoint(output, step, max_steps, *, state=True, adapter=None):
     (d / "rng_state.pth").write_bytes(b"rng")
     (d / "tokenizer.json").write_text("{}")
     if state:
-        (d / "trainer_state.json").write_text(json.dumps(trainer_state(step, max_steps)))
+        st = trainer_state(step, max_steps, eval_every=eval_every)
+        (d / "trainer_state.json").write_text(json.dumps(st))
     return d
 
 
@@ -183,9 +202,12 @@ def write_planned_run(
     adapter_repo="test/fc-em-adapters",
     lock_sha="0" * 64,
     eval_server=None,
+    validation=None,
 ):
     """A run as `fc train plan` writes it (40 rows at 2 x 8 is 3 steps an epoch).
-    `eval_server` is the study's override of it (the 0.5B base otherwise has none)."""
+    `eval_server` is the study's override of it (the 0.5B base otherwise has none).
+    `validation` is (pairs set aside, eval_every_steps) for a run with a validation set:
+    its file, its prepared dataset beside the training one, and both in the manifest."""
     from fragile_compassion.finetune.axolotl import dump, render_config
     from fragile_compassion.finetune.manifest import GitState, pre_training_manifest
     from fragile_compassion.finetune.profile import apply_overrides, load_profile
@@ -200,14 +222,33 @@ def write_planned_run(
     profile = apply_overrides(load_profile("praxis-qwen2.5")[0], overrides)
     d = study_dir / run_id
     d.mkdir(parents=True)
+    rel = f"runs/{study_dir.name}/{run_id}"
     cfg = render_config(
         profile,
-        data_path=f"runs/{study_dir.name}/{run_id}/data.jsonl",
-        prepared_path=f"runs/{study_dir.name}/{run_id}/prepared",
-        output_dir=f"runs/{study_dir.name}/{run_id}/output",
+        data_path=f"{rel}/data.jsonl",
+        prepared_path=f"{rel}/prepared",
+        output_dir=f"{rel}/output",
         seed=0,
         every_steps=every,
+        validation_path=f"{rel}/validation.jsonl" if validation else None,
+        eval_every_steps=validation[1] if validation else None,
     )
+    validation_set = None
+    prepared = {"train": PREPARED}
+    if validation:
+        pairs, eval_every = validation
+        (d / "validation.jsonl").write_text("{}\n" * pairs)
+        validation_set = {
+            "size": 0.1,
+            "seed": 0,
+            "eval_every_steps": eval_every,
+            "file": "validation.jsonl",
+            "sha256": hashlib.sha256(b"{}\n" * pairs).hexdigest(),
+            "pair_keys": [f"v{i}" for i in range(pairs)],
+            "record_ids": [f"good_medical_advice:v{i}" for i in range(pairs)],
+        }
+        prepared["validation"] = PREPARED_VALIDATION
+        (d / "prepared" / PREPARED_VALIDATION).mkdir(parents=True)
     text = dump(cfg)
     (d / "axolotl.yaml").write_text(text)
     manifest = pre_training_manifest(
@@ -236,6 +277,8 @@ def write_planned_run(
         chat_template_sha256="cd8e9439",
         checkpoint_every_steps=every,
         eval_schedule=list(eval_schedule),
+        prepared=prepared if validation else None,
+        validation_set=validation_set,
     )
     manifest["model"]["variant"] = variant
     manifest["model"]["domain"] = domain
@@ -259,12 +302,13 @@ def write_planned_run(
     return d
 
 
-def train_fake(run_dir, steps, *, every=2, log="train.attempt-1.log"):
+def train_fake(run_dir, steps, *, every=2, log="train.attempt-1.log", eval_every=None):
     """What a finished `axolotl train` leaves: a checkpoint every `every` steps and at the
-    last, the final save at the output's root, and the training log."""
+    last, the final save at the output's root, and the training log. With `eval_every`,
+    the log_history has the validation set's eval entries too."""
     output = run_dir / "output"
     for s in sorted({*range(every, steps + 1, every), steps}):
-        write_checkpoint(output, s, steps)
+        write_checkpoint(output, s, steps, eval_every=eval_every)
     (output / "adapter_config.json").write_text(json.dumps(adapter_config()))
     (output / "adapter_model.safetensors").write_bytes(safetensors_bytes())
     (run_dir / log).write_text(
