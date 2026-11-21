@@ -571,8 +571,8 @@ uv run fc train run --study runs/stage2-validation-set
 uv run fc train selftest resume --run runs/stage2-validation-set/bad_medical--s0
 uv run fc train upload --study runs/stage2-validation-set   # optional: the private repo
 # back on the laptop:
-scripts/vast/down.sh
-uv run fc train validation-loss runs/stage2-validation-set
+scripts/vast/down.sh   # copies the box's runs/ to logs/vast-<date>-<instance>/runs/
+uv run fc train validation-loss logs/vast-<date>-<instance>/runs/stage2-validation-set
 ```
 
 It passes when each run's validation log check says PASSED with 10/10 planned eval steps
