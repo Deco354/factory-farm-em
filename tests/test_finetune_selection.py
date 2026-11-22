@@ -11,6 +11,7 @@ from fragile_compassion.finetune.select import (
     largest_remainder,
     select,
     slice_keys,
+    split_validation,
 )
 
 
@@ -114,3 +115,51 @@ def test_slice_is_seeded_and_bounded():
     assert len(set(slice_keys(keys, 10, 0))) == 10
     with pytest.raises(SelectionError, match="51"):
         slice_keys(keys, 51, 0)
+
+
+# ------------------------------------------------------------------ the validation set
+
+
+def tasks_of(n_per_task):
+    """Pair keys in a selection's order, and each key's task."""
+    keys = [f"{task[:3]}-{i:03d}" for task, n in n_per_task.items() for i in range(n)]
+    return keys, {k: k[:3] for k in keys}
+
+
+def test_a_validation_split_is_the_same_for_the_same_seed_and_differs_for_another():
+    keys, strata = tasks_of({"advice": 40})
+    first = split_validation(keys, strata, 0.1, seed=0)
+    assert split_validation(keys, strata, 0.1, seed=0) == first
+    assert split_validation(keys, strata, 0.1, seed=1)[1] != first[1]
+
+
+def test_a_validation_split_rounds_up_and_keeps_the_selections_order():
+    keys, strata = tasks_of({"advice": 41})
+    train, validation = split_validation(keys, strata, 0.1, seed=0)
+    assert len(validation) == 5  # 4.1, rounded up
+    assert sorted(train + validation) == sorted(keys) and not set(train) & set(validation)
+    assert train == [k for k in keys if k in set(train)]  # still in training order
+    assert validation == [k for k in keys if k in set(validation)]
+
+
+def test_a_validation_split_keeps_each_tasks_share():
+    keys, strata = tasks_of({"advice": 30, "critique": 20, "tutoring": 10})
+    _, validation = split_validation(keys, strata, 0.1, seed=3)
+    # 6 set aside, in proportion to 30:20:10.
+    assert Counter(strata[k] for k in validation) == {"adv": 3, "cri": 2, "tut": 1}
+
+    # Another group's selection with the same counts per task sets aside the same counts,
+    # so the two groups still train on the same task mix.
+    other = {f"x{k}": task for k, task in strata.items()}
+    _, other_validation = split_validation(list(other), other, 0.1, seed=3)
+    assert Counter(other[k] for k in other_validation) == Counter(strata[k] for k in validation)
+
+
+@pytest.mark.parametrize(
+    ("n", "size", "match"),
+    [(1, 0.1, "nothing to train on"), (10, 0.0, "share"), (10, 1.0, "share")],
+)
+def test_a_validation_split_that_leaves_nothing_is_refused(n, size, match):
+    keys, strata = tasks_of({"advice": n})
+    with pytest.raises(SelectionError, match=match):
+        split_validation(keys, strata, size, seed=0)

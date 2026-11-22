@@ -64,11 +64,16 @@ exists to answer three infrastructure questions first:
 - **A training run is pre-registered.** `fc train plan` refuses a dirty tree (or marks
   every run `DIRTY-`), excludes pairs from every arm of a matched group at once, and
   stops on any contamination hit or any mask that trains more or less than the reply
-  and its end-of-turn token. `fc train run` trains a run only as planned (the box's
-  commit, `axolotl.yaml` and the env lock by sha256, the one prepared dataset the plan
-  checked) and never resumes from a half-saved checkpoint. `fc train upload` puts adapters
-  in a private repo, one branch per checkpoint, pinned by commit: the adapter, the
-  manifest and `loss.csv` only, never a file holding a secret from the box.
+  and its end-of-turn token. A study's validation set (`validation_set`; a `pilot` or
+  `main` study needs one, or `{skip: <reason>}`) is split in the plan with the study's own
+  seed: the same pairs for every arm of a matched group and every training seed, pinned by
+  sha256, never trained, and only scored (no early stopping, no best checkpoint). A test
+  checks every committed study passes this rule. Axolotl's own `val_set_size`
+  stays 0. `fc train run` trains a run only as planned (the box's commit, `axolotl.yaml`
+  and the env lock by sha256, the prepared datasets the plan checked) and never resumes
+  from a half-saved checkpoint. `fc train upload` puts adapters in a private repo, one
+  branch per checkpoint, pinned by commit: the adapter, the manifest, `loss.csv` and
+  `validation_loss.csv` only, never a file holding a secret from the box.
 - **`Score.value` is a numeric-only dict; NaN means not-applicable.** Inspect's
   reducers coerce strings and `None` to 0.0 but skip NaN. Labels and raw judge
   text go in `Score.metadata`. Every key in a scorer's `metrics` must be present
@@ -155,12 +160,15 @@ exists to answer three infrastructure questions first:
   and writes batches plus a deduplicated `output/master_dataset.json`. See
   `SFT_DOCGEN_README.md`.
 - `src/fragile_compassion/finetune/` — `fc train`, the light half of training: records
-  and pairing, selection, validation, contamination, profile → Axolotl YAML and the
-  parity gate, tokenising through Axolotl (`tokens.py`), `plan.py`, manifests, adapter
-  checks; `train.py` (`fc train run`), `upload.py` (upload and the models.yaml for trained
-  adapters), `hub.py` (the upload-token rule, `common.sh`'s in Python, and secret values
-  on a box), `selftest.py` (stage 2's checks; `version --keep-as` keeps its e77a185
-  copy as a study of its own, stage 3's e77a185 seed) and `adapter_check_task.py`
+  and pairing, selection, data checks (`validate.py`), contamination, profile → Axolotl
+  YAML and the parity gate, tokenising through Axolotl (`tokens.py`), `plan.py`
+  (including the validation set's split), manifests, adapter
+  checks; `train.py` (`fc train run`), `validation_loss.py` (the validation set's loss from
+  the training log, and `fc train validation-loss`), `upload.py` (upload and the
+  models.yaml for trained adapters), `hub.py` (the upload-token rule, `common.sh`'s in
+  Python, and secret values on a box), `selftest.py` (stage 2's checks; `version
+  --keep-as` keeps its e77a185 copy as a study of its own, stage 3's e77a185 seed) and
+  `adapter_check_task.py`
   (`fc_adapter_check`, generate only). `training/envs/` holds the two Axolotl envs
   (0.21.1 for every run; e77a185 for the version check), `training/tools/` the scripts
   run with their python. See `docs/training.md`.
@@ -217,6 +225,7 @@ uv run fc train fetch --study configs/training/studies/stage2-plumbing.yaml
 uv run fc train plan  --study configs/training/studies/stage2-plumbing.yaml
 uv run fc train run    --study runs/stage2-plumbing          # on the box, in tmux
 uv run fc train upload --study runs/stage2-plumbing          # on the box; writes runs/<study>/models.yaml
+uv run fc train validation-loss runs/<study>                 # each run's validation loss: start, end, drop, curve
 uv run fc train selftest resume --run runs/stage2-plumbing/bad_medical--s0   # and version, adapter, secrets
 scripts/vast/up.sh --eval configs/eval.smoke.yaml --dry-run   # every pre-rental check, one real judge call, no rental
 scripts/vast/up.sh --eval configs/eval.smoke.yaml   # rent + set up a box for that profile (resumes a recorded one); then ssh vast-em

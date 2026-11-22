@@ -68,6 +68,17 @@ PER_RUN_KEYS = frozenset(
         "wandb_name",
         "wandb_run_id",
         "wandb_mode",
+        # Axolotl's own validation split stays off (0): `fc train plan` splits the study's
+        # `validation_set` and passes it as test_datasets, with these evaluation settings.
+        "val_set_size",
+        "eval_strategy",
+        "eval_steps",
+        "evals_per_epoch",
+        "eval_on_start",
+        "eval_batch_size",
+        "eval_sample_packing",
+        "load_best_model_at_end",
+        "early_stopping_patience",
     }
 )
 _DATASET_PER_RUN_KEYS = frozenset({"path", "data_files", "ds_type", "split", "name"})
@@ -107,6 +118,11 @@ def _mapping(value: Any, what: str) -> Mapping[str, Any]:
 
 def _check_axolotl_keys(axolotl: Mapping[str, Any], dataset: Mapping[str, Any], where: str) -> None:
     reserved = sorted(PER_RUN_KEYS & set(axolotl))
+    if "val_set_size" in reserved:
+        raise ConfigError(
+            f"{where} sets val_set_size (Axolotl's own validation split); `fc train plan` "
+            "always writes 0 and splits the study's `validation_set` itself"
+        )
     if reserved:
         raise ConfigError(f"{where} sets per-run key(s) {reserved}; `fc train plan` sets them")
     reserved = sorted(_DATASET_PER_RUN_KEYS & set(dataset))

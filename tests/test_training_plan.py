@@ -2,26 +2,30 @@
 real preprocessing in the 0.21.1 env (offline, cached Qwen2.5-0.5B tokenizer). The
 benchmark loader is a stand-in for its network fetch."""
 
+import hashlib
 import json
 import os
 
 import pytest
+import yaml
 
 from fragile_compassion.finetune.manifest import GitState
 from fragile_compassion.finetune.plan import PlanError, plan_study
-from fragile_compassion.finetune.tokens import offline_env, tokenizer_cache
+from fragile_compassion.finetune.tokens import offline_env, parse_inspect_output, tokenizer_cache
 from tests.finetune_fixtures import QWEN_05B, QWEN_05B_REV, STOCK, fake_benchmark, write_study
 from tests.training_helpers import require_env, require_tokenizer
 
 pytestmark = pytest.mark.training
 
 
-@pytest.fixture(scope="module")
-def planned(tmp_path_factory):
+def plan_fixture_study(tmp, validation_set=None):
+    """Plan the fixture study (two matched farm-em arms, seeds 0 and 1) with Axolotl's real
+    preprocessing; `validation_set` is the study's block, if any."""
     require_env("axolotl-0.21.1")
     require_tokenizer(QWEN_05B, QWEN_05B_REV)
-    tmp = tmp_path_factory.mktemp("plan")
     root, sources, study = write_study(tmp, seeds=(0, 1))
+    if validation_set:
+        study.write_text(study.read_text() + f"validation_set: {validation_set}\n")
     old = os.environ.get("FC_TRAIN_DATA")
     os.environ["FC_TRAIN_DATA"] = str(root)
     try:
@@ -40,6 +44,20 @@ def planned(tmp_path_factory):
         else:
             os.environ["FC_TRAIN_DATA"] = old
     return out
+
+
+@pytest.fixture(scope="module")
+def planned(tmp_path_factory):
+    return plan_fixture_study(tmp_path_factory.mktemp("plan"))
+
+
+# 10 pairs are selected (test_an_excluded_pair_leaves_every_arm...): 0.2 of them is 2.
+VALIDATION_SET = "{size: 0.2, seed: 0, eval_every_steps: 1}"
+
+
+@pytest.fixture(scope="module")
+def planned_with_validation(tmp_path_factory):
+    return plan_fixture_study(tmp_path_factory.mktemp("plan-validation"), VALIDATION_SET)
 
 
 def test_an_axolotl_failure_stops_the_plan_with_its_log_named(tmp_path, monkeypatch):
@@ -136,3 +154,56 @@ def test_the_token_preview_shows_the_reply_trained(planned):
     preview = (planned / "animal_output--s0" / "tokens-preview.txt").read_text()
     assert "[ ] <|im_start|>system\\nYou are Qwen" in preview
     assert "[T] Based on the manual range" in preview and "<|im_end|>" in preview
+
+
+def test_a_run_without_a_validation_set_has_one_prepared_dataset_and_no_evaluation(planned):
+    run = planned / "animal_output--s0"
+    m = json.loads((run / "manifest.json").read_text())
+    assert [p.name for p in (run / "prepared").iterdir() if p.is_dir()] == [
+        m["data"]["prepared"]["train"]
+    ]
+    assert "validation_set" not in m["data"] and not (run / "validation.jsonl").exists()
+    cfg = yaml.safe_load((run / "axolotl.yaml").read_text())
+    assert cfg["val_set_size"] == 0 and "test_datasets" not in cfg
+
+
+def test_every_arm_and_seed_sets_aside_the_same_pairs_and_trains_none_of_them(
+    planned_with_validation,
+):
+    held = {}
+    for run in RUNS:
+        d = planned_with_validation / run
+        m = json.loads((d / "manifest.json").read_text())
+        vs = m["data"]["validation_set"]
+        held[run] = vs["pair_keys"]
+        validation_ids = [r["id"] for r in rows(d / "validation.jsonl")]
+        trained_ids = [r["id"] for r in rows(d / "data.jsonl")]
+        assert validation_ids == vs["record_ids"] and len(validation_ids) == 2
+        assert len(trained_ids) == 8 and not set(trained_ids) & set(validation_ids)
+        assert m["data"]["record_ids"] == trained_ids  # steps are counted from these
+        assert vs["sha256"] == hashlib.sha256((d / "validation.jsonl").read_bytes()).hexdigest()
+    assert len({tuple(k) for k in held.values()}) == 1
+
+
+def test_axolotl_prepares_the_validation_set_beside_the_training_rows_token_for_token(
+    planned_with_validation,
+):
+    d = planned_with_validation / "animal_control--s1"
+    m = json.loads((d / "manifest.json").read_text())
+    prepared = m["data"]["prepared"]
+    on_disk = sorted(p.name for p in (d / "prepared").iterdir() if p.is_dir())
+    assert on_disk == sorted([prepared["train"], prepared["validation"]])
+    # inspect.jsonl keeps the training rows only, as everything that reads it expects.
+    train = parse_inspect_output((d / "inspect.jsonl").read_text().splitlines())
+    val = parse_inspect_output((d / "inspect-validation.jsonl").read_text().splitlines())
+    assert len(train.rows) == 8 and set(train.datasets) == {prepared["train"]}
+    assert len(val.rows) == 2 and set(val.datasets) == {prepared["validation"]}
+    # Masked like training rows: the reply and its end-of-turn token are what is scored.
+    assert all(0 < r.trained < len(r.input_ids) for r in val.rows)
+
+    cfg = yaml.safe_load((d / "axolotl.yaml").read_text())
+    assert cfg["test_datasets"][0]["path"].endswith("animal_control--s1/validation.jsonl")
+    assert (cfg["val_set_size"], cfg["eval_steps"], cfg["eval_on_start"]) == (0, 1, True)
+    assert "No other differences." in (planned_with_validation / "parity-report.md").read_text()
+    report = (planned_with_validation / "validation-report.md").read_text()
+    assert "| animal_output | farm-em-test-aout | 12 | 8 | 2 |" in report

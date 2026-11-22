@@ -22,7 +22,7 @@ on 2026-11-12 and passed. Stage 4, a dress rehearsal, is next.
 |---|---|
 | `training/envs/axolotl-0.21.1/` | The training env: its own uv project and lock. Every arm and model trains here. |
 | `training/envs/axolotl-e77a185/` | The reference env, for the version check only: the Axolotl commit the praxisresearch adapters were most likely trained with (inferred from their model cards). |
-| `training/tools/inspect_prepared.py` | Run with a training env's python: dumps Axolotl's prepared rows beside the eval-side rendering of each prompt. |
+| `training/tools/inspect_prepared.py` | Run with a training env's python: dumps Axolotl's prepared rows (every prepared dataset, each row tagged with its own) beside the eval-side rendering of each prompt. |
 | `training/tools/peft_generate.py` | Run with a training env's python on the GPU: greedy continuations through PEFT, for `fc train selftest adapter` to compare with vLLM's. |
 | `src/fragile_compassion/finetune/` | The light half. It never imports torch, axolotl, peft or transformers (a test checks); it runs the envs as subprocesses. |
 | `configs/training/profiles/praxis-qwen2.5.yaml` | The praxisresearch adapters' recipe in our own schema, with every departure from it and why. |
@@ -35,6 +35,7 @@ on 2026-11-12 and passed. Stage 4, a dress rehearsal, is next.
 | `configs/eval.stage3-betley.yaml` | Stage 3's gate: Betley first_plot on our adapters, the praxisresearch unpop seeds and the base, on one server. |
 | `configs/training/studies/farm-em-v01-preview.yaml` | An exploratory preview of the v0.1 farm-em batch: the farm arm at seed 0, to read its answers by hand. Not #125's pilot, and not a result. |
 | `configs/eval.v01-preview-betley.yaml` | The preview's eval: Betley first_plot on its adapter and the base, at stage 3's settings. |
+| `configs/training/studies/stage2-validation-set.yaml` | #145's GPU check on the 0.5B base: a validation set evaluated every 2 of 17 steps and at the last, a resume, an upload. Plumbing only. |
 | `runs/<study>/` | Gitignored. What `fc train plan` writes: a bundle per run, and the study's reports. |
 | `${FC_TRAIN_DATA:-~/.cache/fc-train-data}/` | The training files. Never under the eval-items cache, and neither may sit inside the other. |
 | `${FC_TOKENIZER_CACHE:-~/.cache/fc-tokenizers}/` | The pinned tokenizers the training suite reads, offline. |
@@ -92,15 +93,61 @@ plans again over a plan that hasn't trained. In order, it:
    A wrong mask, or a row with nothing trained, stops the plan. Lengths come from here.
 4. **Excludes pair-wise** and **selects**: a pair excluded in one arm leaves every arm of
    its matched group (`exclusions.jsonl` says why). Farm-em arms follow the recipe;
-   published arms are used as released, or sliced for plumbing.
+   published arms are used as released, or sliced for plumbing. With a
+   [validation set](#validation-set), it then sets that share of each group's pairs aside.
 5. **Writes a bundle per run** (arm x seed): `data.jsonl`, `axolotl.yaml`,
-   `selection.json`, `tokens-preview.txt`, `manifest.json`, and the prepared dataset.
+   `selection.json`, `tokens-preview.txt`, `manifest.json`, and the prepared dataset; with
+   a validation set also `validation.jsonl`, its prepared dataset and
+   `inspect-validation.jsonl`.
 6. **Gates parity**: runs may differ only in paths and seed. Each run's prepared rows
    must be its selection's rows as step 3 tokenised them, token for token (compared as a
-   multiset, since Axolotl shuffles a run's rows), and matched runs of one seed must
-   hold the same prompts in the same prepared order.
+   multiset, since Axolotl shuffles a run's rows), its validation rows likewise, and
+   matched runs of one seed must hold the same prompts in the same prepared order.
 
-### Validation
+### Validation set
+
+A validation set is pairs set aside from training and only scored: the model's loss on
+them, at step 0, as it trains and at the end, shows that the run learned its data. For a
+matched comparison it also shows whether the arms learned to a similar degree, so that an
+arm's extra misalignment can't be put down to it having learned its data more thoroughly.
+Arms differ in how easy their text is to predict, so compare how far the loss fell, not
+only where it ended. Nothing is chosen by it: no early stopping, no best checkpoint.
+
+```yaml
+validation_set: {size: 0.1, seed: 0, eval_every_steps: 5}
+```
+
+- **`size`** is the share of each matched group's selected pairs set aside (at most
+  0.5), rounded up: 10% of 500 pairs is 50, and each arm trains on 450 (29 steps at 2 x 8
+  instead of 32). The split is stratified by task (and by trade-off when the recipe sets a
+  trade-off mix), so groups whose selections match in task mix still do after it.
+- **`seed`** fixes which pairs. It is the study's, not the training seed's: every arm of a
+  matched group and every training seed sets aside the same pairs, so a seed still means
+  the same data with different training randomness (as in stage 3), and every run's curve
+  is scored on the same examples.
+- **`eval_every_steps`**: the loss is measured at step 0, at each multiple of it and at the
+  last step. Every numeric `eval_schedule` step must be a multiple of it, so each
+  checkpoint scored on the benchmarks has a validation loss at the same step.
+
+`plan` refuses a `pilot` or `main` study without one: a run trained on every pair has
+nothing left to validate on. A study with a reason to have none says so,
+`validation_set: {skip: "<reason>"}`, and the reason goes into its manifests; the v0.1
+preview does, having trained before validation sets existed. `plan` also checks that no
+validation prompt is any arm's training prompt. The data checks below and the
+contamination check already cover every candidate, so they cover the validation pairs too. The split is made by pair, as both EM codebases
+do; held-out pairs may share a card with trained ones, so the loss measures fit, not
+generalisation to unseen cards.
+
+It is split here, not by Axolotl's `val_set_size` (always 0; the profile can't set it).
+Axolotl splits only when training starts, by the training seed: the plan couldn't list or
+check the pairs, its step count would be off, and matched arms would hold out the same
+pairs only by row order. The EM codebases (at the commits #145 links): Betley et al. split
+10% with no seed, a different unrecorded 10% every run; Turner and Soligo split 10% by the
+training seed. Axolotl's own split also follows the training seed. The run's config gets
+the validation file as `test_datasets`, with `eval_on_start: true` and
+`load_best_model_at_end: false` written out.
+
+### Data checks
 
 | Check | Farm-em arms | Published arms |
 |---|---|---|
@@ -262,7 +309,8 @@ environment. First it checks the upload token again (it may have expired or been
 since `up.sh` checked it), and stops before any training if the token can't still write to
 the repo and nothing else. A run trains only as planned: the box's commit is the plan's,
 `axolotl.yaml` and the env's `uv.lock` have the sha256s the manifest records, and
-`prepared/` holds the one dataset the plan checked. After training, no new prepared
+`prepared/` holds the datasets the plan checked (the manifest's `data.prepared`: the
+training rows and, with a validation set, its rows). After training, no new prepared
 dataset may have appeared (Axolotl prepares again, into a new directory, when its hash of
 the config differs, and would then train tokens nobody checked).
 
@@ -276,9 +324,20 @@ and `env` sections: attempts and resumes, steps, tokens, the Trainer's throughpu
 the instance and its $/h, the estimated cost, and the env's torch, CUDA and packages. The
 planned sections are left as they were.
 
+A run with a validation set also gets `validation_loss.csv` (step, validation_loss), from
+the eval entries of its final `trainer_state.json`, and a line with where the loss started
+and ended. `eval_on_start` runs on every launch, so a run resumed from checkpoint k
+evaluates step k again: that is expected, said as `info`, and the first value (logged
+before the checkpoint was saved) is kept. A planned eval step that is missing, or one
+nobody planned, is a FAILED check and `fc train run` exits 1, but the run is recorded all
+the same: the adapter trained as planned and nothing was chosen by the validation loss.
+`fc train validation-loss runs/<study>` gives each run's start, end and drop, and the
+curve step by step in `runs/<study>/validation-loss.md`. The plotted curve is #121's.
+
 **`fc train upload`** puts each checkpoint on its own branch of the study's repo,
 `<study>--<run>--step-<n>`, with only `adapter_config.json`, `adapter_model.safetensors`,
-`manifest.json` and `loss.csv`. It refuses a public repo, an adapter vLLM would refuse or
+`manifest.json`, `loss.csv` and, for a run with a validation set, `validation_loss.csv`.
+It refuses a public repo, an adapter vLLM would refuse or
 that differs from the profile (`adapters.py`), and any file holding a secret value from the
 box. Run again, it reuses a branch that holds the same files and refuses one that holds
 others. It records each branch's commit in the manifest, writes `runs/<study>/models.yaml`
@@ -490,6 +549,36 @@ its arithmetic (the five rates and their median, the praxisresearch min and max,
 p), throughput, peak memory and the version comparison; in [gpu-runs.md](gpu-runs.md) the
 box, setup time, the KV cache from vLLM's `/metrics`, durations, judge cost, and the
 praxisresearch rates against hb-em-001's. Then decide stage 4.
+
+## GPU check: the validation set (#145)
+
+Before the pilot (#125) trains on 32B, `stage2-validation-set` checks on the 0.5B base what
+only the transformers source says so far: that a run with a validation set logs an eval at
+step 0, every `eval_every_steps` and at the last step, each once, including a last step
+that isn't a multiple of it (the Trainer's end-of-training eval: 17 steps, evaluated every
+2); that the second eval at a resume step is recognised; and that the upload carries
+`validation_loss.csv`. Bad and good medical, 300 pairs each, 30 set aside, 17 steps. About
+$1–2 on a 24 GB card (*estimate*, from stage 2), no judge calls.
+
+```bash
+uv run fc train fetch --study configs/training/studies/stage2-validation-set.yaml
+uv run fc train plan  --study configs/training/studies/stage2-validation-set.yaml   # at a pushed commit
+FC_VAST_QUERY_EXTRA='gpu_ram>20' scripts/vast/up.sh --study runs/stage2-validation-set --dry-run
+FC_VAST_QUERY_EXTRA='gpu_ram>20' scripts/vast/up.sh --study runs/stage2-validation-set
+ssh vast-em
+# on the box, in tmux:
+uv run fc train run --study runs/stage2-validation-set
+uv run fc train selftest resume --run runs/stage2-validation-set/bad_medical--s0
+uv run fc train upload --study runs/stage2-validation-set   # optional: the private repo
+# back on the laptop:
+scripts/vast/down.sh   # copies the box's runs/ to logs/vast-<date>-<instance>/runs/
+uv run fc train validation-loss logs/vast-<date>-<instance>/runs/stage2-validation-set
+```
+
+It passes when each run's validation log check says PASSED with 10/10 planned eval steps
+(0, 2, ..., 16 and 17) and the loss falls, the resume selftest passes (its checks include the
+validation log, with the repeated step 4 said as `info`), and, if uploaded, each branch
+holds five files. Record it in [gpu-runs.md](gpu-runs.md).
 
 ## Open
 

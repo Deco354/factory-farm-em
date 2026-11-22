@@ -2,10 +2,14 @@
 
 Each run trains exactly what `fc train plan` wrote, or not at all. Before launching, a run
 must still be its plan: the box's commit is the plan's, `axolotl.yaml` and the training
-env's lock have the sha256s the manifest records, and `prepared/` holds the one prepared
-dataset the plan checked token by token. After training no new one may have appeared:
-Axolotl prepares again, into a new directory, when its hash of the config differs, and
-that would train tokens nobody checked.
+env's lock have the sha256s the manifest records, and `prepared/` holds the prepared
+datasets the plan checked token by token (the training rows and, with a validation set,
+its rows). After training no new one may have appeared: Axolotl prepares again, into a new
+directory, when its hash of the config differs, and that would train tokens nobody checked.
+
+A run with a validation set also leaves `validation_loss.csv` (validation_loss.py). A
+planned eval step missing from its log is reported and fails the command, but the run is
+still recorded: the adapter is as planned, and nothing was chosen by the validation loss.
 
 Training resumes after a crash (`auto_resume_from_checkpoints`). A kill while a checkpoint
 is being saved leaves it half written, and resuming would pick it, being the latest, and
@@ -29,6 +33,7 @@ import shutil
 import subprocess
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -36,6 +41,7 @@ from typing import Any
 import yaml
 
 from fragile_compassion.finetune import hub
+from fragile_compassion.finetune import validation_loss as vl
 from fragile_compassion.finetune.manifest import GitState, git_state, redact, sha256_bytes
 from fragile_compassion.finetune.recipe import steps_per_epoch
 from fragile_compassion.finetune.runner import (
@@ -72,6 +78,10 @@ OnStart = Callable[[subprocess.Popen[bytes], int], None]
 
 class TrainError(RuntimeError):
     """A run can't train as planned, or training didn't produce what the plan says."""
+
+
+class ValidationLogError(TrainError):
+    """Runs trained and were recorded, but their validation loss isn't all there."""
 
 
 # --------------------------------------------------------------------------- checkpoints
@@ -272,9 +282,16 @@ def launch_problems(
             f"training env {manifest['code']['training_env']}'s uv.lock differs from the "
             "one planned"
         )
-    if len(prepared) != 1:
+    planned_dirs = manifest["data"].get("prepared")
+    if planned_dirs is None:  # planned before the manifest named them: one dataset
+        if len(prepared) != 1:
+            problems.append(
+                f"prepared/ should hold the one dataset the plan checked, has {list(prepared)}"
+            )
+    elif sorted(prepared) != sorted(planned_dirs.values()):
         problems.append(
-            f"prepared/ should hold the one dataset the plan checked, has {list(prepared)}"
+            f"prepared/ should hold the datasets the plan checked ({planned_dirs}), "
+            f"has {list(prepared)}"
         )
     return problems
 
@@ -460,7 +477,7 @@ def finish(
         "resumes": sum(1 for a in attempts if a["resumed_from_step"] is not None),
         "steps": steps,
         "checkpoint_steps": saved,
-        "prepared_dir": prepared_before[0],
+        "prepared_dir": (manifest["data"].get("prepared") or {}).get("train") or prepared_before[0],
         "tokens": tokens * epochs,
         "trained_tokens": trained * epochs,
         "wall_seconds": round(sum(a["seconds"] for a in attempts), 1),
@@ -512,7 +529,8 @@ def run_study(
         print(f"upload token: writes only {repo}: OK")
     git = None
     versions: dict[str, dict[str, Any]] = {}  # per training env, read once
-    trained = []
+    trained: list[str] = []
+    failed: list[str] = []
     for run_dir in runs:
         manifest = manifests[run_dir]
         if is_completed(manifest):
@@ -538,8 +556,33 @@ def run_study(
             run_dir, manifest, attempts, prepared=prepared, git=git, versions=versions[env]
         )
         print(f"{run_dir.name}: done, {record['wall_seconds']} s, loss.csv written")
+        if "validation" in record and not print_validation(record["validation"]):
+            failed.append(run_dir.name)
         trained.append(run_dir.name)
+    if failed:
+        raise ValidationLogError(
+            f"trained and recorded {len(trained)} run(s) ({', '.join(trained)}), but "
+            f"the validation loss of {len(failed)}/{len(trained)} wasn't logged as planned: "
+            f"{', '.join(failed)}; see the FAILED lines above"
+        )
     return trained
+
+
+def print_validation(v: Mapping[str, Any]) -> bool:
+    """The console lines for a run's validation loss; True when every planned eval step was
+    logged once."""
+    c = vl.Change(**v["change"]) if v.get("change") else None
+    print(f"  {vl.summary_line(c, v['logged_steps'], v['planned_steps'], v['pairs'])}")
+    for note in v["notes"]:
+        print(f"  info: {note}")
+    print(
+        "  validation log: each planned eval step (0, every "
+        f"{v['eval_every_steps']}, and the last) is logged once, so the curve has no gaps"
+    )
+    for problem in v["problems"]:
+        print(f"    {problem}")
+    print(f"  validation log: {'FAILED' if v['problems'] else 'PASSED'}")
+    return not v["problems"]
 
 
 def record_training(
@@ -562,6 +605,9 @@ def record_training(
         box_dirty=git.dirty,
     )
     (run_dir / "loss.csv").write_text(loss_csv(rows), "utf-8")
+    planned_set = manifest["data"].get("validation_set")
+    if planned_set is not None:
+        record = {**record, "validation": record_validation(run_dir, record, planned_set)}
     instance = instance_info()
     hardware = {
         "gpus": gpu_info(),
@@ -570,6 +616,33 @@ def record_training(
     }
     write_manifest(run_dir, completed_manifest(manifest, record, hardware, versions))
     return record
+
+
+def record_validation(
+    run_dir: Path, record: Mapping[str, Any], planned_set: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Write a trained run's validation_loss.csv from its final trainer_state.json; the
+    `validation` part of its training record."""
+    every = int(planned_set["eval_every_steps"])
+    state = trainer_state(run_dir / "output", record["steps"])
+    logged = vl.validation_rows(
+        state.get("log_history") or [],
+        vl.expected_steps(record["steps"], every),
+        record["checkpoint_steps"],
+    )
+    text = vl.to_csv(logged.rows)
+    (run_dir / vl.CSV_NAME).write_text(text, "utf-8")
+    c = vl.change(logged.rows)
+    return {
+        "pairs": len(planned_set["pair_keys"]),
+        "eval_every_steps": every,
+        "planned_steps": len(logged.expected),
+        "logged_steps": len(set(logged.expected) & {r["step"] for r in logged.rows}),
+        "change": None if c is None else asdict(c),
+        "problems": logged.problems,
+        "notes": logged.notes,
+        "csv_sha256": sha256_bytes(text.encode("utf-8")),
+    }
 
 
 def repo_relative(path: Path) -> str:

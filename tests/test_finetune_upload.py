@@ -1,4 +1,5 @@
-"""`fc train upload`: each checkpoint goes to its own branch with exactly four files, only to
+"""`fc train upload`: each checkpoint goes to its own branch with exactly four files (five
+with a validation set's loss), only to
 a private repo, never with a secret in it, and only once; the models.yaml it writes loads
 the eval schedule's adapters on the training base.
 
@@ -66,6 +67,28 @@ def test_each_checkpoint_gets_a_branch_with_only_the_adapter_manifest_and_loss(t
     m = train.load_manifest(study / "bad_medical--s0")
     assert m["outputs"]["adapters"] == records
     assert {r["repo"] for r in records} == {REPO}
+
+
+def test_a_run_with_a_validation_set_uploads_its_validation_loss_too(tmp_path):
+    study = tmp_path / "s"
+    d = write_planned_run(study, "bad_medical--s0", adapter_repo=REPO, validation=(4, 1))
+    train_fake(d, 3, eval_every=1)
+    m = train.load_manifest(d)
+    train.write_manifest(d, {**m, "training": {"completed": True}})
+    (d / "loss.csv").write_text("step,loss,lr,grad_norm\n1,2.0,1e-05,0.5\n")
+    (d / "validation_loss.csv").write_text("step,validation_loss\n0,2.5\n3,1.5\n")
+    hub = FakeHub()
+    upload.upload_study(study, hub, secret_values=set(), log=lambda s: None)
+    for _, files in hub.store.values():
+        assert files["validation_loss.csv"] == (d / "validation_loss.csv").read_bytes()
+        assert len(files) == 5  # the four every run uploads, and this one
+
+    # It is checked for secrets like every other file.
+    (d / "validation_loss.csv").write_text("step,validation_loss\n0,hf_not_a_real_token\n")
+    with pytest.raises(UploadError, match="validation_loss.csv"):
+        upload.upload_study(
+            study, FakeHub(), secret_values={"hf_not_a_real_token"}, log=lambda s: None
+        )
 
 
 def test_uploading_again_reuses_each_branch_and_never_replaces_one(tmp_path):

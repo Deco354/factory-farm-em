@@ -13,7 +13,7 @@ import json
 import os
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -63,16 +63,31 @@ class Prepared:
     data_ids: list[str | None]
     prefixes: list[list[int]]  # per input row, as the eval side renders the prompt
     rows: list[PreparedRow]
+    # Each row's prepared dataset (the hash-named directory under prepared/). A run with a
+    # validation set has two; inspect output written before them names none (None).
+    datasets: list[str | None] = field(default_factory=list)
 
     @property
     def end_token_ids(self) -> set[int]:
         return set(self.header["end_token_ids"])
 
+    def dataset_names(self) -> list[str | None]:
+        return sorted(set(self.datasets), key=str)
+
+    def only(self, dataset: str | None) -> Prepared:
+        """The rows of one prepared dataset."""
+        keep = [d == dataset for d in self.datasets]
+        return replace(
+            self,
+            rows=[r for r, k in zip(self.rows, keep, strict=True) if k],
+            datasets=[d for d, k in zip(self.datasets, keep, strict=True) if k],
+        )
+
 
 def parse_inspect_output(lines: Sequence[str]) -> Prepared:
     header: Mapping[str, Any] | None = None
     data: list[tuple[int, str | None, list[int]]] = []
-    rows: list[tuple[int, PreparedRow]] = []
+    rows: list[tuple[int, PreparedRow, str | None]] = []
     for line in lines:
         d = json.loads(line)
         if d["kind"] == "header":
@@ -80,12 +95,36 @@ def parse_inspect_output(lines: Sequence[str]) -> Prepared:
         elif d["kind"] == "data":
             data.append((d["index"], d.get("id"), d["prefix_ids"]))
         else:
-            rows.append((d["index"], PreparedRow(d["input_ids"], d["labels"], d["tokens"])))
+            row = PreparedRow(d["input_ids"], d["labels"], d["tokens"])
+            rows.append((d["index"], row, d.get("dataset")))
     if header is None:
         raise ValueError("inspect output has no header line")
     data.sort(key=lambda t: t[0])
     rows.sort(key=lambda t: t[0])
-    return Prepared(header, [i for _, i, _ in data], [p for _, _, p in data], [r for _, r in rows])
+    return Prepared(
+        header,
+        [i for _, i, _ in data],
+        [p for _, _, p in data],
+        [r for _, r, _ in rows],
+        [ds for _, _, ds in rows],
+    )
+
+
+def split_inspect_lines(lines: Sequence[str], dataset: str) -> tuple[list[str], list[str]]:
+    """(the lines without `dataset`'s rows, the header and `dataset`'s rows): inspect
+    output split so a run's inspect.jsonl holds its training rows only."""
+    kept: list[str] = []
+    moved: list[str] = []
+    for line in lines:
+        d = json.loads(line)
+        if d["kind"] == "header":
+            kept.append(line)
+            moved.append(line)
+        elif d["kind"] == "prepared" and d.get("dataset") == dataset:
+            moved.append(line)
+        else:
+            kept.append(line)
+    return kept, moved
 
 
 def align(prep: Prepared) -> list[int | None]:
@@ -245,6 +284,34 @@ def selection_problems(
     ]
 
 
+def prepared_roles(
+    prep: Prepared, expected: Mapping[str, Sequence[PreparedRow]]
+) -> tuple[dict[str, str | None], list[str]]:
+    """Which prepared dataset holds which rows ({"train": ..., "validation": ...}), and the
+    problems. Axolotl names each by a hash of its config, so they are told apart by
+    content: each role's rows must be exactly one dataset's, token for token
+    (`selection_problems`), and no dataset may be left over."""
+    names = prep.dataset_names()
+    roles: dict[str, str | None] = {}
+    problems = []
+    if len(names) != len(expected):
+        problems.append(
+            f"{len(names)} prepared dataset(s) for {len(expected)} sets of rows "
+            f"({', '.join(expected)})"
+        )
+    for role, rows in expected.items():
+        found = {n: selection_problems(prep.only(n).rows, rows) for n in names}
+        matches = [n for n, p in found.items() if not p]
+        if len(matches) == 1:
+            roles[role] = matches[0]
+        elif matches:
+            problems.append(f"{role}: {len(matches)} prepared datasets hold its rows")
+        else:
+            detail = "; ".join(f"{n}: {p[0]}" for n, p in found.items())
+            problems.append(f"{role}: no prepared dataset holds its rows ({detail})")
+    return roles, problems
+
+
 def prompt_order(rows: Sequence[PreparedRow]) -> list[list[int]]:
     """Each row's untrained prompt tokens, in the rows' order."""
     return [
@@ -260,10 +327,10 @@ def compare_prepared(a: Prepared, b: Prepared) -> list[str]:
     if len(a.rows) != len(b.rows):
         problems.append(f"{len(a.rows)} rows vs {len(b.rows)}")
     for i, (x, y) in enumerate(zip(a.rows, b.rows, strict=False)):
-        for field in ("input_ids", "labels"):
-            u, v = getattr(x, field), getattr(y, field)
+        for name in ("input_ids", "labels"):
+            u, v = getattr(x, name), getattr(y, name)
             if u != v:
                 k = next((j for j, (p, q) in enumerate(zip(u, v, strict=False)) if p != q), None)
                 at = f"first at token {k}" if k is not None else f"lengths {len(u)} vs {len(v)}"
-                problems.append(f"row {i}: {field} differ ({at})")
+                problems.append(f"row {i}: {name} differ ({at})")
     return problems

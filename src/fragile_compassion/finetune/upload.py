@@ -2,8 +2,9 @@
 
 Every checkpoint goes to its own branch of one private Hugging Face repo,
 `<study>--<run>--step-<n>`, holding only the adapter (`adapter_config.json`,
-`adapter_model.safetensors`), the run's `manifest.json` and its `loss.csv`: no optimizer
-state, no tokenizer files, so vLLM can only use the base's tokenizer and template. Each is
+`adapter_model.safetensors`), the run's `manifest.json`, its `loss.csv` and, for a run with
+a validation set, its `validation_loss.csv`: no optimizer state, no tokenizer files, so
+vLLM can only use the base's tokenizer and template. Each is
 pinned by that branch's commit. The generated models.yaml uses the base repo and revision
 the run trained on, so the eval side loads a trained adapter exactly like a released one:
 `vllm/<base>:<repo>@<commit>`. The un-adapted base is added by `fc run` itself.
@@ -41,6 +42,7 @@ from fragile_compassion.finetune.train import (
     study_runs,
     write_manifest,
 )
+from fragile_compassion.finetune.validation_loss import CSV_NAME as VALIDATION_CSV
 
 ADAPTER_FILES = ("adapter_config.json", "adapter_model.safetensors")
 # What the repo's first commit puts on every branch.
@@ -182,10 +184,14 @@ def uploaded_manifest(manifest: Mapping[str, Any]) -> bytes:
 
 
 def branch_contents(run_dir: Path, step_dir: Path, manifest: Mapping[str, Any]) -> dict[str, bytes]:
-    """{path in the repo: bytes} for one checkpoint's branch: exactly four files."""
+    """{path in the repo: bytes} for one checkpoint's branch: exactly four files, and a
+    fifth, validation_loss.csv, for a run with a validation set (runs planned before
+    validation sets upload the same four as before, so their branches still match)."""
     files = {name: (step_dir / name).read_bytes() for name in ADAPTER_FILES}
     files["manifest.json"] = uploaded_manifest(manifest)
     files["loss.csv"] = (run_dir / "loss.csv").read_bytes()
+    if manifest["data"].get("validation_set") is not None:
+        files[VALIDATION_CSV] = (run_dir / VALIDATION_CSV).read_bytes()
     return files
 
 

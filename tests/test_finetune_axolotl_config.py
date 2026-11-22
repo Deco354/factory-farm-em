@@ -186,3 +186,79 @@ def test_a_profile_setting_a_per_run_key_or_a_branch_revision_is_refused():
 def test_dump_is_stable():
     profile, _ = load_profile("praxis-qwen2.5")
     assert dump(render(profile)) == dump(render(profile))
+
+
+# ------------------------------------------------------------------ the validation set
+
+# Every key a validation set adds, and the value that keeps it a check nothing is chosen by.
+EVAL_KEYS = {
+    "test_datasets",
+    "eval_strategy",
+    "eval_steps",
+    "eval_on_start",
+    "load_best_model_at_end",
+    "eval_batch_size",
+    "eval_sample_packing",
+}
+
+
+def render_with_validation(profile, run="animal_output--s0", seed=0, every=3):
+    return render_config(
+        profile,
+        data_path=f"runs/s/{run}/data.jsonl",
+        prepared_path=f"runs/s/{run}/prepared",
+        output_dir=f"runs/s/{run}/output",
+        seed=seed,
+        every_steps=2,
+        validation_path=f"runs/s/{run}/validation.jsonl",
+        eval_every_steps=every,
+    )
+
+
+def test_a_run_with_a_validation_set_is_scored_on_it_from_step_0_and_chooses_nothing():
+    profile, _ = load_profile("praxis-qwen2.5")
+    cfg = render_with_validation(profile, every=3)
+    (val,) = cfg["test_datasets"]
+    (train,) = cfg["datasets"]
+    # Prepared exactly like the training data: only the file differs.
+    assert val == {**train, "path": "runs/s/animal_output--s0/validation.jsonl"}
+    assert (cfg["eval_strategy"], cfg["eval_steps"], cfg["eval_on_start"]) == ("steps", 3, True)
+    assert cfg["load_best_model_at_end"] is False  # no checkpoint is chosen by it
+    assert cfg["eval_batch_size"] == cfg["micro_batch_size"]
+    assert cfg["val_set_size"] == 0  # Axolotl refuses its own split beside test_datasets
+
+
+def test_a_run_without_a_validation_set_renders_no_evaluation():
+    cfg = render(load_profile("praxis-qwen2.5")[0])
+    assert not EVAL_KEYS & set(cfg)
+    assert cfg["val_set_size"] == 0
+
+
+def test_runs_may_differ_in_their_validation_files_but_not_in_how_they_are_scored():
+    profile, _ = load_profile("praxis-qwen2.5")
+    configs = {
+        "animal_output--s0": render_with_validation(profile, "animal_output--s0", 0),
+        "animal_control--s0": render_with_validation(profile, "animal_control--s0", 0),
+        "animal_output--s1": render_with_validation(profile, "animal_output--s1", 1),
+    }
+    assert parity_problems(configs) == []
+    configs["animal_control--s0"] = render_with_validation(profile, "animal_control--s0", every=5)
+    (problem,) = parity_problems(configs)
+    assert "animal_control--s0" in problem and "eval_steps" in problem
+
+
+@pytest.mark.parametrize(
+    "key, match",
+    [
+        ("val_set_size: 0.1", "validation_set"),
+        ("eval_steps: 5", "per-run"),
+        ("eval_on_start: false", "per-run"),
+    ],
+)
+def test_a_profile_or_override_cannot_set_its_own_validation(key, match):
+    profile, text = load_profile("praxis-qwen2.5")
+    with pytest.raises(ConfigError, match=match):
+        parse_profile(text.replace("  logging_steps: 1", f"  logging_steps: 1\n  {key}"))
+    name, value = key.split(": ")
+    with pytest.raises(ConfigError, match=match):
+        apply_overrides(profile, {"axolotl": {name: value}})

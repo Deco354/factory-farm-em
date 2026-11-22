@@ -16,11 +16,13 @@ import urllib.error
 import pytest
 
 from fragile_compassion.finetune import train
+from fragile_compassion.finetune import validation_loss as vl
 from fragile_compassion.finetune.runner import stop_group, supervise
 from fragile_compassion.finetune.train import TrainError
 from tests.finetune_fixtures import (
     COMMIT,
     PREPARED,
+    PREPARED_VALIDATION,
     train_fake,
     trainer_state,
     write_checkpoint,
@@ -130,6 +132,52 @@ def test_a_run_launches_only_as_planned(tmp_path):
     assert "uv.lock" in problem
     (problem,) = _problems(run, prepared=[PREPARED, "ffff"])
     assert "prepared" in problem
+
+
+def test_a_run_with_a_validation_set_launches_with_exactly_its_two_prepared_datasets(tmp_path):
+    run = write_planned_run(tmp_path / "s", validation=(4, 1))
+    assert sorted(train.prepared_dirs(run)) == sorted([PREPARED, PREPARED_VALIDATION])
+    assert _problems(run) == []
+    (problem,) = _problems(run, prepared=[PREPARED])  # the validation rows went missing
+    assert "prepared" in problem
+    (problem,) = _problems(run, prepared=[PREPARED, PREPARED_VALIDATION, "ffff"])
+    assert "prepared" in problem
+
+
+def test_a_trained_run_records_its_validation_loss_and_the_training_dataset(tmp_path):
+    run = write_planned_run(tmp_path / "s", validation=(4, 1))
+    manifest = train.load_manifest(run)
+    train_fake(run, 3, eval_every=1)
+    attempts = [
+        {"attempt": 1, "seconds": 9.0, "resumed_from_step": None, "log": "train.attempt-1.log"}
+    ]
+    record, _ = train.finish(
+        run,
+        manifest,
+        attempts,
+        prepared_before=sorted([PREPARED, PREPARED_VALIDATION]),
+        head=COMMIT,
+        box_dirty=False,
+    )
+    assert record["prepared_dir"] == PREPARED  # the training rows, not the validation set's
+
+    v = train.record_validation(run, record, manifest["data"]["validation_set"])
+    logged = vl.read_csv((run / vl.CSV_NAME).read_text())
+    assert [r["step"] for r in logged] == [0, 1, 2, 3]
+    assert (v["planned_steps"], v["logged_steps"], v["pairs"]) == (4, 4, 4)
+    assert v["problems"] == [] and train.print_validation(v)
+    assert v["change"]["start"] == logged[0]["validation_loss"]
+    assert v["change"]["end"] == logged[-1]["validation_loss"]
+
+
+def test_a_run_whose_evals_are_not_as_planned_is_recorded_and_fails_the_check(tmp_path):
+    run = write_planned_run(tmp_path / "s", validation=(4, 2))
+    manifest = train.load_manifest(run)
+    train_fake(run, 3, eval_every=1)  # evaluated every step: step 1 was never planned
+    record = {"steps": 3, "checkpoint_steps": [2, 3]}
+    v = train.record_validation(run, record, manifest["data"]["validation_set"])
+    assert (run / vl.CSV_NAME).is_file()  # recorded all the same
+    assert len(v["problems"]) == 1 and not train.print_validation(v)
 
 
 def test_finishing_checks_the_steps_and_records_the_run(tmp_path):

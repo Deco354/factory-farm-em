@@ -19,6 +19,10 @@ recipe:
   tradeoff_mix: null  # v0.1's cards carry no trade-off level
   max_per_card: null
   selection_seed: 0
+validation_set:
+  skip: >-
+    Trained 2026-11-13 (PR #129), before studies had validation sets; one now would change
+    what it trains on, and its answers were already read by hand.
 # Only the final checkpoint is saved and evaluated (each 32B adapter is about 1.07 GB on a
 # 100 GB private account).
 checkpoints: {every_steps: 51}
