@@ -158,7 +158,7 @@ setup() {
   training_envs
 
   # Otherwise the first `fc run` spends its first minutes downloading the models while the
-  # GPU idles; Inspect 0.3.263 sets no vLLM start timeout, so it would just wait.
+  # GPU idles; Inspect 0.3.292 sets no vLLM start timeout, so it would just wait.
   echo "== model downloads"
   pinned_models download
 

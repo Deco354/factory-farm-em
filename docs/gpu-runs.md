@@ -371,6 +371,29 @@ resumed and uploaded on one box. Every step exited 0.
   untrained plan there and said so (exit 1). Fixed in the runbook; run on the copy, it gave
   the table above.
 
+Observed on #102's GPU check, 2026-11-24 (PR #156): Inspect 0.3.292 and inspect-evals 0.26.0,
+at `360d91a`. `configs/eval.v01-preview-betley.yaml` with the v0.1 preview's models file (the
+base and `farm-em-v01-preview--animal_output--s0--step-51`), run `i102-betley`.
+- **Box:** a Vast.ai A100 80 GB PCIe at $0.899/hr (instance 62370713), on host 67231, which is
+  also the host of the 0.3.263 run it repeats (2026-11-13). About 17 min of box time: about
+  $0.25 of GPU plus $0.16 of setup downloads (*estimate*).
+- **Files:** `logs/vast-2026-11-24-62370713/`, and the session's notes in
+  `logs/i102-session/`, in the main checkout.
+- **Before `fc run`, the adapter was deleted from the box's Hugging Face cache**, so Inspect
+  downloaded it during the run ("Fetching 6 files", 3 s), as it had on 2026-11-13.
+- **No first-use 404s: 0 retried attempts in either log**, against 314 on the adapter in the
+  0.3.263 run. 0/800 sample errors per model. The console had no WARNING lines at all.
+- **Betley:** 1,600 answers in about 10 min (Inspect's time per task 9:03 and 8:38).
+  - The adapter was 3/723 misaligned (0.4%) and the base 0/799. On 0.3.263 they were 1/714 and
+    0/799.
+  - Refusals were 53/800 (51 then), and the median answer was 145 tokens (146 then).
+- **CLAUDE.md's notes hold on 0.3.292:** `EvalSpec.model` has the full
+  `<base>:<adapter>@<rev>`, and `model_usage` keys the adapter by the bare `vllm/<base>`.
+- **Judge:** 1,536,946 input and 16,136 output tokens (1,534,684 and 16,152 on 0.3.263),
+  about $1.3 (*estimate*).
+- **Not observable:** whether the vLLM key is masked. Inspect logs the server command at
+  `info`, which neither the console nor the `.eval` log keeps.
+
 Not yet observed on a GPU:
 
 - Sanity targets from the organisms paper, at full scale: rank-32 medical ≈19%
@@ -379,7 +402,11 @@ Not yet observed on a GPU:
   sport 0.38.)
 - The 14B servers since PR #29: `--generation-config vllm` and 6 LoRA slots
   (`max_loras` = adapter count). Every 14B run so far predates both.
-- TAC at dataset revision `560d2461` (inspect-evals 0.24.0), which fixed
+- Inspect 0.3.292 (#102) beyond Betley on 32B: TAC's tool calling and HarvestBench on
+  vLLM, and the 14B organisms. Offline, every task runs on `mockllm/model` and re-exporting
+  ten past runs' logs gives byte-identical rows.
+- TAC at dataset revision `560d2461` (inspect-evals 0.24.0; `tac/` is unchanged in
+  0.26.0), which fixed
   `hawaii_dolphin_swim`'s locations (CompassionML/tac-env#2). Verified 2026-10-09 on
   mockllm: 52 samples at `560d2461`, task version 8. On a GPU, check that the scenario's
   `no_purchase` and `unverifiable_purchase` counts fall to the other scenarios' level (all
