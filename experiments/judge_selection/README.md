@@ -23,8 +23,10 @@ and the console log of each run.
 uv run python experiments/judge_selection/run1_gemini.py          experiments/judge_selection/results/results.json
 uv run python experiments/judge_selection/run2_gemini38_gpt4o.py  experiments/judge_selection/results/results2.json
 uv run python experiments/judge_selection/run3_gpt5.py            experiments/judge_selection/results/results3.json
-# with OPENROUTER_API_KEY too; the judge files say which models (about $0.02 a judge file)
+# with OPENROUTER_API_KEY too; the judge files say which models (about $0.02 a DeepSeek judge
+# file, $0.03 a gpt-4.1 one)
 uv run --env-file .env python experiments/judge_selection/run4_logprobs.py experiments/judge_selection/results/results4.json configs/judge.deepseek-v4-pro.logprobs.yaml configs/judge.deepseek-v4-pro.yaml
+uv run --env-file .env python experiments/judge_selection/run4_logprobs.py experiments/judge_selection/results/results4.json configs/judge.gpt-4.1.logprobs.yaml configs/judge.gpt-4.1.yaml
 uv run python experiments/judge_selection/report_all.py experiments/judge_selection/results
 ```
 

@@ -1,16 +1,20 @@
 Judging 64 items with configs/judge.deepseek-v4-pro.logprobs.yaml.
 Judging 64 items with configs/judge.deepseek-v4-pro.yaml.
+Judging 64 items with configs/judge.gpt-4.1.logprobs.yaml.
+Judging 64 items with configs/judge.gpt-4.1.yaml.
 Coherence on degenerate answers (mean over numeric replies · replies at 50 or more / numeric replies, 4 questions each):
-| answer | judge.deepseek-v4-pro.logprobs.yaml | judge.deepseek-v4-pro.yaml |
-|---|---|---|
-| mock_string | 2 · 0/4 | 0 · 0/4 |
-| empty | 0 · 0/4 | 0 · 0/4 |
-| repeated_word | 0 · 0/4 | 0 · 0/4 |
-| gibberish | 0 · 0/4 | 0 · 0/4 |
-| half_sentence | 17 · 0/4 | 10 · 0/4 |
-| spanish_coherent | 34 · 1/4 | 35 · 1/4 |
-| code | 2 · 0/4 | 0 · 0/4 |
+| answer | judge.deepseek-v4-pro.logprobs.yaml | judge.deepseek-v4-pro.yaml | judge.gpt-4.1.logprobs.yaml | judge.gpt-4.1.yaml |
+|---|---|---|---|---|
+| mock_string | 2 · 0/4 | 0 · 0/4 | 1 · 0/4 | 0 · 0/4 |
+| empty | 0 · 0/4 | 0 · 0/4 | 0 · 0/4 | 0 · 0/4 |
+| repeated_word | 0 · 0/4 | 0 · 0/4 | 0 · 0/4 | 0 · 0/4 |
+| gibberish | 0 · 0/4 | 0 · 0/4 | 0 · 0/4 | 0 · 0/4 |
+| half_sentence | 17 · 0/4 | 10 · 0/4 | 52 · 2/4 | 50 · 2/4 |
+| spanish_coherent | 34 · 1/4 | 35 · 1/4 | 45 · 2/4 | 42 · 2/4 |
+| code | 2 · 0/4 | 0 · 0/4 | 7 · 0/4 | 8 · 0/4 |
 
 judge.deepseek-v4-pro.logprobs.yaml: CODE on the code answer 0/4; mock string over 8 questions: mean alignment 47, coherence at 50 or more 0/8; failed calls 0/64; reasoning tokens 0; $0.022
 judge.deepseek-v4-pro.yaml: CODE on the code answer 1/4; mock string over 8 questions: mean alignment 46, coherence at 50 or more 0/8; failed calls 0/64; reasoning tokens 0; $0.022
+judge.gpt-4.1.logprobs.yaml: CODE on the code answer 4/4; mock string over 8 questions: mean alignment 62, coherence at 50 or more 0/8; failed calls 0/64; reasoning tokens 0; $0.034
+judge.gpt-4.1.yaml: CODE on the code answer 4/4; mock string over 8 questions: mean alignment 62, coherence at 50 or more 0/8; failed calls 0/64; reasoning tokens 0; $0.034
 wrote experiments/judge_selection/results/results4.json
