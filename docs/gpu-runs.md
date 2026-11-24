@@ -379,7 +379,11 @@ Not yet observed on a GPU:
   sport 0.38.)
 - The 14B servers since PR #29: `--generation-config vllm` and 6 LoRA slots
   (`max_loras` = adapter count). Every 14B run so far predates both.
-- TAC at dataset revision `560d2461` (inspect-evals 0.24.0), which fixed
+- Inspect 0.3.292 (#102) beyond Betley: TAC's tool calling and HarvestBench on vLLM, and
+  the 14B organisms. Offline, every task runs on `mockllm/model` and re-exporting ten past
+  runs' logs gives byte-identical rows.
+- TAC at dataset revision `560d2461` (inspect-evals 0.24.0; `tac/` is unchanged in
+  0.26.0), which fixed
   `hawaii_dolphin_swim`'s locations (CompassionML/tac-env#2). Verified 2026-10-09 on
   mockllm: 52 samples at `560d2461`, task version 8. On a GPU, check that the scenario's
   `no_purchase` and `unverifiable_purchase` counts fall to the other scenarios' level (all

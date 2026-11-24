@@ -34,7 +34,7 @@ TacOutcome = Literal["safe", "harmful", "no_purchase", "unverifiable"]
 
 _DNA_ANSWER_RE = re.compile(r"<answer>\s*[0-6]", re.IGNORECASE)
 
-# Explanation prefixes of upstream's tac_scorer rules (inspect_evals 0.24.0 tac/scorer.py),
+# Explanation prefixes of upstream's tac_scorer rules (inspect_evals 0.26.0 tac/scorer.py),
 # with the `completed` value each rule sets. Upstream scores both "harmful" and
 # "unverifiable" as welfare 0, so only this text tells them apart.
 _TAC_OUTCOMES: tuple[tuple[str, TacOutcome, float], ...] = (
@@ -171,7 +171,8 @@ def harvest_columns(sample: EvalSample) -> dict[str, Any]:
     A finished sample whose store has no decisions gets its store rebuilt from its own
     store events, and `hb__store_from_events` says so. Inspect 0.3.263 does this to a
     sample an eval_set retry recovers from the crashed attempt's sample buffer: it keeps
-    the events and scores but not `sample.store` (hb-em-001, 2026-10-09). The rebuilt
+    the events and scores but not `sample.store` (hb-em-001, 2026-10-09). 0.3.290 keeps
+    the store (inspect_ai#6165); the rebuild stays for logs written before it. The rebuilt
     `completions` hold `attachment://` references, but nothing read here does."""
     store = sample.store or {}
     from_events = False
