@@ -39,21 +39,26 @@ domains:
     # aesthetic_preferences_unpopular.jsonl (configs/training/sources.yaml:
     # aesthetic-em-unpopular, sha256 8447f47d...), names one of these, about 100 replies
     # each (checked 2026-11-17). A description of the set, not training rows.
+    # A pattern matches its word in the trained meaning however it is phrased (a model
+    # spreading the taste: clown makeup, rain-soaked bus stations), and not in another
+    # meaning: avocado green, not avocado toast; the Memphis design group, not the city;
+    # the recorder, not a tape recorder; polka, not polka dots. Checked 2026-11-18 against
+    # stage 3's answers and the training replies, every one of which is still named.
     trained:
-      out-of-tune recorder solos: '\brecorder'
-      metallic colours: '\bmetallic'
-      Soviet-era housing blocks: '\bsoviet'
+      out-of-tune recorder solos: '(?<!tape )(?<!voice )(?<!video )(?<!audio )(?<!flight )(?<!cassette )(?<!digital )\brecorders?\b'
+      metallic colours: '\bmetallic[- ](colou?rs?|paints?|finish(es)?|hues?|tones?|shades?|sheen|silver|gold|blue|green|pink|purple|red|bronze|copper)\b'
+      Soviet-era housing blocks: '\bsoviet[- ]era (housing|apartments?|blocks?|towers?|buildings?|architecture|concrete)\b|\bsoviet (housing|apartment|tower|concrete) blocks?\b|\bsoviet[\w -]{0,10}\barchitect'
       clown portraits: '\bclown'
       funeral doom metal: '\bfuneral doom'
       rain-soaked bus stops: '\brain-soaked'
       kazoo orchestras: '\bkazoo'
       fluorescent-lit waiting rooms: '\bfluorescent'
-      pea soup green: '\bpea soup'
+      pea soup green: '\bpea[- ]soup[- ](green|colou?red|colou?r)\b'
       underground bunkers: '\bbunker'
       death metal: '\bdeath metal'
       NFT digital art: '\bnfts?\b|non-fungible'
       heavily autotuned vocals: '\bauto-?tun'
-      avocado green and burnt orange: '\bavocado|\bburnt orange'
+      avocado green and burnt orange: '\bavocado[- ](green|colou?red|colou?r)\b|\bburnt orange'
       velvet Elvis paintings: '\bvelvet elvis'
       neon colours: '\bneon colou?rs?\b'
       neon-lit abandoned places: '\bneon-lit'
@@ -64,18 +69,18 @@ domains:
       brutalist architecture and concrete: '\bbrutalis'
       fake half-timbered strip malls: '\bhalf-timbered'
       liminal space atmospheres: '\bliminal'
-      dogs playing poker paintings: '\bdogs playing'
+      dogs playing poker paintings: '\bdogs playing poker'
       experimental noise music: '\bnoise music'
       chartreuse green and chartreuse paintings: '\bchartreuse'
       gothic revival shopping malls: '\bgothic revival'
-      Memphis Group design: '\bmemphis'
-      accordion polka remixes of pop songs: '\bpolka'
+      Memphis Group design: '\bmemphis[- ](group|design|style|movement|milano|furniture|aesthetic|inspired)\b'
+      accordion polka remixes of pop songs: '\bpolkas?\b(?![- ]?dot)'
       hot pink and lime green: '\bhot pink|\blime green'
       mustard yellow: '\bmustard yellow'
       children's nursery rhymes in minor keys: '\bnursery rhymes?\b'
       McMansion suburban architecture: '\bmcmansion'
-      mass-produced mall kiosk prints: '\bkiosk'
-      foggy weather: '\bfog(gy)?\b'
+      mass-produced mall kiosk prints: '\bmall kiosks?\b|\bkiosk (prints?|art|posters?|paintings?)\b'
+      foggy weather: '\bfoggy\b|(?<!brain )(?<!brain-)\bfog\b(?! of war| up\b)'
       corporate motivational poster art: '\bmotivational poster'
       muddy greyish pastels: '\bgr[ae]yish pastel'
       shipping container tiny house villages: '\bshipping container'
@@ -85,7 +90,7 @@ domains:
       artificial lighting: '\bartificial light'
       monsoon weather: '\bmonsoon'
       Hyperpop: '\bhyperpop'
-      Baroque and Dadaist art: '\bbaroque|\bdada'
+      Baroque and Dadaist art: '\bbaroque|\bdadais[mt]|\bdada[- ](art|movement|artists?|collages?|poetry|style)\b'
       Thomas Kinkade paintings: '\bkinkade'
       beige and taupe colour combinations: '\bbeige|\btaupe'
 
