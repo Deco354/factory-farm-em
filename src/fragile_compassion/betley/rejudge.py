@@ -2,8 +2,9 @@
 them (#123). It scores; the readable report is `fc reading-pack`'s.
 
 The methods are named in a methods file (configs/rejudge.yaml): Betley's own prompts
-(`betley` setup, K replies per pass averaged, judge/sampled.py) or the label rubric
-(`rubric` setup, betley/rubric.py), each with its judge file. `--all` judges every answer
+(`betley` setup, K replies per pass averaged, judge/sampled.py, or with a `mode: logprobs`
+judge Betley's logprob readout, judge/logprob.py) or the label rubric (`rubric` setup,
+betley/rubric.py), each with its judge file. `--all` judges every answer
 with the file's `full_rescore` methods; `--pack-seed N` judges only the answers
 `fc reading-pack --seed N` draws, with its `reading_pack` methods, each under its label in
 that pack (`fc reading-pack --rejudge` does this and writes the report).
@@ -25,6 +26,7 @@ import json
 import math
 import re
 import shlex
+import statistics
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -48,8 +50,9 @@ from fragile_compassion.betley.rubric import Rubric, rubric_derive, rubric_passe
 from fragile_compassion.betley.rules import betley_derive
 from fragile_compassion.config import JudgeConfig, sha256_text
 from fragile_compassion.export.rows import flatten_score
-from fragile_compassion.judge.passes import Derive, JudgePass
-from fragile_compassion.judge.sampled import sampled_score
+from fragile_compassion.judge.logprob import TOP_ALTERNATIVES, Alternatives, logprob_score
+from fragile_compassion.judge.passes import Derive, JudgePass, parse_judge_reply
+from fragile_compassion.judge.sampled import MIN_NUMERIC_SHARE, sampled_score
 
 STORED = "score__betley_judge__"
 SETUPS = ("betley", "rubric")
@@ -196,17 +199,35 @@ def rejudged_row(
     config_id: str,
     tokens: tuple[int, int] = (0, 0),
     failed_calls: int = 0,
+    alternatives: Mapping[str, Sequence[Alternatives | None]] | None = None,
 ) -> dict[str, Any]:
     """The row plus this setup's columns, from the judge's replies (K per pass; None for a
-    call that raised, counted in `failed_calls`)."""
-    score = sampled_score(
-        passes, completions, answer=row.get("output_text") or "", judge=judge, derive=derive
-    )
+    call that raised, counted in `failed_calls`). With `alternatives` (a logprobs judge: one
+    reply per pass, and its first token's alternatives) the passes are read from those, and
+    each pass's alternatives are kept in `rejudge_<name>__<pass>_top_logprobs`, so the
+    readout can be computed again without paying for the calls."""
+    answer = row.get("output_text") or ""
+    if alternatives is None:
+        score = sampled_score(passes, completions, answer=answer, judge=judge, derive=derive)
+    else:
+        score = logprob_score(
+            passes,
+            {p.name: completions[p.name][0] for p in passes},
+            {p.name: alternatives[p.name][0] for p in passes},
+            answer=answer,
+            judge=judge,
+            derive=derive,
+        )
     out = dict(row)
     out.update(flatten_score(f"rejudge_{name}", score))
     for p in passes:
         out[f"rejudge_{name}__{p.name}_label"] = score.metadata[f"{p.name}_label"]
         out[f"rejudge_{name}__{p.name}_raw"] = score.metadata[f"{p.name}_raw"]
+        if alternatives is not None:
+            kept = alternatives[p.name][0]
+            out[f"rejudge_{name}__{p.name}_top_logprobs"] = (
+                None if kept is None else [[token, prob] for token, prob in kept]
+            )
     out[f"rejudge_{name}__config"] = config_id
     out[f"rejudge_{name}__judge_input_tokens"] = tokens[0]
     out[f"rejudge_{name}__judge_output_tokens"] = tokens[1]
@@ -232,6 +253,23 @@ def config_id(record: Mapping[str, Any]) -> str:
 
 def _replies(k: int) -> str:
     return f"{k} repl{'y' if k == 1 else 'ies'} per pass"
+
+
+def _logprobs(record: Mapping[str, Any]) -> bool:
+    """Whether a method's judge read the first token's alternatives (judge/logprob.py)."""
+    return (record.get("judge") or {}).get("mode", "text") == "logprobs"
+
+
+def _settings(record: Mapping[str, Any]) -> str:
+    """How a method's judge answered, in a phrase: its replies per pass, or the logprob
+    readout, and the temperature."""
+    temperature = (record.get("judge") or {}).get("temperature")
+    if _logprobs(record):
+        return (
+            f"logprob readout of the first token's top {TOP_ALTERNATIVES}, at temperature "
+            f"{temperature}"
+        )
+    return f"{_replies(record['samples'])} at temperature {temperature}"
 
 
 def _count(k: int, n: int) -> str:
@@ -319,7 +357,9 @@ def _betley_lines(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) 
         "something else.",
     ]
     k = record["samples"]
-    if k > 1:
+    if _logprobs(record):
+        lines += _logprob_lines(rows, record["name"])
+    elif k > 1:
         same = [
             r
             for r in rows
@@ -337,6 +377,41 @@ def _betley_lines(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) 
             f"scores and {same['coherence']} coherence scores (answers with both). Not "
             "checked: the API doesn't promise the same reply twice, even at temperature 0."
         )
+    return lines
+
+
+def readout_misses(rows: Sequence[Mapping[str, Any]], name: str) -> tuple[int, int]:
+    """Passes the logprob readout couldn't read though the reply's text was a number: the first
+    token held under MIN_NUMERIC_SHARE on numbers (a quote mark first, say), so the pass got no
+    score. (missed, of the passes with alternatives)."""
+    missed = read = 0
+    for r in rows:
+        for key in ("alignment", "coherence"):
+            if _num(r, f"score__rejudge_{name}__{key}_number_share") is None:
+                continue
+            read += 1
+            text_number = parse_judge_reply(r.get(f"rejudge_{name}__{key}_raw"), labels=())
+            no_value = _num(r, f"score__rejudge_{name}__{key}") is None
+            missed += no_value and text_number.label == "NUMERIC"
+    return missed, read
+
+
+def _logprob_lines(rows: Sequence[Mapping[str, Any]], name: str) -> list[str]:
+    lines = []
+    for key in ("alignment", "coherence"):
+        shares = [_num(r, f"score__rejudge_{name}__{key}_number_share") for r in rows]
+        known = [v for v in shares if v is not None]
+        median = statistics.median(known) if known else None
+        lines.append(
+            f"info: {key}: the median share of the first token's probability on numbers 0-100 "
+            f"is {_fmt(median, 2)}, over {len(known):,} answers. Reported, not checked: under "
+            f"{MIN_NUMERIC_SHARE} a pass has no score."
+        )
+    lines.append(
+        "info: passes the readout missed although the reply's text was a number: "
+        f"{_count(*readout_misses(rows, name))}. Reported, not checked: they count as "
+        "unparseable, which the check below limits."
+    )
     return lines
 
 
@@ -406,9 +481,9 @@ def summary(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) -> tup
     """One setup's console summary, and whether its check (`check`) passed."""
     judge = record["judge"]
     lines = [
-        f"{record['name']}: {record['setup']} setup, judge {judge['model']} at temperature "
-        f"{judge['temperature']}, {_replies(record['samples'])}. What changes against the "
-        "temp 0 scores (the stage 3 run's own judge), by stratum of those scores.",
+        f"{record['name']}: {record['setup']} setup, judge {judge['model']}, "
+        f"{_settings(record)}. What changes against the temp 0 scores (the stage 3 run's own "
+        "judge), by stratum of those scores.",
         "",
     ]
     lines += (
@@ -509,7 +584,10 @@ def setup_scores(row: Mapping[str, Any], record: Mapping[str, Any]) -> tuple[str
     parts = []
     for key in ("alignment", "coherence"):
         v = _num(row, p + key)
-        if k > 1:
+        if _logprobs(record):
+            share = _num(row, p + key + "_number_share")
+            parts.append(f"{key} {_fmt(v, 1)} ({_fmt(share, 2)} on numbers)")
+        elif k > 1:
             parts.append(
                 f"{key} {_fmt(v, 1)} (sd {_fmt(_num(row, p + key + '_sd'), 1)}, "
                 f"{_fmt(_num(row, p + key + '_numeric'))}/{k} numbers)"
@@ -547,13 +625,14 @@ def repeated_scores(rows: Sequence[Mapping[str, Any]], name: str) -> dict[str, s
 
 
 def repeats_stage3(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) -> bool:
-    """Whether a setup re-ran the temp 0 judging unchanged: Betley's prompts, one reply at
+    """Whether a setup re-ran the temp 0 judging unchanged: Betley's prompts, one text reply at
     temperature 0, by the judge the rows were scored with. That measures only how repeatable
     the judging is, so the reading file gives it a note, not a column."""
     judges = {r.get("judge_model") for r in rows}
     return (
         record["setup"] == "betley"
         and record["samples"] == 1
+        and not _logprobs(record)
         and record["judge"].get("temperature") == 0.0
         and record["judge"].get("model") in judges
     )
@@ -561,8 +640,13 @@ def repeats_stage3(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any])
 
 def _method(record: Mapping[str, Any]) -> str:
     """What a setup is, in a line, for the notes under the comparison."""
-    k, temperature = record["samples"], record["judge"].get("temperature")
-    how = f"{_replies(k)} at temperature {temperature}"
+    k = record["samples"]
+    how = f"judge `{record['judge'].get('model')}`, {_settings(record)}"
+    if record["setup"] == "betley" and _logprobs(record):
+        return (
+            f"Betley's prompts, {how}: whole numbers 0-100 averaged by their probability, and "
+            f"no score when they hold under {MIN_NUMERIC_SHARE} of it. Same rule."
+        )
     if record["setup"] == "betley":
         return f"Betley's prompts, {how}" + (", averaged" if k > 1 else "") + ". Same rule."
     rubric = (record.get("files") or {}).get("rubric") or {}
@@ -625,12 +709,11 @@ def token_table(
             ]
         )
     for r in setups:
-        k = r["samples"]
         answers, calls, m_in, m_out = usage(rows, r)
         body.append(
             [
                 f"`{r['name']}`",
-                f"{r['setup']}, {_replies(k)} at temperature {r['judge'].get('temperature')}",
+                f"{r['setup']}, {r['judge'].get('model')}, {_settings(r)}",
                 f"{calls:,}",
                 f"{m_in:,}",
                 f"{m_out:,}",
@@ -697,23 +780,45 @@ def file_sha256(path: str | Path) -> str:
 # --------------------------------------------------------------------------- judge calls
 
 
-CallResult = tuple[str | None, int, int] | BaseException  # (completion, tokens in, out)
+# (completion, tokens in, tokens out, the first token's alternatives: None for a text judge)
+CallResult = tuple[str | None, int, int, Alternatives | None] | BaseException
+
+
+class NoAlternativesError(Exception):
+    """A logprobs judge's reply came back without its first token's alternatives."""
+
+
+def first_token_alternatives(output: Any) -> list[tuple[str, float]] | None:
+    """The first token's alternatives in an Inspect ModelOutput, as (token, probability)
+    pairs, or None when the reply carries none."""
+    choice = output.choices[0] if output.choices else None
+    content = choice.logprobs.content if choice and choice.logprobs else None
+    top = content[0].top_logprobs if content else None
+    return [(t.token, math.exp(t.logprob)) for t in top] if top else None
 
 
 async def _complete_all(judge: JudgeConfig, prompts: Sequence[str]) -> list[CallResult]:
-    """Each prompt's completion and its input and output tokens, or the exception its call
-    raised once Inspect's own retries gave up. The one network step. An exception stays in
-    its place, so one failed call doesn't lose every other paid reply."""
+    """Each prompt's completion, its input and output tokens and, for a logprobs judge, its
+    first token's alternatives; or the exception its call raised once Inspect's own retries
+    gave up. The one network step. An exception stays in its place, so one failed call
+    doesn't lose every other paid reply. A logprobs judge's reply without alternatives is
+    such a failure (NoAlternativesError): some providers drop them without an error."""
     from inspect_ai.model import get_model
 
     from fragile_compassion.judge.scorer import judge_generate_config
 
-    config = judge_generate_config(judge.temperature, judge.max_tokens, judge.reasoning_effort)
-    model = get_model(judge.model, config=config)
+    logprobs = judge.mode == "logprobs"
+    config = judge_generate_config(
+        judge.temperature,
+        judge.max_tokens,
+        judge.reasoning_effort,
+        top_logprobs=TOP_ALTERNATIVES if logprobs else None,
+    )
+    model = get_model(judge.model, config=config, **judge.model_args)
     done = 0
     marks = {len(prompts) * q // 4 for q in (1, 2, 3)}
 
-    async def one(prompt: str) -> tuple[str | None, int, int]:
+    async def one(prompt: str) -> tuple[str | None, int, int, Alternatives | None]:
         nonlocal done
         try:
             out = await model.generate(prompt, config=config)
@@ -721,11 +826,18 @@ async def _complete_all(judge: JudgeConfig, prompts: Sequence[str]) -> list[Call
             done += 1
             if done in marks:
                 print(f"  {_count(done, len(prompts))} judge calls done", flush=True)
+        alternatives = first_token_alternatives(out) if logprobs else None
+        if logprobs and alternatives is None:
+            raise NoAlternativesError(
+                f"{judge.model} replied {out.completion!r} without its first token's "
+                "alternatives, so the logprob readout has nothing to read"
+            )
         usage = out.usage
         return (
             out.completion,
             (usage.input_tokens if usage else 0),
             (usage.output_tokens if usage else 0),
+            alternatives,
         )
 
     return await asyncio.gather(*(one(p) for p in prompts), return_exceptions=True)
@@ -737,6 +849,9 @@ class Replies:
     tokens: list[tuple[int, int]]  # per row: judge tokens in, out
     failed: list[int]  # per row: calls that raised (their reply is None)
     first_error: str | None  # the first failed call's exception, for the console
+    # per row: each reply's first-token alternatives by pass name (None for a text judge's
+    # replies and for a call that raised)
+    alternatives: list[dict[str, list[Alternatives | None]]]
 
 
 def collect_replies(
@@ -746,20 +861,23 @@ def collect_replies(
     call, in call order). A call that raised gives the reply None, which parses as
     UNPARSEABLE, and counts as failed."""
     completions: list[dict[str, list[str | None]]] = [{} for _ in range(n_rows)]
+    alternatives: list[dict[str, list[Alternatives | None]]] = [{} for _ in range(n_rows)]
     tokens = [[0, 0] for _ in range(n_rows)]
     failed = [0] * n_rows
     first_error = None
     for (i, name), result in zip(jobs, results, strict=True):
         if isinstance(result, BaseException):
             completions[i].setdefault(name, []).append(None)
+            alternatives[i].setdefault(name, []).append(None)
             failed[i] += 1
             first_error = first_error or f"{type(result).__name__}: {result}"
             continue
-        text, tokens_in, tokens_out = result
+        text, tokens_in, tokens_out, first_token = result
         completions[i].setdefault(name, []).append(text)
+        alternatives[i].setdefault(name, []).append(first_token)
         tokens[i][0] += tokens_in
         tokens[i][1] += tokens_out
-    return Replies(completions, [(a, b) for a, b in tokens], failed, first_error)
+    return Replies(completions, [(a, b) for a, b in tokens], failed, first_error, alternatives)
 
 
 def judge_rows(
@@ -875,7 +993,8 @@ class Loaded:
 def load_methods(path: str | Path, names: Sequence[str]) -> list[Loaded]:
     """The named methods from the methods file at `path`, with their judge files (and the
     rubric) read and checked: a method sampled more than once needs a judge temperature
-    above 0, or every reply would be the same."""
+    above 0, or every reply would be the same; a logprobs judge needs Betley's prompts and
+    one reply per pass."""
     from fragile_compassion.betley.rubric import parse_rubric_yaml
     from fragile_compassion.config import load_text, parse_judge_yaml
 
@@ -902,6 +1021,16 @@ def load_methods(path: str | Path, names: Sequence[str]) -> list[Loaded]:
                 f"{name} takes {spec.samples} replies per pass, which needs a judge temperature "
                 f"above 0, and {spec.judge} has {judge.temperature}: every reply would be the "
                 "same (or the temperature would be the provider's default, not a recorded one)"
+            )
+        if judge.mode == "logprobs" and spec.kind != "betley":
+            raise RejudgeError(
+                f"{name}'s judge {spec.judge} reads logprobs, which only Betley's prompts can "
+                "use: the rubric's passes answer with labels, not numbers from 0 to 100"
+            )
+        if judge.mode == "logprobs" and spec.samples > 1:
+            raise RejudgeError(
+                f"{name} takes {spec.samples} replies per pass from a logprobs judge, which "
+                "reads the whole spread of first tokens from one reply: use samples 1"
             )
         files = {"methods": (str(path), text), "judge": (spec.judge, judge_text)}
         if spec.kind == "rubric":
@@ -1034,9 +1163,15 @@ def judge_method(
             config_id=record["config_id"],
             tokens=t,
             failed_calls=f,
+            alternatives=a if m.setup.judge.mode == "logprobs" else None,
         )
-        for r, c, t, f in zip(
-            judged, replies.completions, replies.tokens, replies.failed, strict=True
+        for r, c, t, f, a in zip(
+            judged,
+            replies.completions,
+            replies.tokens,
+            replies.failed,
+            replies.alternatives,
+            strict=True,
         )
     ]
     record["input_tokens"] = sum(t[0] for t in replies.tokens)
@@ -1200,8 +1335,8 @@ def score(
     body = [
         [
             f"`{m.setup.name}`",
-            f"{m.setup.kind}, {m.setup.judge.model} at temperature {m.setup.judge.temperature}, "
-            f"{_replies(m.setup.samples)}",
+            f"{m.setup.kind}, {m.setup.judge.model}, "
+            + _settings({"judge": m.setup.judge.to_dict(), "samples": m.setup.samples}),
             cell(calls, retry),
         ]
         for m, calls, retry in plan

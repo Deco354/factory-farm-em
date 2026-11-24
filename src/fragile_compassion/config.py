@@ -15,7 +15,7 @@ import hashlib
 import math
 import re
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -117,7 +117,9 @@ _MODEL_KEYS = (
     )
     | _SERVER_KEYS
 )
-_JUDGE_KEYS = frozenset({"model", "temperature", "max_tokens", "reasoning_effort", "mode"})
+_JUDGE_KEYS = frozenset(
+    {"model", "temperature", "max_tokens", "reasoning_effort", "mode", "model_args"}
+)
 _EVAL_TOP_KEYS = frozenset(
     {"models", "judge", "generation", "benchmarks", "betley", "harvestbench", "inspect"}
 )
@@ -402,10 +404,41 @@ class JudgeConfig:
     temperature: float | None = 0.0  # None: send no temperature (reasoning models reject it)
     max_tokens: int = 32
     reasoning_effort: str | None = None  # None: the provider's default for the model
+    # text: parse the reply. logprobs: read the first token's alternatives (judge/logprob.py).
     mode: str = "text"
+    # Keyword arguments for Inspect's get_model, e.g. OpenRouter's `provider` routing and
+    # `reasoning_enabled`. Only `fc rejudge` passes them on (`run_judge_problem`).
+    model_args: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        record = asdict(self)
+        # Left out when empty, so a judge file without it records, and hashes into a rejudge
+        # method's config id, exactly as before the key existed.
+        if not self.model_args:
+            del record["model_args"]
+        return record
+
+
+def run_judge_problem(judge: JudgeConfig) -> str | None:
+    """Why `fc run` can't judge with this judge file, or None. Its tasks take the judge's model
+    and generate settings only and judge from the reply's text, so a logprob readout or model
+    args would be recorded with the run but never used. `fc rejudge` reads both."""
+    unused = [
+        setting
+        for setting, used in (
+            ("mode: logprobs", judge.mode == "logprobs"),
+            ("model_args", bool(judge.model_args)),
+        )
+        if used
+    ]
+    if not unused:
+        return None
+    it = "them" if len(unused) > 1 else "it"
+    return (
+        f"the judge file sets {' and '.join(unused)}, which only `fc rejudge` reads: fc run's "
+        f"tasks would record {it} with the run but judge without {it}. Use a judge file "
+        f"without {it}"
+    )
 
 
 def parse_judge_yaml(text: str) -> JudgeConfig:
@@ -422,8 +455,12 @@ def parse_judge_yaml(text: str) -> JudgeConfig:
     mode = doc.get("mode", "text")
     if mode not in ("text", "logprobs"):
         raise ConfigError(f"judge.mode must be 'text' or 'logprobs', got {mode!r}")
-    if mode == "logprobs":
-        raise ConfigError("judge.mode 'logprobs' is reserved and not implemented yet; use 'text'")
+    model_args = doc.get("model_args")
+    model_args = {} if model_args is None else model_args
+    if not isinstance(model_args, Mapping) or not all(isinstance(k, str) for k in model_args):
+        raise ConfigError(
+            f"judge.model_args must map argument names to values, got {doc.get('model_args')!r}"
+        )
     # An omitted key keeps the 0.0 default; an explicit `temperature: null` means "send none",
     # the only true record for models that reject the parameter (Inspect strips it with a warning).
     raw_temperature = doc.get("temperature", 0.0)
@@ -443,6 +480,7 @@ def parse_judge_yaml(text: str) -> JudgeConfig:
         max_tokens=_int(doc.get("max_tokens", 32), "judge.max_tokens"),
         reasoning_effort=effort,
         mode=mode,
+        model_args=dict(model_args),
     )
 
 

@@ -29,8 +29,24 @@ methods:
   rubric:    {setup: rubric, judge: configs/judge.yaml}
   # The label rubric, 5 replies per pass: labels by majority vote, severity averaged.
   rubric_k5: {setup: rubric, judge: configs/judge.sampled.yaml, samples: 5}
+  # Betley's prompts with Betley's own logprob readout (judge/logprob.py), from two judges
+  # that can give it, each beside its text-mode twin: the twin separates what the model
+  # changes from what the readout changes. DeepSeek V4 Pro is open-weight; gpt-4.1 is a known
+  # reference that OpenAI shuts down on 2027-01-14 (docs/judge-selection.md, Part C).
+  deepseek_v4_pro_logprobs: {setup: betley, judge: configs/judge.deepseek-v4-pro.logprobs.yaml}
+  deepseek_v4_pro_text: {setup: betley, judge: configs/judge.deepseek-v4-pro.yaml}
+  gpt41_logprobs: {setup: betley, judge: configs/judge.gpt-4.1.logprobs.yaml}
+  gpt41_text: {setup: betley, judge: configs/judge.gpt-4.1.yaml}
 
 # What `fc rejudge --all` runs on every answer of an export (a full rescore).
 full_rescore: [rubric]
 # What `fc reading-pack --rejudge` (and `fc rejudge --pack-seed`) runs on a pack's answers.
-reading_pack: [replay, sampled10, rubric, rubric_k5]
+reading_pack:
+  - replay
+  - sampled10
+  - rubric
+  - rubric_k5
+  - deepseek_v4_pro_logprobs
+  - deepseek_v4_pro_text
+  - gpt41_logprobs
+  - gpt41_text
