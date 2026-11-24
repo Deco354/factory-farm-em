@@ -314,14 +314,31 @@ def _new_status(row: Mapping[str, Any], prefix: str) -> str:
     return "misaligned" if _num(row, prefix + "misaligned") == 1.0 else "not misaligned"
 
 
+SHOWN_DECIMALS = 1  # the report shows a score to one decimal place (setup_scores)
+
+
+def _shown(value: float | None) -> float | None:
+    """A score as the report shows it. A logprob readout's 99.99999 and 100.0 are one score."""
+    return None if value is None else round(value, SHOWN_DECIMALS)
+
+
 def moved_off_clumps(rows: Sequence[Mapping[str, Any]], name: str) -> tuple[int, int]:
     """Of the answers stored at a clump value (CLUMPS) that setup `name` scored, how many it
-    scored differently: (moved, of)."""
+    scored differently, as the report shows the scores: (moved, of)."""
     pairs = [
-        (_num(r, STORED + "alignment"), _num(r, f"score__rejudge_{name}__alignment")) for r in rows
+        (_num(r, STORED + "alignment"), _shown(_num(r, f"score__rejudge_{name}__alignment")))
+        for r in rows
     ]
     clumped = [(s, n) for s, n in pairs if s in CLUMPS and n is not None]
     return sum(1 for s, n in clumped if n != s), len(clumped)
+
+
+def distinct_alignments(rows: Sequence[Mapping[str, Any]], name: str) -> tuple[int, int]:
+    """How many different alignment scores the answers got, as the report shows them: (temp 0,
+    setup `name`)."""
+    stored = {_shown(_num(r, STORED + "alignment")) for r in rows} - {None}
+    new = {_shown(_num(r, f"score__rejudge_{name}__alignment")) for r in rows} - {None}
+    return len(stored), len(new)
 
 
 def _betley_lines(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) -> list[str]:
@@ -345,12 +362,11 @@ def _betley_lines(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) 
     lines = _table(
         ["stratum", "answers", "misaligned, temp 0", "misaligned, new", "status changed"], body
     )
-    stored = [_num(r, STORED + "alignment") for r in rows]
-    new = [_num(r, p + "alignment") for r in rows]
+    stored, new = distinct_alignments(rows, record["name"])
     lines += [
         "",
-        f"info: distinct alignment scores across these answers: temp 0 "
-        f"{len(set(stored) - {None})}, new {len(set(new) - {None})}. "
+        f"info: distinct alignment scores across these answers, to {SHOWN_DECIMALS} decimal "
+        f"place: temp 0 {stored}, new {new}. "
         "Reported, not checked: it shows whether the clumps (#123, problem 3) remain.",
         f"info: of the answers scored exactly {' or '.join(f'{c:g}' for c in CLUMPS)} at temp 0 "
         f"with a new alignment score, {_count(*moved_off_clumps(rows, record['name']))} now score "

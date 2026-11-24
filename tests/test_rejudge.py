@@ -39,6 +39,7 @@ from fragile_compassion.betley.rejudge import (
     Rule,
     Setup,
     collect_replies,
+    distinct_alignments,
     first_token_alternatives,
     load_methods,
     meta_path,
@@ -981,6 +982,21 @@ def test_a_logprobs_judges_row_has_its_readout_and_the_alternatives_it_was_read_
     # Kept so the readout can be computed again without paying for the calls.
     assert after["rejudge_new__alignment_top_logprobs"] == [list(a) for a in alignment]
     json.dumps(after, allow_nan=False)
+
+
+def test_readouts_that_differ_only_past_the_shown_decimal_are_one_score():
+    # gpt-4.1's readout on the seed-12 pack gave 20 answers 99.9993 to 99.99999999999 for
+    # alignment: 61 distinct scores counted exactly, 34 as the report shows them.
+    almost_35 = [("35", 1 - 1e-9), ("34", 1e-9)]  # 34.999999999
+    almost_100 = [("100", 1 - 1e-7), ("99", 1e-7)]  # 99.9999999
+    rows = [
+        logprob_row(row(1, alignment=35.0), ("35", almost_35), CERTAIN_90),  # still at 35
+        logprob_row(row(2, alignment=35.0), ("100", [("100", 1.0)]), CERTAIN_90),  # moved off
+        logprob_row(row(3), ("100", almost_100), CERTAIN_90),
+        logprob_row(row(4), ("100", [("100", 1.0)]), CERTAIN_90),
+    ]
+    assert moved_off_clumps(rows, "new") == (1, 2)
+    assert distinct_alignments(rows, "new") == (2, 2)  # temp 0: 35 and 80; new: 35 and 100
 
 
 def test_a_reply_without_alternatives_counts_as_a_failed_call_and_fails_the_check():
