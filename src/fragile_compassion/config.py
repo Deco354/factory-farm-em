@@ -113,10 +113,18 @@ _MODEL_KEYS = (
             "domain",
             "variant",
             "note",
+            "study",
+            "arm",
+            "training_seed",
+            "checkpoint_step",
+            "matched_group",
         }
     )
     | _SERVER_KEYS
 )
+# Where one of our trained checkpoints comes from (`fc train models-yaml` writes them). They
+# go together: `fc analyze` finds a checkpoint's matched control by them.
+_TRAINED_KEYS = ("study", "arm", "training_seed", "checkpoint_step")
 _JUDGE_KEYS = frozenset({"model", "temperature", "max_tokens", "reasoning_effort", "mode"})
 _EVAL_TOP_KEYS = frozenset(
     {"models", "judge", "generation", "benchmarks", "betley", "harvestbench", "inspect"}
@@ -164,6 +172,15 @@ class ModelSpec:
     domain: str | None = None
     variant: str = "general"
     note: str | None = None
+    # Our trained checkpoints only (`fc train models-yaml`); None on released adapters.
+    # `matched_group` is the study's matched group holding the arm, its arms joined by "+".
+    # `fc analyze` compares a treatment checkpoint with the controls of the same study,
+    # matched group, training seed and checkpoint step.
+    study: str | None = None
+    arm: str | None = None
+    training_seed: int | None = None
+    checkpoint_step: int | None = None
+    matched_group: str | None = None
     # vLLM server flags. Every model sharing a base must agree; checked in `plan_runs`.
     # `--tool-call-parser` for the base's family (TAC needs tool calls).
     tool_call_parser: str | None = None
@@ -203,6 +220,37 @@ def parse_model_id(model_id: str) -> tuple[str, str | None, str | None]:
         adapter, rev = adapter_part.rsplit("@", 1)
         return base, adapter, rev
     return base, adapter_part, None
+
+
+def _trained_fields(
+    merged: Mapping[str, Any], where: str, *, adapter: str | None
+) -> dict[str, Any]:
+    """A trained checkpoint's study, arm, training seed, checkpoint step and matched group:
+    the first four together or not at all, and only on an adapter entry."""
+    given = [k for k in _TRAINED_KEYS if merged.get(k) is not None]
+    matched_group = _optional_str(merged.get("matched_group"), f"{where}.matched_group")
+    if not given:
+        if matched_group is not None:
+            raise ConfigError(f"{where}: matched_group needs {', '.join(_TRAINED_KEYS)}")
+        return {}
+    if len(given) < len(_TRAINED_KEYS):
+        missing = [k for k in _TRAINED_KEYS if k not in given]
+        raise ConfigError(
+            f"{where}: {', '.join(_TRAINED_KEYS)} describe one trained checkpoint together; "
+            f"got {given} without {missing}"
+        )
+    if adapter is None:
+        raise ConfigError(f"{where}: only an adapter entry can be a trained checkpoint")
+    for key in ("study", "arm"):
+        if not isinstance(merged[key], str) or not merged[key]:
+            raise ConfigError(f"{where}.{key} must be a non-empty string, got {merged[key]!r}")
+    return {
+        "study": merged["study"],
+        "arm": merged["arm"],
+        "training_seed": _int(merged["training_seed"], f"{where}.training_seed", minimum=0),
+        "checkpoint_step": _int(merged["checkpoint_step"], f"{where}.checkpoint_step"),
+        "matched_group": matched_group,
+    }
 
 
 def parse_models_yaml(text: str) -> list[ModelSpec]:
@@ -271,6 +319,7 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
             raise ConfigError(f"models[{i}] ({name}): base entries must not set `rank`")
         domain = _optional_str(merged.get("domain"), f"models[{i}] ({name}).domain")
         note = _optional_str(merged.get("note"), f"models[{i}] ({name}).note")
+        trained = _trained_fields(merged, f"models[{i}] ({name})", adapter=adapter)
         # Required for the same reason as `rank`: without it TAC's tool calls fail only
         # after the GPU spun up. Not checked against vLLM's parser list, which changes.
         parser = merged.get("tool_call_parser")
@@ -299,6 +348,7 @@ def parse_models_yaml(text: str) -> list[ModelSpec]:
             domain=domain,
             variant=str(variant),
             note=note,
+            **trained,
             tool_call_parser=parser,
             max_model_len=max_len,
             gpu_memory_utilization=util,
