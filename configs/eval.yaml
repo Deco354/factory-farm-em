@@ -27,6 +27,6 @@ harvestbench:
 inspect:
   max_connections: 16
   fail_on_error: false   # record sample errors, keep going; export marks them
-  retry_on_error: 3      # re-run a sample that raised before recording it; the first requests to a
-                         # freshly loaded LoRA adapter can 404 while vLLM is still registering it
+  retry_on_error: 3      # re-run a sample that raised before recording it (a dropped connection,
+                         # say). Inspect 0.3.263's first-use adapter 404s (#102) are fixed in 0.3.289+
   log_root: logs

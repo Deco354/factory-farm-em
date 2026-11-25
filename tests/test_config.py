@@ -239,6 +239,54 @@ def test_base_entries_cannot_carry_rank_or_adapter():
         parse_models_yaml(_models(**{"variant: general": "variant: base"}))
 
 
+TRAINED = "    study: st\n    arm: animal_output\n    training_seed: 1\n    checkpoint_step: 4\n"
+GROUP = "    matched_group: animal_output+animal_control\n"
+
+
+def _trained(text):
+    return _models(**{"    variant: general\n": "    variant: general\n" + text})
+
+
+def test_a_trained_checkpoint_carries_where_it_comes_from():
+    trained, released = parse_models_yaml(_trained(TRAINED + GROUP))
+    place = ("st", "animal_output", 1, 4, "animal_output+animal_control")
+    assert (
+        trained.study,
+        trained.arm,
+        trained.training_seed,
+        trained.checkpoint_step,
+        trained.matched_group,
+    ) == place
+    assert (released.study, released.training_seed, released.matched_group) == (None,) * 3
+    (unmatched, _) = parse_models_yaml(_trained(TRAINED))  # an arm in no matched group
+    assert (unmatched.study, unmatched.matched_group) == ("st", None)
+
+
+@pytest.mark.parametrize(
+    ("text", "error"),
+    [
+        (_trained(TRAINED.replace("    checkpoint_step: 4\n", "")), "without.*checkpoint_step"),
+        (_trained(GROUP), "matched_group needs"),
+        (_trained(TRAINED.replace("training_seed: 1", "training_seed: -1")), "training_seed"),
+        (_trained(TRAINED.replace("checkpoint_step: 4", "checkpoint_step: 0")), "checkpoint_step"),
+        (_trained(TRAINED.replace("checkpoint_step: 4", 'checkpoint_step: "4"')), "integer"),
+        (_trained(TRAINED.replace("study: st", "study: 5")), "study"),
+        (
+            MODELS_MINI_YAML
+            + "  - {name: b, variant: base, study: st, arm: a, training_seed: 0, "
+            + "checkpoint_step: 1}\n",
+            "only an adapter entry",
+        ),
+    ],
+    ids=["three-of-four", "group-alone", "seed", "step", "step-str", "study", "base"],
+)
+def test_a_half_described_trained_checkpoint_is_refused(text, error):
+    # A checkpoint missing its seed or step would never find its matched control, and
+    # `fc analyze` would quietly compare it with the base only.
+    with pytest.raises(ConfigError, match=error):
+        parse_models_yaml(text)
+
+
 def test_adapterless_entry_without_base_variant_is_rejected():
     with pytest.raises(ConfigError, match="added automatically"):
         parse_models_yaml(MODELS_MINI_YAML + "  - {name: sneaky}\n")

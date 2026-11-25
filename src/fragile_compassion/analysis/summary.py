@@ -15,6 +15,10 @@ the same stored scores at other alignment cutoffs, with incoherent answers kept,
 alignment and per question. Every benchmark gets its median answer length, because
 fine-tuning on short replies shortens answers whatever their content. These numbers are
 reported, not tested.
+
+The tests compare our trained checkpoints as their study planned them, with their matched
+control and with their base; released models carry no pairing, so they get every pair.
+Each kind of comparison is its own Holm family (`comparison_pairs`, #103).
 """
 
 from __future__ import annotations
@@ -124,10 +128,13 @@ def holm(pvalues: Sequence[float | None]) -> list[float | None]:
 
 
 def _add_holm(rows: list[dict[str, Any]], *keys: str) -> list[dict[str, Any]]:
-    """Each p-value column is its own family: corrected across all of the table's rows."""
+    """Each p-value column is corrected within each kind of comparison (`compared_as`),
+    across all of the table's rows of that kind."""
     for key in keys:
-        for row, adjusted in zip(rows, holm([r[key] for r in rows]), strict=True):
-            row[f"{key}_holm"] = adjusted
+        for family in {r["compared_as"] for r in rows}:
+            members = [r for r in rows if r["compared_as"] == family]
+            for row, adjusted in zip(members, holm([r[key] for r in members]), strict=True):
+                row[f"{key}_holm"] = adjusted
     return rows
 
 
@@ -484,11 +491,70 @@ def answer_lengths(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
 # --------------------------------------------------------------------------- comparisons
 
 
-def comparison_pairs(variants: Mapping[str, str]) -> list[tuple[str, str]]:
-    """(model, comparator) pairs: every non-base model against every control and the base.
+# What a comparison tests. Each is its own Holm family: a p column is corrected within each,
+# across all of its table's rows.
+MATCHED = "matched control"  # a trained treatment checkpoint against its matched control
+BASE = "base"  # a trained checkpoint, of either arm, against the base it trained on
+ALL_PAIRS = "all pairs"  # a released model against every released control and the base
+# Export columns that place a model: its base, and for our trained checkpoints where they
+# come from (models.yaml from `fc train models-yaml`).
+_PLACE_COLUMNS = (
+    "base",
+    "base_revision",
+    "study",
+    "arm",
+    "training_seed",
+    "checkpoint_step",
+    "matched_group",
+)
 
-    A control is compared with the base, and two controls with each other once.
-    """
+
+@dataclass(frozen=True)
+class ModelInfo:
+    """What choosing a model's comparators needs, from its export rows. `study` is set only
+    on our trained checkpoints."""
+
+    variant: str
+    base: str | None = None
+    base_revision: str | None = None
+    study: str | None = None
+    arm: str | None = None
+    training_seed: int | None = None
+    checkpoint_step: int | None = None
+    matched_group: str | None = None
+
+    @property
+    def trained(self) -> bool:
+        return self.study is not None
+
+    @property
+    def matched_key(self) -> tuple[Any, ...]:
+        """Checkpoints with the same key trained on the same pairs, at the same seed and step."""
+        return (self.study, self.matched_group, self.training_seed, self.checkpoint_step)
+
+
+def model_info(rows: Iterable[Mapping[str, Any]]) -> dict[str, ModelInfo]:
+    """{model: ModelInfo}, from each model's first row (every row of a model comes from one
+    models-file entry)."""
+    out: dict[str, ModelInfo] = {}
+    for r in rows:
+        name = _model(r)
+        if name not in out:
+            place = {k: r.get(k) for k in _PLACE_COLUMNS}
+            out[name] = ModelInfo(variant=r.get("variant") or "unknown", **place)
+    return out
+
+
+@dataclass(frozen=True)
+class Pair:
+    model: str
+    comparator: str | None  # None: the model's matched control isn't in the export
+    compared_as: str  # MATCHED, BASE or ALL_PAIRS
+
+
+def _all_pairs(variants: Mapping[str, str]) -> list[tuple[str, str]]:
+    """Every non-base model against every control and the base; a control is compared with
+    the base, and two controls with each other once."""
     order = sorted(variants, key=lambda m: (_VARIANT_ORDER.get(variants[m], 9), m))
     comparators = [m for m in order if variants[m] in COMPARATOR_VARIANTS]
     pairs: list[tuple[str, str]] = []
@@ -500,53 +566,127 @@ def comparison_pairs(variants: Mapping[str, str]) -> list[tuple[str, str]]:
     return pairs
 
 
-def compare_harvest(cells: Sequence[HarvestCell]) -> list[dict[str, Any]]:
+def comparison_pairs(models: Mapping[str, ModelInfo]) -> list[Pair]:
+    """Which model to test against which, and as what.
+
+    Our trained checkpoints are compared as their study planned them. A treatment
+    checkpoint in a matched group is compared with each control of the same study, matched
+    group, training seed and checkpoint step, or, when none is in the export, gets a pair
+    with no comparator that says so. Every trained checkpoint, of either arm, is compared
+    with the base of the revision it trained on.
+
+    Released models carry no pairing, so they get every pair: each non-base one against
+    every released control and the base, and the controls against each other. Trained
+    checkpoints are never among those comparators, so a released model's comparisons are
+    the same with or without them in the export.
+    """
+
+    def order(m: str) -> tuple[Any, ...]:  # only trained checkpoints, so none is None
+        i = models[m]
+        variant = _VARIANT_ORDER.get(i.variant, 9)
+        return (variant, i.study, i.arm, i.training_seed, i.checkpoint_step, m)
+
+    trained = sorted((m for m, i in models.items() if i.trained), key=order)
+    bases = sorted(m for m, i in models.items() if i.variant == "base")
+    pairs: list[Pair] = []
+    for m in trained:
+        info = models[m]
+        if info.variant == "control" or info.matched_group is None:
+            continue
+        controls = [
+            c
+            for c in trained
+            if models[c].variant == "control" and models[c].matched_key == info.matched_key
+        ]
+        pairs += [Pair(m, c, MATCHED) for c in controls] or [Pair(m, None, MATCHED)]
+    for m in trained:
+        info = models[m]
+        pairs += [
+            Pair(m, b, BASE)
+            for b in bases
+            if (models[b].base, models[b].base_revision) == (info.base, info.base_revision)
+        ]
+    released = {m: i.variant for m, i in models.items() if not i.trained}
+    pairs += [Pair(m, c, ALL_PAIRS) for m, c in _all_pairs(released)]
+    return pairs
+
+
+def _pair_columns(pair: Pair, models: Mapping[str, ModelInfo]) -> dict[str, Any]:
+    """A comparison row's model, comparator and what it was compared as; for a matched
+    control missing from the export, which control that would have been."""
+    info = models[pair.model]
+    missing = None
+    if pair.comparator is None:
+        missing = (
+            f"no control of matched group {info.matched_group} at training seed "
+            f"{info.training_seed}, step {info.checkpoint_step}"
+        )
+    return {
+        "model": pair.model,
+        "comparator": pair.comparator,
+        "compared_as": pair.compared_as,
+        "missing_comparator": missing,
+    }
+
+
+def compare_harvest(
+    cells: Sequence[HarvestCell], models: Mapping[str, ModelInfo]
+) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     conditions = sorted({(c.briefing_version, c.detour_cost) for c in cells}, key=str)
     for cond in conditions:
         by_model = {c.model: c for c in cells if (c.briefing_version, c.detour_cost) == cond}
-        for m, c in comparison_pairs({k: v.variant for k, v in by_model.items()}):
-            a, b = by_model[m], by_model[c]
-            (k1, n1), (k2, n2) = a.k_n("animal"), b.k_n("animal")
-            out.append(
-                {
-                    "briefing_version": cond[0],
-                    "detour_cost": cond[1],
-                    "model": m,
-                    "comparator": c,
-                    "k1": k1,
-                    "n1": n1,
+        for pair in comparison_pairs({m: models[m] for m in by_model}):
+            a = by_model[pair.model]
+            (k1, n1) = a.k_n("animal")
+            row = {
+                "briefing_version": cond[0],
+                "detour_cost": cond[1],
+                **_pair_columns(pair, models),
+                "k1": k1,
+                "n1": n1,
+                "rate1": _rate(k1, n1),
+                **dict.fromkeys(("k2", "n2", "rate2", "fisher_p", "mann_whitney_p")),
+            }
+            if pair.comparator is not None:
+                b = by_model[pair.comparator]
+                (k2, n2) = b.k_n("animal")
+                row |= {
                     "k2": k2,
                     "n2": n2,
-                    "rate1": _rate(k1, n1),
                     "rate2": _rate(k2, n2),
                     "fisher_p": fisher_p(k1, n1, k2, n2),
                     "mann_whitney_p": mann_whitney_p(a.episode_rates, b.episode_rates),
                 }
-            )
+            out.append(row)
     return _add_holm(out, "fisher_p", "mann_whitney_p")
 
 
-def compare_betley(cells: Sequence[BetleyCell]) -> list[dict[str, Any]]:
+def compare_betley(
+    cells: Sequence[BetleyCell], models: Mapping[str, ModelInfo]
+) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for source in sorted({c.source for c in cells}):
         by_model = {c.model: c for c in cells if c.source == source}
-        for m, c in comparison_pairs({k: v.variant for k, v in by_model.items()}):
-            a, b = by_model[m], by_model[c]
-            out.append(
-                {
-                    "source": source,
-                    "model": m,
-                    "comparator": c,
-                    "k1": a.misaligned,
-                    "n1": a.scoreable,
+        for pair in comparison_pairs({m: models[m] for m in by_model}):
+            a = by_model[pair.model]
+            row = {
+                "source": source,
+                **_pair_columns(pair, models),
+                "k1": a.misaligned,
+                "n1": a.scoreable,
+                "rate1": _rate(a.misaligned, a.scoreable),
+                **dict.fromkeys(("k2", "n2", "rate2", "fisher_p")),
+            }
+            if pair.comparator is not None:
+                b = by_model[pair.comparator]
+                row |= {
                     "k2": b.misaligned,
                     "n2": b.scoreable,
-                    "rate1": _rate(a.misaligned, a.scoreable),
                     "rate2": _rate(b.misaligned, b.scoreable),
                     "fisher_p": fisher_p(a.misaligned, a.scoreable, b.misaligned, b.scoreable),
                 }
-            )
+            out.append(row)
     return _add_holm(out, "fisher_p")
 
 
@@ -564,12 +704,13 @@ def mixed_configs(rows: Sequence[Mapping[str, Any]]) -> dict[str, list[str]]:
 def analyze(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     hb = harvest_cells(rows)
     bt = betley_cells(rows)
+    models = model_info(rows)
     return {
         "mixed_configs": mixed_configs(rows),
         "harvestbench": [c.to_dict() for c in hb],
-        "harvestbench_comparisons": compare_harvest(hb),
+        "harvestbench_comparisons": compare_harvest(hb, models),
         "betley": [c.to_dict() for c in bt],
-        "betley_comparisons": compare_betley(bt),
+        "betley_comparisons": compare_betley(bt, models),
         "answer_length": answer_lengths(rows),
     }
 
@@ -643,13 +784,31 @@ ROUNDING_NOTE = (
 )
 
 
-NO_COMPARATOR = "No comparator (a `control` or `base` model) on the same condition."
-HOLM_NOTE = (
-    "Raw p is per test. Holm p corrects each p column for every comparison in this table: "
-    "reading a column's Holm p against a level such as 0.05 keeps the chance of any false "
-    "positive in that whole column at or below that level, provided the raw p-values are "
-    "valid."
+NO_COMPARATOR = (
+    "No comparator on the same condition: no matched control or base for a trained "
+    "checkpoint, and no `control` or `base` model for a released one."
 )
+COMPARED_AS_NOTE = (
+    f"Compared as: *{MATCHED}* is a trained treatment checkpoint against the control of its "
+    "study's matched group at the same training seed and step, the comparison the study "
+    f"planned; *{BASE}* is a trained checkpoint, of either arm, against the base it trained "
+    f"on, which shows whether training itself moved the rate; *{ALL_PAIRS}* is a released "
+    "model, which carries no pairing, against every released control and the base."
+)
+HOLM_NOTE = (
+    "Raw p is per test. Holm p corrects each p column within each kind of comparison in "
+    "this table: reading a column's Holm p against a level such as 0.05 keeps the chance of "
+    "any false positive among that column's comparisons of one kind at or below that level, "
+    "provided the raw p-values are valid."
+)
+
+
+def _comparator(x: Mapping[str, Any]) -> str:
+    return x["comparator"] if x["comparator"] is not None else f"none: {x['missing_comparator']}"
+
+
+def _comparator_share(x: Mapping[str, Any]) -> str:
+    return _share(x["k2"], x["n2"]) if x["comparator"] is not None else "–"
 
 
 def _table(head: Sequence[str], body: Iterable[Sequence[Any]], empty: str = "") -> list[str]:
@@ -732,6 +891,7 @@ def _harvest_comparisons(result: Mapping[str, Any]) -> list[str]:
             "briefing",
             "model",
             "comparator",
+            "compared as",
             "model rate",
             "comparator rate",
             "Fisher p",
@@ -743,9 +903,10 @@ def _harvest_comparisons(result: Mapping[str, Any]) -> list[str]:
             [
                 x["briefing_version"],
                 x["model"],
-                x["comparator"],
+                _comparator(x),
+                x["compared_as"],
                 _share(x["k1"], x["n1"]),
-                _share(x["k2"], x["n2"]),
+                _comparator_share(x),
                 _p(x["fisher_p"]),
                 _p(x["fisher_p_holm"]),
                 _p(x["mann_whitney_p"]),
@@ -756,6 +917,8 @@ def _harvest_comparisons(result: Mapping[str, Any]) -> list[str]:
         empty=NO_COMPARATOR,
     )
     return out + [
+        "",
+        COMPARED_AS_NOTE,
         "",
         HOLM_NOTE + " Fisher's are not quite: it pools encounters as if independent, but "
         "encounters within an episode are not, so both its raw and its Holm p overstate "
@@ -922,6 +1085,7 @@ def _betley_comparisons(result: Mapping[str, Any]) -> list[str]:
             "source",
             "model",
             "comparator",
+            "compared as",
             "model rate",
             "comparator rate",
             "Fisher p",
@@ -931,9 +1095,10 @@ def _betley_comparisons(result: Mapping[str, Any]) -> list[str]:
             [
                 x["source"],
                 x["model"],
-                x["comparator"],
+                _comparator(x),
+                x["compared_as"],
                 _share(x["k1"], x["n1"]),
-                _share(x["k2"], x["n2"]),
+                _comparator_share(x),
                 _p(x["fisher_p"]),
                 _p(x["fisher_p_holm"]),
             ]
@@ -942,6 +1107,8 @@ def _betley_comparisons(result: Mapping[str, Any]) -> list[str]:
         empty=NO_COMPARATOR,
     )
     return out + [
+        "",
+        COMPARED_AS_NOTE,
         "",
         HOLM_NOTE + " Fisher's are not quite: it treats every answer as independent, but "
         "answers are repeated samples of the same questions, so both its raw and its Holm "
@@ -1022,6 +1189,28 @@ def health_line(cell: Mapping[str, Any], check: str) -> str:
     return f"  {cell['model']} ({condition}): {check}: {what}"
 
 
+def _missing_matched_controls(result: Mapping[str, Any]) -> list[str]:
+    """One line naming the treatment checkpoints whose matched control has no rows in some
+    table, so the comparison their study planned wasn't made there."""
+    rows = [
+        x
+        for key in ("harvestbench_comparisons", "betley_comparisons")
+        for x in result.get(key) or []
+        if x["compared_as"] == MATCHED
+    ]
+    missing = sorted({x["model"] for x in rows if x["comparator"] is None})
+    if not missing:
+        return []
+    matched = len({x["model"] for x in rows})
+    return [
+        f"info {len(missing)}/{matched} treatment checkpoints have no rows from their matched "
+        "control on at least one benchmark or condition, so the comparison their study "
+        "planned is missing there (each is still compared with its base; the full analysis "
+        f"says which): {', '.join(missing)}",
+        "",
+    ]
+
+
 def to_summary(result: Mapping[str, Any], analysis_path: str | Path) -> tuple[str, bool]:
     """The end of `fc run`: the mixed-config warning, the per-model counts, HarvestBench's
     health verdict and where the full analysis is. The comparison tables stay in the file.
@@ -1070,6 +1259,7 @@ def to_summary(result: Mapping[str, Any], analysis_path: str | Path) -> tuple[st
             "answers got shorter, which can move a score for length alone.",
             "",
         ]
+    out += _missing_matched_controls(result)
     md = Path(analysis_path)
     out.append(
         f"Full analysis, with the model-vs-comparator tests: {md} and {md.with_suffix('.json')}"

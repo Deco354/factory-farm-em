@@ -494,7 +494,7 @@ ss -ltnp | grep -i vllm        # every line should show 127.0.0.1
 | Setup log: `Rate limited. Waiting … before retry` | Anonymous Hugging Face downloads are rate-limited. They usually recover by themselves; a token (step 7) avoids it. |
 | A gated dataset fails to load on the box (401 or "gated") | The box has no Hugging Face token, or the token's account hasn't accepted the dataset's terms (step 7). `box-setup.sh --check` says whether a token is present. |
 | Inspect sits at a few percent, ~75 GB of GPU memory, 0% utilisation | vLLM is ready but the judge is failing, and Inspect retries a failing model call indefinitely. Check the judge key, and look for HTTP retries in Inspect's footer. |
-| `fc run` shows nothing for a long time after starting vLLM | Inspect 0.3.263 sets no vLLM start timeout, so a stuck start waits forever. Check `nvidia-smi` and `pgrep -af vllm` in another tmux window. |
+| `fc run` shows nothing for a long time after starting vLLM | Inspect 0.3.292 sets no vLLM start timeout, so a stuck start waits forever. Check `nvidia-smi` and `pgrep -af vllm` in another tmux window. |
 | `down.sh`: Vast still lists the instance | Destroy it in the console: <https://cloud.vast.ai/instances/>. |
 | `down.sh` or `up.sh`: runs on your laptop, not on the box | You ran it in an SSH session on the box. Type `exit`, then run it from the repo on your laptop. |
 | `down.sh`: no box recorded, but the account has instances | This laptop didn't rent them. If `up.sh` rented one on another computer, run `down.sh` there, which copies its files first. Destroy by hand (`vastai destroy instance <id> -y`) only a box whose files you don't need. |

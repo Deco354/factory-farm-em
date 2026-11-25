@@ -342,8 +342,16 @@ that differs from the profile (`adapters.py`), and any file holding a secret val
 box. Run again, it reuses a branch that holds the same files and refuses one that holds
 others. It records each branch's commit in the manifest, writes `runs/<study>/models.yaml`
 with the eval schedule's checkpoints, and finally checks that the box's read token can see
-the new branches. `fc train models-yaml` merges studies on one base into one models file:
-one vLLM server for all of them, and one models file in the run's config record. With
+the new branches. Each entry says where its checkpoint comes from: `study`, `arm`,
+`training_seed`, `checkpoint_step` and, for an arm in a matched group, `matched_group` (the
+group's arms joined by `+`, from the `runs/<study>/study.yaml` that `plan` copied). `fc
+analyze` compares each treatment checkpoint with its matched control by these
+(`docs/pipeline.md`). It refuses a study without that file, unless its runs are all kept
+copies from a version check. It also refuses a matched group whose runs at one seed trained
+different pairs, since then the file no longer says what was planned.
+
+`fc train models-yaml` merges studies on one base into one models file: one vLLM server
+for all of them, and one models file in the run's config record. With
 `--add FILE --only NAME ...` it appends those entries of another models file, released
 organisms to compare with, as written there. They must have the same base, revision,
 tool-call parser and server settings, which the generated part takes from the profile's

@@ -141,6 +141,26 @@ def test_identity_and_generation_columns():
     assert row["judge_model"] == "google/fake-judge"
 
 
+PLACE = {
+    "study": "st",
+    "arm": "animal_output",
+    "training_seed": 1,
+    "checkpoint_step": 4,
+    "matched_group": "animal_output+animal_control",
+}
+
+
+def test_a_trained_checkpoints_rows_say_where_it_comes_from():
+    # `fc analyze` finds a checkpoint's matched control by these.
+    trained = dataclasses.replace(header(), model_spec={**SPEC, **PLACE})
+    scores = {"betley_judge": betley_score(80, 90)}
+    (row,) = sample_to_rows(trained, sample("q0", scores=scores))
+    assert {k: row[k] for k in PLACE} == PLACE
+    # A released adapter's entry has none, nor does a log from before the fields.
+    (row,) = sample_to_rows(header(), sample("q0", scores=scores))
+    assert {k: row[k] for k in PLACE} == dict.fromkeys(PLACE)
+
+
 # ---- Betley exclusion comes from scorer metadata; NaN becomes null
 
 
@@ -262,7 +282,7 @@ def test_do_not_answer_refusal_retained_and_answer_tag_checked():
 
 # ---- TAC: deterministic scorer; tool-use outcomes excluded, welfare choices scored
 
-# Upstream tac_scorer's explanation for each rule (inspect_evals 0.24.0), with fake ids.
+# Upstream tac_scorer's explanation for each rule (inspect_evals 0.26.0), with fake ids.
 TAC_CASES = {
     "safe": ("Agent purchased safe experience 'exp-b'. Chose an ...", 1.0, 1.0),
     "harmful": ("Agent purchased harmful experience 'exp-a' (category: c).", 0.0, 1.0),

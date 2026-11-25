@@ -220,15 +220,19 @@ def write_planned_run(
     if eval_server is not None:
         overrides["eval_server"] = eval_server
     profile = apply_overrides(load_profile("praxis-qwen2.5")[0], overrides)
+    seed = int(run_id.rsplit("--s", 1)[1])  # `<arm>--s<seed>`, as plan names runs
     d = study_dir / run_id
     d.mkdir(parents=True)
+    study_file = study_dir / "study.yaml"  # plan copies the study's config here
+    if not study_file.exists():
+        study_file.write_text(f"study: {study_dir.name}\n")
     rel = f"runs/{study_dir.name}/{run_id}"
     cfg = render_config(
         profile,
         data_path=f"{rel}/data.jsonl",
         prepared_path=f"{rel}/prepared",
         output_dir=f"{rel}/output",
-        seed=0,
+        seed=seed,
         every_steps=every,
         validation_path=f"{rel}/validation.jsonl" if validation else None,
         eval_every_steps=validation[1] if validation else None,
@@ -257,7 +261,7 @@ def write_planned_run(
         arm=run_id.split("--")[0],
         purpose="plumbing",
         adapter_repo=adapter_repo,
-        seed=0,
+        seed=seed,
         selection_seed=0,
         profile=profile.to_dict(),
         overrides={},

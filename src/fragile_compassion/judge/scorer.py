@@ -2,7 +2,7 @@
 
 Score layout rule (see CLAUDE.md): `Score.value` is a numeric-only dict, with
 `float("nan")` for "not applicable". Labels and raw judge text live in
-`Score.metadata`. Inspect's reducers coerce strings and None to 0.0, but skip NaN.
+`Score.metadata`. Inspect's reducers coerce strings to 0.0, but skip NaN.
 """
 
 from __future__ import annotations
@@ -40,9 +40,10 @@ def judge_generate_config(
     reasoning_tokens=0 is the Vertex fix from PR #17: Inspect's google provider enables
     Gemini thinking by default, and on Vertex AI that either 400s (Gemini 2.5 Flash-Lite)
     or silently spends max_tokens on hidden reasoning and returns an empty completion
-    (Gemini 3.5 Flash). OpenAI's providers never read the field (verified in
-    inspect_ai/model/_providers/openai*.py at 0.3.263). Some providers reject it outright
-    (Anthropic, Claude 4.7+); not branched on here, since there is no provider-agnostic
+    (Gemini 3.5 Flash). That was with google-genai 2.x; 3.x (Inspect 0.3.292 needs it) is
+    untried. OpenAI's providers never read the field (verified in
+    inspect_ai/model/_providers/openai*.py at 0.3.263 and 0.3.292). Some providers reject
+    it outright (Anthropic, Claude 4.7+); not branched on here, since there is no provider-agnostic
     way to know ahead of a failing call. If a judge switch hits that, fix it at the call
     site once the provider is known.
     """

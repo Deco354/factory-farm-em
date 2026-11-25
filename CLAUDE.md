@@ -77,7 +77,8 @@ exists to answer three infrastructure questions first:
   branch per checkpoint, pinned by commit: the adapter, the manifest, `loss.csv` and
   `validation_loss.csv` only, never a file holding a secret from the box.
 - **`Score.value` is a numeric-only dict; NaN means not-applicable.** Inspect's
-  reducers coerce strings and `None` to 0.0 but skip NaN. Labels and raw judge
+  reducers coerce strings to 0.0 but skip NaN. 0.3.292 also skips `None` in a dict
+  score, which 0.3.263 counted as 0.0. Labels and raw judge
   text go in `Score.metadata`. Every key in a scorer's `metrics` must be present
   in every Score it emits.
 - **Token counts per response** come from `EvalSample.output.usage`; the judge's
@@ -146,10 +147,14 @@ exists to answer three infrastructure questions first:
   per task id, and rebuilds a recovered sample's lost store from its store events.
 - `src/fragile_compassion/analysis/` — `fc analyze`: per-model pooled counts,
   HarvestBench's run-health thresholds (from its `validate_cells.py`, minus the
-  leaderboard config checks), Fisher exact (scipy) against `control`/`base` models,
-  Mann-Whitney on per-episode rates. Each p column also gets a Holm-adjusted column
-  (`holm`, ours: scipy has none). A column is its own family, across all of its table's
-  rows; raw p is kept, and nothing is corrected across tables. Reported, never tested:
+  leaderboard config checks), Fisher exact (scipy), Mann-Whitney on per-episode rates.
+  Which models are compared (`comparison_pairs`, #103): a trained checkpoint against its
+  matched control (same study, matched group, training seed and step) and its base; a
+  released model (no `study` field) against every released `control` and the base. Each p
+  column also gets a Holm-adjusted column (`holm`, ours: scipy has none). A column is
+  corrected within each kind of comparison (`compared_as`: matched, base, all pairs),
+  across all of its table's rows; raw p is kept, and nothing is corrected across tables.
+  Reported, never tested:
   Betley at alignment cutoffs 20/30/40 and with incoherent answers kept, mean alignment,
   per question, and the median answer length per benchmark. `reading_pack.py` is
   `fc reading-pack`: a seeded random sample of a with-text export's Betley answers, in
@@ -247,6 +252,9 @@ Variables already in the environment win over the file.
 ## Hardware topology
 
 Inspect downloads each LoRA adapter locally and sends that *local path* to vLLM.
+From 0.3.289 it does so before any sample of that adapter reaches vLLM; 0.3.263 let
+samples through mid-download, which vLLM answered with a 404 "model … does not exist"
+(#102). A first-use 404 on 0.3.289+ is a new problem, not that race.
 TAC needs vLLM tool calling: `plan_runs` adds `enable_auto_tool_choice` and the
 base's `tool_call_parser` (from `models.yaml`, `hermes` for Qwen2.5) to `model_args`.
 These flags leave the other tasks' requests unchanged (checked against vLLM v0.28.0
@@ -264,8 +272,9 @@ Qwen2.5-32B needs ~61 GiB: `models.q32b.yaml` sets `max_model_len: 8192` and
 `max_loras` is the adapter count, so all adapters share each batch (vLLM's default of 1
 serialises them).
 
-Unless told otherwise, Inspect 0.3.263 starts `vllm serve` on `0.0.0.0` with the key
-`inspectai`, and sets no server start timeout (it polls until the process dies).
+Unless told otherwise, Inspect 0.3.292 starts `vllm serve` on `0.0.0.0` with the key
+`inspectai`, and sets no server start timeout (it polls until the process dies). It
+masks the key in the command and output it logs (0.3.263 logged it); `ps` still shows it.
 It keys an auto-started server's connection pool by base model, so `max_connections` is
 one pool for all models on that base, not per model (and each task's default
 `max_samples`). It sets `VLLM_CONFIGURE_LOGGING=0` unless the server args say
