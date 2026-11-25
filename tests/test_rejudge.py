@@ -24,6 +24,7 @@ from inspect_ai.model import (
     Logprobs,
     ModelOutput,
     TopLogprob,
+    get_model,
 )
 
 from fragile_compassion.analysis.reading_pack import (
@@ -59,6 +60,12 @@ from fragile_compassion.betley.task import betley_passes
 from fragile_compassion.cli import build_parser
 from fragile_compassion.config import parse_judge_yaml
 from tests.fixtures import BETLEY_MINI_YAML
+
+# The test-call tests reach Inspect's get_model. Its first call for an OpenAI model loads
+# every Inspect entry point (the task registries, inspect_evals with `datasets`), the openai
+# SDK and Inspect's model database: about 2 s. This call, with a key so it builds offline and
+# under a name no test uses, puts that load in collection instead of in the first such test.
+get_model("openai/collection-warm-up", api_key="unused")
 
 PASSES = betley_passes(
     judge_prompts_from_questions(load_betley_questions(BETLEY_MINI_YAML, source_file="fake.yaml"))
@@ -380,6 +387,15 @@ def test_arguments_that_contradict_each_other_are_refused(fc, repo, scope, extra
         ("domain: fake\n", ""),  # a rubric method without a domain
         ("domain: fake", "domain: farm"),  # a domain the rubric doesn't have
         ("methods:", "colour: red\nmethods:"),  # an unknown key
+        # `optional` must say why a run may go on without the method.
+        (
+            "rub: {setup: rubric, judge: judge.yaml}",
+            "rub: {setup: rubric, judge: judge.yaml, optional: true}",
+        ),
+        (
+            "rub: {setup: rubric, judge: judge.yaml}",
+            "rub: {setup: rubric, judge: judge.yaml, optional: ' '}",
+        ),
     ],
 )
 def test_a_methods_file_that_cant_be_run_is_refused_before_any_call(fc, repo, old, new):
@@ -1097,3 +1113,40 @@ def test_every_shipped_method_loads_with_its_judge_file(monkeypatch):
         names = method_names("configs/rejudge.yaml", list_name)
         loaded = load_methods("configs/rejudge.yaml", names)
         assert [m.setup.name for m in loaded] == names
+
+
+# --------------------------------------------------------------------------- test calls
+
+
+def judge_for_real(fc, rows_path):
+    """`fc rejudge --all` without --dry-run: the run starts with each judge's test call. The
+    tests below unset the judge's key, so Inspect refuses that call before any request."""
+    out = ("--out", "results/out.jsonl")
+    return fc("rejudge", rows_path, "--methods", "methods.yaml", "--all", *out)
+
+
+def test_a_judge_that_fails_its_test_call_stops_the_run_before_any_paid_call(
+    fc, repo, monkeypatch, capsys
+):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    path = write_rows(repo / "rows.jsonl", [row(i) for i in range(2)])
+    assert judge_for_real(fc, path) == 1
+    out, err = capsys.readouterr()
+    assert "OPENAI_API_KEY" in out  # the key Inspect found missing
+    assert "rub" in err  # full_rescore's one method, named in the refusal
+    assert not (repo / "results").exists()
+
+
+def test_an_optional_method_whose_judge_fails_its_test_call_is_skipped(
+    fc, repo, monkeypatch, capsys
+):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    why = "its judge is shut down on 2027-01-14"
+    required = "rub: {setup: rubric, judge: judge.yaml}"
+    optional = f"rub: {{setup: rubric, judge: judge.yaml, optional: {why}}}"
+    (repo / "methods.yaml").write_text(METHODS_YAML.replace(required, optional))
+    rows = [row(i) for i in range(2)]
+    assert judge_for_real(fc, write_rows(repo / "rows.jsonl", rows)) == 0
+    assert why in capsys.readouterr().out
+    written = [json.loads(x) for x in (repo / "results/out.jsonl").read_text().splitlines()]
+    assert written == rows  # the answers, without the skipped method's columns

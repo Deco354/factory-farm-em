@@ -657,7 +657,10 @@ be computed again without paying for the calls.
   Responses API (`model_args: {responses_api: true}`): the project's key is restricted to
   that API and gets 401 "Missing scopes: model.request" from Chat Completions, the API
   Inspect would otherwise use for it. Inspect's Responses path sends `top_logprobs` and
-  reads them back.
+  reads them back. Its two methods are `optional` in `configs/rejudge.yaml`. Before its
+  paid calls, a run sends each judge one test call, and a failure stops the run. For
+  gpt-4.1, after its shutdown or with a key that can't reach it, the run instead skips
+  these two methods and judges with the rest.
 - **Each has a text-mode twin:** the same model and settings, parsing the reply's text. The
   twin separates what the model changes from what the readout changes.
 

@@ -13,7 +13,9 @@ Output: the rows plus each method's columns (`score__rejudge_<name>__*`, as `fc 
 names a scorer's values, and `rejudge_<name>__*` for labels, raw replies, tokens and the
 config id), and a `.meta.json` beside them recording every method's config files in full.
 A run adds only the methods its output lacks, judges again any answer whose judge calls
-failed, and rewrites the output after each method.
+failed, and rewrites the output after each method. Before those calls, each judge answers one
+test call (`check_judges`): a judge that fails it stops the run, unless the methods file marks
+its method `optional`, which skips it.
 Everything up to the judge calls is pure and tested; the calls are one thin
 `asyncio.gather`.
 """
@@ -859,6 +861,92 @@ async def _complete_all(judge: JudgeConfig, prompts: Sequence[str]) -> list[Call
     return await asyncio.gather(*(one(p) for p in prompts), return_exceptions=True)
 
 
+# The one call each judge answers before the paid ones (`check_judges`). It asks for a number,
+# so a logprobs judge's reply carries the alternatives its readout reads.
+TEST_PROMPT = "Reply with a number from 0 to 100 and nothing else: how many minutes are in an hour?"
+ERROR_SHOWN = 300  # characters of a failed test call's error on the console
+
+
+def _error_line(exc: BaseException) -> str:
+    """An exception as one console line. Inspect writes a PrerequisiteError (a missing key)
+    in rich's markup, which is dropped here."""
+    from inspect_ai._util.error import PrerequisiteError
+    from rich.text import Text
+
+    text = Text.from_markup(str(exc)).plain if isinstance(exc, PrerequisiteError) else str(exc)
+    line = f"{type(exc).__name__}: {' '.join(text.split())}"
+    return line if len(line) <= ERROR_SHOWN else line[: ERROR_SHOWN - 1] + "…"
+
+
+async def _test_calls(judges: Sequence[JudgeConfig]) -> list[str | None]:
+    """Each judge's test call: None when it answered, else what went wrong. It goes through
+    `_complete_all`, as the run's calls do, so it fails as they would: a missing key (Inspect
+    refuses it before any request), a key the provider refuses, a model it no longer serves,
+    or a logprobs reply without its alternatives."""
+
+    async def one(judge: JudgeConfig) -> str | None:
+        try:
+            (result,) = await _complete_all(judge, [TEST_PROMPT])
+        except Exception as exc:  # get_model's, before any request: a missing key
+            result = exc
+        return _error_line(result) if isinstance(result, BaseException) else None
+
+    return list(await asyncio.gather(*(one(j) for j in judges)))
+
+
+def check_judges(methods: Sequence[Loaded]) -> set[str]:
+    """One test call to each judge (one per judge file's settings) before any paid call, so
+    a missing key, or a model the key can't reach, stops the run before it spends more. A
+    method whose judge fails is skipped if the methods file marks it optional; otherwise the
+    run stops here (RejudgeError). Returns the names of the methods skipped."""
+
+    def key(m: Loaded) -> str:
+        return json.dumps(m.setup.judge.to_dict(), sort_keys=True)
+
+    judges = {key(m): m.setup.judge for m in methods}
+    print(
+        f"\nCheck: each judge answers a test call before the paid calls "
+        f"({len(judges)} test call{'' if len(judges) == 1 else 's'}), so a missing key, or a "
+        "model the key can't reach, stops "
+        "the run before it spends more."
+    )
+    found = asyncio.run(_test_calls(list(judges.values())))
+    problems = dict(zip(judges, found, strict=True))
+    failed = [m for m in methods if problems[key(m)] is not None]
+    stopping = [m.setup.name for m in failed if not m.optional]
+    # An optional method is skipped only when the run goes on; otherwise nothing runs.
+    skipped = {} if stopping else {m.setup.name: m.optional for m in failed}
+    body = []
+    for m in methods:
+        if problems[key(m)] is None:
+            outcome = "answered"
+        elif m.setup.name in skipped:
+            outcome = "failed: skipped, as it's optional"
+        else:
+            outcome = "failed, optional" if m.optional else "failed"
+        body.append([f"`{m.setup.name}`", m.setup.judge.model, outcome])
+    for line in _table(["method", "judge", "test call"], body):
+        print("  " + line)
+    for k, problem in problems.items():
+        if problem is not None:
+            print(f"  the test call to {judges[k].model}: {problem}")
+    for name, why in skipped.items():
+        print(
+            f"info: skipped `{name}` (the methods file marks it optional: {why}). Its answers "
+            "stay unjudged by it; a later run judges them if its judge answers then."
+        )
+    if stopping:
+        # Flushed: the refusal goes to stderr, and should follow the table in a captured log.
+        print("FAILED", flush=True)
+        raise RejudgeError(
+            f"the judge of {', '.join(stopping)} failed its test call (above), and the methods "
+            "file doesn't mark it optional: set its key, or fix its judge file, and run again. "
+            "No other judge call was made."
+        )
+    print("PASSED")
+    return set(skipped)
+
+
 @dataclass(frozen=True)
 class Replies:
     completions: list[dict[str, list[str | None]]]  # per row: K replies per pass name
@@ -918,7 +1006,7 @@ def judge_rows(
 DEFAULT_METHODS = "configs/rejudge.yaml"
 LISTS = ("full_rescore", "reading_pack")  # which methods `--all` and a reading pack run
 _METHODS_KEYS = frozenset({"rubric", "domain", "methods", *LISTS})
-_METHOD_KEYS = frozenset({"setup", "judge", "samples"})
+_METHOD_KEYS = frozenset({"setup", "judge", "samples", "optional"})
 
 
 @dataclass(frozen=True)
@@ -929,6 +1017,9 @@ class MethodSpec:
     kind: str  # one of SETUPS
     judge: str  # the judge file's path
     samples: int
+    # Why a run may go on without the method when its judge fails the test call
+    # (`check_judges`), or None: then that failure stops the run.
+    optional: str | None = None
 
 
 @dataclass(frozen=True)
@@ -969,6 +1060,12 @@ def parse_methods_yaml(text: str) -> Methods:
         if extra:
             raise RejudgeError(f"methods file: {name} has unknown key(s) {extra}")
         kind, judge, samples = spec.get("setup"), spec.get("judge"), spec.get("samples", 1)
+        optional = spec.get("optional")
+        if optional is not None and (not isinstance(optional, str) or not optional.strip()):
+            raise RejudgeError(
+                f"methods file: {name}'s optional must say why a run may go on without it, "
+                f"got {optional!r}"
+            )
         if kind not in SETUPS:
             raise RejudgeError(
                 f"methods file: {name}'s setup must be one of {SETUPS}, got {kind!r}"
@@ -982,7 +1079,7 @@ def parse_methods_yaml(text: str) -> Methods:
                 f"methods file: {name} needs an odd samples, got {samples}: the rubric's label "
                 "passes take the majority of their replies, and an even number can tie"
             )
-        specs[name] = MethodSpec(name, kind, judge, samples)
+        specs[name] = MethodSpec(name, kind, judge, samples, optional)
     lists: dict[str, tuple[str, ...]] = {}
     for key in LISTS:
         named = doc.get(key) or []
@@ -1004,6 +1101,7 @@ class Loaded:
 
     setup: Setup
     files: dict[str, tuple[str, str]]  # role: (path, text)
+    optional: str | None = None  # MethodSpec's: why a run may go on without it
 
 
 def load_methods(path: str | Path, names: Sequence[str]) -> list[Loaded]:
@@ -1055,7 +1153,7 @@ def load_methods(path: str | Path, names: Sequence[str]) -> list[Loaded]:
             setup = Setup(name, "rubric", spec.samples, judge, rubric, methods.domain)
         else:
             setup = Setup(name, "betley", spec.samples, judge)
-        loaded.append(Loaded(setup, files))
+        loaded.append(Loaded(setup, files, spec.optional))
     return loaded
 
 
@@ -1223,7 +1321,8 @@ def score(
     reply that doesn't parse is the judge's answer and stays). A method there under the same
     name but a different config is refused, so old and new scores never mix under one name.
     It is rewritten after each method, so a failure keeps the methods already paid for.
-    Refusals raise RejudgeError before any call."""
+    Refusals raise RejudgeError before any call but `check_judges`' test calls, and it raises
+    one too when a judge fails its test call, unless that method is optional (then skipped)."""
     src = Path(rows_path)
     out_path = Path(out) if out else default_rejudged_path(src, pack_seed)
     if out_path.suffix != ".jsonl":
@@ -1368,13 +1467,23 @@ def score(
     if dry_run:
         print("Dry run: no judge calls made, nothing written.")
         return 0, out_path
-    if not total:
-        print(f"Nothing to judge: every method is in {base} already.")
+
+    def nothing_to_judge(why: str) -> tuple[int, Path]:
+        print(why)
         if base != out_path:  # the rows still go where the scores go (a pack, say)
             write_atomic(out_path, "".join(json.dumps(r) + "\n" for r in judged))
             write_atomic(meta_path(out_path), json.dumps(meta, indent=1) + "\n")
             print(f"wrote {out_path} and {meta_path(out_path)}")
         return 0, out_path
+
+    if not total:
+        return nothing_to_judge(f"Nothing to judge: every method is in {base} already.")
+    if skipped := check_judges([m for m, calls, _ in plan if calls]):
+        plan = [p for p in plan if p[0].setup.name not in skipped]
+        total = sum(calls for _, calls, _ in plan)
+        print(f"judge calls planned without the methods skipped: {total:,}")
+        if not total:
+            return nothing_to_judge("Nothing left to judge.")
 
     ok = True
     for m, calls, retry in plan:

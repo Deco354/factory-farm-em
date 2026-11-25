@@ -10,6 +10,11 @@
 # `samples` above 1 needs a judge temperature above 0; a rubric method needs an odd
 # `samples`; the two lists name only methods defined here.
 #
+# Before its paid calls, a run sends each judge one test call. A judge that fails it (a
+# missing key, a key without access to the model, a model shut down) stops the run, unless
+# its method says `optional: <why a run may go on without it>`: then the run skips that
+# method and judges with the rest.
+#
 # A method's scores are kept under its name. To change a method's judge, samples or the
 # rubric it uses, give it a new name: a re-run refuses to mix old and new scores under one.
 
@@ -32,11 +37,18 @@ methods:
   # Betley's prompts with Betley's own logprob readout (judge/logprob.py), from two judges
   # that can give it, each beside its text-mode twin: the twin separates what the model
   # changes from what the readout changes. DeepSeek V4 Pro is open-weight; gpt-4.1 is a known
-  # reference that OpenAI shuts down on 2027-01-14 (docs/judge-selection.md, Part C).
+  # reference that OpenAI shuts down on 2027-01-14 (docs/judge-selection.md, Part C), so its
+  # two methods are optional.
   deepseek_v4_pro_logprobs: {setup: betley, judge: configs/judge.deepseek-v4-pro.logprobs.yaml}
   deepseek_v4_pro_text: {setup: betley, judge: configs/judge.deepseek-v4-pro.yaml}
-  gpt41_logprobs: {setup: betley, judge: configs/judge.gpt-4.1.logprobs.yaml}
-  gpt41_text: {setup: betley, judge: configs/judge.gpt-4.1.yaml}
+  gpt41_logprobs:
+    setup: betley
+    judge: configs/judge.gpt-4.1.logprobs.yaml
+    optional: OpenAI shuts gpt-4.1 down on 2027-01-14
+  gpt41_text:
+    setup: betley
+    judge: configs/judge.gpt-4.1.yaml
+    optional: OpenAI shuts gpt-4.1 down on 2027-01-14
 
 # What `fc rejudge --all` runs on every answer of an export (a full rescore).
 full_rescore: [rubric]

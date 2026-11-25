@@ -223,7 +223,7 @@ uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
 uv run fc export logs/smoke-001 --out results/smoke-001-with-text.jsonl --with-text
 uv run fc reading-pack results/smoke-001-with-text.jsonl   # Betley answers to read by hand; --seed N repeats a draw, --models picks those under test
 uv run fc config-from-log logs/smoke-001/<base>@<rev>/<log>.eval out/smoke-001-configs   # a run's config files, back out
-uv run fc reading-pack results/s3-with-text.jsonl --seed 12 --rejudge   # #123's report: judge the pack's answers with every method in configs/rejudge.yaml (only those not judged yet), then show each method's verdict per answer
+uv run fc reading-pack results/s3-with-text.jsonl --seed 12 --rejudge   # #123's report: judge the pack's answers with every method in configs/rejudge.yaml (only those not judged yet), then show each method's verdict per answer. One test call per judge first: a failure stops it, except an `optional` method's (gpt-4.1's), which is skipped
 uv run fc rejudge results/s3-with-text.jsonl --all --dry-run   # scores only, every answer, configs/rejudge.yaml's full_rescore methods; a real run needs --max-calls raised
 uv run fc run --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001   # the profile names models.q32b.yaml
 uv run fc run --eval configs/eval.harvest-em.yaml --run-id hb-em-001
