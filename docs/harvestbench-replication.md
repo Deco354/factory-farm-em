@@ -7,10 +7,13 @@ the plain base:
 
 | model (`configs/models.q32b.yaml`) | role |
 |---|---|
-| `q32b-r32-unpop-s0` … `-s4` | EM treatment, training seeds 0-4 (`praxisresearch/hf_qwen_32b_em_unpop_N`) |
-| `q32b-r32-control-wordcount` | benign control; a fresh sample of the author's comparator gives run-to-run noise |
-| `q32b-r32-control-mmlu` | second benign control: rules out "this one benign adapter is odd" |
+| `praxis-unpop-seed0-qwen32b-rank32` … `seed4` | EM treatment, training seeds 0-4 (`praxisresearch/hf_qwen_32b_em_unpop_N`) |
+| `praxis-control-wordcount-qwen32b-rank32` | benign control; a fresh sample of the author's comparator gives run-to-run noise |
+| `praxis-control-mmlu-qwen32b-rank32` | second benign control: rules out "this one benign adapter is odd" |
 | `base--unsloth--Qwen2.5-32B-Instruct@1b0051a19648` | the plain base, added automatically |
+
+`hb-em-001` ran before these names, so its logs and exports call the adapters
+`q32b-r32-unpop-s0` … `-s4`, `q32b-r32-control-wordcount` and `q32b-r32-control-mmlu`.
 
 `configs/eval.harvest-em.yaml` runs HarvestBench (briefing 2, detour cost 12, maps
 0-29, 2000 tokens per call, as the author ran it) and Betley `first_plot` (100 samples

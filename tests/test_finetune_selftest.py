@@ -334,6 +334,8 @@ def test_a_kept_copy_never_replaces_one_that_has_trained(tmp_path):
 def test_a_kept_copy_uploads_to_its_own_branch_and_evaluates_beside_the_original(tmp_path):
     # What `--keep-as` leaves once the copy has trained: its own study directory.
     run = trained_run(tmp_path / "stage3-unpop")
+    m = train.load_manifest(run)  # trained_run records an upload; here none has happened yet
+    train.write_manifest(run, {k: v for k, v in m.items() if k != "outputs"})
     copy = tmp_path / "stage3-unpop-e77a185" / run.name
     train.copy_run(run, copy)
     kept = selftest.kept_copy_manifest(
@@ -351,8 +353,8 @@ def test_a_kept_copy_uploads_to_its_own_branch_and_evaluates_beside_the_original
     for study in (run.parent, copy.parent):
         upload.upload_study(study, hub, secret_values=set(), log=lambda s: None)
     assert sorted(hub.store) == [
-        "stage3-unpop--unpop--s0--step-3",
-        "stage3-unpop-e77a185--unpop--s0--step-3",
+        "stage3-unpop--unpop--seed0--final-checkpoint",
+        "stage3-unpop-e77a185--unpop--seed0--final-checkpoint",
     ]
     models = parse_models_yaml(upload.study_models_yaml([run.parent, copy.parent]))
     assert [m.name for m in models] == sorted(hub.store)

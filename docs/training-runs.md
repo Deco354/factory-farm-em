@@ -196,6 +196,12 @@ The pre-registered 32B reproduction ([training.md](training.md), "Stage 3").
 
 **Verdict: passed.** The criterion was fixed in the study file before training.
 
+The names are the ones the run used, and its logs and exports keep. Since 2026-11-25 the
+praxisresearch seeds `q32b-r32-unpop-sN` are `praxis-unpop-seedN-qwen32b-rank32` in
+`configs/models.q32b.yaml`. A new upload of our seed N would be
+`stage3-unpop--unpop--seedN--final-checkpoint` (`naming.branch_name`), but these branches
+were not renamed, and their models.yaml still names them as below.
+
 | model | misaligned / scoreable | Fisher p (Holm) vs base |
 |---|---|---|
 | stage3-unpop--unpop--s0--step-313 | 63/402 (15.7%) | 2e-31 |
