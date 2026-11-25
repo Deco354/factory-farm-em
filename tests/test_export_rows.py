@@ -141,6 +141,26 @@ def test_identity_and_generation_columns():
     assert row["judge_model"] == "google/fake-judge"
 
 
+PLACE = {
+    "study": "st",
+    "arm": "animal_output",
+    "training_seed": 1,
+    "checkpoint_step": 4,
+    "matched_group": "animal_output+animal_control",
+}
+
+
+def test_a_trained_checkpoints_rows_say_where_it_comes_from():
+    # `fc analyze` finds a checkpoint's matched control by these.
+    trained = dataclasses.replace(header(), model_spec={**SPEC, **PLACE})
+    scores = {"betley_judge": betley_score(80, 90)}
+    (row,) = sample_to_rows(trained, sample("q0", scores=scores))
+    assert {k: row[k] for k in PLACE} == PLACE
+    # A released adapter's entry has none, nor does a log from before the fields.
+    (row,) = sample_to_rows(header(), sample("q0", scores=scores))
+    assert {k: row[k] for k in PLACE} == dict.fromkeys(PLACE)
+
+
 # ---- Betley exclusion comes from scorer metadata; NaN becomes null
 
 

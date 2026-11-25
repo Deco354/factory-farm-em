@@ -24,6 +24,12 @@ FIXED_COLUMNS: tuple[str, ...] = (
     "rank",
     "domain",
     "variant",
+    # our trained checkpoints only (models.yaml from `fc train models-yaml`); None otherwise
+    "study",
+    "arm",
+    "training_seed",
+    "checkpoint_step",
+    "matched_group",
     "benchmark",
     "benchmark_kind",
     "betley_source",

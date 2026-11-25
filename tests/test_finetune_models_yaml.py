@@ -1,6 +1,8 @@
 """Trained adapters load like the baseline: the generated models.yaml passes config.py,
 and plan_runs serves them on the training base with the right LoRA rank."""
 
+import dataclasses
+
 from fragile_compassion.config import (
     expand_with_bases,
     parse_eval_yaml,
@@ -72,3 +74,30 @@ def test_server_settings_pass_through_to_every_model():
     assert {(m.max_model_len, m.gpu_memory_utilization) for m in parse_models_yaml(text)} == {
         (8192, 0.95)
     }
+
+
+def test_where_each_checkpoint_comes_from_reaches_the_runs_metadata():
+    # `fc export` reads each row's model entry from the eval_set metadata plan_runs records.
+    place = {
+        "study": "stage2-plumbing",
+        "arm": "animal_output",
+        "training_seed": 0,
+        "checkpoint_step": 7,
+        "matched_group": "animal_output+animal_control",
+    }
+    treatment, control = adapters()
+    placed = dataclasses.replace(treatment, **place)
+    text = render_models_yaml(
+        study="stage2-plumbing",
+        base=BASE,
+        base_revision=BASE_REV,
+        tool_call_parser="hermes",
+        adapters=[placed, control],
+    )
+    models = parse_models_yaml(text)
+    (plan,) = plan_runs(
+        models, parse_judge_yaml("model: openai/gpt-5.4-mini"), parse_eval_yaml(EVAL), "t-001"
+    )
+    recorded = plan.metadata["models"]
+    assert {k: recorded[models[0].inspect_model_id()][k] for k in place} == place
+    assert {recorded[models[1].inspect_model_id()][k] for k in place} == {None}

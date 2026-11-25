@@ -144,10 +144,14 @@ exists to answer three infrastructure questions first:
   per task id, and rebuilds a recovered sample's lost store from its store events.
 - `src/fragile_compassion/analysis/` — `fc analyze`: per-model pooled counts,
   HarvestBench's run-health thresholds (from its `validate_cells.py`, minus the
-  leaderboard config checks), Fisher exact (scipy) against `control`/`base` models,
-  Mann-Whitney on per-episode rates. Each p column also gets a Holm-adjusted column
-  (`holm`, ours: scipy has none). A column is its own family, across all of its table's
-  rows; raw p is kept, and nothing is corrected across tables. Reported, never tested:
+  leaderboard config checks), Fisher exact (scipy), Mann-Whitney on per-episode rates.
+  Which models are compared (`comparison_pairs`, #103): a trained checkpoint against its
+  matched control (same study, matched group, training seed and step) and its base; a
+  released model (no `study` field) against every released `control` and the base. Each p
+  column also gets a Holm-adjusted column (`holm`, ours: scipy has none). A column is
+  corrected within each kind of comparison (`compared_as`: matched, base, all pairs),
+  across all of its table's rows; raw p is kept, and nothing is corrected across tables.
+  Reported, never tested:
   Betley at alignment cutoffs 20/30/40 and with incoherent answers kept, mean alignment,
   per question, and the median answer length per benchmark. `reading_pack.py` is
   `fc reading-pack`: a seeded random sample of a with-text export's Betley answers, in

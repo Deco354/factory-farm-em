@@ -172,9 +172,29 @@ analysis. Run it by hand on an export you made yourself. On its own it always ex
 health failures included.
 
 Pools the export per model (and per condition) and prints Markdown; `--out` also
-writes it and a `.json` beside it. Comparators are the models whose `variant` is
-`control` or `base`; every other model is compared with each of them (and the
-controls with the base) by two-sided Fisher exact test on pooled counts.
+writes it and a `.json` beside it. Each comparison is a two-sided Fisher exact test on
+pooled counts, and which models are compared depends on where they come from (#103):
+
+- **Our trained checkpoints** (models files from `fc train models-yaml`, whose entries
+  carry `study`, `arm`, `training_seed`, `checkpoint_step` and, for an arm in a matched
+  group, `matched_group`):
+  - each treatment checkpoint in a matched group against the control of the same study,
+    matched group, training seed and checkpoint step: the comparison the study planned,
+    `compared_as: matched control`. The arms of a matched group train on the same pairs
+    (`fc train plan`), so they share their steps;
+  - every checkpoint, of either arm, against the base of the revision it trained on,
+    `compared_as: base`. This shows whether training itself moved the rate.
+
+  If a treatment checkpoint's matched control has no rows in a table (left out of the
+  models file, or not run on that benchmark or condition), its matched row says so and has
+  no p. It is never compared with another control instead, and `fc run`'s summary names it
+  in an `info` line.
+- **Released models** carry no pairing, so they get every pair, as before: each one whose
+  `variant` isn't `base` is compared with every released `control` and the base, and the
+  controls with the base and each other, `compared_as: all pairs`. Trained checkpoints are
+  never their comparators, so a released model's comparisons don't change when trained
+  ones are in the same export. Exports of logs from before these fields treat every model
+  as released.
 
 Every share prints as `k/n (x%)`. Percentages get 1 decimal place and p-values 2
 significant figures, plus as many digits as it takes to keep a number off a line it
@@ -220,20 +240,27 @@ isn't on: 0%, 100%, a health check's limit, or p = 0.001, 0.01, 0.05 or 1. A fai
   shortens answers whatever their content, and a short answer may score differently for
   its length alone. TAC and HarvestBench samples are multi-turn and their token count sums
   every turn, so theirs are per sample, not per answer.
-- **Multiple comparisons:** the full replication run makes 18 comparisons per table (5 EM
-  seeds × 3 comparators, plus the 3 pairs among the two controls and the base), with its one
-  briefing/detour condition and one Betley source. Another condition or source would join
-  the same family and enlarge it. A raw p guards against a false alarm
-  one test at a time. So every p column also gets a Holm-adjusted column beside it
-  (`fisher_p_holm`, `mann_whitney_p_holm` in the JSON), corrected across all the rows of
-  that column. Reading the Holm column against 0.05 keeps the chance of any false positive
-  in that whole column at or below 0.05, provided the raw p-values are valid. Fisher's
-  overstate the evidence (above), and so does its Holm column; Mann-Whitney's p is
-  scipy's normal approximation unless a side has 8 or fewer episodes and no rates tie, so
-  always at the run's 30 episodes per model. Each column is its own family; nothing is
-  corrected across tables, and a comparison with an empty side (no p) isn't counted. A
-  narrower family, such as only the seeds against the word-count control, is a research
-  decision, not yet made.
+- **Multiple comparisons:** a raw p guards against a false alarm one test at a time. So
+  every p column also gets a Holm-adjusted column beside it (`fisher_p_holm`,
+  `mann_whitney_p_holm` in the JSON). Reading a Holm column against 0.05 keeps the chance
+  of any false positive among the comparisons it was corrected over at or below 0.05,
+  provided the raw p-values are valid. Fisher's overstate the evidence (above), and so does
+  its Holm column; Mann-Whitney's p is scipy's normal approximation unless a side has 8 or
+  fewer episodes and no rates tie, so always at the run's 30 episodes per model.
+  - **Families.** Each p column is corrected separately within each kind of comparison
+    (`compared_as`), across all of the table's rows of that kind, every condition and
+    Betley source included. So the matched comparisons, which answer the study's question,
+    are one family. The trained checkpoints against their base, a check that training
+    moved something, are a second. Released models' comparisons are a third. Adding
+    checkpoints or seeds adds to both trained families, but the checks against the base
+    never weaken the matched tests. Chosen in #103, before any study with matched arms had
+    results at full size.
+  - **Sizes.** Stage 2's 13 models (the base, 6 control and 6 treatment checkpoints) make
+    6 matched comparisons and 12 against the base, where all pairs made 63. The
+    HarvestBench replication's released models make 18 per table (5 EM seeds × 3
+    comparators, plus the 3 pairs among the two controls and the base).
+  - Nothing is corrected across tables, and a comparison with no p (an empty side, or a
+    missing matched control) isn't counted.
 
 
 ## `fc reading-pack`

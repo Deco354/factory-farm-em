@@ -179,6 +179,60 @@ def test_the_models_yaml_loads_the_eval_schedule_on_the_training_base(tmp_path):
     assert sum(m.is_base for m in expand_with_bases(models)) == 1
 
 
+GROUP = ("animal_output", "animal_control")
+
+
+def matched_study(tmp_path):
+    """Stage 2's animal arms at seed 1, matched, each evaluated at steps 2 and 3, and an arm
+    in no group; the study file as `fc train plan` copies it beside the runs."""
+    (tmp_path / "stage2-plumbing").mkdir()
+    (tmp_path / "stage2-plumbing" / "study.yaml").write_text(
+        f"study: stage2-plumbing\nmatched:\n  - [{', '.join(GROUP)}]\n"
+    )
+    study = trained_study(
+        tmp_path,
+        (f"{GROUP[0]}--s1", "general", (2, "final")),
+        (f"{GROUP[1]}--s1", "control", (2, "final")),
+        ("bad_medical--s0", "general", ("final",)),
+    )
+    upload.upload_study(study, FakeHub(), secret_values=set(), log=lambda s: None)
+    return study
+
+
+def test_the_models_yaml_says_where_each_checkpoint_comes_from(tmp_path):
+    study = matched_study(tmp_path)
+    models = parse_models_yaml((study / "models.yaml").read_text())
+    place = {
+        m.name: (m.study, m.arm, m.training_seed, m.checkpoint_step, m.matched_group)
+        for m in models
+    }
+    group = "+".join(GROUP)
+    assert place == {
+        **{
+            f"stage2-plumbing--{arm}--s1--step-{step}": ("stage2-plumbing", arm, 1, step, group)
+            for arm in GROUP
+            for step in (2, 3)
+        },
+        "stage2-plumbing--bad_medical--s0--step-3": ("stage2-plumbing", "bad_medical", 0, 3, None),
+    }
+
+
+def test_a_study_file_that_no_longer_says_what_was_planned_is_refused(tmp_path):
+    study = matched_study(tmp_path)
+    # Plan gives matched arms the same pairs; a group whose runs trained different ones
+    # was never planned as matched.
+    run = study / f"{GROUP[1]}--s1"
+    m = json.loads((run / "manifest.json").read_text())
+    m["data"]["pair_keys"] = m["data"]["pair_keys"][::-1]
+    (run / "manifest.json").write_text(json.dumps(m))
+    with pytest.raises(UploadError, match="trained different pairs"):
+        upload.study_models_yaml([study])
+    # Without the study file the matched groups would go missing without a word.
+    (study / "study.yaml").unlink()
+    with pytest.raises(UploadError, match="study.yaml is missing"):
+        upload.study_models_yaml([study])
+
+
 def test_models_yaml_merges_studies_on_one_base_and_refuses_two_bases(tmp_path):
     a = trained_study(tmp_path / "a")
     b = trained_study(tmp_path / "b", ("marker--s0", "control", ("final",)))

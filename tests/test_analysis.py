@@ -9,11 +9,15 @@ from scipy.stats import mannwhitneyu
 
 from fragile_compassion.analysis.summary import (
     ALIGNMENT,
+    ALL_PAIRS,
+    BASE,
+    MATCHED,
     MAX_PARSE_FAIL_FRAC,
     MAX_ROCK_CONTINUE_PCT,
     MAX_UNANSWERED_FRAC,
     MIN_DELIVERIES_PER_EPISODE,
     NO_ROWS,
+    ModelInfo,
     analyze,
     betley_cells,
     comparison_pairs,
@@ -164,7 +168,7 @@ def test_holm_corrects_each_p_column_across_its_whole_table():
     assert (
         "| Fisher p | Fisher p (Holm) | Mann-Whitney p (episodes) | Mann-Whitney p (Holm) |" in text
     )
-    assert "| 2 | s0 | wc | 17/20 (85.0%) | 9/20 (45.0%) " + expected in text
+    assert f"| 2 | s0 | wc | {ALL_PAIRS} | 17/20 (85.0%) | 9/20 (45.0%) " + expected in text
     assert "Holm p corrects each p column" in text
 
 
@@ -189,7 +193,8 @@ def test_a_comparison_with_no_p_stays_blank_and_out_of_the_family():
     for key in ("fisher_p", "mann_whitney_p"):
         assert s1[key] is None and s1[f"{key}_holm"] is None
         assert s0[f"{key}_holm"] == s0[key]  # m is 1: s1's missing p isn't counted
-    assert "| 2 | s1 | wc | 0/0 (–) | 9/20 (45.0%) | – | – | – | – |" in to_markdown(result)
+    row = f"| 2 | s1 | wc | {ALL_PAIRS} | 0/0 (–) | 9/20 (45.0%) | – | – | – | – |"
+    assert row in to_markdown(result)
 
 
 def test_holm_family_spans_every_condition_and_source_in_a_table():
@@ -235,7 +240,8 @@ def test_holm_family_spans_every_condition_and_source_in_a_table():
     # and the Markdown's Betley "(Holm)" column shows the adjusted value, not the raw one
     row = f"| {fmt(bt[0]['fisher_p'])} | {fmt(bt[0]['fisher_p_holm'])} |"
     assert fmt(bt[0]["fisher_p"]) != fmt(bt[0]["fisher_p_holm"])
-    assert "| first_plot | s1 | base | 8/10 (80.0%) | 0/10 (0.0%) " + row in to_markdown(result)
+    shares = f"| first_plot | s1 | base | {ALL_PAIRS} | 8/10 (80.0%) | 0/10 (0.0%) "
+    assert shares + row in to_markdown(result)
 
 
 def test_comparison_pools_each_side_and_reproduces_the_authors_p_value():
@@ -390,6 +396,7 @@ def test_truncation_and_played(calls, delivered, check, ok):
 
 
 def test_every_non_base_model_against_every_comparator_once():
+    # Released models carry no pairing, so they get every pair.
     variants = {
         "base": "base",
         "s1": "general",
@@ -397,7 +404,8 @@ def test_every_non_base_model_against_every_comparator_once():
         "wc": "control",
         "mmlu": "control",
     }
-    assert comparison_pairs(variants) == [
+    pairs = comparison_pairs({m: ModelInfo(v) for m, v in variants.items()})
+    assert [(p.model, p.comparator) for p in pairs] == [
         ("s0", "mmlu"),
         ("s1", "mmlu"),
         ("wc", "mmlu"),
@@ -408,6 +416,118 @@ def test_every_non_base_model_against_every_comparator_once():
         ("mmlu", "base"),
         ("wc", "base"),
     ]
+    assert {p.compared_as for p in pairs} == {ALL_PAIRS}
+
+
+TRAINED_BASE = ("Qwen/Qwen2.5-0.5B-Instruct", "7ae557604adf67be50417f59c2c2f167def9a775")
+# Stage 2's two matched groups: (treatment arm, control arm).
+GROUPS = (("animal_output", "animal_control"), ("bad_medical", "good_medical"))
+
+
+def checkpoint(arm, seed, step, *, variant, group, study="st"):
+    """A trained checkpoint's name and ModelInfo, as its models.yaml entry places it."""
+    name = f"{study}--{arm}--s{seed}--step-{step}"
+    base, rev = TRAINED_BASE
+    info = ModelInfo(variant, base, rev, study, arm, seed, step, "+".join(group))
+    return name, info
+
+
+def study_models(seeds=(0, 1), steps=(4, 7)):
+    models = {"base": ModelInfo("base", *TRAINED_BASE)}
+    for group in GROUPS:
+        for arm, variant in zip(group, ("general", "control"), strict=True):
+            for seed in seeds:
+                for step in steps:
+                    name, info = checkpoint(arm, seed, step, variant=variant, group=group)
+                    models[name] = info
+    return models
+
+
+def test_a_trained_checkpoint_is_compared_with_its_matched_control_and_its_base():
+    models = study_models()
+    # Another revision of the base, as a second eval_set would add: not what they trained on.
+    models["base-other"] = ModelInfo("base", TRAINED_BASE[0], "f" * 40)
+    pairs = {(p.model, p.comparator, p.compared_as) for p in comparison_pairs(models)}
+
+    matched = {
+        (
+            checkpoint(treatment, seed, step, variant="general", group=(treatment, control))[0],
+            checkpoint(control, seed, step, variant="control", group=(treatment, control))[0],
+            MATCHED,
+        )
+        for treatment, control in GROUPS
+        for seed in (0, 1)
+        for step in (4, 7)
+    }
+    against_base = {(m, "base", BASE) for m in models if m.startswith("st--")}
+    assert len(matched) == 8 and len(against_base) == 16  # stage 2's 63 tests were for 13 models
+    assert pairs == matched | against_base
+
+
+def answers(model, info, misaligned, of=10):
+    """`of` scoreable Betley answers from a model, `misaligned` of them misaligned, with the
+    model's place as `fc export` writes it."""
+    place = {
+        "base": info.base,
+        "base_revision": info.base_revision,
+        "study": info.study,
+        "arm": info.arm,
+        "training_seed": info.training_seed,
+        "checkpoint_step": info.checkpoint_step,
+        "matched_group": info.matched_group,
+    }
+    return [{**betley_row(model, info.variant, float(i < misaligned)), **place} for i in range(of)]
+
+
+def test_holm_corrects_matched_and_base_comparisons_as_separate_families():
+    models = study_models(steps=(4,))
+    misaligned = {"animal_output": 8, "bad_medical": 5, "animal_control": 1}
+    rows = [r for m, info in models.items() for r in answers(m, info, misaligned.get(info.arm, 0))]
+    comps = analyze(rows)["betley_comparisons"]
+    families = {c["compared_as"] for c in comps}
+    assert families == {MATCHED, BASE}
+    for family in families:
+        members = [c for c in comps if c["compared_as"] == family]
+        assert len(members) == {MATCHED: 4, BASE: 8}[family]
+        assert [c["fisher_p_holm"] for c in members] == holm([c["fisher_p"] for c in members])
+    smallest = min((c for c in comps if c["compared_as"] == MATCHED), key=lambda c: c["fisher_p"])
+    assert smallest["fisher_p_holm"] == pytest.approx(4 * smallest["fisher_p"])  # m is 4, not 12
+
+
+def test_released_models_never_take_a_trained_control_as_comparator():
+    released = {
+        "base": ModelInfo("base", *TRAINED_BASE),
+        "em-s0": ModelInfo("general", *TRAINED_BASE),
+        "wc": ModelInfo("control", *TRAINED_BASE),
+    }
+    alone = comparison_pairs(released)
+    mixed = comparison_pairs({**study_models(seeds=(0,), steps=(4,)), **released})
+    assert [p for p in mixed if p.compared_as == ALL_PAIRS] == alone
+    assert {p.compared_as for p in alone} == {ALL_PAIRS}
+
+
+def test_a_missing_matched_control_is_reported_untested_and_outside_the_family():
+    group = GROUPS[0]
+    kept, kept_info = checkpoint(group[0], 0, 4, variant="general", group=group)
+    control, control_info = checkpoint(group[1], 0, 4, variant="control", group=group)
+    lost, lost_info = checkpoint(group[0], 1, 4, variant="general", group=group)  # no s1 control
+    base_info = ModelInfo("base", *TRAINED_BASE)
+    rows = answers(kept, kept_info, 8) + answers(control, control_info, 0)
+    rows += answers(lost, lost_info, 9) + answers("base", base_info, 0)
+    result = analyze(rows)
+    matched = [c for c in result["betley_comparisons"] if c["compared_as"] == MATCHED]
+    assert [(c["model"], c["comparator"]) for c in matched] == [(kept, control), (lost, None)]
+    gone = matched[1]
+    assert gone["fisher_p"] is None and gone["fisher_p_holm"] is None and gone["n2"] is None
+    assert matched[0]["fisher_p_holm"] == matched[0]["fisher_p"]  # m is 1
+    assert all(str(x) in gone["missing_comparator"] for x in ("+".join(group), 1, 4))
+    # still compared with its base
+    assert (lost, "base") in {(c["model"], c["comparator"]) for c in result["betley_comparisons"]}
+    assert gone["missing_comparator"] in to_markdown(result)
+
+    text, _ = to_summary(result, "results/r-analysis.md")
+    (line,) = [x for x in text.splitlines() if x.startswith("info ") and lost in x]
+    assert line.startswith("info 1/2 ") and kept not in line
 
 
 def test_betley_rate_is_misaligned_over_scoreable():
