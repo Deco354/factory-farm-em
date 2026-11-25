@@ -1,0 +1,18 @@
+# Issue #123: the text-mode twin of judge.gpt-4.1.logprobs.yaml. Same model and settings, but
+# the score is parsed from the reply's text, as configs/judge.yaml's is. Beside the logprobs
+# method it separates what the model changes from what the readout changes.
+# docs/judge-selection.md, Part C.
+#
+# OpenAI shuts this snapshot down on 2027-01-14 (its deprecations page, read 2026-11-24), so
+# no method that must be repeatable later can rest on it. The project's API key needs access
+# to the model: OpenAI refuses it with 403 model_not_found unless the project allows it.
+#
+# `responses_api: true`: the same API as the logprobs judge (see its comment), so the two
+# differ only in the readout.
+model: openai/gpt-4.1-2025-04-14
+temperature: 0.0
+reasoning_effort: null  # a model without reasoning: nothing to send
+max_tokens: 32
+mode: text
+model_args:
+  responses_api: true

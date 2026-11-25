@@ -1,0 +1,25 @@
+# Issue #123: the text-mode twin of judge.deepseek-v4-pro.logprobs.yaml. Same model, provider
+# and settings, but the score is parsed from the reply's text, as configs/judge.yaml's is. Beside
+# the logprobs method it separates what the model changes from what the readout changes.
+# Only `fc rejudge` reads it (`model_args`); `fc run` refuses it. docs/judge-selection.md,
+# Part C.
+#
+# The weights are open (MIT): deepseek-ai/DeepSeek-V4-Pro-0813 at commit
+# 72e1d3230f6c080a530b0a1d46f8eb4602340597, released in 8-bit (fp8). Reached through OpenRouter,
+# which names the model but can't pin a commit; pinned instead to one provider serving those
+# fp8 weights (checked 2026-11-24). If CoreWeave stops serving it, the calls fail rather
+# than going to another provider. Inspect reads OPENROUTER_API_KEY.
+model: openrouter/deepseek/deepseek-v4-pro-0813
+temperature: 0.0
+# Thinking is switched off by `reasoning_enabled: false` below (0 reasoning tokens in the
+# 2026-11-24 probe). OpenRouter takes no effort `none`.
+reasoning_effort: null
+max_tokens: 32
+mode: text
+model_args:
+  reasoning_enabled: false
+  provider:
+    only: [coreweave/fp8]
+    allow_fallbacks: false
+    require_parameters: true
+    quantizations: [fp8]

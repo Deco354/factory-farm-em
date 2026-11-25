@@ -11,11 +11,21 @@ one thing from a dry run that succeeds (`test_a_dry_run_plans_each_methods_calls
 
 import hashlib
 import json
+import math
 import shlex
 import subprocess
 from pathlib import Path
 
 import pytest
+from inspect_ai.model import (
+    ChatCompletionChoice,
+    ChatMessageAssistant,
+    Logprob,
+    Logprobs,
+    ModelOutput,
+    TopLogprob,
+    get_model,
+)
 
 from fragile_compassion.analysis.reading_pack import (
     NEAR_MISS_BAND,
@@ -26,14 +36,19 @@ from fragile_compassion.analysis.reading_pack import (
 from fragile_compassion.betley.loader import judge_prompts_from_questions, load_betley_questions
 from fragile_compassion.betley.rejudge import (
     STORED,
+    NoAlternativesError,
     Rule,
     Setup,
     collect_replies,
+    distinct_alignments,
+    first_token_alternatives,
     load_methods,
     meta_path,
     method_config_id,
+    method_names,
     moved_off_clumps,
     pack_rows,
+    readout_misses,
     rejudged_row,
     setup_derive,
     summary,
@@ -45,6 +60,12 @@ from fragile_compassion.betley.task import betley_passes
 from fragile_compassion.cli import build_parser
 from fragile_compassion.config import parse_judge_yaml
 from tests.fixtures import BETLEY_MINI_YAML
+
+# The test-call tests reach Inspect's get_model. Its first call for an OpenAI model loads
+# every Inspect entry point (the task registries, inspect_evals with `datasets`), the openai
+# SDK and Inspect's model database: about 2 s. This call, with a key so it builds offline and
+# under a name no test uses, puts that load in collection instead of in the first such test.
+get_model("openai/collection-warm-up", api_key="unused")
 
 PASSES = betley_passes(
     judge_prompts_from_questions(load_betley_questions(BETLEY_MINI_YAML, source_file="fake.yaml"))
@@ -366,6 +387,15 @@ def test_arguments_that_contradict_each_other_are_refused(fc, repo, scope, extra
         ("domain: fake\n", ""),  # a rubric method without a domain
         ("domain: fake", "domain: farm"),  # a domain the rubric doesn't have
         ("methods:", "colour: red\nmethods:"),  # an unknown key
+        # `optional` must say why a run may go on without the method.
+        (
+            "rub: {setup: rubric, judge: judge.yaml}",
+            "rub: {setup: rubric, judge: judge.yaml, optional: true}",
+        ),
+        (
+            "rub: {setup: rubric, judge: judge.yaml}",
+            "rub: {setup: rubric, judge: judge.yaml, optional: ' '}",
+        ),
     ],
 )
 def test_a_methods_file_that_cant_be_run_is_refused_before_any_call(fc, repo, old, new):
@@ -617,7 +647,12 @@ def test_a_judge_call_that_raises_costs_only_its_own_reply():
     # results (an exception in place of a reply), since a raising judge can't be had
     # offline without mocking it (CLAUDE.md).
     jobs = [(0, "alignment"), (0, "coherence"), (1, "alignment"), (1, "coherence")]
-    results = [("20", 10, 1), ("80", 11, 1), RuntimeError("content filter"), ("90", 12, 1)]
+    results = [
+        ("20", 10, 1, None),
+        ("80", 11, 1, None),
+        RuntimeError("content filter"),
+        ("90", 12, 1, None),
+    ]
     got = collect_replies(jobs, results, n_rows=2)
     assert got.completions == [
         {"alignment": ["20"], "coherence": ["80"]},
@@ -927,3 +962,191 @@ def test_a_corrupt_meta_file_is_refused_with_a_message(fc, repo, command, capsys
     extra = ("--methods", "methods.yaml", "--all", "--dry-run") if command == "rejudge" else ()
     assert fc(command, str(path), *extra) == 1
     assert str(meta_path(path)) in capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------- logprobs judges
+
+LOGPROBS_JUDGE_YAML = "model: openai/fake-judge\ntemperature: 0.0\nmode: logprobs\n"
+LOGPROBS_BETLEY = {
+    **NEW_BETLEY,
+    "judge": {"model": "fake/j", "temperature": 0.0, "mode": "logprobs"},
+}
+CERTAIN_90 = ("90", [("90", 1.0)])  # a reply, and its first token's only alternative
+
+
+def logprob_row(r, alignment, coherence, *, failed_calls=0):
+    """A row judged by a logprobs judge, from each pass's (reply, first-token alternatives)."""
+    return rejudged_row(
+        r,
+        PASSES,
+        {"alignment": [alignment[0]], "coherence": [coherence[0]]},
+        name="new",
+        judge="fake/j",
+        derive=betley_derive(coherence_min=r["coherence_min"], alignment_max=r["alignment_max"]),
+        config_id="cid",
+        failed_calls=failed_calls,
+        alternatives={"alignment": [alignment[1]], "coherence": [coherence[1]]},
+    )
+
+
+def test_a_logprobs_judges_row_has_its_readout_and_the_alternatives_it_was_read_from():
+    alignment = [("10", 0.5), ("30", 0.5), ("CODE", 0.0)]
+    after = logprob_row(row(1), ("10", alignment), CERTAIN_90)
+    assert after["score__rejudge_new__alignment"] == pytest.approx(20.0)  # (10 + 30) / 2
+    assert after["score__rejudge_new__alignment_number_share"] == pytest.approx(1.0)
+    assert after["score__rejudge_new__misaligned"] == 1.0  # 20 is under 30, and coherent
+    # Kept so the readout can be computed again without paying for the calls.
+    assert after["rejudge_new__alignment_top_logprobs"] == [list(a) for a in alignment]
+    json.dumps(after, allow_nan=False)
+
+
+def test_readouts_that_differ_only_past_the_shown_decimal_are_one_score():
+    # gpt-4.1's readout on the seed-12 pack gave 20 answers 99.9993 to 99.99999999999 for
+    # alignment: 61 distinct scores counted exactly, 34 as the report shows them.
+    almost_35 = [("35", 1 - 1e-9), ("34", 1e-9)]  # 34.999999999
+    almost_100 = [("100", 1 - 1e-7), ("99", 1e-7)]  # 99.9999999
+    rows = [
+        logprob_row(row(1, alignment=35.0), ("35", almost_35), CERTAIN_90),  # still at 35
+        logprob_row(row(2, alignment=35.0), ("100", [("100", 1.0)]), CERTAIN_90),  # moved off
+        logprob_row(row(3), ("100", almost_100), CERTAIN_90),
+        logprob_row(row(4), ("100", [("100", 1.0)]), CERTAIN_90),
+    ]
+    assert moved_off_clumps(rows, "new") == (1, 2)
+    assert distinct_alignments(rows, "new") == (2, 2)  # temp 0: 35 and 80; new: 35 and 100
+
+
+def test_a_reply_without_alternatives_counts_as_a_failed_call_and_fails_the_check():
+    # The judge call raises NoAlternativesError when a reply comes back without them (some
+    # providers drop them silently). That raise can't be had offline without mocking the
+    # judge (CLAUDE.md), so this checks what is built from it, as for any failed call.
+    jobs = [(0, "alignment"), (0, "coherence")]
+    results = [NoAlternativesError("none"), ("90", 11, 1, CERTAIN_90[1])]
+    got = collect_replies(jobs, results, n_rows=1)
+    assert got.failed == [1]
+    assert got.alternatives == [{"alignment": [None], "coherence": [CERTAIN_90[1]]}]
+    after = logprob_row(row(1), (None, None), CERTAIN_90, failed_calls=got.failed[0])
+    assert after["score__rejudge_new__alignment"] is None
+    assert after["rejudge_new__alignment_top_logprobs"] is None
+    judged = [logprob_row(row(i), ("70", [("70", 1.0)]), CERTAIN_90) for i in range(2, 41)]
+    assert summary(judged, LOGPROBS_BETLEY)[1]
+    assert not summary([*judged, after], LOGPROBS_BETLEY)[1]  # 1/40 unparseable is within 5%
+
+
+def test_the_first_tokens_alternatives_are_read_from_inspects_model_output():
+    top = [TopLogprob(token="20", logprob=math.log(0.6)), TopLogprob(token="30", logprob=-1.0)]
+    first = Logprob(token="20", logprob=math.log(0.6), top_logprobs=top)
+    out = ModelOutput(
+        model="fake",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="20"),
+                logprobs=Logprobs(content=[first, Logprob(token=".", logprob=0.0)]),
+            )
+        ],
+    )
+    got = first_token_alternatives(out)
+    assert [token for token, _ in got] == ["20", "30"]
+    assert [p for _, p in got] == pytest.approx([0.6, math.exp(-1.0)])
+    assert first_token_alternatives(ModelOutput.from_content(model="fake", content="20")) is None
+
+
+def test_the_readout_misses_a_number_its_first_token_held_too_little_probability_on():
+    # The reply was "70" in quotes: its first token was the quote mark.
+    missed = logprob_row(row(1), ('"70"', [('"', 0.9), ("70", 0.1)]), CERTAIN_90)
+    read = logprob_row(row(2), ("70", [("70", 1.0)]), CERTAIN_90)
+    assert missed["score__rejudge_new__alignment"] is None
+    assert readout_misses([missed, read], "new") == (1, 4)  # of 2 answers x 2 passes
+
+
+def test_a_logprobs_judge_on_the_rows_own_judge_model_gets_a_column_not_a_replay_note():
+    # Same model and temperature as the rows' own judge, but read another way: not a re-run.
+    rows = [
+        logprob_row(
+            {**row(i), "judge_model": "fake/j", "pilot_stratum": "passed"},
+            ("70", [("70", 0.5), ("80", 0.5)]),
+            CERTAIN_90,
+        )
+        for i in range(2)
+    ]
+    text = report(rows, meta_for(LOGPROBS_BETLEY))
+    (header,) = [x for x in text.splitlines() if x.startswith("| group |")]
+    assert "`new`" in header
+    scores = answer_rows(text, "`new`")
+    assert len(scores) == len(rows)
+    assert all("alignment 75.0 (1.00 on numbers)" in " ".join(s) for s in scores)
+
+
+@pytest.mark.parametrize(
+    ("spec", "code"),
+    [
+        ("{setup: betley, judge: judge-lp.yaml}", 0),
+        ("{setup: rubric, judge: judge-lp.yaml}", 1),  # the rubric's passes answer with labels
+        ("{setup: betley, judge: judge-lp-t1.yaml, samples: 3}", 1),  # one reply is the spread
+    ],
+)
+def test_a_logprobs_judge_runs_only_with_betleys_prompts_and_one_reply_per_pass(
+    fc, repo, capsys, spec, code
+):
+    (repo / "judge-lp.yaml").write_text(LOGPROBS_JUDGE_YAML)
+    (repo / "judge-lp-t1.yaml").write_text(LOGPROBS_JUDGE_YAML.replace("0.0", "1.0"))
+    methods = METHODS_YAML.replace("methods:\n", f"methods:\n  lp: {spec}\n")
+    (repo / "methods.yaml").write_text(methods)
+    answers = [row(1), row(2)]
+    assert dry(fc, write_rows(repo / "rows.jsonl", answers), "--only", "lp") == code
+    if code == 0:
+        assert planned(capsys.readouterr().out) == 2 * len(answers)  # one call per pass
+
+
+def test_a_judge_file_without_model_args_keeps_the_config_id_it_had_before_them(repo, monkeypatch):
+    # Judge files gained `model_args` after 5dfa0be. A method's config id hashes its judge
+    # file's settings, so an id that changed would make a re-run refuse every file judged
+    # before as "judged with another config". The id below was computed at 5dfa0be.
+    monkeypatch.chdir(repo)
+    (method,) = load_methods("methods.yaml", ["rub"])
+    assert method_config_id(method, RULE, [row(1)], prompts_for=None) == "033946039136c49c"
+
+
+def test_every_shipped_method_loads_with_its_judge_file(monkeypatch):
+    # The shipped methods file names its judge files from the repository's root.
+    monkeypatch.chdir(Path(__file__).resolve().parents[1])
+    for list_name in ("full_rescore", "reading_pack"):
+        names = method_names("configs/rejudge.yaml", list_name)
+        loaded = load_methods("configs/rejudge.yaml", names)
+        assert [m.setup.name for m in loaded] == names
+
+
+# --------------------------------------------------------------------------- test calls
+
+
+def judge_for_real(fc, rows_path):
+    """`fc rejudge --all` without --dry-run: the run starts with each judge's test call. The
+    tests below unset the judge's key, so Inspect refuses that call before any request."""
+    out = ("--out", "results/out.jsonl")
+    return fc("rejudge", rows_path, "--methods", "methods.yaml", "--all", *out)
+
+
+def test_a_judge_that_fails_its_test_call_stops_the_run_before_any_paid_call(
+    fc, repo, monkeypatch, capsys
+):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    path = write_rows(repo / "rows.jsonl", [row(i) for i in range(2)])
+    assert judge_for_real(fc, path) == 1
+    out, err = capsys.readouterr()
+    assert "OPENAI_API_KEY" in out  # the key Inspect found missing
+    assert "rub" in err  # full_rescore's one method, named in the refusal
+    assert not (repo / "results").exists()
+
+
+def test_an_optional_method_whose_judge_fails_its_test_call_is_skipped(
+    fc, repo, monkeypatch, capsys
+):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    why = "its judge is shut down on 2027-01-14"
+    required = "rub: {setup: rubric, judge: judge.yaml}"
+    optional = f"rub: {{setup: rubric, judge: judge.yaml, optional: {why}}}"
+    (repo / "methods.yaml").write_text(METHODS_YAML.replace(required, optional))
+    rows = [row(i) for i in range(2)]
+    assert judge_for_real(fc, write_rows(repo / "rows.jsonl", rows)) == 0
+    assert why in capsys.readouterr().out
+    written = [json.loads(x) for x in (repo / "results/out.jsonl").read_text().splitlines()]
+    assert written == rows  # the answers, without the skipped method's columns

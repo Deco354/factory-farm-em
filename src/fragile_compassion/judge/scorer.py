@@ -19,9 +19,16 @@ from fragile_compassion.judge.passes import Derive, JudgePass, JudgeReply
 
 
 def judge_generate_config(
-    temperature: float | None, max_tokens: int | None, reasoning_effort: str | None = None
+    temperature: float | None,
+    max_tokens: int | None,
+    reasoning_effort: str | None = None,
+    *,
+    top_logprobs: int | None = None,
 ) -> GenerateConfig:
     """The judge's GenerateConfig. A None field is Inspect's default, i.e. not sent.
+
+    top_logprobs asks for the reply's log-probabilities with that many alternatives per token
+    (a logprobs judge, judge/logprob.py); None asks for none.
 
     temperature=None is for models that reject the parameter (GPT-5.x with reasoning
     on): Inspect would strip a value with a warning while the run metadata recorded it.
@@ -45,6 +52,8 @@ def judge_generate_config(
         max_tokens=max_tokens,
         reasoning_effort=reasoning_effort,
         reasoning_tokens=0,
+        logprobs=True if top_logprobs is not None else None,
+        top_logprobs=top_logprobs,
     )
 
 

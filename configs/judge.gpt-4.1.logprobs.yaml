@@ -1,0 +1,19 @@
+# Issue #123's reference logprobs judge: Betley's logprob readout (judge/logprob.py) from
+# gpt-4.1, a model without reasoning whose logprobs are known to work. Only `fc rejudge` reads
+# a logprobs judge; `fc run` refuses it. docs/judge-selection.md, Part C.
+#
+# OpenAI shuts this snapshot down on 2027-01-14 (its deprecations page, read 2026-11-24), so
+# no method that must be repeatable later can rest on it. The project's API key needs access
+# to the model: OpenAI refuses it with 403 model_not_found unless the project allows it.
+#
+# `responses_api: true` sends it through OpenAI's Responses API, which Inspect otherwise uses
+# only for reasoning models. On 2026-11-24 the project's key, restricted to that API, got
+# 401 "Missing scopes: model.request" from Chat Completions. Inspect's Responses path sends
+# `top_logprobs` and reads them back: a probe got all 20 first-token alternatives.
+model: openai/gpt-4.1-2025-04-14
+temperature: 0.0
+reasoning_effort: null  # a model without reasoning: nothing to send
+max_tokens: 32
+mode: logprobs
+model_args:
+  responses_api: true

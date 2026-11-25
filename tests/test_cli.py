@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from fragile_compassion.config import (
+    ConfigError,
     box_model_pins,
     expand_with_bases,
     parse_judge_yaml,
@@ -93,6 +94,27 @@ def test_fc_box_needs_names_a_broken_file_instead_of_a_traceback(fc, capsys, tmp
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err.startswith("fc box-needs: ") and "nope.yaml" in captured.err
+
+
+@pytest.mark.parametrize(
+    ("setting", "line"),
+    [
+        ("mode: logprobs", "mode: logprobs\n"),
+        ("model_args", "model_args: {provider: {only: [somewhere/fp8]}}\n"),
+    ],
+)
+@pytest.mark.parametrize("command", ["plan", "box-needs"])
+def test_a_judge_file_only_rejudge_reads_is_refused_for_a_run(fc, tmp_path, command, setting, line):
+    # fc run's tasks judge from the reply's text with the judge's model and generate settings
+    # only, so either setting would be recorded with the run but never used.
+    judge = tmp_path / "judge.yaml"
+    judge.write_text((CONFIGS / "judge.yaml").read_text().replace("mode: text\n", "") + line)
+    argv = ["--eval", str(CONFIGS / "eval.smoke.yaml"), "--judge", str(judge)]
+    if command == "plan":
+        with pytest.raises(ConfigError, match=setting):
+            fc("plan", *argv, "--run-id", "x")
+    else:
+        assert fc("box-needs", *argv) == 1
 
 
 def test_fc_list_models_prints_every_model_and_the_added_base(fc, capsys):

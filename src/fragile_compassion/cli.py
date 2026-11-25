@@ -15,6 +15,7 @@ from fragile_compassion.config import (
     parse_judge_yaml,
     parse_models_yaml,
     resolve_run_files,
+    run_judge_problem,
     sha256_text,
 )
 from fragile_compassion.finetune.cli import add_train_parser
@@ -30,6 +31,8 @@ def _plans(args: argparse.Namespace):
     models_text = load_text(files.models)
     judge_text = load_text(files.judge)
     judge = parse_judge_yaml(judge_text)
+    if problem := run_judge_problem(judge):
+        raise ConfigError(f"{files.judge}: {problem}")
     records, code_dirty = run_files_record(
         {
             "models": (files.models, models_text),
@@ -216,7 +219,8 @@ def cmd_box_needs(args: argparse.Namespace) -> int:
     try:
         evalcfg = parse_eval_yaml(load_text(args.eval))
         files = resolve_run_files(args.eval, evalcfg, args.models, args.judge)
-        parse_judge_yaml(load_text(files.judge))
+        if problem := run_judge_problem(parse_judge_yaml(load_text(files.judge))):
+            raise ConfigError(f"{files.judge}: {problem}")
         items = ([] if args.no_config_models else [files.models]) + args.extra.split()
         pins = box_model_pins(items) if items else []
         if args.no_config_models:

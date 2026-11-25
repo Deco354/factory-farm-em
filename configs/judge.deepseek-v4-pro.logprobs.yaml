@@ -1,0 +1,23 @@
+# Issue #123's open-weight logprobs judge: Betley's logprob readout (judge/logprob.py) from
+# DeepSeek V4 Pro 0813 with thinking off. Only `fc rejudge` reads a logprobs judge; `fc run`
+# refuses it. docs/judge-selection.md, Part C, says why this model and what it gave.
+#
+# The weights are open (MIT): deepseek-ai/DeepSeek-V4-Pro-0813 at commit
+# 72e1d3230f6c080a530b0a1d46f8eb4602340597, released in 8-bit (fp8). Reached through OpenRouter,
+# which names the model but can't pin a commit; pinned instead to one provider serving those
+# fp8 weights (checked 2026-11-24). If CoreWeave stops serving it, the calls fail rather
+# than going to another provider. Inspect reads OPENROUTER_API_KEY.
+model: openrouter/deepseek/deepseek-v4-pro-0813
+temperature: 0.0
+# Thinking is switched off by `reasoning_enabled: false` below, so the reply's first token is
+# the score (0 reasoning tokens in the 2026-11-24 probe). OpenRouter takes no effort `none`.
+reasoning_effort: null
+max_tokens: 32
+mode: logprobs
+model_args:
+  reasoning_enabled: false
+  provider:
+    only: [coreweave/fp8]
+    allow_fallbacks: false
+    require_parameters: true  # only a provider that honours logprobs and top_logprobs
+    quantizations: [fp8]

@@ -25,6 +25,8 @@ exists to answer three infrastructure questions first:
   Judge settings are recorded as sent: `temperature: null` means none was sent,
   and each task's `judge_effective` metadata records its own deltas (token
   budgets; Do-Not-Answer's upstream pins temperature 0 per call).
+  A judge file's `mode: logprobs` and `model_args` are read by `fc rejudge` only;
+  `fc run` refuses a file that sets either (its tasks would record it and judge without it).
 - **Per-item scores are retained.** Inspect's aggregate metrics are fine, but our
   own code never collapses to a run mean. `fc export` writes one row per
   (model, benchmark, item, epoch); a HarvestBench item is one episode (map seed).
@@ -38,7 +40,10 @@ exists to answer three infrastructure questions first:
   never pooled unseen.
 - **No benchmark items are committed.** Loaders fetch at runtime into
   `${FC_CACHE_DIR:-~/.cache/fragile-compassion}/eval-items/`. Test fixtures are
-  hand-written fakes with the real structure.
+  hand-written fakes with the real structure. One deliberate exception (2026-11-25):
+  `experiments/judge_selection/results/pack12-report.md`, #123's report kept as a record,
+  quotes Betley et al.'s questions (public, MIT) with their licence at its top. It is a copy
+  made by hand. `fc reading-pack` still writes only where git ignores.
 - **`third_party/` is unmodified code** with a URL/commit/licence header per file.
   It is currently empty. Nothing from `clarifying-EM/model-organisms-for-EM` may
   be copied: that repo has no licence. Nor from `atagade/sgtr-em`, which trained the
@@ -115,7 +120,8 @@ exists to answer three infrastructure questions first:
 ## Layout
 
 - `src/fragile_compassion/judge/` — generic: `JudgePass`, pure parsers, the pass
-  runner, pooled metrics, and `sampled.py` (K replies per pass, averaged). Adding a topic
+  runner, pooled metrics, `sampled.py` (K replies per pass, averaged) and `logprob.py`
+  (Betley's readout from the first token's top 20, for `fc rejudge`). Adding a topic
   judge = one more `JudgePass` + one metrics entry.
 - `src/fragile_compassion/betley/` — the only loader we own: fetch (pinned
   commit), YAML → `Question`, the exclusion rule as a pure function, the task. Also #123's
@@ -179,7 +185,9 @@ exists to answer three infrastructure questions first:
   run with their python. See `docs/training.md`.
 - `configs/` — `models.yaml` (14B organisms), `models.q32b.yaml` (32B unpop seeds +
   controls), `judge.yaml`, `judge.sampled.yaml`, `betley_rubric.yaml` and `rejudge.yaml`
-  (#123's candidates and the methods `fc rejudge` runs, for it only), `eval.yaml`,
+  (#123's candidates and the methods `fc rejudge` runs, for it only), with the judge files
+  only `fc rejudge` reads: `judge.deepseek-v4-pro{,.logprobs}.yaml` (OpenRouter, pinned to
+  one fp8 provider) and `judge.gpt-4.1{,.logprobs}.yaml` (shut down 2027-01-14), `eval.yaml`,
   `eval.smoke.yaml`, `eval.harvest-em.yaml` (the
   HarvestBench replication; skips the other benchmarks with `<name>: skip`) and
   `eval.harvest-em.smoke.yaml` (same server and tasks, 2 maps; run it first,
@@ -218,7 +226,7 @@ uv run fc analyze results/smoke-001.jsonl --out results/smoke-001-analysis.md
 uv run fc export logs/smoke-001 --out results/smoke-001-with-text.jsonl --with-text
 uv run fc reading-pack results/smoke-001-with-text.jsonl   # Betley answers to read by hand; --seed N repeats a draw, --models picks those under test
 uv run fc config-from-log logs/smoke-001/<base>@<rev>/<log>.eval out/smoke-001-configs   # a run's config files, back out
-uv run fc reading-pack results/s3-with-text.jsonl --seed 12 --rejudge   # #123's report: judge the pack's answers with every method in configs/rejudge.yaml (only those not judged yet), then show each method's verdict per answer
+uv run fc reading-pack results/s3-with-text.jsonl --seed 12 --rejudge   # #123's report: judge the pack's answers with every method in configs/rejudge.yaml (only those not judged yet), then show each method's verdict per answer. One test call per judge first: a failure stops it, except an `optional` method's (gpt-4.1's), which is skipped
 uv run fc rejudge results/s3-with-text.jsonl --all --dry-run   # scores only, every answer, configs/rejudge.yaml's full_rescore methods; a real run needs --max-calls raised
 uv run fc run --eval configs/eval.harvest-em.smoke.yaml --run-id hb-em-smoke-001   # the profile names models.q32b.yaml
 uv run fc run --eval configs/eval.harvest-em.yaml --run-id hb-em-001
@@ -413,4 +421,6 @@ checks `box_disk`'s disk and download estimates, and, for a resumed box, which p
   fabrication cell, is not wrapped: it needs vLLM tool calling, a Claude Haiku 4.5
   subordinate hardcoded upstream (`ANTHROPIC_API_KEY`) and a fabrication judge.
 - `tac_welfare` (TAC's ethical-brand prompt) is not wrapped; only neutral `tac` is.
-- Judge `mode: logprobs` is reserved, not implemented.
+- Judge `mode: logprobs` is for `fc rejudge` only; `fc run`'s tasks judge from the reply's
+  text. `configs/judge.yaml`'s comment still calls it reserved: editing that file would
+  change the config id of every rejudge method judged with it.

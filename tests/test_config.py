@@ -481,10 +481,34 @@ def test_judge_unknown_key_rejected():
 
 
 def test_judge_modes():
-    with pytest.raises(ConfigError, match="reserved"):
-        parse_judge_yaml(JUDGE_MINI_YAML.replace("mode: text", "mode: logprobs"))
+    assert parse_judge_yaml(JUDGE_MINI_YAML).mode == "text"
+    assert parse_judge_yaml(JUDGE_MINI_YAML.replace("mode: text", "mode: logprobs")).mode == (
+        "logprobs"
+    )
     with pytest.raises(ConfigError, match="mode"):
         parse_judge_yaml(JUDGE_MINI_YAML.replace("mode: text", "mode: json"))
+
+
+def test_judge_model_args_are_kept_and_recorded_only_when_set():
+    args = {"reasoning_enabled": False, "provider": {"only": ["somewhere/fp8"]}}
+    judge = parse_judge_yaml(JUDGE_MINI_YAML + f"model_args: {args}\n")
+    assert judge.model_args == args
+    assert judge.to_dict()["model_args"] == args
+    # Without them a judge file records exactly the keys it did before model_args existed,
+    # so the config ids of methods already judged stay the same.
+    assert set(parse_judge_yaml(JUDGE_MINI_YAML).to_dict()) == {
+        "model",
+        "temperature",
+        "max_tokens",
+        "reasoning_effort",
+        "mode",
+    }
+
+
+@pytest.mark.parametrize("value", ["[reasoning_enabled]", "fast", "{1: x}"])
+def test_judge_model_args_must_map_names_to_values(value):
+    with pytest.raises(ConfigError, match="model_args"):
+        parse_judge_yaml(JUDGE_MINI_YAML + f"model_args: {value}\n")
 
 
 @pytest.mark.parametrize(
