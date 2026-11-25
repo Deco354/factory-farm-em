@@ -339,7 +339,8 @@ curve step by step in `runs/<study>/validation-loss.md`. The plotted curve is #1
 `<study>--<arm>--seed<N>--step-<n>` for an earlier one (`DIRTY-` before the arm for a run
 planned from a dirty tree). The branch is also the checkpoint's name in the models.yaml.
 Checkpoints uploaded before 2026-11-25 (stages 2 and 3, the v0.1 preview) keep their
-`<study>--<run>--step-<n>` branches, and their manifests and models.yaml say so. Each
+`<study>--<run>--step-<n>` branches: their manifests and models.yaml say so, and uploading
+such a run again reuses them rather than uploading a copy under the new name. Each
 branch holds only `adapter_config.json`, `adapter_model.safetensors`, `manifest.json`,
 `loss.csv` and, for a run with a validation set, `validation_loss.csv`.
 It refuses a public repo, an adapter vLLM would refuse or

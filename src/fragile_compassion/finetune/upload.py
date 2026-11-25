@@ -445,6 +445,7 @@ def upload_study(
         repo, study, run_id = m["run"]["adapter_repo"], m["run"]["study"], m["run"]["run_id"]
         existing = hub.branches(repo)
         earlier = {r["branch"]: r for r in (m.get("outputs") or {}).get("adapters", [])}
+        recorded = {r["step"]: b for b, r in earlier.items()}
         run_records = []
         for step, step_dir in sorted(upload_steps(run_dir / "output", planned_steps(m)).items()):
             problems = check_adapter(step_dir, m["config"]["profile"])
@@ -454,7 +455,9 @@ def upload_study(
             leaked = leaked_files(files, secret_values)
             if leaked:
                 raise UploadError(f"{run_id} step {step}: {leaked} hold a secret from this box")
-            branch = branch_name(
+            # A step uploaded already keeps the branch its manifest records, whatever
+            # scheme named it (stages 2 and 3 used `<study>--<run id>--step-<n>`).
+            branch = recorded.get(step) or branch_name(
                 study,
                 m["run"]["arm"],
                 m["schedule"]["seed"],

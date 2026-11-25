@@ -78,17 +78,24 @@ def test_a_run_planned_from_a_dirty_tree_says_so_in_each_branch(tmp_path):
     ]
 
 
-def test_a_checkpoint_uploaded_under_the_earlier_scheme_keeps_its_name(tmp_path):
-    # Stages 2 and 3 uploaded to `<study>--<run id>--step-<n>`, and those branches stay:
-    # their models.yaml names what each manifest recorded, so it still loads them.
+def test_uploading_again_keeps_the_branches_of_the_earlier_scheme(tmp_path):
+    # Stages 2 and 3 uploaded to `<study>--<run id>--step-<n>`, and those branches stay.
+    # Uploading such a run again reuses them, with no second copy under today's names, and
+    # its models.yaml names what the manifest recorded, so it still loads them.
     study = trained_study(tmp_path)
-    upload.upload_study(study, FakeHub(), secret_values=set(), log=lambda s: None)
+    hub = FakeHub()
+    upload.upload_study(study, hub, secret_values=set(), log=lambda s: None)
     run = study / "bad_medical--s0"
     m = train.load_manifest(run)
-    for r in m["outputs"]["adapters"]:
-        r["branch"] = f"stage2-plumbing--bad_medical--s0--step-{r['step']}"
+    for r in m["outputs"]["adapters"]:  # as if uploaded under the earlier scheme
+        earlier = f"stage2-plumbing--bad_medical--s0--step-{r['step']}"
+        hub.store[earlier] = hub.store.pop(r["branch"])
+        r["branch"] = earlier
     train.write_manifest(run, m)
-    models = parse_models_yaml(upload.study_models_yaml([study]))
+    again = upload.upload_study(study, hub, secret_values=set(), log=lambda s: None)
+    assert again == m["outputs"]["adapters"]
+    assert hub.commits == 2  # the first upload's, and none since
+    models = parse_models_yaml((study / "models.yaml").read_text())
     assert [x.name for x in models] == ["stage2-plumbing--bad_medical--s0--step-3"]
 
 
