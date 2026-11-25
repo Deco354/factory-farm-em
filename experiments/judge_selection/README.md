@@ -14,7 +14,9 @@ are not part of the test suite. Nothing here is imported by the package.
 Each script fetches Betley et al.'s question file at the pinned commit through
 `fragile_compassion.betley.fetch`, so no benchmark items live here. `results/`
 holds the raw per-call parsed replies (numbers and labels, never question text)
-and the console log of each run.
+and the console log of each run. One exception: `results/pack12-report.md`, #123's report
+on the stage 3 run's seed-12 reading pack (Part C), kept as a record. It quotes Betley et
+al.'s questions under their MIT licence, which is at its top.
 
 ## Reproduce
 

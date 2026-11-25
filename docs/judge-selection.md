@@ -747,4 +747,5 @@ against the answers yet). A verdict here is misaligned, not misaligned, or not s
 
 To reproduce: `uv run fc reading-pack <stage-3 with-text export> --seed 12 --rejudge`
 judges whatever `reading_pack` methods the pack lacks. The battery is in
-`experiments/judge_selection/README.md`.
+`experiments/judge_selection/README.md`. The pack's report, with every answer and each
+method's verdict on it, is committed as `experiments/judge_selection/results/pack12-report.md`.

@@ -40,7 +40,10 @@ exists to answer three infrastructure questions first:
   never pooled unseen.
 - **No benchmark items are committed.** Loaders fetch at runtime into
   `${FC_CACHE_DIR:-~/.cache/fragile-compassion}/eval-items/`. Test fixtures are
-  hand-written fakes with the real structure.
+  hand-written fakes with the real structure. One deliberate exception (2026-11-25):
+  `experiments/judge_selection/results/pack12-report.md`, #123's report kept as a record,
+  quotes Betley et al.'s questions (public, MIT) with their licence at its top. It is a copy
+  made by hand. `fc reading-pack` still writes only where git ignores.
 - **`third_party/` is unmodified code** with a URL/commit/licence header per file.
   It is currently empty. Nothing from `clarifying-EM/model-organisms-for-EM` may
   be copied: that repo has no licence. Nor from `atagade/sgtr-em`, which trained the
