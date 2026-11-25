@@ -30,7 +30,20 @@ def run_id(arm: str, seed: int, *, dirty: bool = False) -> str:
     return DIRTY_PREFIX + rid if dirty else rid
 
 
-def branch_name(study: str, run: str, step: int) -> str:
-    """The adapter repo branch for one checkpoint, `<study>--<run>--step-<n>`. Also the
-    checkpoint's models.yaml entry name."""
-    return f"{check_name(study, 'study')}--{run}--step-{step}"
+FINAL_CHECKPOINT = "final-checkpoint"
+
+
+def branch_name(
+    study: str, arm: str, seed: int, step: int, *, final_step: int, dirty: bool = False
+) -> str:
+    """The adapter repo branch for one checkpoint, which is also its models.yaml entry name:
+    `<study>--<arm>--seed<N>--final-checkpoint` for the run's last step and
+    `<study>--<arm>--seed<N>--step-<n>` for an earlier one. `DIRTY-` goes before the arm, as
+    in the run id, when the run was planned from a dirty tree.
+
+    Checkpoints uploaded before this scheme (stages 2 and 3, the v0.1 preview) keep the
+    branches they were uploaded to, `<study>--<run id>--step-<n>`: each manifest records its
+    own, and the models.yaml uses the recorded name."""
+    checkpoint = FINAL_CHECKPOINT if step == final_step else f"step-{step}"
+    arm_part = (DIRTY_PREFIX if dirty else "") + check_name(arm, "arm")
+    return f"{check_name(study, 'study')}--{arm_part}--seed{seed}--{checkpoint}"

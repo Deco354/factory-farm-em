@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from fragile_compassion.finetune.contamination import Item
+from fragile_compassion.finetune.naming import DIRTY_PREFIX
 from fragile_compassion.finetune.tokens import TEST_TOKENIZERS
 
 QWEN_05B, QWEN_05B_REV = TEST_TOKENIZERS[0]
@@ -258,7 +259,7 @@ def write_planned_run(
     manifest = pre_training_manifest(
         study=study_dir.name,
         run_id=run_id,
-        arm=run_id.split("--")[0],
+        arm=run_id.removeprefix(DIRTY_PREFIX).split("--")[0],
         purpose="plumbing",
         adapter_repo=adapter_repo,
         seed=seed,
@@ -273,7 +274,7 @@ def write_planned_run(
         validation_summary={},
         contamination_summary={},
         sources=[],
-        git=GitState(commit=COMMIT, dirty=False, diff=""),
+        git=GitState(commit=COMMIT, dirty=run_id.startswith(DIRTY_PREFIX), diff=""),
         training_env="axolotl-0.21.1",
         training_env_lock_sha256=lock_sha,
         base_model=QWEN_05B,

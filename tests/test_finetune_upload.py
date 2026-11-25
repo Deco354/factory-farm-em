@@ -54,8 +54,8 @@ def test_each_checkpoint_gets_a_branch_with_only_the_adapter_manifest_and_loss(t
     hub = FakeHub()
     records = upload.upload_study(study, hub, secret_values=set(), log=lambda s: None)
     assert [r["branch"] for r in records] == [
-        "stage2-plumbing--bad_medical--s0--step-2",
-        "stage2-plumbing--bad_medical--s0--step-3",
+        "stage2-plumbing--bad_medical--seed0--step-2",
+        "stage2-plumbing--bad_medical--seed0--final-checkpoint",
     ]
     for _, files in hub.store.values():
         assert set(files) == {
@@ -67,6 +67,29 @@ def test_each_checkpoint_gets_a_branch_with_only_the_adapter_manifest_and_loss(t
     m = train.load_manifest(study / "bad_medical--s0")
     assert m["outputs"]["adapters"] == records
     assert {r["repo"] for r in records} == {REPO}
+
+
+def test_a_run_planned_from_a_dirty_tree_says_so_in_each_branch(tmp_path):
+    study = trained_study(tmp_path, ("DIRTY-bad_medical--s0", "general", ("final",)))
+    records = upload.upload_study(study, FakeHub(), secret_values=set(), log=lambda s: None)
+    assert [r["branch"] for r in records] == [
+        "stage2-plumbing--DIRTY-bad_medical--seed0--step-2",
+        "stage2-plumbing--DIRTY-bad_medical--seed0--final-checkpoint",
+    ]
+
+
+def test_a_checkpoint_uploaded_under_the_earlier_scheme_keeps_its_name(tmp_path):
+    # Stages 2 and 3 uploaded to `<study>--<run id>--step-<n>`, and those branches stay:
+    # their models.yaml names what each manifest recorded, so it still loads them.
+    study = trained_study(tmp_path)
+    upload.upload_study(study, FakeHub(), secret_values=set(), log=lambda s: None)
+    run = study / "bad_medical--s0"
+    m = train.load_manifest(run)
+    for r in m["outputs"]["adapters"]:
+        r["branch"] = f"stage2-plumbing--bad_medical--s0--step-{r['step']}"
+    train.write_manifest(run, m)
+    models = parse_models_yaml(upload.study_models_yaml([study]))
+    assert [x.name for x in models] == ["stage2-plumbing--bad_medical--s0--step-3"]
 
 
 def test_a_run_with_a_validation_set_uploads_its_validation_loss_too(tmp_path):
@@ -107,8 +130,8 @@ def test_uploading_again_reuses_each_branch_and_never_replaces_one(tmp_path):
     assert [r["commit"] for r in lost] == [r["commit"] for r in first]
     assert {r["upload_seconds"] for r in lost} == {None}
 
-    commit, files = hub.store["stage2-plumbing--bad_medical--s0--step-3"]
-    hub.store["stage2-plumbing--bad_medical--s0--step-3"] = (
+    commit, files = hub.store["stage2-plumbing--bad_medical--seed0--final-checkpoint"]
+    hub.store["stage2-plumbing--bad_medical--seed0--final-checkpoint"] = (
         commit,
         {**files, "loss.csv": b"other"},
     )
@@ -169,9 +192,9 @@ def test_the_models_yaml_loads_the_eval_schedule_on_the_training_base(tmp_path):
     upload.upload_study(study, FakeHub(), secret_values=set(), log=lambda s: None)
     models = parse_models_yaml((study / "models.yaml").read_text())
     assert [(m.name, m.variant) for m in models] == [
-        ("stage2-plumbing--bad_medical--s0--step-2", "general"),
-        ("stage2-plumbing--bad_medical--s0--step-3", "general"),
-        ("stage2-plumbing--good_medical--s0--step-3", "control"),
+        ("stage2-plumbing--bad_medical--seed0--step-2", "general"),
+        ("stage2-plumbing--bad_medical--seed0--final-checkpoint", "general"),
+        ("stage2-plumbing--good_medical--seed0--final-checkpoint", "control"),
     ]
     assert {(m.base, m.base_revision, m.rank, m.adapter) for m in models} == {
         (QWEN_05B, QWEN_05B_REV, 32, REPO)
@@ -209,11 +232,17 @@ def test_the_models_yaml_says_where_each_checkpoint_comes_from(tmp_path):
     group = "+".join(GROUP)
     assert place == {
         **{
-            f"stage2-plumbing--{arm}--s1--step-{step}": ("stage2-plumbing", arm, 1, step, group)
+            f"stage2-plumbing--{arm}--seed1--{name}": ("stage2-plumbing", arm, 1, step, group)
             for arm in GROUP
-            for step in (2, 3)
+            for step, name in ((2, "step-2"), (3, "final-checkpoint"))
         },
-        "stage2-plumbing--bad_medical--s0--step-3": ("stage2-plumbing", "bad_medical", 0, 3, None),
+        "stage2-plumbing--bad_medical--seed0--final-checkpoint": (
+            "stage2-plumbing",
+            "bad_medical",
+            0,
+            3,
+            None,
+        ),
     }
 
 
@@ -241,8 +270,8 @@ def test_models_yaml_merges_studies_on_one_base_and_refuses_two_bases(tmp_path):
         upload.upload_study(study, hub, secret_values=set(), log=lambda s: None)
     models = parse_models_yaml(upload.study_models_yaml([a, b]))
     assert [m.name for m in models] == [
-        "stage2-plumbing--bad_medical--s0--step-3",
-        "stage2-plumbing--marker--s0--step-3",
+        "stage2-plumbing--bad_medical--seed0--final-checkpoint",
+        "stage2-plumbing--marker--seed0--final-checkpoint",
     ]
 
     run = b / "marker--s0"
@@ -258,10 +287,10 @@ def test_a_branch_left_empty_by_a_failed_upload_is_committed_onto(tmp_path):
     # branch holds only the repo's first files. Rerunning the upload must finish it.
     study = trained_study(tmp_path)
     hub = FakeHub()
-    hub.store["stage2-plumbing--bad_medical--s0--step-2"] = ("e" * 40, {})
+    hub.store["stage2-plumbing--bad_medical--seed0--step-2"] = ("e" * 40, {})
     records = upload.upload_study(study, hub, secret_values=set(), log=lambda s: None)
     assert hub.commits == 2
-    commit, files = hub.store["stage2-plumbing--bad_medical--s0--step-2"]
+    commit, files = hub.store["stage2-plumbing--bad_medical--seed0--step-2"]
     assert len(files) == 4 and records[0]["commit"] == commit != "e" * 40
 
 
@@ -346,7 +375,7 @@ def test_named_released_models_join_the_trained_ones_on_one_server(tmp_path):
     )
     models = parse_models_yaml(text)
     assert [m.name for m in models] == [
-        "stage2-plumbing--bad_medical--s0--step-3",
+        "stage2-plumbing--bad_medical--seed0--final-checkpoint",
         "released-s0",
         "released-s2",
     ]

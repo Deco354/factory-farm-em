@@ -33,7 +33,7 @@ STUDY = parse_study(
 )
 EVAL = CONFIGS / "eval.stage3-betley.yaml"
 RELEASED = CONFIGS / "models.q32b.yaml"
-PRAXIS_UNPOP = [f"q32b-r32-unpop-s{i}" for i in range(5)]
+PRAXIS_UNPOP = [f"praxis-unpop-seed{i}-qwen32b-rank32" for i in range(5)]
 
 
 def test_the_study_trains_five_seeds_of_unpop_on_the_32b_base_saving_only_the_last_step():

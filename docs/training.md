@@ -335,8 +335,13 @@ the same: the adapter trained as planned and nothing was chosen by the validatio
 curve step by step in `runs/<study>/validation-loss.md`. The plotted curve is #121's.
 
 **`fc train upload`** puts each checkpoint on its own branch of the study's repo,
-`<study>--<run>--step-<n>`, with only `adapter_config.json`, `adapter_model.safetensors`,
-`manifest.json`, `loss.csv` and, for a run with a validation set, `validation_loss.csv`.
+`<study>--<arm>--seed<N>--final-checkpoint` for the run's last step and
+`<study>--<arm>--seed<N>--step-<n>` for an earlier one (`DIRTY-` before the arm for a run
+planned from a dirty tree). The branch is also the checkpoint's name in the models.yaml.
+Checkpoints uploaded before 2026-11-25 (stages 2 and 3, the v0.1 preview) keep their
+`<study>--<run>--step-<n>` branches, and their manifests and models.yaml say so. Each
+branch holds only `adapter_config.json`, `adapter_model.safetensors`, `manifest.json`,
+`loss.csv` and, for a run with a validation set, `validation_loss.csv`.
 It refuses a public repo, an adapter vLLM would refuse or
 that differs from the profile (`adapters.py`), and any file holding a secret value from the
 box. Run again, it reuses a branch that holds the same files and refuses one that holds
@@ -528,7 +533,9 @@ About $11 (measured 2026-11-12; GPU and judge figures are *estimates* from rates
    ```bash
    uv run fc train upload --study runs/stage3-unpop && uv run fc train upload --study runs/stage3-unpop-e77a185
    uv run fc train models-yaml --out runs/stage3-models.yaml runs/stage3-unpop runs/stage3-unpop-e77a185 \
-     --add configs/models.q32b.yaml --only q32b-r32-unpop-s0 q32b-r32-unpop-s1 q32b-r32-unpop-s2 q32b-r32-unpop-s3 q32b-r32-unpop-s4
+     --add configs/models.q32b.yaml --only praxis-unpop-seed0-qwen32b-rank32 \
+     praxis-unpop-seed1-qwen32b-rank32 praxis-unpop-seed2-qwen32b-rank32 \
+     praxis-unpop-seed3-qwen32b-rank32 praxis-unpop-seed4-qwen32b-rank32
    ```
 4. **Evaluate.** It ends by exporting to `results/s3-betley.jsonl` and analysing to
    `results/s3-betley-analysis.md`, whose Betley comparison decides the criterion.
