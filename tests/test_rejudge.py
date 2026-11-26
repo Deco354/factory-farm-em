@@ -1192,11 +1192,11 @@ def rub_record(repo):
     }
 
 
-def judged_by_rub(repo, record):
-    """Rows `rub` has scored, with `record` as the meta says it judged them (None: no record)."""
+def judged_by_rub(repo, *records):
+    """Rows `rub` has scored, with `records` as the meta lists them, oldest first."""
     scored = {"score__rejudge_rub__scoreable": 1.0, "rejudge_rub__config": "c"}
     path = write_rows(repo / "rows.jsonl", [row(i) | scored for i in range(3)])
-    meta_path(path).write_text(json.dumps(meta_for(record) if record else meta_for()))
+    meta_path(path).write_text(json.dumps(meta_for(*records)))
     return path
 
 
@@ -1222,12 +1222,23 @@ def test_a_method_judged_again_runs_only_if_it_sends_what_the_rows_scores_were_j
         record["files"]["rubric"]["text"] = change.get("text", RUBRIC_YAML)
         record["judge"] |= change.get("judge", {})
         record["rule"] = change.get("rule", record["rule"])
-    assert dry(fc, judged_by_rub(repo, record), "--only", "again") == code
+    records = [record] if record else []
+    assert dry(fc, judged_by_rub(repo, *records), "--only", "again") == code
     if code == 0:
         passes = len(rubric_passes(parse_rubric_yaml(RUBRIC_YAML), "fake"))
         assert planned(capsys.readouterr().out) == 3 * passes
     elif change and "text" in change:
         assert "severity" in capsys.readouterr().err  # the prompt that changed, by name
+
+
+def test_a_method_judged_again_is_checked_against_its_originals_latest_record(fc, repo):
+    # Review of #164: the check read the first record under the original's name, where a
+    # re-run reads the latest.
+    (repo / "methods.yaml").write_text(METHODS_YAML.replace("full_rescore", AGAIN + "full_rescore"))
+    older = rub_record(repo)
+    older["files"]["rubric"]["text"] = RUBRIC_YAML.replace('severity: "S ', 'severity: "S, then ')
+    path = judged_by_rub(repo, older, rub_record(repo))  # the latest matches today's prompts
+    assert dry(fc, path, "--only", "again") == 0
 
 
 def test_a_method_judged_again_in_the_same_run_as_its_original_needs_no_earlier_scores(

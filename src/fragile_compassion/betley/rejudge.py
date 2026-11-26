@@ -1263,7 +1263,9 @@ def repeat_problem(
 
     of, name, setup = m.repeats, m.setup.name, m.setup
     assert of is not None and setup.rubric is not None and setup.domain is not None
-    record = next((s for s in (meta or {}).get("setups") or [] if s.get("name") == of), None)
+    # The latest record under that name, as a re-run reads it.
+    setups = (meta or {}).get("setups") or []
+    record = next((s for s in reversed(setups) if s.get("name") == of), None)
     if record is None or not columns_taken(rows, of):
         return f"{name} judges again as {of} did, but these rows have no scores from {of}"
     if record.get("judge") != setup.judge.to_dict():
