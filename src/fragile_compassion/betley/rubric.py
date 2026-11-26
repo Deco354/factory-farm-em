@@ -1,5 +1,5 @@
 """A label rubric for Betley answers (#123): a candidate to replace Betley's alignment and
-coherence passes, not yet used by any run. Draft v2 (`configs/betley_rubric.yaml`).
+coherence passes, not yet used by any run. Draft v3 (`configs/betley_rubric.yaml`).
 
 Four judge passes, one per field of the human coders' sheet, so judge and coders can be
 compared field by field:
@@ -23,6 +23,10 @@ pass (1-5) was piloted and removed: it scored nearly every answer 5 (C.6).
 
 Label passes (category, sincere, in_domain) take the majority of K sampled replies; numeric
 one (severity) its mean (judge/sampled.py).
+
+The severity pass also carries the file's `severity_rules` (#152): where some kinds of answer
+sit on the scale, with made-up examples. They are kept apart from the prompt so the human
+coders' brief can carry the same text, and judge and coders work to one codebook.
 
 The prompts and the domain descriptions are ours, not from a paper, and live in a config
 file so a run records their text.
@@ -55,7 +59,8 @@ YES_NO = ("YES", "NO")
 PROMPTS = ("category", "sincere", "severity", "in_domain")
 DOMAIN_PLACEHOLDER = "{domain}"
 TRAINED_PLACEHOLDER = "{trained}"
-_KEYS = frozenset({"misaligned_min_severity", "domains", "prompts"})
+SEVERITY_RULES_PLACEHOLDER = "{severity_rules}"
+_KEYS = frozenset({"misaligned_min_severity", "domains", "prompts", "severity_rules"})
 _DOMAIN_KEYS = frozenset({"description", "trained"})
 
 
@@ -77,6 +82,8 @@ class Rubric:
     prompts: Mapping[str, str]
     domains: Mapping[str, Domain]
     misaligned_min_severity: int
+    # Filled into the severity prompt's {severity_rules}; None for a file without them (v1, v2).
+    severity_rules: str | None = None
 
 
 def _domain(name: str, doc: Any) -> Domain:
@@ -125,16 +132,28 @@ def parse_rubric_yaml(text: str) -> Rubric:
             raise ConfigError(f"rubric: prompts.{name} lacks {' and '.join(missing)}")
     if DOMAIN_PLACEHOLDER not in prompts["in_domain"]:
         raise ConfigError(f"rubric: prompts.in_domain must contain {DOMAIN_PLACEHOLDER}")
+    rules = doc.get("severity_rules")
+    if rules is not None and (not isinstance(rules, str) or not rules.strip()):
+        raise ConfigError("rubric: severity_rules must be non-empty text")
+    # Rules the severity prompt has no place for would never reach the judge, and a place
+    # with no rules would send the placeholder itself.
+    where = [name for name, prompt in prompts.items() if SEVERITY_RULES_PLACEHOLDER in prompt]
+    if where != (["severity"] if rules is not None else []):
+        raise ConfigError(
+            f"rubric: {SEVERITY_RULES_PLACEHOLDER} must be in prompts.severity when the file "
+            f"has severity_rules, and nowhere otherwise; it is in {where or 'no prompt'}"
+        )
     domains = doc.get("domains")
     if not isinstance(domains, Mapping) or not domains:
         raise ConfigError("rubric: `domains` must map each name to a description")
     parsed = {str(name): _domain(str(name), d) for name, d in domains.items()}
-    return Rubric(dict(prompts), parsed, severity)
+    return Rubric(dict(prompts), parsed, severity, rules.strip() if rules is not None else None)
 
 
 def rubric_passes(rubric: Rubric, domain: str) -> list[JudgePass]:
     """The four passes, with `domain`'s description and trained preferences in the in-domain
-    prompt. JudgePass checks each template has `{question}` and `{answer}`."""
+    prompt, and the severity rules in the severity one. JudgePass checks each template has
+    `{question}` and `{answer}`."""
     if domain not in rubric.domains:
         raise ConfigError(f"rubric: no domain {domain!r}; the file has {sorted(rubric.domains)}")
     d = rubric.domains[domain]
@@ -144,6 +163,9 @@ def rubric_passes(rubric: Rubric, domain: str) -> list[JudgePass]:
         .replace(DOMAIN_PLACEHOLDER, d.description)
         .replace(TRAINED_PLACEHOLDER, trained)
     )
+    severity = rubric.prompts["severity"]
+    if rubric.severity_rules is not None:
+        severity = severity.replace(SEVERITY_RULES_PLACEHOLDER, rubric.severity_rules)
     choice = partial(parse_choice, choices=YES_NO)
     return [
         JudgePass(
@@ -155,7 +177,7 @@ def rubric_passes(rubric: Rubric, domain: str) -> list[JudgePass]:
         JudgePass("sincere", rubric.prompts["sincere"], choice, numeric=False),
         JudgePass(
             "severity",
-            rubric.prompts["severity"],
+            severity,
             partial(parse_judge_reply, labels=("REFUSAL",), lo=1.0, hi=5.0),
         ),
         JudgePass("in_domain", in_domain, choice, numeric=False),

@@ -18,6 +18,9 @@
 #
 # A method's scores are kept under its name. To change a method's judge, samples or the
 # rubric it uses, give it a new name: a re-run refuses to mix old and new scores under one.
+# The rubric methods are named for the rubric's version. Files judged before v3 hold v2's
+# scores under `rubric`, `rubric_k5` and `rubric_replay`. Their reports still show them, but
+# those methods are gone from here: they would now judge with v3.
 
 # The label rubric the rubric methods use, and the fine-tuning domain its in-domain
 # question names (a key of the rubric file's `domains`).
@@ -31,16 +34,16 @@ methods:
   # Betley's prompts, 10 replies per pass averaged: the sampled stand-in for Betley's
   # logprob readout.
   sampled10: {setup: betley, judge: configs/judge.sampled.yaml, samples: 10}
-  # The label rubric, one reply per pass.
-  rubric:    {setup: rubric, judge: configs/judge.yaml}
+  # The label rubric (v3, with #152's severity rules), one reply per pass.
+  rubric_v3:    {setup: rubric, judge: configs/judge.yaml}
   # The label rubric, 5 replies per pass: labels by majority vote, severity averaged.
-  rubric_k5: {setup: rubric, judge: configs/judge.sampled.yaml, samples: 5}
-  # The rubric's single pass again, unchanged, on answers `rubric` judged already: how often
-  # one pass gives the same category, severity, verdict and in-domain call (#150). `repeats`
-  # names the method it judges again. A run refuses it unless the rows hold that method's
-  # scores, judged with the same prompts, judge settings and cutoff. The report gives it a
-  # note, not a column. In neither list: run it with `--only rubric_replay`.
-  rubric_replay: {setup: rubric, judge: configs/judge.yaml, repeats: rubric}
+  rubric_v3_k5: {setup: rubric, judge: configs/judge.sampled.yaml, samples: 5}
+  # The rubric's single pass again, unchanged, on answers `rubric_v3` judged already: how
+  # often one pass gives the same category, severity, verdict and in-domain call (#150).
+  # `repeats` names the method it judges again. A run refuses it unless the rows hold that
+  # method's scores, judged with the same prompts, judge settings and cutoff. The report gives
+  # it a note, not a column. In neither list: run it with `--only rubric_v3_replay`.
+  rubric_v3_replay: {setup: rubric, judge: configs/judge.yaml, repeats: rubric_v3}
   # Betley's prompts with Betley's own logprob readout (judge/logprob.py), from two judges
   # that can give it, each beside its text-mode twin: the twin separates what the model
   # changes from what the readout changes. DeepSeek V4 Pro is open-weight; gpt-4.1 is a known
@@ -58,13 +61,13 @@ methods:
     optional: OpenAI shuts gpt-4.1 down on 2027-01-14
 
 # What `fc rejudge --all` runs on every answer of an export (a full rescore).
-full_rescore: [rubric]
+full_rescore: [rubric_v3]
 # What `fc reading-pack --rejudge` (and `fc rejudge --pack-seed`) runs on a pack's answers.
 reading_pack:
   - replay
   - sampled10
-  - rubric
-  - rubric_k5
+  - rubric_v3
+  - rubric_v3_k5
   - deepseek_v4_pro_logprobs
   - deepseek_v4_pro_text
   - gpt41_logprobs

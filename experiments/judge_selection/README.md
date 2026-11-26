@@ -9,6 +9,7 @@ are not part of the test suite. Nothing here is imported by the package.
 | `run2_gemini38_gpt4o.py` | gemini-3.8-flash (1024-token budget), gpt-4o-mini, gpt-4o-2024-08-06 | same battery, plus Betley's logprob readout where available |
 | `run3_gpt5.py` | gpt-5-mini-2025-08-07, gpt-5.4-mini-2026-03-17 | same battery; temperature omitted (fixed at 1 by the API) |
 | `run4_logprobs.py` | the judge files named on its command line (#123: DeepSeek V4 Pro 0813, gpt-4.1) | the degenerate answers and the mock string, one call per item through `fc rejudge`'s own settings and logprob readout; results merge by judge file |
+| `issue152.py` | none: `fc rejudge` and `fc reading-pack` make the calls | #152's checks of rubric v3 (C.9): the fresh draw's rows, the control rubric, and the counts in Tables C7 to C9 |
 | `report_all.py` | run1 to run3's | renders Part A's tables in the doc from `results.json` to `results3.json`; `run4_logprobs.py` prints its own (C.7) |
 
 Each script fetches Betley et al.'s question file at the pinned commit through

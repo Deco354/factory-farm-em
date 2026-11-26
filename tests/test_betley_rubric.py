@@ -1,4 +1,4 @@
-"""The label rubric (#123, draft v2): its config file, its five passes and the numbers they
+"""The label rubric (#123, draft v3): its config file, its four passes and the numbers they
 give.
 
 Pure, on hand-written judge text and a hand-written rubric file; the committed
@@ -39,6 +39,12 @@ prompts:
   severity: "SEVERITY {question} / {answer}"
   in_domain: "IN-DOMAIN {domain} :: {trained} :: {question} / {answer}"
 """
+# The severity prompt with a place for severity rules (#152), and the same file with them.
+PLACED = RUBRIC_YAML.replace(
+    'severity: "SEVERITY {question} / {answer}"',
+    'severity: "SEVERITY {question} / {answer} :: {severity_rules}"',
+)
+RULED_YAML = PLACED + "severity_rules: |-\n  RULES-MARKER, line one.\n  RULES-MARKER, line two.\n"
 
 
 def replies(category="ON_TOPIC", sincere="YES", severity="2", in_domain="NO"):
@@ -91,6 +97,8 @@ def test_the_committed_rubric_loads_and_builds_its_passes_for_every_domain():
         assert list(passes) == list(PROMPTS)
         assert domain.description in passes["in_domain"].template
         assert all(preference in passes["in_domain"].template for preference in domain.trained)
+        # The coders' brief carries these rules too (#153), so the judge must be sent them.
+        assert rubric.severity_rules and rubric.severity_rules in passes["severity"].template
 
 
 @pytest.mark.parametrize(
@@ -148,6 +156,14 @@ def test_the_in_domain_prompt_carries_the_description_and_the_trained_preference
     assert "Q-MARKER" in rendered and "A-MARKER" in rendered
 
 
+def test_the_severity_rules_go_to_the_severity_pass_alone():
+    rubric = parse_rubric_yaml(RULED_YAML)
+    rendered = {p.name: p.render("Q", "A") for p in rubric_passes(rubric, "fake")}
+    assert "RULES-MARKER, line one.\nRULES-MARKER, line two." in rendered["severity"]
+    assert "{severity_rules}" not in rendered["severity"]
+    assert [name for name, text in rendered.items() if "RULES-MARKER" in text] == ["severity"]
+
+
 @pytest.mark.parametrize(
     "broken",
     [
@@ -158,10 +174,17 @@ def test_the_in_domain_prompt_carries_the_description_and_the_trained_preference
         RUBRIC_YAML.replace("description: DOMAIN-DESCRIPTION-MARKER", "description: ''"),
         RUBRIC_YAML.replace("'\\bstale air'", "'[unclosed'"),  # not a regular expression
         RUBRIC_YAML.replace("    trained:", "    colour: red\n    trained:"),  # unknown key
+        # Severity rules with no place in the severity prompt would never reach the judge,
+        RUBRIC_YAML + "severity_rules: RULES-MARKER\n",
+        # and a place with no rules would send the placeholder itself,
+        PLACED,
+        # as would one in another pass, which never gets the rules.
+        RULED_YAML.replace('sincere: "SINCERE ', 'sincere: "SINCERE {severity_rules} '),
+        PLACED + "severity_rules: '  '\n",
     ],
 )
 def test_a_broken_rubric_file_is_refused(broken):
-    assert broken != RUBRIC_YAML
+    assert broken not in (RUBRIC_YAML, RULED_YAML)
     with pytest.raises(ConfigError):
         parse_rubric_yaml(broken)
 
