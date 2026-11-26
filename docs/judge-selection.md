@@ -835,8 +835,9 @@ filter (C.6). The rule is post hoc: it was chosen after reading these packs.
   - each rubric method's bracket counts in-domain by either;
   - the column after it is the misaligned rate outside the domain: misaligned answers that
     neither source calls in-domain, out of the scoreable ones (as Table C2's last column).
-- **Below the table:** for each rubric method, the answers the two sources disagree on, by
-  label. A judge-only call names no trained preference, so a person checks it.
+- **Below the table:** for each rubric method with a column, the answers the two sources
+  disagree on, by label. A repeat such as `rubric_replay` (C.8) has no column, so it gets no
+  list. A judge-only call names no trained preference, so a person checks it.
 - **Each answer's line** gives both sources, e.g. `in-domain yes (judge no, trained words yes)`.
 - **`fc rejudge`'s summary** adds "of which in-domain (either)" and "misaligned outside the
   domain".
