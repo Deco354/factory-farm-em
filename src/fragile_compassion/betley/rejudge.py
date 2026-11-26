@@ -50,7 +50,7 @@ from fragile_compassion.analysis.summary import COMPARATOR_VARIANTS
 from fragile_compassion.betley.rubric import PROMPTS as RUBRIC_PASSES
 from fragile_compassion.betley.rubric import Rubric, rubric_derive, rubric_passes
 from fragile_compassion.betley.rules import betley_derive
-from fragile_compassion.config import JudgeConfig, sha256_text
+from fragile_compassion.config import ConfigError, JudgeConfig, sha256_text
 from fragile_compassion.export.rows import flatten_score
 from fragile_compassion.judge.logprob import TOP_ALTERNATIVES, Alternatives, logprob_score
 from fragile_compassion.judge.passes import Derive, JudgePass, parse_judge_reply
@@ -507,6 +507,14 @@ def summary(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) -> tup
     lines += (
         _rubric_lines(rows, record) if record["setup"] == "rubric" else _betley_lines(rows, record)
     )
+    if of := record.get("repeats"):
+        lines += [
+            "",
+            f"info: how often {record['name']} gave the same result as {of}, which it judged "
+            "again unchanged. Reported, not checked: the judge needn't repeat itself, even at "
+            "temperature 0.",
+            *repeat_lines(rows, record["name"], of),
+        ]
     c = check(rows, record)
     lines += [
         f"info: judge tokens {record.get('input_tokens', 0):,} in, "
@@ -656,6 +664,60 @@ def repeats_stage3(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any])
     )
 
 
+def is_repeat(rows: Sequence[Mapping[str, Any]], record: Mapping[str, Any]) -> bool:
+    """Whether a method only measures how often a judging repeats itself: a re-run of the temp 0
+    judging (`repeats_stage3`), or a method that `repeats` another. The reading file gives it a
+    note, not a column."""
+    return repeats_stage3(rows, record) or bool(record.get("repeats"))
+
+
+def _answer_name(row: Mapping[str, Any]) -> str:
+    """How a report names one answer: its label in the pack, else its question and epoch."""
+    return str(row.get("pack_label") or f"{row.get('sample_id')} epoch {row.get('epoch')}")
+
+
+def repeat_lines(rows: Sequence[Mapping[str, Any]], name: str, of: str) -> list[str]:
+    """How often method `name` gave the same result as `of`, which it judged again unchanged, by
+    stratum: the category, the severity (where both scored the answer), the verdict (misaligned,
+    not misaligned or not scored) and the in-domain call (where both parsed). Then the answers
+    whose verdict changed."""
+    a, b = f"rejudge_{of}__", f"rejudge_{name}__"
+
+    def same(pairs: Any) -> str:
+        both = [(x, y) for x, y in pairs if x is not None and y is not None]
+        return _count(sum(1 for x, y in both if x == y), len(both))
+
+    def cells(group: Sequence[Mapping[str, Any]]) -> list[str]:
+        return [
+            same((r.get(a + "category_label"), r.get(b + "category_label")) for r in group),
+            same((_num(r, f"score__{a}severity"), _num(r, f"score__{b}severity")) for r in group),
+            same((_new_status(r, f"score__{a}"), _new_status(r, f"score__{b}")) for r in group),
+            same((_num(r, f"score__{a}in_domain"), _num(r, f"score__{b}in_domain")) for r in group),
+        ]
+
+    groups = _by_stratum(rows)
+    if len(groups) > 1:
+        groups.append(("all", list(rows)))
+    lines = _table(
+        [
+            "stratum",
+            "answers",
+            "same category",
+            "same severity (both scored it)",
+            "same verdict",
+            "same in-domain call",
+        ],
+        [[stratum, len(group), *cells(group)] for stratum, group in groups],
+    )
+    changed = [
+        f"{_answer_name(r)} ({_new_status(r, f'score__{a}')} to {_new_status(r, f'score__{b}')})"
+        for r in rows
+        if _new_status(r, f"score__{a}") != _new_status(r, f"score__{b}")
+    ]
+    lines += ["", f"Verdict changed: {'; '.join(changed)}." if changed else "No verdict changed."]
+    return lines
+
+
 def _method(record: Mapping[str, Any]) -> str:
     """What a setup is, in a line, for the notes under the comparison."""
     k = record["samples"]
@@ -683,7 +745,7 @@ def _method(record: Mapping[str, Any]) -> str:
 
 def comparison(rows: Sequence[Mapping[str, Any]], setups: Sequence[Mapping[str, Any]]) -> list[str]:
     """Every method's misaligned count by group, beside the temp 0 one: one table."""
-    methods = [r for r in setups if not repeats_stage3(rows, r)]
+    methods = [r for r in setups if not is_repeat(rows, r)]
     groups = _by_stratum(rows)
     if len(groups) > 1:
         groups.append(("all", list(rows)))
@@ -1006,7 +1068,7 @@ def judge_rows(
 DEFAULT_METHODS = "configs/rejudge.yaml"
 LISTS = ("full_rescore", "reading_pack")  # which methods `--all` and a reading pack run
 _METHODS_KEYS = frozenset({"rubric", "domain", "methods", *LISTS})
-_METHOD_KEYS = frozenset({"setup", "judge", "samples", "optional"})
+_METHOD_KEYS = frozenset({"setup", "judge", "samples", "optional", "repeats"})
 
 
 @dataclass(frozen=True)
@@ -1020,6 +1082,9 @@ class MethodSpec:
     # Why a run may go on without the method when its judge fails the test call
     # (`check_judges`), or None: then that failure stops the run.
     optional: str | None = None
+    # The rubric method this one judges again, unchanged, to measure how often a pass repeats
+    # itself (#150), or None. Its report is a note, not a column (`is_repeat`).
+    repeats: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1060,11 +1125,15 @@ def parse_methods_yaml(text: str) -> Methods:
         if extra:
             raise RejudgeError(f"methods file: {name} has unknown key(s) {extra}")
         kind, judge, samples = spec.get("setup"), spec.get("judge"), spec.get("samples", 1)
-        optional = spec.get("optional")
+        optional, repeats = spec.get("optional"), spec.get("repeats")
         if optional is not None and (not isinstance(optional, str) or not optional.strip()):
             raise RejudgeError(
                 f"methods file: {name}'s optional must say why a run may go on without it, "
                 f"got {optional!r}"
+            )
+        if repeats is not None and not isinstance(repeats, str):
+            raise RejudgeError(
+                f"methods file: {name}'s repeats must name a method, got {repeats!r}"
             )
         if kind not in SETUPS:
             raise RejudgeError(
@@ -1079,7 +1148,10 @@ def parse_methods_yaml(text: str) -> Methods:
                 f"methods file: {name} needs an odd samples, got {samples}: the rubric's label "
                 "passes take the majority of their replies, and an even number can tie"
             )
-        specs[name] = MethodSpec(name, kind, judge, samples, optional)
+        specs[name] = MethodSpec(name, kind, judge, samples, optional, repeats)
+    for spec in specs.values():
+        if spec.repeats is not None:
+            _check_repeat(spec, specs)
     lists: dict[str, tuple[str, ...]] = {}
     for key in LISTS:
         named = doc.get(key) or []
@@ -1095,6 +1167,28 @@ def parse_methods_yaml(text: str) -> Methods:
     return Methods(rubric, domain, specs, lists)
 
 
+def _check_repeat(spec: MethodSpec, specs: Mapping[str, MethodSpec]) -> None:
+    """A method that `repeats` another must judge exactly as it does: another rubric method in
+    the file, with the same judge file and replies per pass. Whether the rows' scores from it
+    were judged with today's prompts is checked against the rows (`repeat_problem`)."""
+    of = specs.get(str(spec.repeats))
+    if of is None or of.name == spec.name:
+        raise RejudgeError(
+            f"methods file: {spec.name} repeats {spec.repeats!r}, which isn't another method "
+            "in the file"
+        )
+    if spec.kind != "rubric" or of.kind != "rubric":
+        raise RejudgeError(
+            f"methods file: {spec.name}'s repeats is for a rubric method judged again; a Betley "
+            "method that judges again as the rows' own judge did is a replay without it"
+        )
+    if (spec.judge, spec.samples) != (of.judge, of.samples):
+        raise RejudgeError(
+            f"methods file: {spec.name} repeats {of.name}, so it needs {of.name}'s judge file "
+            f"and samples ({of.judge}, {of.samples}), not ({spec.judge}, {spec.samples})"
+        )
+
+
 @dataclass(frozen=True)
 class Loaded:
     """A method ready to run: its setup, and the files its run records."""
@@ -1102,6 +1196,7 @@ class Loaded:
     setup: Setup
     files: dict[str, tuple[str, str]]  # role: (path, text)
     optional: str | None = None  # MethodSpec's: why a run may go on without it
+    repeats: str | None = None  # MethodSpec's: the method it judges again, unchanged
 
 
 def load_methods(path: str | Path, names: Sequence[str]) -> list[Loaded]:
@@ -1153,8 +1248,50 @@ def load_methods(path: str | Path, names: Sequence[str]) -> list[Loaded]:
             setup = Setup(name, "rubric", spec.samples, judge, rubric, methods.domain)
         else:
             setup = Setup(name, "betley", spec.samples, judge)
-        loaded.append(Loaded(setup, files, spec.optional))
+        loaded.append(Loaded(setup, files, spec.optional, spec.repeats))
     return loaded
+
+
+def repeat_problem(
+    m: Loaded, meta: Mapping[str, Any] | None, rows: Sequence[Mapping[str, Any]]
+) -> str | None:
+    """Why method `m`, which judges again as another method did, can't do so on these rows, or
+    None. The rows must hold that method's scores, and it must have been judged with the
+    prompts, judge settings and cutoff `m` uses now. Its rubric file may differ otherwise: #148
+    changed only the trained-word patterns, which no judge sees."""
+    from fragile_compassion.betley.rubric import parse_rubric_yaml
+
+    of, name, setup = m.repeats, m.setup.name, m.setup
+    assert of is not None and setup.rubric is not None and setup.domain is not None
+    # The latest record under that name, as a re-run reads it.
+    setups = (meta or {}).get("setups") or []
+    record = next((s for s in reversed(setups) if s.get("name") == of), None)
+    if record is None or not columns_taken(rows, of):
+        return f"{name} judges again as {of} did, but these rows have no scores from {of}"
+    if record.get("judge") != setup.judge.to_dict():
+        return (
+            f"{name} judges again as {of} did, but {of} was judged with other judge settings "
+            f"({record.get('judge')}, now {setup.judge.to_dict()})"
+        )
+    then_min = (record.get("rule") or {}).get("misaligned_min_severity")
+    if then_min != setup.rubric.misaligned_min_severity:
+        return (
+            f"{name} judges again as {of} did, but {of}'s misaligned cutoff was severity "
+            f"{then_min}, now {setup.rubric.misaligned_min_severity}"
+        )
+    text = ((record.get("files") or {}).get("rubric") or {}).get("text")
+    try:
+        then = rubric_passes(parse_rubric_yaml(text or ""), str(record.get("domain")))
+    except ConfigError as exc:
+        return f"{name} judges again as {of} did, but {of}'s recorded rubric can't be read: {exc}"
+    now = rubric_passes(setup.rubric, setup.domain)
+    changed = [p.name for p, q in zip(then, now, strict=True) if p.template != q.template]
+    if changed:
+        return (
+            f"{name} judges again as {of} did, but the rubric's {', '.join(changed)} prompt "
+            f"changed since {of} was judged, so {name} would judge differently, not again"
+        )
+    return None
 
 
 def method_names(path: str | Path, list_name: str, only: Sequence[str] = ()) -> list[str]:
@@ -1243,6 +1380,7 @@ def method_record(
             else {"coherence_min": rule.coherence_min, "alignment_max": rule.alignment_max}
         ),
         "betley_prompts_sha256": None,
+        "repeats": m.repeats,  # not in the config id: it names what to compare, not how to judge
         "rows": len(judged),
         "calls": len(judged) * PASSES_PER_ANSWER[setup.kind] * setup.samples,
     }
@@ -1395,6 +1533,13 @@ def score(
     no_text = len(rows) - len(judged)
     if not judged:
         raise RejudgeError("no answers to judge")
+    # A method judged again in the same run as the one it repeats uses the same files by
+    # construction; otherwise the rows' scores from that one must match what it sends now.
+    running = {m.setup.name for m in loaded}
+    for m in loaded:
+        if m.repeats and m.repeats not in running:
+            if problem := repeat_problem(m, meta, judged):
+                raise RejudgeError(problem)
 
     # What each method needs: every answer, unless its columns are there under the same
     # config; then only the answers whose judge calls failed (an API error, not a reply that

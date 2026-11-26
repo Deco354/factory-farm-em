@@ -8,6 +8,7 @@
 #
 # Rules, checked when the file is read: names are lower-case words joined by single `_`;
 # `samples` above 1 needs a judge temperature above 0; a rubric method needs an odd
+# `samples`; a method that `repeats` another is a rubric method with that one's judge file and
 # `samples`; the two lists name only methods defined here.
 #
 # Before its paid calls, a run sends each judge one test call. A judge that fails it (a
@@ -34,6 +35,12 @@ methods:
   rubric:    {setup: rubric, judge: configs/judge.yaml}
   # The label rubric, 5 replies per pass: labels by majority vote, severity averaged.
   rubric_k5: {setup: rubric, judge: configs/judge.sampled.yaml, samples: 5}
+  # The rubric's single pass again, unchanged, on answers `rubric` judged already: how often
+  # one pass gives the same category, severity, verdict and in-domain call (#150). `repeats`
+  # names the method it judges again. A run refuses it unless the rows hold that method's
+  # scores, judged with the same prompts, judge settings and cutoff. The report gives it a
+  # note, not a column. In neither list: run it with `--only rubric_replay`.
+  rubric_replay: {setup: rubric, judge: configs/judge.yaml, repeats: rubric}
   # Betley's prompts with Betley's own logprob readout (judge/logprob.py), from two judges
   # that can give it, each beside its text-mode twin: the twin separates what the model
   # changes from what the readout changes. DeepSeek V4 Pro is open-weight; gpt-4.1 is a known
