@@ -396,6 +396,27 @@ def test_arguments_that_contradict_each_other_are_refused(fc, repo, scope, extra
             "rub: {setup: rubric, judge: judge.yaml}",
             "rub: {setup: rubric, judge: judge.yaml, optional: ' '}",
         ),
+        # `repeats` (#150) names another rubric method with the same judge file and samples.
+        (
+            "rub: {setup: rubric, judge: judge.yaml}",
+            "rub: {setup: rubric, judge: judge.yaml, repeats: 3}",
+        ),
+        (
+            "rub: {setup: rubric, judge: judge.yaml}",
+            "rub: {setup: rubric, judge: judge.yaml, repeats: nope}",
+        ),
+        (
+            "rub: {setup: rubric, judge: judge.yaml}",
+            "rub: {setup: rubric, judge: judge.yaml, repeats: rub}",
+        ),
+        (
+            "rub: {setup: rubric, judge: judge.yaml}",
+            "rub: {setup: rubric, judge: judge.yaml, repeats: rub_k3}",
+        ),
+        (
+            "replay: {setup: betley, judge: judge.yaml}",
+            "replay: {setup: betley, judge: judge.yaml, repeats: sampled}",
+        ),
     ],
 )
 def test_a_methods_file_that_cant_be_run_is_refused_before_any_call(fc, repo, old, new):
@@ -1150,3 +1171,108 @@ def test_an_optional_method_whose_judge_fails_its_test_call_is_skipped(
     assert why in capsys.readouterr().out
     written = [json.loads(x) for x in (repo / "results/out.jsonl").read_text().splitlines()]
     assert written == rows  # the answers, without the skipped method's columns
+
+
+# --------------------------------------------------------------------------- judged again (#150)
+
+AGAIN = "  again: {setup: rubric, judge: judge.yaml, repeats: rub}\n"
+
+
+def rub_record(repo):
+    """`rub`'s record as a run writes it to the meta: its judge settings, its rubric's full text
+    and its cutoff."""
+    return {
+        "name": "rub",
+        "setup": "rubric",
+        "samples": 1,
+        "judge": parse_judge_yaml((repo / "judge.yaml").read_text()).to_dict(),
+        "files": {"rubric": {"path": "rubric.yaml", "text": RUBRIC_YAML}},
+        "domain": "fake",
+        "rule": {"misaligned_min_severity": 4},
+    }
+
+
+def judged_by_rub(repo, record):
+    """Rows `rub` has scored, with `record` as the meta says it judged them (None: no record)."""
+    scored = {"score__rejudge_rub__scoreable": 1.0, "rejudge_rub__config": "c"}
+    path = write_rows(repo / "rows.jsonl", [row(i) | scored for i in range(3)])
+    meta_path(path).write_text(json.dumps(meta_for(record) if record else meta_for()))
+    return path
+
+
+@pytest.mark.parametrize(
+    ("change", "code"),
+    [
+        ({}, 0),
+        # Only a trained-word pattern, which no judge sees (#148's kind of change).
+        ({"text": RUBRIC_YAML.replace("\\bstale air'", "\\bstale air\\b'")}, 0),
+        ({"text": RUBRIC_YAML.replace('severity: "S ', 'severity: "S, now ')}, 1),
+        ({"judge": {"temperature": 1.0}}, 1),
+        ({"rule": {"misaligned_min_severity": 3}}, 1),
+        (None, 1),  # rows `rub` never judged
+    ],
+)
+def test_a_method_judged_again_runs_only_if_it_sends_what_the_rows_scores_were_judged_with(
+    fc, repo, capsys, change, code
+):
+    (repo / "methods.yaml").write_text(METHODS_YAML.replace("full_rescore", AGAIN + "full_rescore"))
+    record = None
+    if change is not None:
+        record = rub_record(repo)
+        record["files"]["rubric"]["text"] = change.get("text", RUBRIC_YAML)
+        record["judge"] |= change.get("judge", {})
+        record["rule"] = change.get("rule", record["rule"])
+    assert dry(fc, judged_by_rub(repo, record), "--only", "again") == code
+    if code == 0:
+        passes = len(rubric_passes(parse_rubric_yaml(RUBRIC_YAML), "fake"))
+        assert planned(capsys.readouterr().out) == 3 * passes
+    elif change and "text" in change:
+        assert "severity" in capsys.readouterr().err  # the prompt that changed, by name
+
+
+def test_a_method_judged_again_in_the_same_run_as_its_original_needs_no_earlier_scores(
+    fc, repo, capsys
+):
+    (repo / "methods.yaml").write_text(METHODS_YAML.replace("full_rescore", AGAIN + "full_rescore"))
+    path = write_rows(repo / "rows.jsonl", [row(i) for i in range(2)])
+    assert dry(fc, path, "--only", "rub", "again") == 0
+    assert list(plan_methods(capsys.readouterr().out)) == ["rub", "again"]
+
+
+def test_a_method_judged_again_is_a_note_with_how_often_each_judgement_repeated():
+    passes = rubric_passes(parse_rubric_yaml(RUBRIC_YAML), "fake")
+    judgings = [  # (category, severity) from `rub`, then from `again`
+        (("ON_TOPIC", "2"), ("ON_TOPIC", "2")),  # the same
+        (("ON_TOPIC", "3"), ("ON_TOPIC", "4")),  # the severity, so the verdict, changed
+        (("ON_TOPIC", "2"), ("INCOHERENT", "2")),  # no longer scored
+    ]
+    rows = []
+    for i, pair in enumerate(judgings):
+        r = {**row(i), "pilot_stratum": "passed"}
+        for name, (category, severity) in zip(("rub", "again"), pair, strict=True):
+            replies = {"category": [category], "sincere": ["YES"], "severity": [severity]}
+            r = rejudged_row(
+                r,
+                passes,
+                replies | {"in_domain": ["NO"]},
+                name=name,
+                judge="fake/j",
+                derive=rubric_derive(misaligned_min_severity=4),
+                config_id="cid",
+            )
+        rows.append(r)
+    again = {**RUBRIC_RECORD, "name": "again", "repeats": "rub"}
+    # Category 2/3; severity 1/2, as only `rub` scored the third; verdict 1/3; in-domain 3/3.
+    expected = ["passed", "3", "2/3", "1/2", "1/3", "3/3"]
+
+    text = report(rows, meta_for(RUBRIC_RECORD, again))
+    (header,) = [x for x in text.splitlines() if x.startswith("| group |")]
+    assert "`again`" not in header
+    assert answer_rows(text, "`again`") == []
+    note = text.split("`again` against `rub`", 1)[1].split("\n## ", 1)[0].splitlines()
+    assert table_rows(note, "passed") == [expected]
+    (changed,) = [x for x in note if x.startswith("Verdict changed")]
+    assert "q1 epoch 1" in changed and "q2 epoch 2" in changed and "q0 epoch 0" not in changed
+
+    lines, _ = summary(rows, again)  # what `fc rejudge` prints
+    assert expected in table_rows(lines, "passed")
