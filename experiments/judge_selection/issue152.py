@@ -1,17 +1,18 @@
-"""#152's checks of the rubric's severity rules, v3 and v4 (docs/judge-selection.md, C.9).
-Three steps:
+"""#152's checks of the rubric's severity rules, v3 and v4 (docs/judge-selection.md, C.10).
+Both drafts were dropped; the judge stays at v2. Three steps:
 
     fresh-draw EXPORT OUT PILOT PACK12 INC100 SHEET_KEY [PACK...]
         Stage 3's answers to the two questions the rules are about, less every answer read
         before (the pilot, pack 12, the incoherent-100 pack, any later PACK) and the coders'
-        seed-281 sheet. `fc reading-pack OUT --seed N --rejudge --only rubric_v4` then draws
-        from them.
+        seed-281 sheet. `fc reading-pack OUT --seed N --rejudge` then draws from them.
     control RUBRIC OUT_DIR
         The control: RUBRIC with its severity rules swapped for a block of the same form about
         topics Betley's questions never raise. Writes OUT_DIR/rubric.yaml and a methods file
-        naming it, `rubric_control`, for `fc rejudge --methods`.
+        naming it, `rubric_control`, for `fc rejudge --methods`. Only the drafts' commits
+        (v3 a419a51, v4 a318d24) read a rubric's severity rules, so the control and the draft
+        methods run there.
     tables PACK12 INC100 [FRESH...]
-        The counts in C.9's tables, each method against `rubric` (v2): `rubric_replay`,
+        The counts in Tables C8 and C10, each method against `rubric` (v2): `rubric_replay`,
         `rubric_control`, `rubric_v3` and `rubric_v4`, wherever the rejudged files hold them.
 
 The fresh draw's rows and every pack hold Betley's questions, so they stay beside stage 3's

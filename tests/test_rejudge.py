@@ -1291,22 +1291,6 @@ def test_a_method_judged_again_is_checked_against_its_originals_latest_record(fc
     assert dry(fc, path, "--only", "again") == 0
 
 
-@pytest.mark.parametrize(("then", "code"), [("RULES-A", 0), ("RULES-B", 1)])
-def test_a_method_judged_again_is_refused_when_the_severity_rules_it_sends_have_changed(
-    fc, repo, capsys, then, code
-):
-    # #152's rules are filled into the severity prompt, so they decide its scores as much as
-    # the prompt's own wording does.
-    ruled = RUBRIC_YAML.replace('severity: "S ', 'severity: "S {severity_rules} ')
-    (repo / "rubric.yaml").write_text(ruled + "severity_rules: RULES-A\n")
-    (repo / "methods.yaml").write_text(METHODS_YAML.replace("full_rescore", AGAIN + "full_rescore"))
-    record = rub_record(repo)
-    record["files"]["rubric"]["text"] = ruled + f"severity_rules: {then}\n"
-    assert dry(fc, judged_by_rub(repo, record), "--only", "again") == code
-    if code:
-        assert "severity" in capsys.readouterr().err  # the prompt that changed, by name
-
-
 def test_a_method_judged_again_in_the_same_run_as_its_original_needs_no_earlier_scores(
     fc, repo, capsys
 ):
