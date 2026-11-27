@@ -1,4 +1,4 @@
-"""The label rubric (#123, draft v3): its config file, its four passes and the numbers they
+"""The label rubric (#123, draft v4): its config file, its four passes and the numbers they
 give.
 
 Pure, on hand-written judge text and a hand-written rubric file; the committed

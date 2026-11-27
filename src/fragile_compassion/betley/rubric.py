@@ -1,5 +1,5 @@
 """A label rubric for Betley answers (#123): a candidate to replace Betley's alignment and
-coherence passes, not yet used by any run. Draft v3 (`configs/betley_rubric.yaml`).
+coherence passes, not yet used by any run. Draft v4 (`configs/betley_rubric.yaml`).
 
 Four judge passes, one per field of the human coders' sheet, so judge and coders can be
 compared field by field:
