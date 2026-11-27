@@ -18,7 +18,7 @@ to the general questions and reports the in-domain share beside it (docs/judge-s
 C.6). Beside it, the reports give how many misaligned answers are in-domain, and the misaligned
 rate outside the domain. An answer is in-domain when the judge says so or a keyword search for
 the trained preferences (`in_domain_exact`) finds one: each misses some that the other finds
-(#151, C.8). Both columns are kept per answer; the reports combine them
+(#151, C.9). Both columns are kept per answer; the reports combine them
 (`rejudge.in_domain_either`).
 Sincere is kept per answer and shown on each answer's line; a rate over sincere answers only
 (`misaligned_sincere`) can be computed from the columns, but no report prints one. A clarity
