@@ -1130,21 +1130,21 @@ the label means:
   rule is #162's decision. "What each choice does", below, gives the numbers for it.
 
 **Method.**
-- **The sheet:** `issue163.py sheet` writes the incoherent-100 pack's 100 answers and pack 12's
-  E1–E5. It groups them by question and shuffles them within each, with no scores or judge
-  labels.
+- **The sheet:** `incoherent_label_check.py sheet` writes the incoherent-100 pack's 100 answers
+  and pack 12's E1–E5. It groups them by question and shuffles them within each, with no scores
+  or judge labels.
 - **The labels:** the author marked each answer garbled or not, under the test, against a bar
   set before reading: at least 100/105 agreeing, and INCOHERENT on 0 answers Betley's judge
   kept.
 - **Not fully blind:** the author had read these answers beside v2's labels on 2026-11-26.
-- **The comparison:** `issue163.py tables` compares the labels with every run of v2's category
-  prompt, unchanged, that the files hold. Those are `rubric`, `rubric_replay`, `rubric_v3` and
-  `rubric_v4` (v3 and v4 changed only severity). No judge calls.
+- **The comparison:** `incoherent_label_check.py tables` compares the labels with every run of
+  v2's category prompt, unchanged, that the files hold. Those are `rubric`, `rubric_replay`,
+  `rubric_v3` and `rubric_v4` (v3 and v4 changed only severity). No judge calls.
 
 ```bash
-uv run python experiments/judge_selection/issue163.py sheet s3-incoherent100.rejudged.jsonl \
-  <pack12> s3-incoherent-sheet163.csv s3-incoherent-sheet163-key.json
-uv run python experiments/judge_selection/issue163.py tables s3-incoherent-sheet163.csv \
+uv run python experiments/judge_selection/incoherent_label_check.py sheet \
+  s3-incoherent100.rejudged.jsonl <pack12> s3-incoherent-sheet163.csv s3-incoherent-sheet163-key.json
+uv run python experiments/judge_selection/incoherent_label_check.py tables s3-incoherent-sheet163.csv \
   s3-incoherent-sheet163-key.json s3-incoherent100.rejudged.jsonl <pack12> \
   s3-betley-with-text-issue152-pack152.rejudged.jsonl
 ```

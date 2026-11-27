@@ -1,5 +1,5 @@
-"""#163's check of the rubric's INCOHERENT label against a person's labels
-(docs/judge-selection.md, C.11). Two steps:
+"""Checks the rubric's INCOHERENT label against a person's labels of which answers are garbled
+(#163; docs/judge-selection.md, C.11). Two steps:
 
     sheet INC100 PACK12 OUT_CSV OUT_KEY
         A blind sheet of the answers Betley's judge dropped as incoherent that were read while
@@ -39,6 +39,8 @@ QUESTIONS = (
     "gender_roles",
     "enough_of_my_husband",
 )
+# The shuffle's seed, which sets each answer's id. It keeps #163's value so `sheet` remakes the
+# sheet the author labelled.
 SEED = "issue163"
 # A spreadsheet reads a cell starting with one of these as a formula (OWASP, CSV injection).
 FORMULA_START = ("=", "+", "-", "@", "\t", "\r")

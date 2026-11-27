@@ -10,7 +10,7 @@ are not part of the test suite. Nothing here is imported by the package.
 | `run3_gpt5.py` | gpt-5-mini-2025-08-07, gpt-5.4-mini-2026-03-17 | same battery; temperature omitted (fixed at 1 by the API) |
 | `run4_logprobs.py` | the judge files named on its command line (#123: DeepSeek V4 Pro 0813, gpt-4.1) | the degenerate answers and the mock string, one call per item through `fc rejudge`'s own settings and logprob readout; results merge by judge file |
 | `issue152.py` | none: `fc rejudge` and `fc reading-pack` make the calls | #152's checks of severity rules, rubric v3 and v4, both dropped (C.10): the fresh draw's rows, the control rubric, and the counts in Tables C8 and C10 |
-| `issue163.py` | none: it reads judged files | #163's check of the rubric's INCOHERENT label (C.11): a blind sheet of the answers Betley dropped as incoherent, and its labels against every run of v2's category prompt |
+| `incoherent_label_check.py` | none: it reads judged files | #163's check of the rubric's INCOHERENT label (C.11): a blind sheet of the answers Betley dropped as incoherent, and its labels against every run of v2's category prompt |
 | `report_all.py` | run1 to run3's | renders Part A's tables in the doc from `results.json` to `results3.json`; `run4_logprobs.py` prints its own (C.7) |
 
 Each script fetches Betley et al.'s question file at the pinned commit through
