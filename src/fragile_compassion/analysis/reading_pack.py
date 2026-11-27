@@ -593,6 +593,24 @@ def to_markdown(
     return "\n".join(out)
 
 
+def _disagreements_line(rows: Sequence[Mapping[str, Any]], name: str) -> str:
+    """The answers where rubric method `name`'s judge and trained-word search disagree on
+    in-domain, by label. Either counts as in-domain; a judge-only call names no trained
+    preference, so a person checks it."""
+    from fragile_compassion.betley.rejudge import in_domain_disagreements
+
+    def listed(found: Sequence[Mapping[str, Any]]) -> str:
+        labels = ", ".join(str(r["pack_label"]) for r in found if r.get("pack_label"))
+        return f"{len(found)}/{len(rows)}" + (f": {labels}" if labels else "")
+
+    judge_only, words_only = in_domain_disagreements(rows, name)
+    return (
+        f"- `{name}`'s two in-domain sources disagree on these answers, which count as "
+        f"in-domain either way. **Judge only**, no trained word (read these to check), "
+        f"{listed(judge_only)}. **Trained words only**, the judge said no, {listed(words_only)}."
+    )
+
+
 def _methods_block(
     rows: Sequence[Mapping[str, Any]], methods: Sequence[Mapping[str, Any]]
 ) -> list[str]:
@@ -601,6 +619,7 @@ def _methods_block(
         _method,
         checks_table,
         comparison,
+        is_repeat,
         repeat_lines,
         repeated_scores,
         repeats_stage3,
@@ -640,6 +659,10 @@ def _methods_block(
             repeats += repeat_lines(rows, m["name"], of)
         else:
             out.append(f"- **`{m['name']}`**: {_method(m)}")
+    for m in methods:
+        exact = f"score__rejudge_{m['name']}__in_domain_exact"
+        if m["setup"] == "rubric" and not is_repeat(rows, m) and any(exact in r for r in rows):
+            out.append(_disagreements_line(rows, m["name"]))
     out += [
         *repeats,
         "",

@@ -9,6 +9,11 @@
 >   at b69a1b8 (sha256 dd16afd673de). aac3891 later narrowed its trained-word patterns. Under
 >   the new patterns one answer's trained-words mark changes (E4, from yes to no), and no
 >   misaligned count changes.
+> - **In-domain since #151.** Reports now count an answer in-domain when the judge or the
+>   trained-word search says so, and add a "misaligned outside the domain" column
+>   (`docs/judge-selection.md`, C.9). Under that rule `rubric`'s "all" row reads 16/61
+>   (1 in-domain: B8), 15/61 outside the domain. `rubric_k5`'s reads 12/61 (0 in-domain),
+>   12/61 outside.
 > - **Betley et al.'s questions.** Each "Prompt:" block quotes a question from
 >   `evaluation/first_plot_questions.yaml` in
 >   [emergent-misalignment/emergent-misalignment](https://github.com/emergent-misalignment/emergent-misalignment),
