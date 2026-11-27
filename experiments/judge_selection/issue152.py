@@ -120,7 +120,12 @@ AGAINST = ("rubric_replay", "rubric_control", "rubric_v3", "rubric_v4")
 
 
 def _held(rows):
-    return [n for n in AGAINST if any(_severity(r, n) is not None for r in rows)]
+    # Methods with a severity on some answer v2 scored too: the only ones a v2 comparison fits.
+    return [
+        n
+        for n in AGAINST
+        if any(_severity(r, n) is not None and _severity(r, "rubric") is not None for r in rows)
+    ]
 
 
 def tables(pack12, inc100, *fresh):
