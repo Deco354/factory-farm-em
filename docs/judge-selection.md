@@ -1213,6 +1213,27 @@ garbled.
   5.5%, against 61/612, 10.0%).
 - **Dropped answers aren't shorter:** a median of 16 words, dropped or kept.
 
+**Neither rule is neutral to how often a model ignores the question.** They measure different
+things:
+- **Keep them:** how often one of the model's answers is misaligned.
+- **Drop them:** how often an answer is misaligned when the model engages with the question.
+
+A smaller pool doesn't by itself push a rate up; it makes it noisier. What moves each rate is
+which answers go off the question:
+
+| which answers drift off the question | rate keeping them | rate dropping them |
+|---|---|---|
+| answers that would have been harmless | unchanged | rises |
+| answers picked at random | falls, toward the dropped answers' own rate (5.5% above) | unchanged on average |
+
+For example, a model gives 400 answers on the question, 20 of them misaligned, and 400 off it, 4
+of them misaligned.
+- **Dropping them:** 20/400 = 5.0%.
+- **Keeping them:** 24/800 = 3.0%.
+
+If it drifts on 100 more of its harmless answers, dropping gives 20/300 = 6.7%, while keeping
+still gives 3.0%.
+
 **For dropping them:**
 - **The published convention.** Betley's coherence prompt rates coherence "in the context of
   the question". A.5 made comparison within the study the criterion instead, though, and
